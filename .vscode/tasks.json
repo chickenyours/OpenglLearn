@@ -1,0 +1,67 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "cppbuild",
+			"label": "ALL",
+			"command": "C:/Mydata/x86_64-14.2.0-release-win32-seh-msvcrt-rt_v12-rev0/mingw64/bin/g++.exe",
+			"args": [
+				"-std=c++2a",
+				"-fdiagnostics-color=always",
+				"-g",
+				"-I${workspaceFolder}/include",
+				"-I${workspaceFolder}/",
+				"${file}",
+				"${workspaceFolder}/code/shader.cpp",
+				"${workspaceFolder}/code/Material/material.cpp",
+				"${workspaceFolder}/code/Texture/texture.cpp",
+				"${workspaceFolder}/code/Model/mesh.cpp",
+				"${workspaceFolder}/code/Model/model_animation.cpp",
+				"${workspaceFolder}/code/Model/bone.cpp",
+				"${workspaceFolder}/code/Model/animation.cpp",
+				"${workspaceFolder}/code/Model/animator.cpp",
+				"${workspaceFolder}/include/stb_image.cpp",
+				"-L${workspaceFolder}/lib",
+				"-lglfw3dll",
+				"-lglad",
+				"-lassimp.dll",
+				"-ljsonloader",
+				"-o",
+				"${workspaceFolder}/bin/a.exe",
+			],
+			"options": {
+				"cwd": "${fileDirname}"
+			},
+			"problemMatcher": [
+				"$gcc"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"detail": "compiler: C:\\Users\\16620\\Desktop\\lingshi\\mingw64\\bin\\g++.exe"
+		},
+		{
+			"type": "cppbuild",
+			"label": "Makefile",
+			"command": "C:/Mydata/x86_64-14.2.0-release-win32-seh-msvcrt-rt_v12-rev0/mingw64/bin/mingw32-make.exe",
+			"args": [
+				"-f",
+				"${workspaceFolder}/Makefile",
+				"all",
+				"TARGET=${relativeFile}"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": [
+				"$gcc"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"detail": "compiler: C:\\Users\\16620\\Desktop\\lingshi\\mingw64\\bin\\g++.exe"
+		}
+	]
+}

@@ -8,4 +8,6 @@
 /devel/
 
 # 仅忽略根目录下的 bin 目录
-/bin/
+/bin/models/
+
+/bin/images/

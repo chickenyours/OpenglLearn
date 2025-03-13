@@ -12,7 +12,6 @@ class Shader{
         unsigned int _shaderType;
         unsigned int _shaderID;
     public:
-        static const string SHADER_BASE_PATH;
         Shader(int shaderType,string filePath);
         unsigned int getShaderID();
         unsigned int getShaderType();

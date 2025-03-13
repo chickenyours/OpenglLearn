@@ -18,8 +18,8 @@ using namespace std;
 namespace Render{
     struct Vertex {
         glm::vec3 Position;
-        glm::vec3 Normal;
         glm::vec2 TexCoords;
+        glm::vec3 Normal;
         glm::vec3 Tangent;
         glm::vec3 Bitangent;
         int m_BoneIDs[MAX_BONE_INFLUENCE];
@@ -32,10 +32,14 @@ namespace Render{
         void Draw();
         void SetMaterial(Material* material);
         int GetMaterialIndex();
+        void Print();
+        ~Mesh();
     private:
         unsigned int materialIndex;
         Material* _material;
         unsigned int VAO;
+        unsigned int VBO, EBO;
+        unsigned int verticesSize;
         unsigned int indicesSize;
         void setupMesh(vector<Vertex> vertices, vector<unsigned int> indices);
     };

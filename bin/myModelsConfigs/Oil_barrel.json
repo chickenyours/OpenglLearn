@@ -1,22 +1,21 @@
 {
     "name": "Oil_barrel",
-    "path": "models/Oil_barrel/",
-    "model": "Oil_barrel.fbx",
+    "model": "models/Oil_barrel/Oil_barrel.fbx",
     "materials":[
         {
             "name": "Oil_barrel",
             "type": "Material/PBR",
             "shaderProgramPath": {
-                "vertexShader": "shaders/Final/base_rander_world.vs",
-                "fragmentShader": "shaders/Final/.fs",
+                "vertexShader": "shaders/Final/base_render_world.vs",
+                "fragmentShader": "shaders/Final/PBR.fs",
                 "geometryShader": ""
             },
             "textures": {
-                "albedo": ["textures/Oil_barrel_Albedo.png",0],
-                "normal":  ["textures/Oil_barrel_Normal.png",1],
-                "metallic": ["textures/Oil_barrel_Metallic.png",2],
-                "roughness": ["textures/Oil_barrel_Roughness.png",3],
-                "ao": ["textures/Oil_barrel_AO.png",4]
+                "albedo": ["models/Oil_barrel/textures/Oil_barrel_Albedo.png",0],
+                "normal":  ["models/Oil_barrel/textures/Oil_barrel_Normal.png",1],
+                "metallic": ["models/Oil_barrel/textures/Oil_barrel_Metallic.png",2],
+                "roughness": ["models/Oil_barrel/textures/Oil_barrel_Roughness.png",3],
+                "ao": ["models/Oil_barrel/textures/Oil_barrel_AO.png",4]
             },
             "properties":{
                 "float":{
@@ -26,7 +25,8 @@
                 "int":{},
                 "vec3":{},
                 "vec4":{},
-                "mat4":{}
+                "mat4":{},
+                "flags":[true,true]
     
             }
         }

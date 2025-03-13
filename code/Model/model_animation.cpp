@@ -12,18 +12,20 @@ Model::Model(string const &materialConfigPath)
         return;
     }
     // 获取模型文件地址
-    string path = _modelConfigJson["path"].asString();
     string modelFile = _modelConfigJson["model"].asString();
 
     // 加载模型文件
     Assimp::Importer importer;
-    const aiScene* scene = importer.ReadFile(path + modelFile, aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_CalcTangentSpace);
+    const aiScene* scene = importer.ReadFile(modelFile, aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_CalcTangentSpace);
     if(!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
     {
         cout << "ERROR::ASSIMP:: " << importer.GetErrorString() << endl;
         return;
     }
-    directory = path.substr(0, path.find_last_of('/'));
+
+    name = modelFile.substr(modelFile.find_last_of('/') + 1);
+    // 获取模型目录
+    directory = modelFile.substr(0, modelFile.find_last_of('/'));
 
     // 读取模型文件并加载模型
     LoadModel(scene);
@@ -77,7 +79,6 @@ Mesh Model::ProcessMesh(aiMesh* mesh, const aiScene* scene)
 {
     vector<Vertex> vertices;
     vector<unsigned int> indices;
-    vector<Texture> textures;
 
     for (unsigned int i = 0; i < mesh->mNumVertices; i++)
     {
@@ -212,5 +213,23 @@ void Model::LoadAllMaterials(){
 void Model::SetMeshesMaterial(){
     for(int i = 0;i < meshes.size();i++){
         meshes[i].SetMaterial(&materials[meshes[i].GetMaterialIndex()]);
+    }
+}
+
+void Model::Print(){
+    cout<<"Model: "<<endl;
+    cout<<"Name: "<<name<<endl;
+    cout<<"Directory: "<<directory<<endl;
+    cout<<"meshes Count: "<<meshes.size()<<endl;
+    cout<<"materials Count: "<<materials.size()<<endl;
+    cout<<"Bone Count: "<<m_BoneCounter<<endl;
+    for(int i = 0; i< meshes.size();i++){
+        cout<<"Mesh "<<i<<endl;
+        meshes[i].Print();
+    }
+    
+    for(int i = 0;i < materials.size();i++){
+        cout << "Material " << i << " : " << materials[i].name << endl;
+        materials[i].Print();
     }
 }

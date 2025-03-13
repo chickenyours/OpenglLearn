@@ -1,5 +1,7 @@
 #include "mesh.h"
+#include <iostream>
 
+using namespace std;
 using namespace Render;
 
 Mesh::Mesh(vector<Vertex> vertices, vector<unsigned int> indices, unsigned int materialIndex):VAO(0)
@@ -30,7 +32,6 @@ void Mesh::Draw()
 void Mesh::setupMesh(vector<Vertex> vertices, vector<unsigned int> indices)
 {
     glGenVertexArrays(1, &VAO);
-    unsigned int VBO,EBO;
     glGenBuffers(1, &VBO);
     glGenBuffers(1, &EBO);
     glBindVertexArray(VAO);
@@ -41,9 +42,9 @@ void Mesh::setupMesh(vector<Vertex> vertices, vector<unsigned int> indices)
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, Normal));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, TexCoords));
     glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, TexCoords));
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, Normal));
     glEnableVertexAttribArray(3);
     glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, Tangent));
     glEnableVertexAttribArray(4);
@@ -53,6 +54,8 @@ void Mesh::setupMesh(vector<Vertex> vertices, vector<unsigned int> indices)
     glEnableVertexAttribArray(6);
     glVertexAttribPointer(6, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, m_Weights));
     glBindVertexArray(0);
+    verticesSize = vertices.size();
+    indicesSize = indices.size();
 }
 
 void Mesh::SetMaterial(Material* material)
@@ -63,4 +66,17 @@ void Mesh::SetMaterial(Material* material)
 int Mesh::GetMaterialIndex()
 {
     return materialIndex;
+}
+
+void Mesh::Print(){
+    cout << "Mesh material index: " << materialIndex << endl;
+    cout << "Mesh VAO: " << VAO << endl;
+    cout << "Mesh indices size: " << indicesSize << endl;
+}
+
+Mesh::~Mesh()
+{
+    glDeleteVertexArrays(1, &VAO);
+    glDeleteBuffers(1, &VBO);
+    glDeleteBuffers(1, &EBO);
 }

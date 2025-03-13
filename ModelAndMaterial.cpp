@@ -76,10 +76,8 @@ int main()
     glm::mat4 view          = glm::lookAt(camPos,camPos+camFront,camUp);
     glm::mat4 projection    = glm::perspective(glm::radians(45.0f),(float)SCR_WIDTH/(float)SCR_HEIGHT,0.1f,500.0f);
 
-    // Assimp::Importer improter;
-    // const aiScene* scene = improter.ReadFile("bin/models/Oil_barrel/Oil_barrel.obj",aiProcess_Triangulate | aiProcess_FlipUVs);
-    // print(scene->mMeshes);
     Render::Model m("./myModelsConfigs/Oil_barrel.json");
+    m.Print();
 
     //循环
     while (!glfwWindowShouldClose(window))

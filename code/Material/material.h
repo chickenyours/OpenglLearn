@@ -27,6 +27,11 @@ using namespace std;
 #define CUSTOM_TEXTURE_START 16
 
 namespace Render{
+
+    enum MaterialPropertyFlag{
+        MATERIAL_SHADOW_OPAQUE = 1     ,
+        MATERIAL_SHADOW_CAST   = 1 <<1 
+    };
     
     struct Material{
         static map<string, float> GlobalFloatParameterMap;
@@ -48,8 +53,12 @@ namespace Render{
         map<string, glm::vec3> vec3ParameterMap;
         map<string, glm::vec4> vec4ParameterMap;
         map<string, glm::mat4> mat4ParameterMap;
+        // 材质属性掩码
+        int propertyFlag;
         // 材质持有的着色器
         ShaderProgram* shaderProgram = nullptr;
+        // 材质的构造函数
+        Material();
         // 设置材质的着色器
         void SetShaderParams();
         // 加载材质的参数
@@ -58,5 +67,7 @@ namespace Render{
         void LoadParameterFromConfigFile(const Json::Value& materialJson);
         // 尝试加载所有的纹理
         void LoadAllTexture();
+
+        void Print();
     }; 
 }

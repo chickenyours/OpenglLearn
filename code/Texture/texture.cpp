@@ -7,12 +7,12 @@
 using namespace std;
 using namespace Render;
 
-Texture::Texture(string type, string path):_type(type),_path(path),id(0){}
+Texture::Texture(string type, string path, unsigned int channel):_type(type),_path(path),_id(0),_channel(channel){}
 
 bool Texture::Load()
 {
-    glGenTextures(1, &id);
-    glBindTexture(GL_TEXTURE_2D, id);
+    glGenTextures(1, &_id);
+    glBindTexture(GL_TEXTURE_2D, _id);
     // set the texture wrapping parameters
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -47,7 +47,7 @@ bool Texture::Load()
 
 unsigned int Texture::GetID()
 {
-    return id;
+    return _id;
 }
 
 string Texture::GetPath()
@@ -57,8 +57,11 @@ string Texture::GetPath()
 
 
 Texture::~Texture(){
-    if(id != 0){
-        glDeleteTextures(1, &id);
+    if(_id != 0){
+        glDeleteTextures(1, &_id);
     }
 }
 
+void Texture::Print(){
+    cout<<"Texture "<<_path<<"Channel "<< _channel <<endl;
+}

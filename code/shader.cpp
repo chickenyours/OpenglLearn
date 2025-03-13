@@ -3,11 +3,10 @@
 #include <fstream>
 #include <cstring>
 
-const string Shader::SHADER_BASE_PATH = "./shader/";
 
 Shader::Shader(int shaderType,string filePath) : _shaderType(shaderType){
     //read shaderSource from file
-        string shaderPath = SHADER_BASE_PATH + filePath;
+        string shaderPath = filePath;
         std::ifstream infile(shaderPath,std::ios::binary);
         if (infile.is_open())
         {
@@ -34,7 +33,7 @@ Shader::Shader(int shaderType,string filePath) : _shaderType(shaderType){
         }
         else
         {
-            std::cout << "ERROR OPEN FILE!" << std::endl;
+            std::cout << "ERROR OPEN FILE:" << shaderPath << std::endl;
             return;
         }
     }

@@ -39,7 +39,11 @@ namespace Render{
         std::map<std::string,BoneInfo>& GetBoneInfoMap();
         // 获取登记过的骨骼数量
         int& GetBoneCount();
+
+        void Print();
     private:
+        // 模型的名称
+        string name;
         // 模型的目录
         string directory;
         // 模型持有的网格

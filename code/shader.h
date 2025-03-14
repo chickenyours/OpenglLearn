@@ -11,10 +11,12 @@ class Shader{
     private:
         unsigned int _shaderType;
         unsigned int _shaderID;
+        string _name;
     public:
         Shader(int shaderType,string filePath);
         unsigned int getShaderID();
         unsigned int getShaderType();
+        inline string GetName(){return _name;}
         ~Shader();
 };
 
@@ -22,12 +24,15 @@ class ShaderProgram{
     private:
         unsigned int _shaderProgramID;
         void Load(Shader* vertexShader,Shader* fragShader,Shader* geometryShader = nullptr);
+        string _name;
     public:
         ShaderProgram(Shader* vertexShader,Shader* fragShader,Shader* geometryShader = nullptr);
         ShaderProgram(string vertexShaderPath,string fragShaderPath,string geometryShaderPath = "");
         ~ShaderProgram();
+        inline string GetName(){return _name;}
         void Use();
         int getShaderProgramID();
+        void Print(int tabs = 0);
 };
 
 inline void ShaderU1i(ShaderProgram& program,const string& uniform,int v){

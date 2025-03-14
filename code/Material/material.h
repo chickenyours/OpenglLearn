@@ -33,41 +33,45 @@ namespace Render{
         MATERIAL_SHADOW_CAST   = 1 <<1 
     };
     
-    struct Material{
-        static map<string, float> GlobalFloatParameterMap;
-        static map<string, int> GlobalIntParameterMap;
-        static map<string, glm::vec3> GlobalVec3ParameterMap;
-        static map<string, glm::vec4> GlobalVec4ParameterMap;
-        static map<string, glm::mat4> GlobalMat4ParameterMap;
-        // 材质的名称
-        string name;
-        // 材质的ID(目前没有开发)
-        int id;
-        // 材质持有的纹理资源
-        vector<Texture> textures;
-        // 纹理通道,和m_TextureMap对齐,值为通道值
-        vector<GLuint> textureChannel;
-        // 材质的参数,在Json文件中的类型标记分别是: float int vec3 vec4 mat4
-        map<string, float> floatParameterMap;
-        map<string, int> intParameterMap;
-        map<string, glm::vec3> vec3ParameterMap;
-        map<string, glm::vec4> vec4ParameterMap;
-        map<string, glm::mat4> mat4ParameterMap;
-        // 材质属性掩码
-        int propertyFlag;
-        // 材质持有的着色器
-        ShaderProgram* shaderProgram = nullptr;
-        // 材质的构造函数
-        Material();
-        // 设置材质的着色器
-        void SetShaderParams();
-        // 加载材质的参数
-        void LoadParameterFromModelAiMaterial(const aiMaterial& material);
-        // 加载材质的参数
-        void LoadParameterFromConfigFile(const Json::Value& materialJson);
-        // 尝试加载所有的纹理
-        void LoadAllTexture();
+    class Material{
+        public:
+            static map<string, float> GlobalFloatParameterMap;
+            static map<string, int> GlobalIntParameterMap;
+            static map<string, glm::vec3> GlobalVec3ParameterMap;
+            static map<string, glm::vec4> GlobalVec4ParameterMap;
+            static map<string, glm::mat4> GlobalMat4ParameterMap;
+            // 材质的名称
+            string name;
+            // 材质的ID(目前没有开发)
+            int id;
+            // 材质持有的纹理资源
+            vector<Texture> textures;
+            // 纹理通道,和m_TextureMap对齐,值为通道值
+            vector<GLuint> textureChannel;
+            // 材质的参数,在Json文件中的类型标记分别是: float int vec3 vec4 mat4
+            map<string, float> floatParameterMap;
+            map<string, int> intParameterMap;
+            map<string, glm::vec3> vec3ParameterMap;
+            map<string, glm::vec4> vec4ParameterMap;
+            map<string, glm::mat4> mat4ParameterMap;
+            // 材质属性掩码
+            int propertyFlag;
+            // 材质持有的着色器
+            ShaderProgram* shaderProgram = nullptr;
+            // 材质的构造函数
+            Material(const aiMaterial& material, const Json::Value& materialJson);
 
-        void Print();
+            ~Material();
+            // 设置材质的着色器
+            void SetShaderParams();
+            // 加载材质的参数
+            void LoadParameterFromModelAiMaterial(const aiMaterial& material);
+            // 加载材质的参数
+            void LoadParameterFromConfigFile(const Json::Value& materialJson);
+            // 尝试加载所有的纹理
+            void LoadAllTexture();
+
+            void Print(int tabs = 0);
+
     }; 
 }

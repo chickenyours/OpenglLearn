@@ -67,7 +67,9 @@
         "stop_token": "cpp",
         "text_encoding": "cpp",
         "variant": "cpp",
-        "cassert": "cpp"
+        "cassert": "cpp",
+        "condition_variable": "cpp",
+        "mutex": "cpp"
     },
     "cmake.sourceDirectory": "C:/Users/16620/Desktop/projects/OpenglLearn/include/glm"
 }

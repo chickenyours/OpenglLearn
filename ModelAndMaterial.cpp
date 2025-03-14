@@ -20,7 +20,7 @@ void processInput(GLFWwindow *window);
 void mouse_callback(GLFWwindow *window,double xpos,double ypos);
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
 //camera
-glm::vec3 camPos(0.0,100.0,0.0);
+glm::vec3 camPos(0.0,0.0,3.0);
 glm::vec3 camFront(0.0f,0.0f,-1.0f);
 glm::vec3 camUp(0.0f,1.0f,0.0f);
 float pitch = 0.0f;
@@ -72,12 +72,12 @@ int main()
     glfwSetCursorPosCallback(window,mouse_callback);
     glfwSetKeyCallback(window, keyCallback);
     //初始化的代码写在这里：
-    glm::mat4 model(1.0f);
+    const glm::mat4 model(1.0f);
     glm::mat4 view          = glm::lookAt(camPos,camPos+camFront,camUp);
     glm::mat4 projection    = glm::perspective(glm::radians(45.0f),(float)SCR_WIDTH/(float)SCR_HEIGHT,0.1f,500.0f);
 
     Render::Model m("./myModelsConfigs/Oil_barrel.json");
-    m.Print();
+    m.Print(0);
 
     //循环
     while (!glfwWindowShouldClose(window))
@@ -123,10 +123,13 @@ int main()
         view = glm::lookAt(camPos,camFront+camPos,camUp);
 
         //逻辑处理代码写在这里：
-        Render::Material::GlobalMat4ParameterMap["view"] = view; 
         Render::Material::GlobalMat4ParameterMap["projection"] = projection;
+        Render::Material::GlobalMat4ParameterMap["view"] = view; 
+        Render::Material::GlobalMat4ParameterMap["model"] = glm::scale(model,glm::vec3(0.05));
+        Render::Material::GlobalVec3ParameterMap["viewPos"] = camPos;
+        Render::Material::GlobalFloatParameterMap["iTime"] = currentTime;
         //渲染
-        glClearColor(0.05f, 0.05f, 0.05f, 1.0f);
+        glClearColor(0.25f, 0.05f, 0.05f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         m.Draw();
         

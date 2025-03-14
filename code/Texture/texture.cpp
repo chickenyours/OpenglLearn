@@ -7,7 +7,7 @@
 using namespace std;
 using namespace Render;
 
-Texture::Texture(string type, string path, unsigned int channel):_type(type),_path(path),_id(0),_channel(channel){}
+Texture::Texture(string type, string path):_type(type),_path(path),_id(0){}
 
 bool Texture::Load()
 {
@@ -58,10 +58,20 @@ string Texture::GetPath()
 
 Texture::~Texture(){
     if(_id != 0){
+        cout<<"destroy Texture "<<_path<<endl;
         glDeleteTextures(1, &_id);
     }
 }
 
-void Texture::Print(){
-    cout<<"Texture "<<_path<<"Channel "<< _channel <<endl;
+void Texture::Print(int tabs){
+    string tab = "";
+    for(int i = 0; i< tabs; i++){
+        tab += "\t";
+    }
+
+    cout << tab <<"======TextureInfo======"<<endl;
+    cout << tab <<"UniformName"<< _type << endl;
+    cout << tab <<"LoadPath"<< _path << endl;
+    cout << tab <<"API_ID: "<< _id << endl;
+    cout << tab <<"======EndTextureInfo======"<<endl;
 }

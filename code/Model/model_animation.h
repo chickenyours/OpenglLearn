@@ -1,5 +1,4 @@
-#ifndef MODEL_H
-#define MODEL_H
+#pragma once
 
 #include <string>
 #include <fstream>
@@ -40,7 +39,10 @@ namespace Render{
         // 获取登记过的骨骼数量
         int& GetBoneCount();
 
-        void Print();
+        void Print(int tabs = 0);
+
+        ~Model();
+
     private:
         // 模型的名称
         string name;
@@ -78,9 +80,7 @@ namespace Render{
         void LoadAllMaterials();
         // 为mesh设置材质
         void SetMeshesMaterial();
-
+        
     };
     
 }
-
-#endif // MODEL_H

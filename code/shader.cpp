@@ -7,6 +7,7 @@
 Shader::Shader(int shaderType,string filePath) : _shaderType(shaderType){
     //read shaderSource from file
         string shaderPath = filePath;
+        _name = shaderPath;
         std::ifstream infile(shaderPath,std::ios::binary);
         if (infile.is_open())
         {
@@ -55,10 +56,12 @@ unsigned int Shader::getShaderType(){
 void ShaderProgram::Load(Shader* vertexShader,Shader* fragShader,Shader* geometryShader){
     if(vertexShader->getShaderType() == GL_VERTEX_SHADER && fragShader->getShaderType() == GL_FRAGMENT_SHADER
         && (!geometryShader || geometryShader && geometryShader->getShaderType() == GL_GEOMETRY_SHADER)){
+        _name = vertexShader->GetName() + "&" + fragShader->GetName();
         _shaderProgramID =glCreateProgram();
         glAttachShader(_shaderProgramID,vertexShader->getShaderID());
         if(geometryShader){
             glAttachShader(_shaderProgramID,geometryShader->getShaderID());
+            _name += "&" + geometryShader->GetName();
         }
         glAttachShader(_shaderProgramID,fragShader->getShaderID());
         glLinkProgram(_shaderProgramID);
@@ -69,10 +72,23 @@ void ShaderProgram::Load(Shader* vertexShader,Shader* fragShader,Shader* geometr
             glGetProgramInfoLog(_shaderProgramID, 1024, NULL, infolog);
             std::cout << "shaderProgram link error:"<<_shaderProgramID<<":"<<infolog;
         }
+        std::cout<<"Load a ShaderProgram " << _name << std::endl;
     }
     else{
         std::cout<<"ShaderProgram can't be created because of type error:";
     }
+}
+
+void ShaderProgram::Print(int tabs){
+    string tab = "";
+    for(int i = 0; i< tabs; i++){
+        tab += "\t";
+    }
+
+    std::cout << tab <<"======MaterialInfo======"<<std::endl;
+
+    std::cout << tab << "Name: " << _name <<std::endl;
+    std::cout << tab << "API_ID: " << getShaderProgramID() << std::endl; 
 }
 
 ShaderProgram::ShaderProgram(Shader* vertexShader,Shader* fragShader,Shader* geometryShader){
@@ -93,6 +109,7 @@ ShaderProgram::ShaderProgram(string vertexShaderPath,string fragShaderPath,strin
 
 ShaderProgram::~ShaderProgram(){
     glDeleteProgram(_shaderProgramID);
+    std::cout<< "destroy ShaderPrograme: "<<_name<<std::endl;
 }
 void ShaderProgram::Use(){
     glUseProgram(_shaderProgramID);

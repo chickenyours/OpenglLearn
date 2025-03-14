@@ -10,6 +10,18 @@ Mesh::Mesh(vector<Vertex> vertices, vector<unsigned int> indices, unsigned int m
     this->materialIndex = materialIndex;
 }
 
+Mesh::Mesh(Mesh&& other){
+    this->VAO = other.VAO;
+    this->VBO = other.VBO;
+    this->EBO = other.VBO;
+    this->indicesSize = other.indicesSize;
+    this->verticesSize = other.verticesSize;
+    this->materialIndex = other.materialIndex;
+    this->_material = other._material;
+    other.VAO = 0;
+    other._material = nullptr;
+}
+
 /*
     * @brief 绘制网格
     * @warning 只会对纹理通道和着色器配置，并不会改变其他上下文比如混合模式，viewport等
@@ -68,15 +80,24 @@ int Mesh::GetMaterialIndex()
     return materialIndex;
 }
 
-void Mesh::Print(){
-    cout << "Mesh material index: " << materialIndex << endl;
-    cout << "Mesh VAO: " << VAO << endl;
-    cout << "Mesh indices size: " << indicesSize << endl;
+void Mesh::Print(int tabs){
+    string tab = "";
+    for(int i = 0; i< tabs; i++){
+        tab += "\t";
+    }
+    cout << tab <<"======MeshInfo======"<<endl;
+    cout << tab << "Mesh material index: " << materialIndex << endl;
+    cout << tab << "Mesh VAO: " << VAO << endl;
+    cout << tab << "Mesh indices size: " << indicesSize << endl;
+    cout << tab <<"======EndMeshInfo======"<<endl;
 }
 
 Mesh::~Mesh()
 {
-    glDeleteVertexArrays(1, &VAO);
-    glDeleteBuffers(1, &VBO);
-    glDeleteBuffers(1, &EBO);
+    if(VAO){
+        glDeleteVertexArrays(1, &VAO);
+        glDeleteBuffers(1, &VBO);
+        glDeleteBuffers(1, &EBO);
+        cout<<"destroy mesh: (VAO)"<<VAO<<endl;
+    }
 }

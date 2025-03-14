@@ -1,4 +1,5 @@
 #include "model_animation.h"
+#include <unordered_map>
 
 using namespace Render;
 
@@ -16,7 +17,7 @@ Model::Model(string const &materialConfigPath)
 
     // 加载模型文件
     Assimp::Importer importer;
-    const aiScene* scene = importer.ReadFile(modelFile, aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_CalcTangentSpace);
+    const aiScene* scene = importer.ReadFile(modelFile, aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_CalcTangentSpace | aiProcess_FlipUVs);
     if(!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
     {
         cout << "ERROR::ASSIMP:: " << importer.GetErrorString() << endl;
@@ -36,6 +37,8 @@ Model::Model(string const &materialConfigPath)
     ConfigureMaterials(scene,materialJson);
     // 加载所有的材质
     LoadAllMaterials();
+    // 分配材质到Mesh
+    SetMeshesMaterial();
 }
 
 void Model::Draw()
@@ -86,6 +89,7 @@ Mesh Model::ProcessMesh(aiMesh* mesh, const aiScene* scene)
         SetVertexBoneDataToDefault(vertex);
         vertex.Position = AssimpGLMHelpers::GetGLMVec(mesh->mVertices[i]);
         vertex.Normal = AssimpGLMHelpers::GetGLMVec(mesh->mNormals[i]);
+        vertex.Tangent = AssimpGLMHelpers::GetGLMVec(mesh->mTangents[i]);
 
         if (mesh->mTextureCoords[0])
         {
@@ -179,29 +183,33 @@ bool Model::LoadModelJson(const string& path){
 
 void Model::ConfigureMaterials(const aiScene* scene,const Json::Value& materialJson)
 {
-
-    for (unsigned int i = 0; i < scene->mNumMaterials; i++)
-    {
-        aiMaterial* material = scene->mMaterials[i];
-        Material newMaterial;
-        newMaterial.LoadParameterFromModelAiMaterial(*material);
-        // 在配置文件中找到同名材质
-        unsigned int j;
-        for (j = 0; j < materialJson.size(); j++)
-        {
-            if (materialJson[j]["name"].asString() == newMaterial.name)
-            {
-                newMaterial.LoadParameterFromConfigFile(materialJson[j]);
-                break;
+    //配对材质
+    std::vector<int> match(scene->mNumMaterials,-1);
+    std::unordered_map<std::string, int> sceneMaterialMap;
+    for(int i = 0;i < scene->mNumMaterials; i++){
+        std::string materialName = scene->mMaterials[i]->GetName().C_Str();
+        sceneMaterialMap[materialName] = i;
+    }
+    try{
+        for(int i = 0;i< materialJson.size(); i++){
+            std::string materialName = materialJson[i]["name"].asString();
+            auto it = sceneMaterialMap.find(materialName);
+            if(it != sceneMaterialMap.end()){
+                match[it->second] = i;
             }
         }
-        if(j == materialJson.size())
-        {
-            cout << "Material " << newMaterial.name << " not found in config file" << endl;
-        }
-
-        materials.push_back(newMaterial);
     }
+    catch (const std::exception& e) {  // 捕获异常
+        std::cout << "There are errors when ConfigureMaterials by JsonValue:"<<std::endl;
+        std::cout << materialJson <<std::endl;
+        std::cout << "Exception caught: " << e.what() << std::endl;
+    }
+    
+    for(int i = 0;i<match.size();i++){
+        const Json::Value& josnValue = match[i] != -1 ? materialJson[match[i]] : Json::Value();
+        materials.emplace_back(*(scene->mMaterials[i]), josnValue);
+    }
+    
 }
 
 void Model::LoadAllMaterials(){
@@ -216,20 +224,27 @@ void Model::SetMeshesMaterial(){
     }
 }
 
-void Model::Print(){
-    cout<<"Model: "<<endl;
-    cout<<"Name: "<<name<<endl;
-    cout<<"Directory: "<<directory<<endl;
-    cout<<"meshes Count: "<<meshes.size()<<endl;
-    cout<<"materials Count: "<<materials.size()<<endl;
-    cout<<"Bone Count: "<<m_BoneCounter<<endl;
+void Model::Print(int tabs){
+    string tab = "";
+    for(int i = 0; i< tabs; i++){
+        tab += "\t";
+    }
+    cout<<tab<<"======ModelInfo======"<<endl;
+    cout<<tab<<"Name: "<<name<<endl;
+    cout<<tab<<"Directory: "<<directory<<endl;
+    cout<<tab<<"meshes Count: "<<meshes.size()<<endl;
+    cout<<tab<<"materials Count: "<<materials.size()<<endl;
+    cout<<tab<<"Bone Count: "<<m_BoneCounter<<endl;
     for(int i = 0; i< meshes.size();i++){
-        cout<<"Mesh "<<i<<endl;
-        meshes[i].Print();
+        meshes[i].Print(tabs + 1);
     }
     
     for(int i = 0;i < materials.size();i++){
-        cout << "Material " << i << " : " << materials[i].name << endl;
-        materials[i].Print();
+        materials[i].Print(tabs + 1);
     }
+    cout<<tab<<"======EndModelInfo======="<<endl;
+}
+
+Model::~Model(){
+    cout<< "destroy Model: "<< name <<endl;
 }

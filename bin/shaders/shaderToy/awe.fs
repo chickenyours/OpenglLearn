@@ -1,6 +1,6 @@
 #version 460 core
 
-in vec2 TexCoords; // 纹理坐标，映射到 fragCoord
+in vec2 TexCoords; // 输入的纹理坐标作为 fragCoord 使用
 out vec4 FragColor;
 
 uniform float iTime;
@@ -8,7 +8,7 @@ uniform vec2 iResolution;
 
 int hexid;
 vec3 hpos, point, pt;
-float tcol, bcol, hitbol, hexpos, fparam = 0.;
+float tcol, bcol, hitbol, hexpos, fparam=0.;
 
 mat2 rot(float a) {
     float s = sin(a), c = cos(a);
@@ -16,10 +16,10 @@ mat2 rot(float a) {
 }
 
 vec3 path(float t) {
-    return vec3(sin(t * 0.3 + cos(t * 0.2) * 0.5) * 4.0, cos(t * 0.2) * 3.0, t);
+    return vec3(sin(t * .3 + cos(t * .2) * .5) * 4., cos(t * .2) * 3., t);
 }
 
-float hexagon(vec2 p, float r) {
+float hexagon(in vec2 p, in float r) {
     const vec3 k = vec3(-0.866025404, 0.5, 0.577350269);
     p = abs(p);
     p -= 2.0 * min(dot(k.xy, p), 0.0) * k.xy;
@@ -35,131 +35,165 @@ float hex(vec2 p) {
 }
 
 mat3 lookat(vec3 dir) {
-    vec3 up = vec3(0.0, 1.0, 0.0);
+    vec3 up = vec3(0., 1., 0.);
     vec3 rt = normalize(cross(dir, up));
     return mat3(rt, cross(rt, dir), dir);
 }
 
+float hash12(vec2 p) {
+    p *= 1000.;
+    vec3 p3 = fract(vec3(p.xyx) * .1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+// Renders a line between points A and B on a sphere with no capping. 
 float sphereLineAB(vec3 p, vec3 a, vec3 b, float rad) {
-    p = normalize(p);
+    p = normalize(p); // Normalize p.
     return dot(p, cross(a, b)) / length(a - b);
 }
 
+// Rotate on axis.
 vec3 erot(vec3 p, vec3 ax, float ro) {
     return mix(dot(ax, p) * ax, p, cos(ro)) + sin(ro) * cross(ax, p);
 }
 
 #define PI 3.14159265359
-#define PHI (1.0 + sqrt(5.0)) / 2.0
+#define PHI (1. + sqrt(5.)) / 2.
 
 void icosahedronVerts(in vec3 p, out vec3 face, out vec3 a, out vec3 b, out vec3 c) {
     vec3 V = vec3(PHI, 1, 0);
     vec3 ap = abs(p), v = V;
-    if (dot(ap, V.yzx - v) > 0.0) v = V.yzx;
-    if (dot(ap, V.zxy - v) > 0.0) v = V.zxy;
+    if (dot(ap, V.yzx - v) > 0.) v = V.yzx;
+    if (dot(ap, V.zxy - v) > 0.) v = V.zxy;
     a = normalize(v) * sign(p);
-    
+
     v = V.xxx;
     V = vec3(V.zy, V.x + V.y);
-    if (dot(ap, V - v) > 0.0) v = V;
-    if (dot(ap, V.yzx - v) > 0.0) v = V.yzx;
-    if (dot(ap, V.zxy - v) > 0.0) v = V.zxy;
+    if (dot(ap, V - v) > 0.) v = V;
+    if (dot(ap, V.yzx - v) > 0.) v = V.yzx;
+    if (dot(ap, V.zxy - v) > 0.) v = V.zxy;
     face = normalize(v) * sign(p);
-   
-    float r = PI * 2.0 / 3.0;
-    
+
+    float r = PI * 2. / 3.;
     b = erot(a, face, -r);
     c = erot(a, face, r);
 }
 
 float de(vec3 p) {
     pt = vec3(p.xy - path(p.z).xy, p.z);
-    float h = abs(hexagon(pt.xy, 3.0 + fparam));
+    float h = abs(hexagon(pt.xy, 3. + fparam));
     hexpos = hex(pt.yz);
     tcol = smoothstep(0.0, 0.15, hexpos);
-    h -= tcol * 0.1;
+    h -= tcol * .1;
     vec3 pp = p - hpos;
     pp = lookat(point) * pp;
-    pp.y -= abs(sin(iTime)) * 3.0 + (fparam - (2.0 - fparam));
+    pp.y -= abs(sin(iTime)) * 3. + (fparam - (2. - fparam));
     pp.yz *= rot(-iTime);
-    
-    float bola = length(pp) - 1.0;
-    
+
+    float bola = length(pp) - 1.;
+
     if (length(pp) < 1.5) {
         vec3 face;
         vec3 v[3];
         icosahedronVerts(pp, face, v[0], v[1], v[2]);
-        float rad = 1.0;
-
+        float rad = 1.;
         vec3 mid[6];
         for (int i = 0; i < 3; i++) {
-            mid[i * 2] = mix(v[i], v[(i + 1) % 3], 1.0 / 3.0);
-            mid[i * 2 + 1] = mix(v[i], v[(i + 1) % 3], 2.0 / 3.0);
+            mid[i * 2] = mix(v[i], v[(i + 1) % 3], 1. / 3.);
+            mid[i * 2 + 1] = mix(v[i], v[(i + 1) % 3], 2. / 3.);
         }
-
         float poly = -1e5;
         for (int i = 0; i < 6; i++) {
             poly = max(poly, sphereLineAB(pp, mid[i], mid[(i + 1) % 6], rad));
         }
-
         bcol = smoothstep(0.0, 0.05, abs(poly));
-        bola += bcol * 0.1;
+        bola += bcol * .1;
     }
 
+    vec3 pr = p;
+    pr.z = mod(p.z, 6.) - 3.;
     float d = min(h, bola);
-    hitbol = (d == bola) ? 1.0 : 0.0;
-    tcol = (d == bola) ? 1.0 : tcol;
-    return d * 0.5;
+    if (d == bola) {
+        tcol = 1.;
+        hitbol = 1.;
+    } else {
+        hitbol = 0.;
+        bcol = 1.;
+    }
+    return d * .5;
 }
 
 vec3 normal(vec3 p) {
-    vec2 e = vec2(0.0, 0.005);
+    vec2 e = vec2(0., .005);
     return normalize(vec3(de(p + e.yxx), de(p + e.xyx), de(p + e.xxy)) - de(p));
 }
 
 vec3 march(vec3 from, vec3 dir) {
-    vec3 p = from, col = vec3(0.0);
-    float d, td = 0.0;
-    vec3 g = vec3(0.0);
-    
+    vec3 odir = dir;
+    vec3 p = from, col = vec3(0.);
+    float d, td = 0.;
+    vec3 g = vec3(0.);
     for (int i = 0; i < 200; i++) {
         d = de(p);
-        if (d < 0.001 || td > 200.0) break;
+        if (d < .001 || td > 200.) break;
         p += dir * d;
         td += d;
-        g += 0.1 / (0.1 + d) * hitbol * abs(normalize(point));
+        g += .1 / (.1 + d) * hitbol * abs(normalize(point));
     }
-
-    p -= dir * 0.01;
+    float hp = hexpos * (1. - hitbol);
+    p -= dir * .01;
     vec3 n = normal(p);
-    if (d < 0.001) {
-        col = pow(max(0.0, dot(-dir, n)), 2.0) * vec3(0.6, 0.7, 0.8) * tcol * bcol;
+    if (d < .001) {
+        col = pow(max(0., dot(-dir, n)), 2.) * vec3(.6, .7, .8) * tcol * bcol;
     }
-
     col += float(hexid);
+    vec3 pr = pt;
+    dir = reflect(dir, n);
+    td = 0.;
+    for (int i = 0; i < 200; i++) {
+        d = de(p);
+        if (d < .001 || td > 200.) break;
+        p += dir * d;
+        td += d;
+        g += .1 / (.1 + d) * abs(normalize(point));
+    }
+    float zz = p.z;
+    if (d < .001) {
+        vec3 refcol = pow(max(0., dot(-odir, n)), 2.) * vec3(.6, .7, .8) * tcol * bcol;
+        p = pr;
+        p = abs(.5 - fract(p * .1));
+        float m = 100.;
+        for (int i = 0; i < 10; i++) {
+            p = abs(p) / dot(p, p) - .8;
+            m = min(m, length(p));
+        }
+        col = mix(col, refcol, m) - m * .3;
+        col += step(.3, hp) * step(.9, fract(pr.z * .05 + iTime * .5 + hp * .1)) * .7;
+        col += step(.3, hexpos) * step(.9, fract(zz * .05 + iTime + hexpos * .1)) * .3;
+    }
+    col += g * .03;
+    col.rb *= rot(odir.y * .5);
     return col;
 }
 
 void main() {
-    vec2 fragCoord = TexCoords * iResolution;
-    vec2 uv = fragCoord / iResolution.xy - 0.5;
+    vec2 uv = TexCoords - 0.5;
     uv.x *= iResolution.x / iResolution.y;
-    float t = iTime * 2.0;
-
+    float t = iTime * 2.;
     vec3 from = path(t);
-    if (mod(iTime - 10.0, 20.0) > 10.0) {
-        from = path(floor(t / 20.0) * 20.0 + 10.0);
-        from.x += 2.0;
+    if (mod(iTime - 10., 20.) > 10.) {
+        from = path(floor(t / 20.) * 20. + 10.);
+        from.x += 2.;
     }
-
-    hpos = path(t + 3.0);
-    vec3 adv = path(t + 2.0);
-    vec3 dir = normalize(vec3(uv, 0.7));
+    hpos = path(t + 3.);
+    vec3 adv = path(t + 2.);
+    vec3 dir = normalize(vec3(uv, .7));
     vec3 dd = normalize(adv - from);
     point = normalize(adv - hpos);
-    point.xz *= rot(sin(iTime) * 0.2);
+    point.xz *= rot(sin(iTime) * .2);
     dir = lookat(dd) * dir;
     vec3 col = march(from, dir);
-    col *= vec3(1.0, 0.9, 0.8);
+    col *= vec3(1., .9, .8);
     FragColor = vec4(col, 1.0);
 }

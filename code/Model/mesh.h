@@ -29,10 +29,11 @@ namespace Render{
     class Mesh {
     public:
         Mesh(vector<Vertex> vertices, vector<unsigned int> indices, unsigned int materialIndex);
+        Mesh(Mesh&& other);
         void Draw();
         void SetMaterial(Material* material);
         int GetMaterialIndex();
-        void Print();
+        void Print(int tabs);
         ~Mesh();
     private:
         unsigned int materialIndex;

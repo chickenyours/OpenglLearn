@@ -7,6 +7,11 @@ out vec4 FragColor;
 
 uniform float iTime;
 uniform vec2 iResolution;
+
+void mian(){
+    ...
+    FragColor = ...
+}
  
 注意fragCoord是像素位置,不是纹理坐标,请转换时修正一下:
 

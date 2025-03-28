@@ -153,7 +153,7 @@ void PrintMaterialInfo(aiMaterial* material){
         "aiTextureType_MAYA_SPECULAR_ROUGHNESS"
         };
     cout<<"==================MaterialInfo=================="<<endl;
-    cout<<"Material Name"<<material->GetName().C_Str()<<endl;
+    cout<<"Material Name: "<<material->GetName().C_Str()<<endl;
     int c = 0;
     for(int i = aiTextureType::aiTextureType_NONE;i<aiTextureType::aiTextureType_MAYA_SPECULAR_ROUGHNESS;i++){
         int num = material->GetTextureCount((aiTextureType)i);

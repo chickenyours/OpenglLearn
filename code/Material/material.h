@@ -32,6 +32,15 @@ namespace Render{
         MATERIAL_SHADOW_OPAQUE = 1     ,
         MATERIAL_SHADOW_CAST   = 1 <<1 
     };
+
+    struct UniformParameter{
+        static UniformParameter globalUniformParameter;
+        map<string, float> floatParameterMap;
+        map<string, int> intParameterMap;
+        map<string, glm::vec3> vec3ParameterMap;
+        map<string, glm::vec4> vec4ParameterMap;
+        map<string, glm::mat4> mat4ParameterMap;
+    };
     
     class Material{
         public:
@@ -57,10 +66,10 @@ namespace Render{
             // 材质属性掩码
             int propertyFlag;
             // 材质持有的着色器
-            ShaderProgram* shaderProgram = nullptr;
+            unique_ptr<ShaderProgram> shaderProgram;
             // 材质的构造函数
             Material(const aiMaterial& material, const Json::Value& materialJson);
-
+            Material(Material&& other);
             ~Material();
             // 设置材质的着色器
             void SetShaderParams();
@@ -70,6 +79,10 @@ namespace Render{
             void LoadParameterFromConfigFile(const Json::Value& materialJson);
             // 尝试加载所有的纹理
             void LoadAllTexture();
+            // 绑定所有纹理
+            void BindAllTexture();
+
+            inline ShaderProgram* GetShaderProgram(){ return shaderProgram.get(); }
 
             void Print(int tabs = 0);
 

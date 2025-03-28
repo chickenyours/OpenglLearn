@@ -21,6 +21,9 @@
 #include "animdata.h"
 #include "code/Material/material.h"
 #include "code/Texture/texture.h"
+#include "code/Model/animation.h"
+#include "code/Model/animator.h"
+#include "code/VisualTool/visual.h"
 
 
 
@@ -28,6 +31,31 @@
 using namespace std;
 
 namespace Render{
+
+//前向声明
+class Animation;
+class Animator;
+
+struct ModelNode {
+    std::string name;              // 使用 std::move 传递，减少拷贝
+    glm::mat4 Transformation;
+    ModelNode* parent = nullptr;  // 直接存储原始指针，避免智能指针管理父节点
+
+    int childrenCount;
+    std::vector<std::unique_ptr<ModelNode>> children;  // 使用 unique_ptr 避免 push_back 触发拷贝
+    std::vector<int> modelMeshes; // 直接存储 mesh 索引
+
+    // 禁止拷贝，允许移动
+    ModelNode() = default;
+    ModelNode(const ModelNode&) = delete;
+    ModelNode& operator=(const ModelNode&) = delete;
+
+    ModelNode(ModelNode&& other) noexcept;
+
+    ~ModelNode();
+        
+};
+
     class Model{
     public:
         // 构造函数，读取模型配置文件并加载模型所有属性
@@ -35,23 +63,51 @@ namespace Render{
         // 绘制模型
         void Draw();
         // 获取登记过的骨骼信息
-        std::map<std::string,BoneInfo>& GetBoneInfoMap();
+        const std::map<std::string,BoneInfo>& GetBoneInfoMap();
         // 获取登记过的骨骼数量
         int& GetBoneCount();
+
+        inline bool HasAnimation(){ return _isHasAnimation; }
+        float currentAnimationTime = 0.0;
+        // 如果模型不支持动画(也就是_isHasAnimation为false)返回nullptr
+        inline Animator* GetAnimator(){ 
+            return HasAnimation()? animator.get() : nullptr; 
+        }
+        
+        inline ModelNode* GetRootNode(){ return nodeRoot.get(); }
+
+        inline std::string GetName(){
+            if(name.empty()){
+                std::cout<<"尝试获取一个没有名字的Model\n";
+            }
+            return name;
+        }
 
         void Print(int tabs = 0);
 
         ~Model();
+
+        // 使用marker可视化组件展示节点分布
+        void VisualAddNodeAttribution(Marker* marker);
 
     private:
         // 模型的名称
         string name;
         // 模型的目录
         string directory;
+        // 模型的节点信息
+        std::unique_ptr<ModelNode> nodeRoot;
         // 模型持有的网格
         vector<Mesh> meshes;
         // 模型持有的材质
         vector<Material> materials;
+
+        // 是否支持动画
+        bool _isHasAnimation = false;
+        // 模型持有的动画
+        vector<Animation> animations;
+        // 模型持有的动画机
+        std::unique_ptr<Animator> animator;
         
         // 模型登记的骨骼
         int m_BoneCounter = 0;
@@ -64,9 +120,10 @@ namespace Render{
         // 模型加载函数，加载模型需要的网格
         void LoadModel(const aiScene* scene);
         // 递归处理节点函数
-        void ProcessNode(aiNode* node, const aiScene* scene);
+        void ProcessNode(aiNode* node, const aiScene* scene, ModelNode* modelNode);
         // 处理网格函数(由ProcessNode调用,加载该节点涉及到的网格),它会为网格加载顶点(包括在内的骨骼权重数据数据)数据,分配材质,索引数据
         Mesh ProcessMesh(aiMesh* mesh, const aiScene* scene);
+
         // 骨骼权重初始化函数
         void SetVertexBoneDataToDefault(Vertex& vertex);
         // 设置顶点的骨骼数据(由ExtractBoneWeightForVertices调用)
@@ -80,7 +137,10 @@ namespace Render{
         void LoadAllMaterials();
         // 为mesh设置材质
         void SetMeshesMaterial();
-        
+
+        // 加载动画
+        void LoadAnimations(const aiScene* scene,Json::Value const& animationJson);
+
     };
     
 }

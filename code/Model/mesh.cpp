@@ -6,6 +6,12 @@ using namespace Render;
 
 Mesh::Mesh(vector<Vertex> vertices, vector<unsigned int> indices, unsigned int materialIndex):VAO(0)
 {
+    //检测权重
+    // for(auto& it : vertices){
+    //     if(it.m_Weights[0] + it.m_Weights[1] + it.m_Weights[2] + it.m_Weights[3] < 0.99){
+    //         std::cout<< it.m_Weights[0] + it.m_Weights[1] + it.m_Weights[2] + it.m_Weights[3] << std::endl;
+    //     }
+    // }
     setupMesh(vertices,indices);
     this->materialIndex = materialIndex;
 }
@@ -32,6 +38,7 @@ void Mesh::Draw()
     // 模型绑定
     glBindVertexArray(VAO);
     // 材质设置
+    _material->BindAllTexture();
     _material->SetShaderParams();
     // 索引绘制
     glDrawElements(GL_TRIANGLES, static_cast<unsigned int>(indicesSize), GL_UNSIGNED_INT, 0);

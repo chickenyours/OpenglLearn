@@ -8,6 +8,8 @@
 
 #include "code/Model/model_animation.h"
 #include "code/Material/material.h"
+#include "code/Model/animator.h"
+#include "code/VisualTool/visual.h"
 
 #define print(msg) std::cout<<(msg)<<std::endl 
 
@@ -76,8 +78,49 @@ int main()
     glm::mat4 view          = glm::lookAt(camPos,camPos+camFront,camUp);
     glm::mat4 projection    = glm::perspective(glm::radians(45.0f),(float)SCR_WIDTH/(float)SCR_HEIGHT,0.1f,500.0f);
 
-    Render::Model m("./myModelsConfigs/Oil_barrel.json");
-    m.Print(0);
+    //Render::Model m("./myModelsConfigs/Oil_barrel.json");
+    Render::Model mouse("./myModelsConfigs/hhhh.json");
+    Render::Animator* mouse_animatior = mouse.GetAnimator(); 
+    mouse.Print(0);
+
+    // //场景可视化组件
+    Render::Marker marker(1000,1000);
+    marker.SetPointSize(10.0);
+    marker.SetLineWidth(5.0);
+    // marker.AddPoint(glm::vec3(-1.0f, -1.0f, -1.0f), glm::vec3(1.0f, 0.0f, 0.0f)); // Red
+    // marker.AddPoint(glm::vec3(1.0f, -1.0f, -1.0f), glm::vec3(0.0f, 1.0f, 0.0f));  // Green
+    // marker.AddPoint(glm::vec3(1.0f, 1.0f, -1.0f), glm::vec3(0.0f, 0.0f, 1.0f));   // Blue
+    // marker.AddPoint(glm::vec3(-1.0f, 1.0f, -1.0f), glm::vec3(1.0f, 1.0f, 0.0f));  // Yellow
+    // marker.AddPoint(glm::vec3(-1.0f, -1.0f, 1.0f), glm::vec3(1.0f, 0.0f, 1.0f));  // Magenta
+    // marker.AddPoint(glm::vec3(1.0f, -1.0f, 1.0f), glm::vec3(0.0f, 1.0f, 1.0f));   // Cyan
+    // marker.AddPoint(glm::vec3(1.0f, 1.0f, 1.0f), glm::vec3(1.0f, 1.0f, 1.0f));    // White
+    // marker.AddPoint(glm::vec3(-1.0f, 1.0f, 1.0f), glm::vec3(0.5f, 0.5f, 0.5f));   // Gray
+
+    // // 添加树形结构的线，注意线的两个点颜色不同
+    // marker.AddLine(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f)); // trunk
+    // marker.AddLine(glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(-0.5f, 1.5f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)); // left branch
+    // marker.AddLine(glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.5f, 1.5f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));  // right branch
+    // marker.AddLine(glm::vec3(-0.5f, 1.5f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(-0.75f, 2.0f, 0.0f), glm::vec3(1.0f, 1.0f, 0.0f)); // left-left branch
+    // marker.AddLine(glm::vec3(-0.5f, 1.5f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(-0.25f, 2.0f, 0.0f), glm::vec3(0.0f, 1.0f, 1.0f)); // left-right branch
+    // marker.AddLine(glm::vec3(0.5f, 1.5f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.25f, 2.0f, 0.0f), glm::vec3(1.0f, 0.5f, 0.0f));  // right-left branch
+    // marker.AddLine(glm::vec3(0.5f, 1.5f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.75f, 2.0f, 0.0f), glm::vec3(0.5f, 0.0f, 1.0f));  // right-right branch
+    // marker.AddLine(glm::vec3(-0.75f, 2.0f, 0.0f), glm::vec3(1.0f, 1.0f, 0.0f), glm::vec3(-0.85f, 2.5f, 0.0f), glm::vec3(1.0f, 0.0f, 1.0f)); // left-left-left branch
+    // marker.AddLine(glm::vec3(-0.75f, 2.0f, 0.0f), glm::vec3(1.0f, 1.0f, 0.0f), glm::vec3(-0.65f, 2.5f, 0.0f), glm::vec3(0.5f, 1.0f, 0.5f)); // left-left-right branch
+    // marker.AddLine(glm::vec3(-0.25f, 2.0f, 0.0f), glm::vec3(0.0f, 1.0f, 1.0f), glm::vec3(-0.35f, 2.5f, 0.0f), glm::vec3(1.0f, 0.5f, 0.5f)); // left-right-left branch
+    // marker.AddLine(glm::vec3(-0.25f, 2.0f, 0.0f), glm::vec3(0.0f, 1.0f, 1.0f), glm::vec3(-0.15f, 2.5f, 0.0f), glm::vec3(0.5f, 0.5f, 1.0f)); // left-right-right branch
+    // marker.AddLine(glm::vec3(0.25f, 2.0f, 0.0f), glm::vec3(1.0f, 0.5f, 0.0f), glm::vec3(0.15f, 2.5f, 0.0f), glm::vec3(1.0f, 0.75f, 0.25f)); // right-left-left branch
+    // marker.AddLine(glm::vec3(0.25f, 2.0f, 0.0f), glm::vec3(1.0f, 0.5f, 0.0f), glm::vec3(0.35f, 2.5f, 0.0f), glm::vec3(0.25f, 0.75f, 1.0f)); // right-left-right branch
+    // marker.AddLine(glm::vec3(0.75f, 2.0f, 0.0f), glm::vec3(0.5f, 0.0f, 1.0f), glm::vec3(0.65f, 2.5f, 0.0f), glm::vec3(0.75f, 1.0f, 0.25f)); // right-right-left branch
+    // marker.AddLine(glm::vec3(0.75f, 2.0f, 0.0f), glm::vec3(0.5f, 0.0f, 1.0f), glm::vec3(0.85f, 2.5f, 0.0f), glm::vec3(0.25f, 1.0f, 0.75f)); // right-right-right branch
+    // marker.AddLine(glm::vec3(-0.85f, 2.5f, 0.0f), glm::vec3(1.0f, 0.0f, 1.0f), glm::vec3(-0.9f, 3.0f, 0.0f), glm::vec3(1.0f, 0.25f, 0.25f)); // left-left-left-left branch
+    // marker.AddLine(glm::vec3(-0.85f, 2.5f, 0.0f), glm::vec3(1.0f, 0.0f, 1.0f), glm::vec3(-0.8f, 3.0f, 0.0f), glm::vec3(0.25f, 1.0f, 0.25f)); // left-left-left-right branch
+    // marker.AddLine(glm::vec3(0.85f, 2.5f, 0.0f), glm::vec3(0.25f, 1.0f, 0.75f), glm::vec3(0.8f, 3.0f, 0.0f), glm::vec3(0.25f, 0.25f, 1.0f));  // right-right-right-left branch
+    // marker.AddLine(glm::vec3(0.85f, 2.5f, 0.0f), glm::vec3(0.25f, 1.0f, 0.75f), glm::vec3(0.9f, 3.0f, 0.0f), glm::vec3(1.0f, 1.0f, 0.5f));    // right-right-right-right branch
+
+    // 将模型节点添加到marker
+    
+    mouse.VisualAddNodeAttribution(&marker);
+    //m.VisualAddNodeAttribution(&marker);
 
     //循环
     while (!glfwWindowShouldClose(window))
@@ -128,13 +171,27 @@ int main()
         Render::Material::GlobalMat4ParameterMap["model"] = glm::scale(model,glm::vec3(0.05));
         Render::Material::GlobalVec3ParameterMap["viewPos"] = camPos;
         Render::Material::GlobalFloatParameterMap["iTime"] = currentTime;
+
+        mouse_animatior->UpdateAnimation(deltaTime);
+        
+        auto final_matrix = mouse_animatior->GetFinalBoneMatrices();
+        
+
         //渲染
         glClearColor(0.25f, 0.05f, 0.05f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        m.Draw();
+        //m.Draw();
+
+        glm::mat4 mouseModel = glm::scale(glm::rotate(glm::translate(model, glm::vec3(0,0,0)), glm::radians(90.0f), glm::vec3(0.0, 1.0, 0.0)), glm::vec3(0.5));
+        Render::Material::GlobalMat4ParameterMap["model"] = mouseModel;
+
+        mouse.Draw();
+
+        //可视化渲染组件渲染
+        marker.SetMatrix(projection,view, mouseModel);
+        marker.Draw();
         
 
-        
         //渲染主要逻辑写在这里
         
         

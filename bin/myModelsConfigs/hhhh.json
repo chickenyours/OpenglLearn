@@ -1,0 +1,33 @@
+{
+    "name": "Mouse",
+    "model": "models/hhhh/Cute_Demon.glb",
+    "materials":[
+        {
+            "name": "Cute Demon",
+            "type": "Material/Tradition",
+            "shaderProgramPath": {
+                "vertexShader": "shaders/Final/base_render_world.vs",
+                "fragmentShader": "shaders/Final/Diffuse.fs",
+                "geometryShader": ""
+            },
+            "textures": {
+                "diffuseMap": ["models/hhhh/Cute_Demon.png",0],
+                "specularMap" : ["models/hhhh/Cute_Demon.png",1]
+            },
+            "properties":{
+                "float":{},
+                "int":{},
+                "vec3":{},
+                "vec4":{},
+                "mat4":{},
+                "flags":[true,true]
+    
+            }
+        }
+    ],
+    "animations":[
+     
+    ]
+}
+    
+  

@@ -1,8 +1,24 @@
 #include "model_animation.h"
 #include <unordered_map>
+#include <memory>
+#include <functional>
 
 using namespace Render;
 
+ModelNode::~ModelNode(){
+    if(name != "") std::cout<<"ModelNode: "<<name<<"销毁"<<std::endl;
+}
+
+ModelNode::ModelNode(ModelNode&& other) noexcept {
+    std::cout<<"ModelNode: "<<other.name<<"发生移动"<<std::endl;
+    this->name = std::move(other.name);
+    this->Transformation = other.Transformation;
+    this->parent = other.parent;
+    this->childrenCount = other.childrenCount;
+    this->children = std::move(other.children);
+    this->modelMeshes = std::move(other.modelMeshes);
+    other.name = "";
+}
 
 Model::Model(string const &materialConfigPath) 
 {
@@ -17,7 +33,16 @@ Model::Model(string const &materialConfigPath)
 
     // 加载模型文件
     Assimp::Importer importer;
-    const aiScene* scene = importer.ReadFile(modelFile, aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_CalcTangentSpace | aiProcess_FlipUVs);
+    const aiScene* scene = importer.ReadFile(modelFile,
+        aiProcess_Triangulate |
+        aiProcess_GenSmoothNormals |
+        aiProcess_CalcTangentSpace |
+        aiProcess_FlipUVs 
+        // aiProcess_JoinIdenticalVertices |   // ✅ 避免骨骼重复数据
+        // aiProcess_PopulateArmatureData |   // ✅ 解析骨骼层级
+        // aiProcess_LimitBoneWeights |       // ✅ 限制骨骼影响数
+        // aiProcess_GlobalScale              // ✅ 处理 FBX 缩放问题
+    );
     if(!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
     {
         cout << "ERROR::ASSIMP:: " << importer.GetErrorString() << endl;
@@ -27,6 +52,9 @@ Model::Model(string const &materialConfigPath)
     name = modelFile.substr(modelFile.find_last_of('/') + 1);
     // 获取模型目录
     directory = modelFile.substr(0, modelFile.find_last_of('/'));
+
+    // 初始化节点
+    nodeRoot = std::make_unique<ModelNode>();
 
     // 读取模型文件并加载模型
     LoadModel(scene);
@@ -39,33 +67,67 @@ Model::Model(string const &materialConfigPath)
     LoadAllMaterials();
     // 分配材质到Mesh
     SetMeshesMaterial();
+
+    // 模型是否有动画
+    if(scene->HasAnimations()){
+        //加载动画
+        Json::Value animationJson = _modelConfigJson["animations"];
+        LoadAnimations(scene,animationJson);
+        //加载动画机
+        animator = std::make_unique<Animator>(&animations[0]);
+        _isHasAnimation = true;
+    }
 }
 
 void Model::Draw()
 {
+    //处理动画,传递数据到uniform mat4 finalBonesMatrices[i]
+    if(_isHasAnimation){
+        auto&& animationMat = animator->GetFinalBoneMatrices();
+        for(int i = 0;i<materials.size();i++){
+            for(int j = 0;j<animationMat.size();j++){
+                materials[i].mat4ParameterMap["finalBonesMatrices[" + std::to_string(j) + "]"] = animationMat[j];
+            }
+        }
+    }
+
+    //处理每个材质动画
+   
+
     for(unsigned int i = 0; i < meshes.size(); i++)
         meshes[i].Draw();
 }
 
-std::map<std::string,BoneInfo>& Model::GetBoneInfoMap() { return m_BoneInfoMap; }
+const std::map<std::string,BoneInfo>& Model::GetBoneInfoMap() { return m_BoneInfoMap; }
 int& Model::GetBoneCount() { return m_BoneCounter; }
 
 void Model::LoadModel(const aiScene* scene)
 {
-    ProcessNode(scene->mRootNode, scene);
+    ProcessNode(scene->mRootNode, scene, nodeRoot.get());
 }
 
-void Model::ProcessNode(aiNode *node, const aiScene *scene)
+void Model::ProcessNode(aiNode* node, const aiScene* scene, ModelNode* modelNode)
 {
+    // 获取节点信息
+    modelNode->name = node->mName.C_Str();
+    modelNode->Transformation = AssimpGLMHelpers::ConvertMatrixToGLMFormat(node->mTransformation);
+    modelNode->childrenCount = node->mNumChildren;
+
     for(unsigned int i = 0; i < node->mNumMeshes; i++)
     {
+        modelNode->modelMeshes.push_back(meshes.size());
         aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
         meshes.push_back(ProcessMesh(mesh, scene));
     }
 
     for(unsigned int i = 0; i < node->mNumChildren; i++)
     {
-        ProcessNode(node->mChildren[i], scene);
+        aiNode* child = node->mChildren[i];
+        auto modelChildNode = std::make_unique<ModelNode>();
+        modelChildNode->parent = modelNode;
+        ModelNode* rawPtr = modelChildNode.get(); // 获取裸指针,注意std::move(modelChildNode)后modelChildNode变空指针无法获取数据,如果让其递归传递则会崩溃,需要一个裸指针保存地址
+        modelNode->children.push_back(std::move(modelChildNode));
+        ProcessNode(child, scene, rawPtr);
     }
 }
 
@@ -117,7 +179,9 @@ Mesh Model::ProcessMesh(aiMesh* mesh, const aiScene* scene)
 
 void Model::SetVertexBoneData(Vertex& vertex, int boneID, float weight)
 {
-    for (int i = 0; i < MAX_BONE_INFLUENCE; ++i)
+    static int maxMAX_BONE_INFLUENCE = 0;
+    int i;
+    for (i = 0 ; i < MAX_BONE_INFLUENCE; ++i)
     {
         if (vertex.m_BoneIDs[i] < 0)
         {
@@ -126,7 +190,15 @@ void Model::SetVertexBoneData(Vertex& vertex, int boneID, float weight)
             break;
         }
     }
+    if(i + 1 > maxMAX_BONE_INFLUENCE){
+        std::cout<<"Model: "<< name << "统计出某个顶点最大骨骼影响数" << i + 1 << std::endl;
+        maxMAX_BONE_INFLUENCE = i + 1;
+        if(maxMAX_BONE_INFLUENCE > MAX_BONE_INFLUENCE){
+            std::cout<<"Model: "<< name << "某个顶点最大骨骼影响数超过了MAX_BONE_INFLUENCE" << std::endl;
+        }
+    }
 }
+
 
 void Model::ExtractBoneWeightForVertices(std::vector<Vertex>& vertices, aiMesh* mesh, const aiScene* scene)
 {
@@ -139,11 +211,22 @@ void Model::ExtractBoneWeightForVertices(std::vector<Vertex>& vertices, aiMesh* 
             BoneInfo newBoneInfo;
             newBoneInfo.id = m_BoneCounter;
             newBoneInfo.offset = AssimpGLMHelpers::ConvertMatrixToGLMFormat(mesh->mBones[boneIndex]->mOffsetMatrix);
+            
+            // glm::mat4 correction = glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(1, 0, 0));
+            // newBoneInfo.offset = correction * AssimpGLMHelpers::ConvertMatrixToGLMFormat(mesh->mBones[boneIndex]->mOffsetMatrix);
+
+            // AssimpGLMHelpers::PrintGLMMatrix(newBoneInfo.offset);
+            // float determinant = glm::determinant(newBoneInfo.offset);
+            // std::cout << "Determinant: " << determinant << std::endl;
+
             m_BoneInfoMap[boneName] = newBoneInfo;
-            boneID = m_BoneCounter++;
+            boneID = m_BoneCounter;
+            m_BoneCounter++;
+            //std::cout<<"记入一个Bone: " << boneName << std::endl;
         }
         else
         {
+            //如果有重复骨骼则选择第一个
             boneID = m_BoneInfoMap[boneName].id;
         }
 
@@ -155,7 +238,7 @@ void Model::ExtractBoneWeightForVertices(std::vector<Vertex>& vertices, aiMesh* 
         {
             int vertexId = weights[weightIndex].mVertexId;
             float weight = weights[weightIndex].mWeight;
-            assert(vertexId <= vertices.size());
+            assert(vertexId < vertices.size());
             SetVertexBoneData(vertices[vertexId], boneID, weight);
         }
     }
@@ -176,6 +259,7 @@ bool Model::LoadModelJson(const string& path){
         // 解析失败
         return false;
     }
+    in.close(); // 显式关闭文件
 
     _modelConfigJson = std::move(root);
     return true;
@@ -209,8 +293,35 @@ void Model::ConfigureMaterials(const aiScene* scene,const Json::Value& materialJ
         const Json::Value& josnValue = match[i] != -1 ? materialJson[match[i]] : Json::Value();
         materials.emplace_back(*(scene->mMaterials[i]), josnValue);
     }
-    
 }
+
+// animationJson layout:
+//
+// [
+//     {
+//         "name" : "Armature|Chilling on Ground 0-55",
+//         "filePath" : "models/mouse/W_hlmaus.fbx"
+//     },
+//     {
+//         "name" : "Armature|Chilling on Ground 0-55",
+//         "filePath" : "models/mouse/W_hlmaus.fbx"
+//     }, ...
+// ]
+//////////////////////////
+void Model::LoadAnimations(const aiScene* scene,Json::Value const& animationJson){
+    // 配对与分组算法
+    // 
+    // 1.scene.mAnimations 名字和 animationJson[i]["name"] 相等则配对,储存到
+    // (这个算法暂时不涉及,目前不考虑一个模型使用不同模型文件中的动画,假设动画数据来自scene)
+
+    // 扩充数组
+    animations.reserve(scene->mNumAnimations);
+    for(int i = 0; i< scene->mNumAnimations;i++){
+        animations.emplace_back(scene->mAnimations[i],this);
+    }
+}
+
+
 
 void Model::LoadAllMaterials(){
     for(int i = 0;i < materials.size();i++){
@@ -233,18 +344,57 @@ void Model::Print(int tabs){
     cout<<tab<<"Name: "<<name<<endl;
     cout<<tab<<"Directory: "<<directory<<endl;
     cout<<tab<<"meshes Count: "<<meshes.size()<<endl;
-    cout<<tab<<"materials Count: "<<materials.size()<<endl;
-    cout<<tab<<"Bone Count: "<<m_BoneCounter<<endl;
     for(int i = 0; i< meshes.size();i++){
         meshes[i].Print(tabs + 1);
     }
     
+    cout<<tab<<"materials Count: "<<materials.size()<<endl;
     for(int i = 0;i < materials.size();i++){
         materials[i].Print(tabs + 1);
     }
+    
+    std::cout<< tab <<"Mesh Bone Count: "<<m_BoneCounter<<endl;
+    std::cout<< tab <<"MeshBones: "<<m_BoneCounter<<'\n';
+    for(const auto& [key, _] : m_BoneInfoMap){
+        std::cout << tab << '\t' << key << '\n';
+    }
+    // 调用动画打印
+    for(int i =0;i< animations.size();i++){
+        animations[i].Print(tabs + 1);
+    }
+
+    // 调用动画机打印
+    animator->Print(tabs + 1);
+
     cout<<tab<<"======EndModelInfo======="<<endl;
 }
 
 Model::~Model(){
     cout<< "destroy Model: "<< name <<endl;
+}
+
+void Model::VisualAddNodeAttribution(Marker* marker){
+    // 递归函数
+    std::function<void(ModelNode*, glm::vec4, glm::vec3, bool)> myiterators =
+    [&](ModelNode* node, glm::vec4 pos, glm::vec3 color, bool flag) {
+        for (const auto& it : node->children) {
+            glm::vec4 newPos4 = it->Transformation * pos;
+            if(newPos4.w != 1.0){
+                std::cout<< "非齐次变换:" << newPos4.w << std::endl;
+            }
+            glm::vec3 newPos = glm::vec3(newPos4);  // 确保正确转换
+            glm::vec3 newColor = flag ? glm::vec3(0.0, 1.0, 0.0) : glm::vec3(0.0, 0.0, 1.0);
+            if(glm::distance(newPos4,pos) < 0.02){
+                std::cout<< "出现节点距离较小的情况:" << std::endl;
+                newColor = glm::vec3(1.0);
+                color = glm::vec3(1.0);
+            }
+            marker->AddPoint({glm::vec3(pos)}, {color});
+            marker->AddLine({pos}, {color}, {newPos}, {newColor});
+            myiterators(it.get(), newPos4, newColor, !flag);
+        }
+    };
+
+    myiterators(nodeRoot.get(),glm::vec4(0.0,0.0,0.0,1.0),glm::vec3(1.0,0.0,0.0),true);
+
 }

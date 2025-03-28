@@ -1,5 +1,6 @@
 #pragma once
 
+#include<iostream>
 #include<assimp/quaternion.h>
 #include<assimp/vector3.h>
 #include<assimp/matrix4x4.h>
@@ -30,5 +31,16 @@ public:
 	static inline glm::quat GetGLMQuat(const aiQuaternion& pOrientation)
 	{
 		return glm::quat(pOrientation.w, pOrientation.x, pOrientation.y, pOrientation.z);
+	}
+	static inline void PrintGLMMatrix(const glm::mat4& matrix, const std::string& matrixName = "Matrix") {
+		std::cout << matrixName << ":\n";
+		for (int i = 0; i < 4; i++) {
+			std::cout << "[ ";
+			for (int j = 0; j < 4; j++) {
+				std::cout << matrix[i][j] << " ";
+			}
+			std::cout << "]\n";
+		}
+		std::cout << std::endl;
 	}
 };

@@ -1,0 +1,33 @@
+{
+    "name": "Mouse",
+    "model": "models/hhh/Parlante.fbx",
+    "materials":[
+        {
+            "name": "Parlante",
+            "type": "Material/Tradition",
+            "shaderProgramPath": {
+                "vertexShader": "shaders/Final/base_render_world.vs",
+                "fragmentShader": "shaders/Final/Diffuse.fs",
+                "geometryShader": ""
+            },
+            "textures": {
+                "diffuseMap": ["models/hhh/Parlante.png",0],
+                "specularMap" : ["models/hhh/Parlante.png",1]
+            },
+            "properties":{
+                "float":{},
+                "int":{},
+                "vec3":{},
+                "vec4":{},
+                "mat4":{},
+                "flags":[true,true]
+    
+            }
+        }
+    ],
+    "animations":[
+     
+    ]
+}
+    
+  

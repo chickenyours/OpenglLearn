@@ -85,10 +85,11 @@ void ShaderProgram::Print(int tabs){
         tab += "\t";
     }
 
-    std::cout << tab <<"======MaterialInfo======"<<std::endl;
+    std::cout << tab <<"======ShaderProgramInfo======"<<std::endl;
 
     std::cout << tab << "Name: " << _name <<std::endl;
     std::cout << tab << "API_ID: " << getShaderProgramID() << std::endl; 
+    std::cout << tab <<"======EndShaderProgramInfo======"<<std::endl;
 }
 
 ShaderProgram::ShaderProgram(Shader* vertexShader,Shader* fragShader,Shader* geometryShader){

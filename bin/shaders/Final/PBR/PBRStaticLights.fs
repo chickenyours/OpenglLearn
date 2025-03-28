@@ -58,9 +58,9 @@ vec3 GetLight(){
     lightPositions[3] = vec3(5.0, -5.0, 0.0);
 
     lightColors[0] = vec3(200, 200, 200);
-    lightColors[1] = vec3(200, 0, 0);
-    lightColors[2] = vec3(0, 200, 0);
-    lightColors[3] = vec3(0, 0, 200);
+    lightColors[1] = vec3(200, 200, 200);
+    lightColors[2] = vec3(200, 200, 200);
+    lightColors[3] = vec3(200, 200, 200);
 
     mat2 r = mat2(cos(iTime * 0.5),-sin(iTime * 0.5),sin(iTime * 0.5),cos(iTime * 0.5));
 

@@ -19,18 +19,44 @@ Material::Material(const aiMaterial& material, const Json::Value& materialJson):
     }
 }
 
+Material::Material(Material&& other) {
+    if (this != &other) { // 避免自我赋值
+        std::cout<< "调用ShaderPrograme转移构造函数: Name: " << other.name << std::endl;
+        name = std::move(other.name);
+        id = other.id;
+        textures = std::move(other.textures);
+        textureChannel = std::move(other.textureChannel);
+        floatParameterMap = std::move(other.floatParameterMap);
+        intParameterMap = std::move(other.intParameterMap);
+        vec3ParameterMap = std::move(other.vec3ParameterMap);
+        vec4ParameterMap = std::move(other.vec4ParameterMap);
+        mat4ParameterMap = std::move(other.mat4ParameterMap);
+        propertyFlag = other.propertyFlag;
+
+        // 释放当前指针 (如果已有)
+        shaderProgram = std::move(other.shaderProgram);  
+        other.shaderProgram = nullptr;
+
+        other.id = 0;
+        other.propertyFlag = 0;
+    }
+}
+
+void Material::BindAllTexture(){
+    // 设置纹理
+    for(int i = 0;i < textureChannel.size();i++){
+        glActiveTexture(GL_TEXTURE0 + textureChannel[i]);
+        glBindTexture(GL_TEXTURE_2D,textures[i].GetID());
+    }
+}
+
 void Material::SetShaderParams(){
     // 使用着色器
     if(!shaderProgram){
         return;
     }
     shaderProgram->Use();
-    // 设置纹理
-    for(int i = 0;i < textureChannel.size();i++){
-        glActiveTexture(GL_TEXTURE0 + textureChannel[i]);
-        glBindTexture(GL_TEXTURE_2D,textures[i].GetID());
-        
-    }
+   
     // 设置参数
     for(auto it = floatParameterMap.begin();it != floatParameterMap.end();it++){
         ShaderU1f(*shaderProgram,it->first,it->second);
@@ -152,7 +178,7 @@ void Material::LoadParameterFromConfigFile(const Json::Value& materialJson){
         std::string fragmentShaderPath = shaderProgramPath["fragmentShader"].asString();
         std::string geometryShaderPath = shaderProgramPath["geometryShader"].asString();
         
-        shaderProgram = new ShaderProgram(vertexShaderPath, fragmentShaderPath, geometryShaderPath);
+        shaderProgram = std::make_unique<ShaderProgram>(vertexShaderPath, fragmentShaderPath, geometryShaderPath);
         
 
         // Load textures
@@ -293,6 +319,9 @@ void Material::Print(int tabs){
 
 }
 
+
 Material::~Material(){
-    cout<<"destroy material: "<<name<<std::endl;
+    if(!name.empty()){
+        cout<<"destroy material: "<<name<<std::endl;
+    }
 }

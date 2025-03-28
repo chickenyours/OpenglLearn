@@ -1,0 +1,52 @@
+{
+    "name": "Mouse",
+    "model": "models/mouse/W_hlmaus.fbx",
+    "materials":[
+        {
+            "name": "Material.001",
+            "type": "Material/Tradition",
+            "shaderProgramPath": {
+                "vertexShader": "shaders/Final/base_render_world_animation.vs",
+                "fragmentShader": "shaders/Final/Diffuse.fs",
+                "geometryShader": ""
+            },
+            "textures": {
+                "diffuseMap": ["models/mouse/Feldmaus_Diffuse.png",0],
+                "specularMap" : ["models/mouse/Feldmaus_Gloss.png",1]
+            },
+            "properties":{
+                "float":{},
+                "int":{},
+                "vec3":{},
+                "vec4":{},
+                "mat4":{},
+                "flags":[true,true]
+    
+            }
+        }
+    ],
+    "animations":[
+        {
+            "name" : "Armature|Chilling on Ground 0-55",
+            "filePath" : "models/mouse/W_hlmaus.fbx"
+        },
+        {
+            "name" : "Armature|Chilling on Ground 0-55",
+            "filePath" : "models/mouse/W_hlmaus.fbx"
+        },
+        {
+            "name" : "Armature|Chilling on hind feet 0-55",
+            "filePath" : "models/mouse/W_hlmaus.fbx"
+        },
+        {
+            "name" : "Armature|Gallopp 33-52",
+            "filePath" : "models/mouse/W_hlmaus.fbx"
+        },
+        {
+            "name" : "Armature|Running close to ground 14-23",
+            "filePath" : "models/mouse/W_hlmaus.fbx"
+        }
+    ]
+}
+    
+  

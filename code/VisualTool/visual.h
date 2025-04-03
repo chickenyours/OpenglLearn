@@ -17,7 +17,7 @@ class BufferChunk {
         BufferChunk(BufferChunk&& other) noexcept;
         BufferChunk(size_t maxCount);
         ~BufferChunk();
-        void Update(int index,int num,const VisualElement* data);
+        bool Update(int index,int num,const VisualElement* data);
         int Add(int num,const VisualElement* data);
         unsigned int inline GetElementCount(){return count;};
         inline GLuint GetVAO(){return vao;}

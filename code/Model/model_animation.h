@@ -24,6 +24,7 @@
 #include "code/Model/animation.h"
 #include "code/Model/animator.h"
 #include "code/VisualTool/visual.h"
+#include "code/RenderPipe/renderPipe.h"
 
 
 
@@ -89,6 +90,8 @@ struct ModelNode {
 
         // 使用marker可视化组件展示节点分布
         void VisualAddNodeAttribution(Marker* marker);
+
+        void CommitMeshToRenderPipe(SimpleRenderPipe *renderPipe);
 
     private:
         // 模型的名称

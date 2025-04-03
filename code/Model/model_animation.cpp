@@ -321,7 +321,11 @@ void Model::LoadAnimations(const aiScene* scene,Json::Value const& animationJson
     }
 }
 
-
+void Model::CommitMeshToRenderPipe(SimpleRenderPipe *renderPipe){
+    for(auto& mesh : meshes){
+        renderPipe->Addmesh(&mesh);
+    }
+}
 
 void Model::LoadAllMaterials(){
     for(int i = 0;i < materials.size();i++){
@@ -358,13 +362,18 @@ void Model::Print(int tabs){
     for(const auto& [key, _] : m_BoneInfoMap){
         std::cout << tab << '\t' << key << '\n';
     }
-    // 调用动画打印
-    for(int i =0;i< animations.size();i++){
-        animations[i].Print(tabs + 1);
-    }
 
-    // 调用动画机打印
-    animator->Print(tabs + 1);
+    std::cout<< tab << "Is Has Animation: " << (int)_isHasAnimation;
+
+    if(_isHasAnimation){
+        // 调用动画打印
+        for(int i =0;i< animations.size();i++){
+            animations[i].Print(tabs + 1);
+        }
+    
+        // 调用动画机打印
+        animator->Print(tabs + 1);
+    }
 
     cout<<tab<<"======EndModelInfo======="<<endl;
 }

@@ -29,7 +29,11 @@ SRC = code/shader.cpp \
 	code/Model/bone.cpp \
 	code/Model/animation.cpp \
 	code/Model/animator.cpp \
+	code/RenderPipe/renderPipe.cpp \
 	code/VisualTool/visual.cpp \
+	code/Camera/camera.cpp \
+	code/RenderPipe/Pass/pass.cpp \
+	code/RenderPipe/Pass/CSMpass.cpp \
 	include/stb_image.cpp \
 
 # 定义 .o 和 .d 文件的位置

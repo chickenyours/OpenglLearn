@@ -6,7 +6,7 @@
             "name": "Cute Demon",
             "type": "Material/Tradition",
             "shaderProgramPath": {
-                "vertexShader": "shaders/Final/base_render_world.vs",
+                "vertexShader": "shaders/Final/base_render_world_animation.vs",
                 "fragmentShader": "shaders/Final/Diffuse.fs",
                 "geometryShader": ""
             },

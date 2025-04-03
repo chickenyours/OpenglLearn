@@ -28,15 +28,19 @@ BufferChunk::BufferChunk(size_t maxCount):maxCount(maxCount) {
     glBindVertexArray(0); // 解除绑定，避免其他代码误操作
 }
 
-void BufferChunk::Update(int index, int num, const VisualElement* data) {
-    if (index + num >= count || index + num >= maxCount) {
+bool BufferChunk::Update(int index, int num, const VisualElement* data) {
+    if(num == 0){
+        return false;
+    }
+    if (index + num >= maxCount) {
         std::cout << "Marker: 越界绘制无效 index: " << index << " count: " << count << std::endl;
-        return;
+        return false;
     }
-    if(num > 0){
-        glBindBuffer(GL_ARRAY_BUFFER, vbo);
-        glBufferSubData(GL_ARRAY_BUFFER, index * elementSize, elementSize * num, data);
-    }
+    
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferSubData(GL_ARRAY_BUFFER, index * elementSize, elementSize * num, data);
+    return true;
+    
 }
 
 int BufferChunk::Add(int num, const VisualElement* data){
@@ -44,9 +48,13 @@ int BufferChunk::Add(int num, const VisualElement* data){
         std::cout << "Add 超出最大缓冲限制: " << maxCount << std::endl;
         return -1;
     }
-    Update(count, num, data);
-    count += num;
-    return count-num;
+    if(Update(count, num, data)){
+        count += num;
+        return count-num;
+    }
+    else{
+        return -1;
+    }
 }
 
 BufferChunk::~BufferChunk(){

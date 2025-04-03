@@ -172,9 +172,11 @@ int main()
         Render::Material::GlobalVec3ParameterMap["viewPos"] = camPos;
         Render::Material::GlobalFloatParameterMap["iTime"] = currentTime;
 
-        mouse_animatior->UpdateAnimation(deltaTime);
+        if(mouse_animatior){
+            mouse_animatior->UpdateAnimation(deltaTime);
+            auto final_matrix = mouse_animatior->GetFinalBoneMatrices();
+        }
         
-        auto final_matrix = mouse_animatior->GetFinalBoneMatrices();
         
 
         //渲染
@@ -182,7 +184,7 @@ int main()
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         //m.Draw();
 
-        glm::mat4 mouseModel = glm::scale(glm::rotate(glm::translate(model, glm::vec3(0,0,0)), glm::radians(90.0f), glm::vec3(0.0, 1.0, 0.0)), glm::vec3(0.5));
+        glm::mat4 mouseModel = glm::scale(glm::rotate(glm::translate(model, glm::vec3(1,0,0)), glm::radians(90.0f), glm::vec3(0.0, 1.0, 0.0)), glm::vec3(0.5));
         Render::Material::GlobalMat4ParameterMap["model"] = mouseModel;
 
         mouse.Draw();

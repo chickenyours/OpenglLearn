@@ -1,0 +1,36 @@
+{
+    "name": "Cube",
+    "model": "base_models/cube.obj",
+    "materials":[
+        {
+            "name": "hhh",
+            "type": "Material/PBR",
+            "shaderProgramPath": {
+                "vertexShader": "shaders/Final/base_render_world.vs",
+                "fragmentShader": "shaders/Final/PBR/PBRStaticLights.fs",
+                "geometryShader": ""
+            },
+            "textures": {
+                "albedoMap": ["materials/tite/square_tiles_03_diff_1k.png",0],
+                "normalMap":  ["materials/tite/square_tiles_03_nor_gl_1k.png",1],
+                "roughnessMap": ["materials/tite/square_tiles_03_rough_1k.png",3],
+                "aoMap": ["materials/tite/square_tiles_03_ao_1k.png",4]
+            },
+            "properties":{
+                "float":{"metallicValue":0.5},
+                "int":{},
+                "bool":{"useMetallicMap":false},
+                "vec3":{},
+                "vec4":{},
+                "mat4":{},
+                "flags":[true,true]
+    
+            }
+        }
+    ],
+    "animations":[
+     
+    ]
+}
+    
+  

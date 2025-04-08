@@ -38,7 +38,7 @@ float yaw = -90.0f;
 float roll = 0.0f;
 float lastX = SCR_WIDTH/2;
 float lastY = SCR_HEIGHT/2;
-float sensitivity = 1.0f;
+float sensitivity = 5.0f;
 float camfixSpeed = 2.5;
 float camSpeed = 0;
 
@@ -93,7 +93,11 @@ int main()
    
     Render::Model m("./myModelsConfigs/Oil_barrel.json");
 
+    Render::Model cube("./myModelsConfigs/base_models/cube.json");
     
+    Render::Model plane("./myModelsConfigs/base_models/plane.json");
+
+    plane.Print();
 
     //循环
     while (!glfwWindowShouldClose(window))
@@ -104,56 +108,42 @@ int main()
         latestTime = deltaTime + latestTime;
         //处理输入
         processInput(window);
-        //摄像机变速
-        float camMove;
-        if(glfwGetKey(window,GLFW_KEY_LEFT_SHIFT)){
-            camSpeed += deltaTime*3;
-            camMove  = deltaTime*(camSpeed+camfixSpeed*4);
-        }
-        else{
-            camSpeed = 0.0;
-            camMove = deltaTime * camfixSpeed;
-        }
-        //摄像机移动输入处理
-        if(glfwGetKey(window,GLFW_KEY_W)){
-        camPos += camFront*camMove;
-        }
-        if(glfwGetKey(window,GLFW_KEY_A)){
-            camPos -= glm::normalize(glm::cross(camFront,camUp))*camMove;
-        }
-        if(glfwGetKey(window,GLFW_KEY_S)){
-            camPos -= camFront*camMove;
-        }
-        if(glfwGetKey(window,GLFW_KEY_D)){
-            camPos += glm::normalize(glm::cross(camFront,camUp))*camMove;
-        }
-        if(glfwGetKey(window,GLFW_KEY_SPACE)){
-            camPos.y += camMove;
-        }
         //摄像机矩阵处理
-        glm::vec3 direction;
-        direction.x = glm::cos(glm::radians(pitch)) * glm::cos(glm::radians(yaw));
-        direction.y = glm::sin(glm::radians(pitch));
-        direction.z = glm::sin(glm::radians(yaw)) * glm::cos(glm::radians(pitch));
-        camFront = glm::normalize(direction); 
-        view = glm::lookAt(camPos,camFront+camPos,camUp);
+        // glm::vec3 direction;
+        // direction.x = glm::cos(glm::radians(pitch)) * glm::cos(glm::radians(yaw));
+        // direction.y = glm::sin(glm::radians(pitch));
+        // direction.z = glm::sin(glm::radians(yaw)) * glm::cos(glm::radians(pitch));
+        // camFront = glm::normalize(direction); 
+        // view = glm::lookAt(camPos,camFront+camPos,camUp);
 
         cam.Update();
 
         //逻辑处理代码写在这里：
-        // Render::Material::GlobalMat4ParameterMap["projection"] = projection;
         Render::Material::GlobalMat4ParameterMap["projection"] = cam.GetProjectionMatrix();
-        Render::Material::GlobalMat4ParameterMap["view"] = view;
-        // Render::Material::GlobalMat4ParameterMap["view"] = cam.GetViewMatrix(); 
-        Render::Material::GlobalMat4ParameterMap["model"] = glm::scale(model,glm::vec3(0.05));
-        Render::Material::GlobalVec3ParameterMap["viewPos"] = camPos;
+        Render::Material::GlobalMat4ParameterMap["view"] = cam.GetViewMatrix();
+        Render::Material::GlobalVec3ParameterMap["viewPos"] = cam.GetPosition();
         Render::Material::GlobalFloatParameterMap["iTime"] = currentTime;
-        m.CommitMeshToRenderPipe(&renderPipe);
-        renderPipe.Render();
-        //m.Draw();
 
+        // m.CommitMeshToRenderPipe(&renderPipe);
+
+        // cube.materials[1].mat4ParameterMap["model"] = glm::scale(model,glm::vec3(0.5));
+        // cube.CommitMeshToRenderPipe(&renderPipe);
         
+        // cube.materials[1].mat4ParameterMap["model"] = glm::scale(glm::translate(model,glm::vec3(3.0)),glm::vec3(0.5));
+        // cube.CommitMeshToRenderPipe(&renderPipe);
         
+        // plane.materials[1].mat4ParameterMap["model"] = glm::scale(glm::translate(model,glm::vec3(0.0,-5.0,0.0)),glm::vec3(50.0));
+        // plane.CommitMeshToRenderPipe(&renderPipe);
+        
+        cube.model = glm::scale(model,glm::vec3(0.5));
+        cube.CommitMeshToRenderPipe(&renderPipe);
+        
+        cube.model = glm::scale(glm::translate(model,glm::vec3(3.0)),glm::vec3(0.5));
+        cube.CommitMeshToRenderPipe(&renderPipe);
+        
+        plane.model = glm::scale(glm::translate(model,glm::vec3(0.0,-5.0,0.0)),glm::vec3(50.0));
+        plane.CommitMeshToRenderPipe(&renderPipe);
+        renderPipe.Render();
 
         //渲染主要逻辑写在这里
         
@@ -171,11 +161,44 @@ int main()
 void processInput(GLFWwindow *window)
 {
     if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-        glfwSetWindowShouldClose(window, true);
-    
+    glfwSetWindowShouldClose(window, true);
     if (glfwGetKey(window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS and glfwGetKey(window, GLFW_KEY_F4) == GLFW_PRESS)
     {
         glfwSetWindowShouldClose(window, true);
+    }
+    //摄像机变速
+    if(glfwGetKey(window,GLFW_KEY_LEFT_SHIFT)){
+        camSpeed += camSpeed * 0.05f * deltaTime + deltaTime * 3.0f;
+    }
+    else{
+        camSpeed = 1.0;
+    }
+    float camMove = deltaTime * camSpeed;
+    const glm::vec3& caf = cam.GetCameraFrontRef(); 
+    const glm::vec3& caup = cam.GetCameraUpRef();
+    //摄像机移动输入处理
+    if(glfwGetKey(window,GLFW_KEY_W)){
+        camPos += camFront*camMove;
+        cam.Move(caf*camMove);
+    }
+    if(glfwGetKey(window,GLFW_KEY_A)){
+        camPos -= glm::normalize(glm::cross(camFront,camUp))*camMove;
+        cam.Move(-glm::normalize(glm::cross(caf,camUp))*camMove);
+    }
+    if(glfwGetKey(window,GLFW_KEY_S)){
+        camPos -= camFront*camMove;
+        cam.Move(-caf*camMove);
+    }
+    if(glfwGetKey(window,GLFW_KEY_D)){
+        camPos += glm::normalize(glm::cross(camFront,camUp))*camMove;
+        cam.Move(glm::normalize(glm::cross(caf,camUp))*camMove);
+    }
+    if(glfwGetKey(window,GLFW_KEY_SPACE)){
+        camPos.y += camMove;
+        cam.Move(caup * camMove);
+    }
+    if(glfwGetKey(window,GLFW_KEY_LEFT_ALT)){
+        cam.Move(-caup * camMove);
     }
 }
 

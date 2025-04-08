@@ -39,7 +39,7 @@ void Mesh::Draw()
     glBindVertexArray(VAO);
     // 材质设置
     _material->BindAllTexture();
-    _material->SetShaderParams();
+    _material->SetMaterialPropertiesToShader();
     // 索引绘制
     glDrawElements(GL_TRIANGLES, static_cast<unsigned int>(indicesSize), GL_UNSIGNED_INT, 0);
 }

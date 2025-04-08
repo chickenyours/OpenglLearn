@@ -10,6 +10,9 @@ namespace Render{
             inline glm::mat4 GetViewMatrix(){return view_;}
             inline const glm::mat4& GetViewMatrixRef() const {return view_;} 
             inline glm::vec3 GetCameraFront(){return camFront_;}
+            inline const glm::vec3& GetCameraFrontRef() const {return camFront_;}
+            inline glm::vec3 GetCameraUp(){return camUp_;}
+            inline const glm::vec3& GetCameraUpRef() const {return camUp_;}
             inline const glm::mat4& GetProjectionMatrixRef() const {return projection_;} 
             inline const glm::mat4 GetProjectionMatrix() const {return projection_;} 
             inline void SetPosition(glm::vec3 position){camPos_ = position;}

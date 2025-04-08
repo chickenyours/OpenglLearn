@@ -3,17 +3,20 @@
 
 using namespace Render;
 
-static const unsigned int SCR_WIDTH = 1200;
-static const unsigned int SCR_HEIGHT = 800;
-//static const std::vector<float> shadowCascadeLevels{ cameraFarPlane / 50.0f, cameraFarPlane / 25.0f, cameraFarPlane / 10.0f, cameraFarPlane / 2.0f };
-static const int debugLayer = 0;
-
 void CSMPass::Init(const InitRenderContext& ctx){
     lightDir = glm::vec3(-1,-1,-1); //前期没有完善的架构,所以使用固定光照
+    DistanceLayers_ = {50.0f, 25.0f, 10.0f, 2.0f};
+    //初始化FBO以及多级深度贴图
+    
 }
 
 void CSMPass::Update(const RenderContext& ctx){
-    
+    auto camera = ctx.camera;
+    float cameraNearPlane = camera->GetNear();
+    float cameraFarPlane = camera->GetFar();
+    std::vector<float> shadowCascadeLevels{cameraNearPlane , cameraFarPlane / 50.0f, cameraFarPlane / 25.0f, cameraFarPlane / 10.0f, cameraFarPlane / 2.0f , cameraFarPlane};
+    auto lightSpaceMatrices = GetLightSpaceMatrices(*camera,shadowCascadeLevels);
+    //执行绘制,更新多级深度贴图
 }
 
 void CSMPass::Release(){
@@ -100,7 +103,7 @@ glm::mat4 CSMPass::GetLightSpaceMatrix(const float nearPlane, const float farPla
     return lightProjection * lightView;
 }
 
-std::vector<glm::mat4> CSMPass::GetLightSpaceMatrices(const Camera &camera,std::vector<float> shadowCascadeLevels)
+std::vector<glm::mat4> CSMPass::GetLightSpaceMatrices(const Camera &camera,const std::vector<float>& shadowCascadeLevels)
 {
     std::vector<glm::mat4> ret;
     for (size_t i = 1; i < shadowCascadeLevels.size() + 1; ++i)

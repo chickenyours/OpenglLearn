@@ -8,6 +8,7 @@ using namespace Render;
 
 map<string, float> Material::GlobalFloatParameterMap;
 map<string, int> Material::GlobalIntParameterMap;
+map<string, bool> Material::GlobalBoolParameterMap;
 map<string, glm::vec3> Material::GlobalVec3ParameterMap;
 map<string, glm::vec4> Material::GlobalVec4ParameterMap;
 map<string, glm::mat4> Material::GlobalMat4ParameterMap;
@@ -28,6 +29,7 @@ Material::Material(Material&& other) {
         textureChannel = std::move(other.textureChannel);
         floatParameterMap = std::move(other.floatParameterMap);
         intParameterMap = std::move(other.intParameterMap);
+        boolParameterMap = std::move(other.boolParameterMap);
         vec3ParameterMap = std::move(other.vec3ParameterMap);
         vec4ParameterMap = std::move(other.vec4ParameterMap);
         mat4ParameterMap = std::move(other.mat4ParameterMap);
@@ -50,7 +52,7 @@ void Material::BindAllTexture(){
     }
 }
 
-void Material::SetShaderParams(){
+void Material::SetMaterialPropertiesToShader(){
     // 使用着色器
     if(!shaderProgram){
         return;
@@ -70,6 +72,12 @@ void Material::SetShaderParams(){
     }
     for(auto it = GlobalIntParameterMap.begin();it != GlobalIntParameterMap.end();it++){
         ShaderU1i(*shaderProgram,it->first,it->second);
+    }
+    for(auto it = boolParameterMap.begin();it != boolParameterMap.end();it++){
+        ShaderUb(*shaderProgram,it->first,it->second);
+    }
+    for(auto it = GlobalBoolParameterMap.begin();it != GlobalBoolParameterMap.end();it++){
+        ShaderUb(*shaderProgram,it->first,it->second);
     }
     for(auto it = vec3ParameterMap.begin();it != vec3ParameterMap.end();it++){
         ShaderUvec3(*shaderProgram,it->first,it->second);
@@ -208,6 +216,14 @@ void Material::LoadParameterFromConfigFile(const Json::Value& materialJson){
             std::string propertyName = it.key().asString();
             int propertyValue = (*it).asInt();
             intParameterMap[propertyName] = propertyValue;
+        }
+
+        // Load bool properties
+        Json::Value boolProperties = properties["bool"];
+        for (Json::Value::const_iterator it = boolProperties.begin(); it != boolProperties.end(); ++it) {
+            std::string propertyName = it.key().asString();
+            bool propertyValue = (*it).asBool();
+            boolParameterMap[propertyName] = propertyValue;
         }
 
         // Load vec3 properties

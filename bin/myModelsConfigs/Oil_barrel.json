@@ -18,8 +18,9 @@
                 "aoMap": ["models/Oil_barrel/textures/Oil_barrel_AO.png",4]
             },
             "properties":{
-                "float":{},
+                "float":{"metallicValue":0.9},
                 "int":{},
+                "bool":{"useMetallicMap":true},
                 "vec3":{},
                 "vec4":{},
                 "mat4":{},

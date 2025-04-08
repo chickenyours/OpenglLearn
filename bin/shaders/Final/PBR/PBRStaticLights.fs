@@ -13,6 +13,9 @@ layout(binding = 2) uniform sampler2D metallicMap;
 layout(binding = 3) uniform sampler2D roughnessMap;
 layout(binding = 4) uniform sampler2D aoMap;
 
+// 新增，替代 metallicMap
+uniform bool useMetallicMap;
+uniform float metallicValue;
 
 uniform float iTime;
 uniform vec3 viewPos;
@@ -54,13 +57,15 @@ vec3 GetLight(){
 
     lightPositions[0] = vec3(5.0, 5.0, 0.0);
     lightPositions[1] = vec3(-5.0, 5.0, 0.0);
-    lightPositions[2] = vec3(-5.0, -5.0, 0.0);
-    lightPositions[3] = vec3(5.0, -5.0, 0.0);
+    lightPositions[2] = vec3(0.0, -5.0, -5.0);
+    lightPositions[3] = vec3(0.0, -5.0, 5.0);
 
-    lightColors[0] = vec3(200, 200, 200);
-    lightColors[1] = vec3(200, 200, 200);
-    lightColors[2] = vec3(200, 200, 200);
-    lightColors[3] = vec3(200, 200, 200);
+    float qiangdu = 100.0;
+
+    lightColors[0] = vec3(qiangdu, qiangdu, qiangdu);
+    lightColors[1] = vec3(qiangdu, qiangdu, qiangdu);
+    lightColors[2] = vec3(qiangdu, qiangdu, qiangdu);
+    lightColors[3] = vec3(qiangdu, qiangdu, qiangdu);
 
     mat2 r = mat2(cos(iTime * 0.5),-sin(iTime * 0.5),sin(iTime * 0.5),cos(iTime * 0.5));
 
@@ -71,7 +76,8 @@ vec3 GetLight(){
 
     vec3 albedo = texture(albedoMap, TexCoords).rgb;
     float roughness = texture(roughnessMap, TexCoords).r;
-    float metallic = texture(metallicMap, TexCoords).r;
+    // float metallic = texture(metallicMap, TexCoords).r;
+    float metallic = useMetallicMap ? texture(metallicMap, TexCoords).r : metallicValue;
 
     vec3 N = normalize(texture(normalMap, TexCoords).rgb * 2.0 - 1.0);
     N = normalize(TBN * N);

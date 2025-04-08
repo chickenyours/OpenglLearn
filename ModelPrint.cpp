@@ -35,7 +35,8 @@ void PrintNodeDistribution(const aiScene* scene){
 
 void PrintSceneInfo(const aiScene* scene){
     cout<<"==================SceneInfo=================="<<endl;
-    cout<<"Scene Name"<<scene->mRootNode->mName.C_Str()<<endl;
+    cout<<"Scene Name: "<<scene->mRootNode->mName.C_Str()<<endl;
+    cout<<"Scene NumMeshes: "<<scene->mNumMeshes<<endl;
     cout<<"Scene NumAnimations: "<<scene->mNumAnimations<<endl;
     cout<<"Scene NumCameras: "<<scene->mNumCameras<<endl;
     cout<<"Scene NumLights: "<<scene->mNumLights<<endl;
@@ -78,6 +79,7 @@ void PrintMeshInfo(const aiMesh* mesh){
     cout<<"Mesh HasPositions: "<<mesh->HasPositions()<<endl;
     cout<<"Mesh HasFaces: "<<mesh->HasFaces()<<endl;
     cout<<"Mesh HasNormals: "<<mesh->HasNormals()<<endl;
+    cout<<"Mesh HasTangents: "<<(mesh->mTangents?1:0)<<endl;
     cout<<"Mesh HasBones: "<<mesh->HasBones()<<endl;
     cout<<"Mesh NumVertices: "<<mesh->mNumVertices<<endl;
     cout<<"Mesh NumFaces: "<<mesh->mNumFaces<<endl;
@@ -308,7 +310,10 @@ int main() {
     string modelPath;
     cout<<"Please Input Model Path: ";
     cin>>modelPath;
-    const aiScene* scene = importer.ReadFile(modelPath, aiProcess_Triangulate | aiProcess_FlipUVs);
+    const aiScene* scene = importer.ReadFile(modelPath,  aiProcess_Triangulate |
+        aiProcess_GenSmoothNormals |
+        aiProcess_CalcTangentSpace |
+        aiProcess_FlipUVs );
     
     //检查是否导入成功
     if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {

@@ -37,6 +37,7 @@ namespace Render{
         static UniformParameter globalUniformParameter;
         map<string, float> floatParameterMap;
         map<string, int> intParameterMap;
+        map<string, bool> boolParameterMap;
         map<string, glm::vec3> vec3ParameterMap;
         map<string, glm::vec4> vec4ParameterMap;
         map<string, glm::mat4> mat4ParameterMap;
@@ -46,6 +47,7 @@ namespace Render{
         public:
             static map<string, float> GlobalFloatParameterMap;
             static map<string, int> GlobalIntParameterMap;
+            static map<string, bool> GlobalBoolParameterMap;
             static map<string, glm::vec3> GlobalVec3ParameterMap;
             static map<string, glm::vec4> GlobalVec4ParameterMap;
             static map<string, glm::mat4> GlobalMat4ParameterMap;
@@ -60,6 +62,7 @@ namespace Render{
             // 材质的参数,在Json文件中的类型标记分别是: float int vec3 vec4 mat4
             map<string, float> floatParameterMap;
             map<string, int> intParameterMap;
+            map<string, bool> boolParameterMap;
             map<string, glm::vec3> vec3ParameterMap;
             map<string, glm::vec4> vec4ParameterMap;
             map<string, glm::mat4> mat4ParameterMap;
@@ -72,7 +75,7 @@ namespace Render{
             Material(Material&& other);
             ~Material();
             // 设置材质的着色器
-            void SetShaderParams();
+            void SetMaterialPropertiesToShader();
             // 加载材质的参数
             void LoadParameterFromModelAiMaterial(const aiMaterial& material);
             // 加载材质的参数

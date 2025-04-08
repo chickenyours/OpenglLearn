@@ -2,6 +2,7 @@
 #include <unordered_map>
 #include <memory>
 #include <functional>
+#include "code/RenderPipe/renderPipe.h"
 
 using namespace Render;
 
@@ -322,8 +323,15 @@ void Model::LoadAnimations(const aiScene* scene,Json::Value const& animationJson
 }
 
 void Model::CommitMeshToRenderPipe(SimpleRenderPipe *renderPipe){
+    // for(auto& mesh : meshes){
+    //     renderPipe->Addmesh(&mesh);
+    // }
     for(auto& mesh : meshes){
-        renderPipe->Addmesh(&mesh);
+        RenderItem renderItem;
+        renderItem.mesh = &mesh;
+        renderItem.material = &(this->materials[mesh.GetMaterialIndex()]);
+        renderItem.model = this->model;
+        renderPipe->Push(renderItem);
     }
 }
 

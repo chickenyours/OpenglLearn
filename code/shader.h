@@ -59,6 +59,10 @@ inline void ShaderUvec2(ShaderProgram& program,const string& uniform,glm::vec2 v
     glUniform2f(glGetUniformLocation(program.getShaderProgramID(),uniform.c_str()),v[0],v[1]);
 }
 
+inline void ShaderUb(ShaderProgram& program,const string& uniform, bool v){
+    glUniform1i(glGetUniformLocation(program.getShaderProgramID(),uniform.c_str()),v ? GL_TRUE:GL_FALSE);
+}
+
 inline void ShaderUB(ShaderProgram& program,const string& blockName,int point){
     glUniformBlockBinding(program.getShaderProgramID(),glGetUniformBlockIndex(program.getShaderProgramID(),blockName.c_str()),point);
 }

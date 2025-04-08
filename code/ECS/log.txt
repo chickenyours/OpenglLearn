@@ -1,0 +1,9 @@
+ECS设计:
+    面临的问题:
+        虽然ECS看起来简单,但是作用关系的细节很复杂,考虑程序需要面临的很多的情况:
+            System的循环周期
+            System和Entity的交互
+            Component直接的影响
+            Component如何驱动Entity(数据和状态)与System交互
+            等等
+    这是难度很高的设计,但要慢慢来

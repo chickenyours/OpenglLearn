@@ -93,6 +93,10 @@ struct ModelNode {
 
         void CommitMeshToRenderPipe(SimpleRenderPipe *renderPipe);
 
+        // 模型持有的材质
+        vector<Material> materials;
+
+        glm::mat4 model = glm::mat4(1.0);
     private:
         // 模型的名称
         string name;
@@ -102,8 +106,6 @@ struct ModelNode {
         std::unique_ptr<ModelNode> nodeRoot;
         // 模型持有的网格
         vector<Mesh> meshes;
-        // 模型持有的材质
-        vector<Material> materials;
 
         // 是否支持动画
         bool _isHasAnimation = false;

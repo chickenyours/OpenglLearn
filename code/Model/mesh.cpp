@@ -1,5 +1,10 @@
 #include "mesh.h"
-#include <iostream>
+
+#include "code/shader.h"
+#include "code/Material/material.h"
+#include "code/RenderPipe/simpleRenderPipe.h"
+
+
 
 using namespace std;
 using namespace Render;

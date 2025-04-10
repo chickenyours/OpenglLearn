@@ -1,16 +1,20 @@
 #pragma once
 
+#include <iostream>
+#include <sstream>
+#include <map>
+#include <cmath>
 #include <glm/glm.hpp>
 #include <vector>
 #include <assimp/scene.h>
 #include <assimp/Importer.hpp>
-#include "Animation.h"
-#include "Bone.h"
+
 
 namespace Render{
     //前向声明
     class Animation;
     class AnimationNodeData;
+    class Bone;
 
     class Animator {
         public:

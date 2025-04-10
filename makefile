@@ -29,7 +29,8 @@ SRC = code/shader.cpp \
 	code/Model/bone.cpp \
 	code/Model/animation.cpp \
 	code/Model/animator.cpp \
-	code/RenderPipe/renderPipe.cpp \
+	code/RenderPipe/RenderPipe.cpp \
+	code/RenderPipe/simpleRenderPipe.cpp \
 	code/VisualTool/visual.cpp \
 	code/Camera/camera.cpp \
 	code/RenderPipe/Pass/pass.cpp \

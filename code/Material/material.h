@@ -1,21 +1,16 @@
 #pragma once
+#include <iostream>
 #include <string>
 #include <vector>
 #include <map>
 #include <memory>
-
 #include <json/json.h>
-
 #include <glad/glad.h>
-
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
-
 #include <assimp/material.h>
 
-#include "code/shader.h"
-#include "code/Texture/texture.h"
 
 using namespace std;
 
@@ -27,6 +22,8 @@ using namespace std;
 #define CUSTOM_TEXTURE_START 16
 
 namespace Render{
+    class ShaderProgram;
+    class Texture;
 
     enum MaterialPropertyFlag{
         MATERIAL_SHADOW_OPAQUE = 1     ,

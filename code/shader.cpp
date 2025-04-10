@@ -3,6 +3,7 @@
 #include <fstream>
 #include <cstring>
 
+using namespace Render;
 
 Shader::Shader(int shaderType,string filePath) : _shaderType(shaderType){
     //read shaderSource from file

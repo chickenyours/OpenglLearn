@@ -1,6 +1,7 @@
 #include "material.h"
 
-#include <iostream>
+#include "code/shader.h"
+#include "code/Texture/texture.h"
 
 using namespace std;
 

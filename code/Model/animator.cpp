@@ -1,5 +1,8 @@
 #include "animator.h"
-#include <cmath>
+
+#include "Animation.h"
+#include "code/Model/bone.h"
+#include "code/Model/animdata.h"
 
 using namespace Render;
 

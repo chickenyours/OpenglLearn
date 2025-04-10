@@ -1,8 +1,16 @@
 #include "model_animation.h"
-#include <unordered_map>
-#include <memory>
-#include <functional>
-#include "code/RenderPipe/renderPipe.h"
+
+#include "assimp_glm_helper.h"
+#include "animdata.h"
+#include "code/shader.h"
+#include "code/Model/mesh.h"
+#include "code/Material/material.h"
+#include "code/Texture/texture.h"
+#include "code/Model/animation.h"
+#include "code/Model/animator.h"
+#include "code/VisualTool/visual.h"
+#include "code/RenderPipe/simpleRenderPipe.h"
+#include "code/RenderPipe/RenderContext/renderItem.h"
 
 using namespace Render;
 
@@ -322,7 +330,7 @@ void Model::LoadAnimations(const aiScene* scene,Json::Value const& animationJson
     }
 }
 
-void Model::CommitMeshToRenderPipe(SimpleRenderPipe *renderPipe){
+void Model::CommitMeshToRenderPipe(RenderPipe *renderPipe){
     // for(auto& mesh : meshes){
     //     renderPipe->Addmesh(&mesh);
     // }

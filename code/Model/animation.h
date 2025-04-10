@@ -5,15 +5,14 @@
 #include <glm/glm.hpp>
 #include <assimp/scene.h>
 #include <functional>
-#include "bone.h"
-#include "animdata.h"
-#include "model_animation.h"
 
 namespace Render{
 
     //前向声明
     class Model;
     class ModelNode;
+    class Bone;
+    class BoneInfo;
 
     struct AnimationNodeData {
         glm::mat4 transformation;
@@ -35,7 +34,7 @@ namespace Render{
         
         float GetTicksPerSecond() const;
         float GetDuration() const;
-        inline string GetName(){return _name;};
+        inline std::string GetName(){return _name;};
         const AnimationNodeData& GetRootNode() const;
         const std::map<std::string, BoneInfo>& GetBoneIDMap() const;
 

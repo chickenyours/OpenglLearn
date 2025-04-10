@@ -1,6 +1,9 @@
 #include "Bone.h"
 #include <glm/gtc/matrix_transform.hpp>
 #include <cassert>
+#include "assimp_glm_helper.h"
+
+using namespace Render;
 
 Bone::Bone(const std::string& name, int ID, const aiNodeAnim* channel)
     : m_Name(name), m_ID(ID), m_LocalTransform(1.0f) {

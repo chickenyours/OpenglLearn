@@ -1,9 +1,12 @@
 #include "animation.h"
 #include <cassert>
 
+#include "bone.h"
+#include "animdata.h"
+#include "code/Model/model_animation.h"
+
+
 using namespace Render;
-
-
 
 Animation::Animation(const aiAnimation* animation, Model* model){
 

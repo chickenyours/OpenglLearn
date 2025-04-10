@@ -3,22 +3,21 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
-#include "code/shader.h"
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+
+#include "code/shader.h"
 #include "code/Model/model_animation.h"
 #include "code/Material/material.h"
 #include "code/Model/animator.h"
 #include "code/VisualTool/visual.h"
-
-#include "code/RenderPipe/renderPipe.h"
+#include "code/RenderPipe/simpleRenderPipe.h"
 #include "code/Camera/camera.h"
-
 #include "code/Config/config.h"
-
+#include "code/RenderPipe/RenderContext/RenderPipeConfig.h"
 
 #define print(msg) std::cout<<(msg)<<std::endl 
 
@@ -43,6 +42,8 @@ float camfixSpeed = 2.5;
 float camSpeed = 0;
 
 Render::Camera cam;
+
+Render::SimpleRenderPipe renderPipe;
 
 //time
 float deltaTime = 0.0f;
@@ -89,7 +90,13 @@ int main()
     glm::mat4 projection    = glm::perspective(glm::radians(45.0f),(float)SCR_WIDTH/(float)SCR_HEIGHT,0.1f,500.0f);
 
     //渲染管线
-    Render::SimpleRenderPipe renderPipe;
+
+    Render::RenderPipeConfig cfg;
+    cfg.targetBufferWidth = SCR_WIDTH;
+    cfg.targetBufferHeight = SCR_HEIGHT;
+    renderPipe.Init(cfg);
+    renderPipe.SetCamera(&cam);
+
    
     Render::Model m("./myModelsConfigs/Oil_barrel.json");
 
@@ -108,47 +115,19 @@ int main()
         latestTime = deltaTime + latestTime;
         //处理输入
         processInput(window);
-        //摄像机矩阵处理
-        // glm::vec3 direction;
-        // direction.x = glm::cos(glm::radians(pitch)) * glm::cos(glm::radians(yaw));
-        // direction.y = glm::sin(glm::radians(pitch));
-        // direction.z = glm::sin(glm::radians(yaw)) * glm::cos(glm::radians(pitch));
-        // camFront = glm::normalize(direction); 
-        // view = glm::lookAt(camPos,camFront+camPos,camUp);
-
         cam.Update();
-
         //逻辑处理代码写在这里：
         Render::Material::GlobalMat4ParameterMap["projection"] = cam.GetProjectionMatrix();
         Render::Material::GlobalMat4ParameterMap["view"] = cam.GetViewMatrix();
         Render::Material::GlobalVec3ParameterMap["viewPos"] = cam.GetPosition();
         Render::Material::GlobalFloatParameterMap["iTime"] = currentTime;
-
-        // m.CommitMeshToRenderPipe(&renderPipe);
-
-        // cube.materials[1].mat4ParameterMap["model"] = glm::scale(model,glm::vec3(0.5));
-        // cube.CommitMeshToRenderPipe(&renderPipe);
-        
-        // cube.materials[1].mat4ParameterMap["model"] = glm::scale(glm::translate(model,glm::vec3(3.0)),glm::vec3(0.5));
-        // cube.CommitMeshToRenderPipe(&renderPipe);
-        
-        // plane.materials[1].mat4ParameterMap["model"] = glm::scale(glm::translate(model,glm::vec3(0.0,-5.0,0.0)),glm::vec3(50.0));
-        // plane.CommitMeshToRenderPipe(&renderPipe);
-        
         cube.model = glm::scale(model,glm::vec3(0.5));
         cube.CommitMeshToRenderPipe(&renderPipe);
-        
         cube.model = glm::scale(glm::translate(model,glm::vec3(3.0)),glm::vec3(0.5));
         cube.CommitMeshToRenderPipe(&renderPipe);
-        
         plane.model = glm::scale(glm::translate(model,glm::vec3(0.0,-5.0,0.0)),glm::vec3(50.0));
         plane.CommitMeshToRenderPipe(&renderPipe);
-        renderPipe.Render();
-
-        //渲染主要逻辑写在这里
-        
-        
-        
+        renderPipe.RenderCall();
         glfwSwapBuffers(window);                                //交换缓冲
         glfwPollEvents();                                       //事件响应
     }
@@ -204,7 +183,11 @@ void processInput(GLFWwindow *window)
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
-    glViewport(0, 0, width, height);
+    // glViewport(0, 0, width, height);
+    Render::RenderPipeConfig cfg;
+    cfg.targetBufferWidth = width;
+    cfg.targetBufferHeight = height;
+    renderPipe.SetConfig(cfg);
 }
 
 void mouse_callback(GLFWwindow *window,double xpos,double ypos){

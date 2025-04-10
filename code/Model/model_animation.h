@@ -1,30 +1,33 @@
 #pragma once
 
+// ========== C++ 标准库 ==========
 #include <string>
 #include <fstream>
 #include <sstream>
 #include <iostream>
 #include <map>
+#include <unordered_map>
 #include <vector>
+#include <memory>
+#include <functional>
 
-#include <glad/glad.h> 
+// ========== OpenGL ==========
+#include <glad/glad.h>
+
+// ========== 数学库（GLM） ==========
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+
+// ========== 图像库 ==========
 #include <stb_image.h>
+
+// ========== 模型导入（Assimp） ==========
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 
-#include "mesh.h"
-#include "code/shader.h"
-#include "assimp_glm_helper.h"
-#include "animdata.h"
-#include "code/Material/material.h"
-#include "code/Texture/texture.h"
-#include "code/Model/animation.h"
-#include "code/Model/animator.h"
-#include "code/VisualTool/visual.h"
-#include "code/RenderPipe/renderPipe.h"
+// ========== JSON ==========
+#include <json/json.h>
 
 
 
@@ -34,8 +37,14 @@ using namespace std;
 namespace Render{
 
 //前向声明
+class Mesh;
+class RenderPipe;
 class Animation;
 class Animator;
+class Vertex;
+class BoneInfo;
+class Material;
+class Marker;
 
 struct ModelNode {
     std::string name;              // 使用 std::move 传递，减少拷贝
@@ -91,7 +100,7 @@ struct ModelNode {
         // 使用marker可视化组件展示节点分布
         void VisualAddNodeAttribution(Marker* marker);
 
-        void CommitMeshToRenderPipe(SimpleRenderPipe *renderPipe);
+        void CommitMeshToRenderPipe(RenderPipe *renderPipe);
 
         // 模型持有的材质
         vector<Material> materials;

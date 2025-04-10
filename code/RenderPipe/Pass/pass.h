@@ -4,18 +4,20 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <vector>
 
-#include "code/RenderPipe/RenderContext/renderContext.h"
-#include "code/RenderPipe/RenderContext/initContext.h"
+
 
 namespace Render{
+    class PassConfig;
+    class PassRenderContext;
+    class RenderItem;
 
-
-    class Pass{
+    class Pass {
         public:
-        Pass();
-        virtual void Init(const InitRenderContext& ctx) = 0;
-        virtual void Update(const RenderContext& ctx) = 0;
-        virtual void Release();
-        ~Pass();
+            Pass();
+            virtual void Init(const PassConfig& cfg) = 0;
+            virtual void SetConfig(const PassConfig& cfg) = 0;
+            virtual void Update(const PassRenderContext& ctx, const std::vector<RenderItem>& renderItemList) = 0;
+            virtual void Release();
+            virtual ~Pass();
     };
 }

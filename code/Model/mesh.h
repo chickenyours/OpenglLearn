@@ -1,16 +1,11 @@
 #pragma once
-
+#include <iostream>
+#include <string>
+#include <vector>
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-#include "code/shader.h"
-#include "code/Material/material.h"
-
-#include <string>
-#include <vector>
-
-#include "code/RenderPipe/renderPipe.h"
 
 using namespace std;
 
@@ -18,7 +13,9 @@ using namespace std;
 #define MAX_BONE_AMOUNT 100
 
 namespace Render{
-    class SimpleRenderPipe;
+    class Material;
+    class RenderPipe;
+    class ShaderProgram;
 
     struct Vertex {
         glm::vec3 Position;
@@ -40,7 +37,12 @@ namespace Render{
             int GetMaterialIndex();
             void setupMesh(vector<Vertex> vertices, vector<unsigned int> indices);
             void Print(int tabs);
-            friend SimpleRenderPipe;
+            inline unsigned int GetVAO() const { return VAO; }
+            inline unsigned int GetVBO() const { return VBO; }
+            inline unsigned int GetEBO() const { return EBO; }
+            inline unsigned int GetVerticesSize() const { return verticesSize; }
+            inline unsigned int GetIndicesSize() const { return indicesSize; }
+            friend RenderPipe;
         private:
             unsigned int materialIndex;
             Material* _material;

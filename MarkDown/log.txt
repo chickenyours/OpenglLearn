@@ -1,0 +1,66 @@
+20250403
+    你遇到的是典型的抽象接口方法参数与多态解耦的冲突问题：
+    你希望通过 Pass::Update() 多态调用 CSMPass::Update()，但又想给 CSMPass 的 Update() 传入 Camera，这就出现了冲突——因为虚函数签名不同就不能多态覆盖。
+    ✅ 问题本质
+    你的问题可以归结为这两个互相冲突的设计目标：
+    ✅ 需要 多态支持（统一调用接口） → 要求所有 Pass::Update() 接口一致，不能改签名。
+    ✅ 某些具体 Pass（如 CSMPass）需要额外上下文参数 → 比如 Camera*。
+    通过 Context 或结构体传参（强烈推荐）
+        Step 1: 定义上下文结构体
+        struct RenderContext {
+            const Camera* camera = nullptr;
+            // 可继续扩展：灯光、帧缓存、时间、输入、主光方向等
+        };
+
+    返回形式	            是否会拷贝	      能否 RVO	   适用场景
+    return viewMatrix_;	    ✅ 拷贝/移动发生	  ❌	      成员变量访问
+    return mat;（局部变量）	 ✅ / ❌（视情况）  ✅       NRVO局部缓存返回
+    return T();（临时）	     ❌                ✅ RVO    一次性创建临时值
+    return const T&	        ❌	 ⛔ 不用 RVO，但也不拷贝        推荐只读访问
+
+    ✅ 1. const glm::mat4& 是引用，不代表每次都是内存访问
+    引用本身只是一个别名，不是“每次都读取内存”
+    如果你只是获取引用本身，然后不立刻解引用（访问内部数据），其实还没触发内存访问
+    ✅ 2. 真正“内存命中”的发生时机：访问矩阵内容（解引用）时
+    const glm::mat4& view = camera.GetViewMatrix();
+    auto right = glm::vec3(view[0]); // ← 真正开始访问内存
+    当你访问 view[i][j] 或 view * vec 时，CPU 才会尝试读取 view_ 指向的内存，这时才涉及内存命中、缓存、加载等问题
+
+    for (auto& obj : sceneObjects) {
+    auto mat = obj.camera->GetViewMatrix(); // const glm::mat4& 
+    render(mat); // 如果 view_ 在缓存里，这里几乎无代价
+    }
+
+    SoA (Struct of Arrays) , DOP的一种思维:
+        struct CameraComponentArray {
+            std::vector<glm::mat4> views;
+            std::vector<glm::mat4> projections;
+            std::vector<float> fovs;
+        };
+        for (int i = 0; i < count; ++i)
+            camera.views[i] = computeView(...); // 向量化效率更高
+
+    ⚠️ 成员初始化顺序应与声明顺序一致
+    在 C++ 中，成员变量的初始化顺序是由它们在类中声明的顺序决定的，而不是在初始化列表中的顺序。
+20250404
+    A fun1(){
+        A a(10);
+        return a;
+    }
+    A a(fun1()); -> A a = fun1() (这里的=不是赋值,而是构造)
+    >>> 调用构造函数
+
+    如果值接受引用返回,则会触发拷贝构造函数
+    const A& fun4(){
+        static A c(4);
+        return c;
+    }
+    A a = fun4();
+    >>>调用构造函数
+    >>>调用拷贝构造函数
+
+20250410
+    头文件尽量使用库和前置声明,源文件包含其他模块头文件,这样就不会揉成一团.
+    使用指针(智能指针)作为成员对象的持有方式,可以绕开在头文件中需要类的完整布局的问题
+        (避免包含大头文件、加快编译、明确所有权)
+    C++有一个良好的特性,那就是自动选择完整声明的类,这样包含和前置声明就不会冲突

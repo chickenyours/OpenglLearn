@@ -9,6 +9,7 @@ namespace Render{
     class Camera;
 
     struct PassRenderContext {
+        GLuint renderTargetBuffer;
         const Camera* camera = nullptr;
         // 可继续扩展：灯光、帧缓存、时间、输入、主光方向等
     };

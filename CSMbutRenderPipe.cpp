@@ -17,7 +17,7 @@
 #include "code/RenderPipe/simpleRenderPipe.h"
 #include "code/Camera/camera.h"
 #include "code/Config/config.h"
-#include "code/RenderPipe/RenderContext/RenderPipeConfig.h"
+#include "code/RenderPipe/RenderContext/RenderPipeConfig.h" 
 
 #define print(msg) std::cout<<(msg)<<std::endl 
 
@@ -27,7 +27,7 @@
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
 void mouse_callback(GLFWwindow *window,double xpos,double ypos);
-void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
+void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods); 
 //camera
 glm::vec3 camPos(0.0,0.0,3.0);
 glm::vec3 camFront(0.0f,0.0f,-1.0f);
@@ -55,7 +55,7 @@ int main()
 {
     //初始化
     glfwInit();
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4); 
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     //创建对话窗口
@@ -89,7 +89,7 @@ int main()
     glm::mat4 view          = glm::lookAt(camPos,camPos+camFront,camUp);
     glm::mat4 projection    = glm::perspective(glm::radians(45.0f),(float)SCR_WIDTH/(float)SCR_HEIGHT,0.1f,500.0f);
 
-    //渲染管线
+    //渲染管线 
 
     Render::RenderPipeConfig cfg;
     cfg.targetBufferWidth = SCR_WIDTH;

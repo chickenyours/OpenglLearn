@@ -17,7 +17,7 @@ CSMPass::CSMPass(){
 
 void CSMPass::Init(const PassConfig& cfg){
     std::cout<<"初始化Pass: CSMPass"<<std::endl;
-    lightDir_ = glm::vec3(-1,-1,-1); //前期没有完善的架构,所以使用固定光照
+    lightDir_ = glm::vec3(0,-1,0); //前期没有完善的架构,所以使用固定光照
     DistanceLayers_ = {50.0f, 25.0f, 10.0f, 2.0f};
     //初始化FBO以及多级深度贴图
     glGenFramebuffers(1, &lightFBO_);
@@ -89,6 +89,7 @@ void CSMPass::Update(const PassRenderContext& ctx, const std::vector<RenderItem>
         cameraFarPlane / DistanceLayers_[3], 
         cameraFarPlane};
     auto lightSpaceMatrices = GetLightSpaceMatrices(*camera,shadowCascadeLevels);
+
     //更新UBO
     glBindBuffer(GL_UNIFORM_BUFFER, matricesUBO_);
     for (size_t i = 0; i < lightSpaceMatrices.size(); ++i)
@@ -100,13 +101,14 @@ void CSMPass::Update(const PassRenderContext& ctx, const std::vector<RenderItem>
     // glUnmapBuffer(GL_UNIFORM_BUFFER);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
     //执行绘制,更新多级深度贴图
-    depthShader_->Use();
     glBindFramebuffer(GL_FRAMEBUFFER,lightFBO_);
+    depthShader_->Use();
     glViewport(0,0,depthMapResolution_,depthMapResolution_);
     glClear(GL_DEPTH_BUFFER_BIT);
     //正面剔除
     glCullFace(GL_FRONT);
     for(auto& renderItem : renderItemList){
+        glBindVertexArray(renderItem.mesh->GetVAO());
         ShaderUmatf4(*depthShader_,"model",renderItem.model);
         glDrawElements(GL_TRIANGLES, renderItem.mesh->GetIndicesSize(), GL_UNSIGNED_INT, 0);
     }

@@ -35,11 +35,13 @@ SRC = code/shader.cpp \
 	code/Camera/camera.cpp \
 	code/RenderPipe/Pass/pass.cpp \
 	code/RenderPipe/Pass/CSMpass.cpp \
+	code/RenderPipe/Pass/ImageToBuffer.cpp \
 	include/stb_image.cpp \
 
 # 定义 .o 和 .d 文件的位置
+CPP_FILES = $(SRC) $(TARGET)
 OBJ = $(addprefix $(BUILD_DIR)/, $(SRC:.cpp=.o))
-DEP = $(addprefix $(BUILD_DIR)/, $(SRC:.cpp=.d))
+DEP = $(addprefix $(BUILD_DIR)/, $(CPP_FILES:.cpp=.d))
 
 # 主程序源文件
 TARGET ?= main.cpp

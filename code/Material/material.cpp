@@ -2,6 +2,7 @@
 
 #include "code/shader.h"
 #include "code/Texture/texture.h"
+#include "code/RenderPipe/Pass/RenderPassFlag.h"
 
 using namespace std;
 
@@ -14,11 +15,15 @@ map<string, glm::vec3> Material::GlobalVec3ParameterMap;
 map<string, glm::vec4> Material::GlobalVec4ParameterMap;
 map<string, glm::mat4> Material::GlobalMat4ParameterMap;
 
-Material::Material(const aiMaterial& material, const Json::Value& materialJson):name("default"),id(0),propertyFlag(0){
-    LoadParameterFromModelAiMaterial(material);
-    if (!materialJson.isNull() && !materialJson.empty()){
-        LoadParameterFromConfigFile(materialJson);
-    }
+Material::Material(const aiMaterial& material, const Json::Value& materialJson):
+    name("default"),
+    id(0),
+    renderEnablePassFlag_(0),
+    renderDisablePassFlag_(0){
+        LoadParameterFromModelAiMaterial(material);
+        if (!materialJson.isNull() && !materialJson.empty()){
+            LoadParameterFromMaterialJson(materialJson);
+        }
 }
 
 Material::Material(Material&& other) {
@@ -34,14 +39,15 @@ Material::Material(Material&& other) {
         vec3ParameterMap = std::move(other.vec3ParameterMap);
         vec4ParameterMap = std::move(other.vec4ParameterMap);
         mat4ParameterMap = std::move(other.mat4ParameterMap);
-        propertyFlag = other.propertyFlag;
-
+        renderEnablePassFlag_ = other.renderEnablePassFlag_;
+        renderDisablePassFlag_ = other.renderDisablePassFlag_;
         // 释放当前指针 (如果已有)
         shaderProgram = std::move(other.shaderProgram);  
         other.shaderProgram = nullptr;
 
         other.id = 0;
-        other.propertyFlag = 0;
+        other.renderEnablePassFlag_ = 0;
+        other.renderDisablePassFlag_ = 0;
     }
 }
 
@@ -178,7 +184,7 @@ void Material::LoadParameterFromModelAiMaterial(const aiMaterial& material){
     //加载纹理元数据信息
 }
 
-void Material::LoadParameterFromConfigFile(const Json::Value& materialJson){
+void Material::LoadParameterFromMaterialJson(const Json::Value& materialJson){
     // 检索材质配置文件,已知materialJson是一个数组,循环找到同名的材质配置
     try {
         // Load shader program
@@ -257,12 +263,8 @@ void Material::LoadParameterFromConfigFile(const Json::Value& materialJson){
         }
 
         // 获取属性标志位
-        Json::Value propertyFlagValue = materialJson["flags"];
-        for (int i = 0; i < 2; i++) {
-            if (propertyFlagValue[i].asBool()) {
-                propertyFlag |= (1 << i);
-            }
-        }
+        Json::Value materialRenderModeJson = materialJson["renderMode"];
+        LoadRenderPassFlagFromMaterialJson(materialRenderModeJson);
     }
     catch (const std::exception& e) {
         std::cout<< "Error loading material: " << name << std::endl;
@@ -271,6 +273,23 @@ void Material::LoadParameterFromConfigFile(const Json::Value& materialJson){
         std::cerr << e.what() << std::endl;
     }
     
+}
+
+void Material::LoadRenderPassFlagFromMaterialJson(const Json::Value& materialJsonRenderMode){
+    const static std::unordered_map<std::string, RenderPassFlag> passNameMap = {
+        {"ShadowPass", RenderPassFlag::ShadowPass}
+    };
+    for (const auto& name : materialJsonRenderMode.getMemberNames()) {
+        auto it = passNameMap.find(name);
+        if (it != passNameMap.end()) {
+            RenderPassFlag flag = it->second;
+            if (materialJsonRenderMode[name].asBool()) {
+                renderEnablePassFlag_ |= static_cast<uint64_t>(flag); // 指定启用
+            } else {
+                renderDisablePassFlag_ |= static_cast<uint64_t>(flag); // 指定禁用
+            }
+        }
+    }
 }
 
 void Material::LoadAllTexture(){

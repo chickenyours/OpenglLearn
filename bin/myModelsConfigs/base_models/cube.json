@@ -22,9 +22,11 @@
                 "bool":{"useMetallicMap":false},
                 "vec3":{},
                 "vec4":{},
-                "mat4":{},
-                "flags":[true,true]
-    
+                "mat4":{}
+            },
+            "renderMode":{
+                "ShadowPass": true,
+                "TransparentPass": false
             }
         }
     ],

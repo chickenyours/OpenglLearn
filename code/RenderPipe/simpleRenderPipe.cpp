@@ -15,6 +15,7 @@
 
 #include "code/RenderPipe/Pass/CSMpass.h"
 #include "code/RenderPipe/Pass/ImageToBuffer.h"
+#include "code/RenderPipe/Pass/ScenePass.h"
 using namespace Render;
 
 SimpleRenderPipe::SimpleRenderPipe(){
@@ -29,6 +30,7 @@ bool SimpleRenderPipe::Init(const RenderPipeConfig& cfg){
 
     pCSMPass = std::make_unique<CSMPass>();
     pImageToScreenPass = std::make_unique<ImageToBufferPass>();
+    pScenePass = std::make_unique<ScenePass>();
 
     //初始化pCSMPass
     PassConfig passConfig;
@@ -36,10 +38,36 @@ bool SimpleRenderPipe::Init(const RenderPipeConfig& cfg){
     //初始化pImageToScreenPass
     passConfig.targetBufferWidth = cfg.targetBufferWidth;
     passConfig.targetBufferHeight = cfg.targetBufferHeight;
+
+    pScenePass->Init(passConfig);
+
     pImageToScreenPass->Init(passConfig);
-    pImageToScreenPass->SetTexture(GL_TEXTURE_2D_ARRAY,pCSMPass->GetlightDepthMaps());
-    pImageToScreenPass->SetTextureArrayLayerIndex(1);
+    ImageToBufferRenderItem IBRenderItem;
+    IBRenderItem.scaleViewPortflag = 1;
+    IBRenderItem.viewPortScaleOffsetX = 0.0f;
+    IBRenderItem.viewPortScaleOffsetY = 0.0f;
+    IBRenderItem.viewPortScaleWidth = 0.5;
+    IBRenderItem.viewPortScaleHeight = 0.9;
+    IBRenderItem.GLTextureType = GL_TEXTURE_2D;
+    IBRenderItem.textureID = pScenePass->GetColorBufferTexture();
+    pImageToScreenPass->AddPassRenderItem(IBRenderItem);
+    
+    for(int i = 0;i<2;i++){
+        for(int j = 0;j<2;j++){
+            IBRenderItem.scaleViewPortflag = 1;
+            IBRenderItem.viewPortScaleOffsetX = 0.5f + 0.25f * i;
+            IBRenderItem.viewPortScaleOffsetY = 0.0f + 0.5f * j;
+            IBRenderItem.viewPortScaleWidth = 0.25;
+            IBRenderItem.viewPortScaleHeight = 0.5;
+            IBRenderItem.GLTextureType = GL_TEXTURE_2D_ARRAY;
+            IBRenderItem.textureID = pCSMPass->GetlightDepthMaps();
+            IBRenderItem.textureArraylayerIndex = i * 2 + j;
+            pImageToScreenPass->AddPassRenderItem(IBRenderItem);
+        }
+    }
+    
     pImageToScreenPass->SetTargetFrameBuffer(0);
+
 
     std::cout<<"已初始化渲染管线对象: SimpleRenderPipe"<<std::endl;
 
@@ -53,7 +81,7 @@ void SimpleRenderPipe::SetConfig(const RenderPipeConfig& cfg){
     passConfig.targetBufferWidth = cfg.targetBufferWidth;
     passConfig.targetBufferHeight = cfg.targetBufferHeight;
     pCSMPass->SetConfig(passConfig);
-
+    pScenePass->SetConfig(passConfig);
     pImageToScreenPass->SetConfig(passConfig);
 }
 
@@ -66,26 +94,10 @@ void SimpleRenderPipe::Update(const std::vector<RenderItem>& renderItemList){
     PassRenderContext CSMPassCtx;
     CSMPassCtx.camera = mainCamera_;
     pCSMPass->Update(CSMPassCtx,renderItemList);
-    //场景绘制
-    // glViewport(0,0,viewWidth_,viewHeight_);
-    // glBindFramebuffer(GL_FRAMEBUFFER,0);
-    // glClearColor(0.25f, 0.05f, 0.05f, 1.0f);
-    // glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    // for(auto& renderItem : renderItemList){
-    //     glBindVertexArray(renderItem.mesh->GetVAO());
-    //     renderItem.material->BindAllTexture();
-    //     renderItem.material->SetMaterialPropertiesToShader();
-    //     // 设定shaderProgram的一些值
-    //     ShaderProgram* materialShader = renderItem.material->shaderProgram.get(); 
-    //     ShaderUmatf4(*materialShader,"model",renderItem.model);
-    //     glDrawElements(GL_TRIANGLES, renderItem.mesh->GetIndicesSize(), GL_UNSIGNED_INT, 0);
-    // }
-
+    PassRenderContext ScenePassCtx;
+    pScenePass->Update(ScenePassCtx,renderItemList);
     PassRenderContext ImageToScreenPassCtx;
-    ImageToScreenPassCtx.renderTargetBuffer = 0;    //默认颜色缓冲区(屏幕)
     pImageToScreenPass->Update(ImageToScreenPassCtx,renderItemList);
-    
-
 }
 
 void SimpleRenderPipe::SetCamera(Camera* camera){

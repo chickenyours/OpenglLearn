@@ -1,8 +1,10 @@
 #pragma once
 #include <iostream>
+#include <cstdint>
 #include <string>
 #include <vector>
 #include <map>
+#include <unordered_map>
 #include <memory>
 #include <json/json.h>
 #include <glad/glad.h>
@@ -24,6 +26,7 @@ using namespace std;
 namespace Render{
     class ShaderProgram;
     class Texture;
+    enum RenderPassFlag;
 
     enum MaterialPropertyFlag{
         MATERIAL_SHADOW_OPAQUE = 1     ,
@@ -51,11 +54,14 @@ namespace Render{
             // 材质的名称
             string name;
             // 材质的ID(目前没有开发)
-            int id;
+            int id = 0;
             // 材质持有的纹理资源
             vector<Texture> textures;
             // 纹理通道,和m_TextureMap对齐,值为通道值
             vector<GLuint> textureChannel;
+            // Pass掩码
+            uint64_t renderEnablePassFlag_ = 0;
+            uint64_t renderDisablePassFlag_ = 0;
             // 材质的参数,在Json文件中的类型标记分别是: float int vec3 vec4 mat4
             map<string, float> floatParameterMap;
             map<string, int> intParameterMap;
@@ -64,7 +70,7 @@ namespace Render{
             map<string, glm::vec4> vec4ParameterMap;
             map<string, glm::mat4> mat4ParameterMap;
             // 材质属性掩码
-            int propertyFlag;
+            // int propertyFlag;
             // 材质持有的着色器
             unique_ptr<ShaderProgram> shaderProgram;
             // 材质的构造函数
@@ -76,11 +82,14 @@ namespace Render{
             // 加载材质的参数
             void LoadParameterFromModelAiMaterial(const aiMaterial& material);
             // 加载材质的参数
-            void LoadParameterFromConfigFile(const Json::Value& materialJson);
+            void LoadParameterFromMaterialJson(const Json::Value& materialJson);
             // 尝试加载所有的纹理
             void LoadAllTexture();
             // 绑定所有纹理
             void BindAllTexture();
+
+            // 加载材质配置中的文件里的渲染模式(pass)
+            void LoadRenderPassFlagFromMaterialJson(const Json::Value& materialJsonRenderMode);
 
             inline ShaderProgram* GetShaderProgram(){ return shaderProgram.get(); }
 

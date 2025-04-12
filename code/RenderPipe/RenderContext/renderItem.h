@@ -1,6 +1,5 @@
 #pragma once
-
-
+#include <cstdint>
 
 namespace Render{
     class Mesh;
@@ -9,6 +8,6 @@ namespace Render{
         Mesh* mesh;
         Material* material;
         glm::mat4 model;
-        uint8_t passMask;
+        uint64_t passMask;
     }; 
 }

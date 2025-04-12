@@ -35,6 +35,7 @@ SRC = code/shader.cpp \
 	code/Camera/camera.cpp \
 	code/RenderPipe/Pass/pass.cpp \
 	code/RenderPipe/Pass/CSMpass.cpp \
+	code/RenderPipe/Pass/ScenePass.cpp \
 	code/RenderPipe/Pass/ImageToBuffer.cpp \
 	include/stb_image.cpp \
 

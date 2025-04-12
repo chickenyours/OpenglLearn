@@ -14,11 +14,13 @@ namespace Render{
             void Init(const PassConfig& cfg) override;
             virtual void SetConfig(const PassConfig& cfg) override;
             void Update(const PassRenderContext& ctx, const std::vector<RenderItem>& renderItemList) override;
+            GLuint inline GetColorBufferTexture(){return colorBufferTexture_;}
             void Release() override;
-            void SetTexture(unsigned int GLTextureType, GLuint textureID);
         private:
             unsigned int targetBufferWidth_ = 0;
             unsigned int targetBufferHeight_ = 0;
             GLuint FBO_;
+            GLuint colorBufferTexture_;
+            GLuint depthBuffer_;
     };
 }

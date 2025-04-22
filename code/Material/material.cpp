@@ -4,16 +4,14 @@
 #include "code/Texture/texture.h"
 #include "code/RenderPipe/Pass/RenderPassFlag.h"
 
-using namespace std;
-
 using namespace Render;
 
-map<string, float> Material::GlobalFloatParameterMap;
-map<string, int> Material::GlobalIntParameterMap;
-map<string, bool> Material::GlobalBoolParameterMap;
-map<string, glm::vec3> Material::GlobalVec3ParameterMap;
-map<string, glm::vec4> Material::GlobalVec4ParameterMap;
-map<string, glm::mat4> Material::GlobalMat4ParameterMap;
+std::map<std::string, float> Material::GlobalFloatParameterMap;
+std::map<std::string, int> Material::GlobalIntParameterMap;
+std::map<std::string, bool> Material::GlobalBoolParameterMap;
+std::map<std::string, glm::vec3> Material::GlobalVec3ParameterMap;
+std::map<std::string, glm::vec4> Material::GlobalVec4ParameterMap;
+std::map<std::string, glm::mat4> Material::GlobalMat4ParameterMap;
 
 Material::Material(const aiMaterial& material, const Json::Value& materialJson):
     name("default"),
@@ -300,64 +298,64 @@ void Material::LoadAllTexture(){
 }
 
 void Material::Print(int tabs){
-    string tab = "";
+    std::string tab = "";
     for(int i = 0; i< tabs; i++){
         tab += "\t";
     }
 
-    cout << tab <<"======MaterialInfo======"<<endl;
+    std::cout << tab <<"======MaterialInfo======"<<std::endl;
 
-    cout << tab << "Name: "<<name<<endl;
+    std::cout << tab << "Name: "<<name<<std::endl;
 
     if(shaderProgram){
         shaderProgram->Print(tabs + 1);
     }
 
-    cout << tab << "Textures:"<<endl;
+    std::cout << tab << "Textures:"<<std::endl;
     for(int i = 0;i < textures.size();i++){
         textures[i].Print(tabs + 1);
     }
 
-    cout << tab << "Properties:"<<endl;
+    std::cout << tab << "Properties:"<<std::endl;
 
-    cout << tab + "\t" << "float:"<<endl;
+    std::cout << tab + "\t" << "float:"<<std::endl;
     for(auto it = floatParameterMap.begin();it != floatParameterMap.end();it++){
-        cout<< tab + "\t\t" <<it->first<<" "<<it->second<<endl;
+        std::cout<< tab + "\t\t" <<it->first<<" "<<it->second<<std::endl;
     }
 
-    cout << tab + "\t" << "int:"<<endl;
+    std::cout << tab + "\t" << "int:"<<std::endl;
     for(auto it = intParameterMap.begin();it != intParameterMap.end();it++){
-        cout<< tab + "\t\t" <<it->first<<" "<<it->second<<endl;
+        std::cout<< tab + "\t\t" <<it->first<<" "<<it->second<<std::endl;
     }
 
-    cout << tab + "\t" << "vec3:"<<endl;
+    std::cout << tab + "\t" << "vec3:"<<std::endl;
     for(auto it = vec3ParameterMap.begin();it != vec3ParameterMap.end();it++){
-        cout<< tab + "\t\t" <<it->first<<" "<<it->second.x<<" "<<it->second.y<<" "<<it->second.z<<endl;
+        std::cout<< tab + "\t\t" <<it->first<<" "<<it->second.x<<" "<<it->second.y<<" "<<it->second.z<<std::endl;
     }
 
-    cout << tab + "\t" << "vec4:"<<endl;
+    std::cout << tab + "\t" << "vec4:"<<std::endl;
     for(auto it = vec4ParameterMap.begin();it != vec4ParameterMap.end();it++){
-        cout<< tab + "\t\t" <<it->first<<" "<<it->second.x<<" "<<it->second.y<<" "<<it->second.z<<" "<<it->second.w<<endl;
+        std::cout<< tab + "\t\t" <<it->first<<" "<<it->second.x<<" "<<it->second.y<<" "<<it->second.z<<" "<<it->second.w<<std::endl;
     }
 
-    cout << tab + "\t" << "mat4:"<<endl;
+    std::cout << tab + "\t" << "mat4:"<<std::endl;
     for(auto it = mat4ParameterMap.begin();it != mat4ParameterMap.end();it++){
-        cout<< tab + "\t\t" <<it->first<<endl;
+        std::cout<< tab + "\t\t" <<it->first<<std::endl;
         for(int i = 0;i < 4;i++){
             for(int j = 0;j < 4;j++){
-                cout<<it->second[i][j]<<" ";
+                std::cout<<it->second[i][j]<<" ";
             }
-            cout<<endl;
+            std::cout<<std::endl;
         }
     }
 
-    cout << tab <<"======EndMaterialInfo======"<<endl;
+    std::cout << tab <<"======EndMaterialInfo======"<<std::endl;
 
 }
 
 
 Material::~Material(){
     if(!name.empty()){
-        cout<<"destroy material: "<<name<<std::endl;
+        std::cout<<"destroy material: "<<name<<std::endl;
     }
 }

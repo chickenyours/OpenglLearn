@@ -2,9 +2,13 @@
 
 out vec4 FragColor;
 
-in vec3 FragPos;
-in vec2 TexCoords;
-in mat3 TBN;
+in VertexSurfaceData {
+    vec3 FragPos;   // 世界空间位置
+    vec2 TexCoords; // 纹理坐标
+    vec3 Normal;    // 世界空间法线
+    vec3 Tangent;   // 世界空间切线
+    mat3 TBN;       // 切线空间变换矩阵
+} fs_in;
 
 //material map
 layout(binding = 0) uniform sampler2D albedoMap;
@@ -16,7 +20,7 @@ layout(binding = 4) uniform sampler2D aoMap;
 
 
 uniform float iTime;
-uniform vec3 viewPos;
+// uniform vec3 viewPos;
 
 
 
@@ -24,16 +28,31 @@ uniform vec3 viewPos;
 uniform bool useMetallicMap;
 uniform float metallicValue;
 
-//CSM
-layout(binding = 5) uniform sampler2DArray shadowMap;
-layout (std140, binding = 3) uniform CSMLightMatrices
+//---------------CAMERA_UBO---------------//
+layout (std140, binding = 1) uniform CameraData
+{
+    mat4 view;
+    mat4 projection;
+    vec3 viewPos;
+    vec3 viewDir;
+};
+//---------------End CAMERA_UBO---------------//
+
+//---------------CSM_UBO---------------//
+// depend UBO : CAMERA_UBO->view
+layout(binding = 5) uniform sampler2DArray CSMshadowMap;
+layout (std140, binding = 4) uniform LightMatrices
 {
     mat4 lightSpaceMatrices[16];
 };
-uniform mat4 view;
-uniform float cascadePlaneDistances[16];
-uniform int cascadeCount;   // number of frusta - 1
+layout(std140, binding = 5) uniform CSMInfo {
+    vec4 cascadePlaneDistances[16];
+    int cascadeCount;
+    vec3 lightDir;
+    vec4 farPlane;
+};
 float ShadowCalculation(vec3 fragPosWorldSpace);
+//---------------End CSM---------------//
 
 const float PI = 3.14159265359;
 
@@ -51,8 +70,8 @@ void main()
     vec3 Lo = GetLight();
   
     //计算环境光
-    vec3 albedo = texture(albedoMap, TexCoords).rgb;
-    float ao = texture(aoMap, TexCoords).r;
+    vec3 albedo = texture(albedoMap, fs_in.TexCoords).rgb;
+    float ao = texture(aoMap, fs_in.TexCoords).r;
     vec3 ambient = vec3(0.03) * albedo * ao;
 
     vec3 color = ambient + Lo;
@@ -60,9 +79,13 @@ void main()
     color = color / (color + vec3(0.2));
     //color = pow(color, vec3(1.0/2.2));   //gama
 
+    float shadow = ShadowCalculation(fs_in.FragPos);
+
+    color *= 1.0 - shadow;
+
+   
     FragColor = vec4(color, 1.0);
 
-    //FragColor = vec4(1.0);
 }  
 
 vec3 GetLight(){
@@ -89,15 +112,15 @@ vec3 GetLight(){
     }
 
 
-    vec3 albedo = texture(albedoMap, TexCoords).rgb;
-    float roughness = texture(roughnessMap, TexCoords).r;
+    vec3 albedo = texture(albedoMap,fs_in.TexCoords).rgb;
+    float roughness = texture(roughnessMap, fs_in.TexCoords).r;
     // float metallic = texture(metallicMap, TexCoords).r;
-    float metallic = useMetallicMap ? texture(metallicMap, TexCoords).r : metallicValue;
+    float metallic = useMetallicMap ? texture(metallicMap, fs_in.TexCoords).r : metallicValue;
 
-    vec3 N = normalize(texture(normalMap, TexCoords).rgb * 2.0 - 1.0);
-    N = normalize(TBN * N);
+    vec3 N = normalize(texture(normalMap, fs_in.TexCoords).rgb * 2.0 - 1.0);
+    N = normalize(fs_in.TBN * N);
 
-    vec3 V = normalize(viewPos - FragPos);
+    vec3 V = normalize(viewPos - fs_in.FragPos);
 
     vec3 F0 = vec3(0.05); 
     F0 = mix(F0, albedo, metallic);
@@ -107,9 +130,9 @@ vec3 GetLight(){
     for(int i = 0; i < 4; ++i) 
     {
         // calculate per-light radiance
-        vec3 L = normalize(lightPositions[i] - FragPos);
+        vec3 L = normalize(lightPositions[i] - fs_in.FragPos);
         vec3 H = normalize(V + L);
-        float lightDistance    = length(lightPositions[i] - FragPos);
+        float lightDistance    = length(lightPositions[i] - fs_in.FragPos);
         float attenuation = 1.0 / (lightDistance * lightDistance);
         vec3 radiance     = lightColors[i] * attenuation;        
         
@@ -181,59 +204,54 @@ float ShadowCalculation(vec3 fragPosWorldSpace)
     float depthValue = abs(fragPosViewSpace.z);
 
     int layer = -1;
-    for (int i = 0; i < cascadeCount; ++i)
+
+    if(depthValue < cascadePlaneDistances[0].x){
+        return 0.0;
+    }
+
+    for (int i = 1; i < cascadeCount; ++i)
     {
-        if (depthValue < cascadePlaneDistances[i])
+        if (depthValue < cascadePlaneDistances[i].x)
         {
-            layer = i;
+            layer = i - 1;
             break;
         }
     }
     if (layer == -1)
     {
-        layer = cascadeCount;
+        // 光矩阵和深度贴图有 cascadeCount 个
+        layer = cascadeCount - 1;
     }
+
+    // return float(layer) / 4.0;
 
     vec4 fragPosLightSpace = lightSpaceMatrices[layer] * vec4(fragPosWorldSpace, 1.0);
     // perform perspective divide
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+
     // transform to [0,1] range
     projCoords = projCoords * 0.5 + 0.5;
 
     // get depth of current fragment from light's perspective
     float currentDepth = projCoords.z;
-
-    // keep the shadow at 0.0 when outside the far_plane region of the light's frustum.
-    if (currentDepth > 1.0)
-    {
-        return 0.0;
-    }
-    // calculate bias (based on depth map resolution and slope)
+    
+    // bias 
     vec3 normal = normalize(fs_in.Normal);
-    float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
-    const float biasModifier = 0.5f;
-    if (layer == cascadeCount)
-    {
-        bias *= 1 / (farPlane * biasModifier);
-    }
-    else
-    {
-        bias *= 1 / (cascadePlaneDistances[layer] * biasModifier);
-    }
+    float bias = max(0.0013 * dot(normal, lightDir),0.0003);
 
     // PCF
     float shadow = 0.0;
-    vec2 texelSize = 1.0 / vec2(textureSize(shadowMap, 0));
+    vec2 texelSize = 1.0 / vec2(textureSize(CSMshadowMap, 0));
     for(int x = -1; x <= 1; ++x)
     {
         for(int y = -1; y <= 1; ++y)
         {
-            float pcfDepth = texture(shadowMap, vec3(projCoords.xy + vec2(x, y) * texelSize, layer)).r;
+            float pcfDepth = texture(CSMshadowMap, vec3(projCoords.xy + vec2(x, y) * texelSize, layer)).r;
             shadow += (currentDepth - bias) > pcfDepth ? 1.0 : 0.0;        
         }    
     }
     shadow /= 9.0;
-        
+ 
     return shadow;
 }
 

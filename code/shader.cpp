@@ -5,9 +5,9 @@
 
 using namespace Render;
 
-Shader::Shader(int shaderType,string filePath) : _shaderType(shaderType){
+Shader::Shader(int shaderType,std::string filePath) : _shaderType(shaderType){
     //read shaderSource from file
-        string shaderPath = filePath;
+    std::string shaderPath = filePath;
         _name = shaderPath;
         std::ifstream infile(shaderPath,std::ios::binary);
         if (infile.is_open())
@@ -28,14 +28,14 @@ Shader::Shader(int shaderType,string filePath) : _shaderType(shaderType){
             if (!success)
             {
                 glGetShaderInfoLog(_shaderID, 1024, NULL, infolog);
-                std::cout << "ERROR SHADER!:" << filePath << ":" << infolog;
+                std::cerr << "[ERROR] [Shader] Compilation failed for shader file: " << filePath << "\n" << infolog << std::endl;
                 _shaderID=-1;
             }
             delete[] shaderSource;
         }
         else
         {
-            std::cout << "ERROR OPEN FILE:" << shaderPath << std::endl;
+            std::cerr << "[ERROR] [Shader] Failed to open shader file: " << shaderPath << std::endl;
             return;
         }
     }
@@ -71,17 +71,17 @@ void ShaderProgram::Load(Shader* vertexShader,Shader* fragShader,Shader* geometr
         glGetProgramiv(_shaderProgramID, GL_LINK_STATUS, &success);
         if (!success){
             glGetProgramInfoLog(_shaderProgramID, 1024, NULL, infolog);
-            std::cout << "shaderProgram link error:"<<_shaderProgramID<<":"<<infolog;
+            std::cerr << "[ERROR] [ShaderProgram] link error: "<<_shaderProgramID<<":"<<infolog<<std::endl;
         }
-        std::cout<<"Load a ShaderProgram " << _name << std::endl;
+        std::cout << "[INFO] [ShaderProgram] Load a ShaderProgram " << _name << std::endl;
     }
     else{
-        std::cout<<"ShaderProgram can't be created because of type error:";
+        std::cerr <<"[ERROR] [ShaderProgram] ShaderProgram can't be created because of type error:";
     }
 }
 
 void ShaderProgram::Print(int tabs){
-    string tab = "";
+    std::string tab = "";
     for(int i = 0; i< tabs; i++){
         tab += "\t";
     }
@@ -97,7 +97,7 @@ ShaderProgram::ShaderProgram(Shader* vertexShader,Shader* fragShader,Shader* geo
     Load(vertexShader,fragShader,geometryShader);
 }
 
-ShaderProgram::ShaderProgram(string vertexShaderPath,string fragShaderPath,string geometryShaderPath){
+ShaderProgram::ShaderProgram(std::string vertexShaderPath,std::string fragShaderPath,std::string geometryShaderPath){
     Shader vertexShader = Shader(GL_VERTEX_SHADER,vertexShaderPath);
     Shader fragShader = Shader(GL_FRAGMENT_SHADER,fragShaderPath);
     if(geometryShaderPath != ""){

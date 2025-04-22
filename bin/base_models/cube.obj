@@ -1,3 +1,4 @@
+# 使用了逆时针（CCW, Counter-Clockwise）顺序来定义正面。
 # cube.obj
 mtllib hhh.mtl      # 添加材质库引用
 o Cube

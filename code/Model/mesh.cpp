@@ -4,12 +4,12 @@
 #include "code/Material/material.h"
 #include "code/RenderPipe/simpleRenderPipe.h"
 
+#include "code/TerminalLog/color_log.h"
 
 
-using namespace std;
 using namespace Render;
 
-Mesh::Mesh(vector<Vertex> vertices, vector<unsigned int> indices, unsigned int materialIndex):VAO(0)
+Mesh::Mesh(std::vector<Vertex> vertices, std::vector<unsigned int> indices, unsigned int materialIndex):VAO(0)
 {
     //检测权重
     // for(auto& it : vertices){
@@ -53,7 +53,7 @@ void Mesh::Draw()
     * @brief 初始化网格
     * @param vertices 顶点数据
 */
-void Mesh::setupMesh(vector<Vertex> vertices, vector<unsigned int> indices)
+void Mesh::setupMesh(std::vector<Vertex> vertices, std::vector<unsigned int> indices)
 {
     glGenVertexArrays(1, &VAO);
     glGenBuffers(1, &VBO);
@@ -93,15 +93,15 @@ int Mesh::GetMaterialIndex()
 }
 
 void Mesh::Print(int tabs){
-    string tab = "";
+    std::string tab = "";
     for(int i = 0; i< tabs; i++){
         tab += "\t";
     }
-    cout << tab <<"======MeshInfo======"<<endl;
-    cout << tab << "Mesh material index: " << materialIndex << endl;
-    cout << tab << "Mesh VAO: " << VAO << endl;
-    cout << tab << "Mesh indices size: " << indicesSize << endl;
-    cout << tab <<"======EndMeshInfo======"<<endl;
+    std::cout << tab <<"======MeshInfo======"<<std::endl;
+    std::cout << tab << "Mesh material index: " << materialIndex << std::endl;
+    std::cout << tab << "Mesh VAO: " << VAO << std::endl;
+    std::cout << tab << "Mesh indices size: " << indicesSize << std::endl;
+    std::cout << tab <<"======EndMeshInfo======"<<std::endl;
 }
 
 Mesh::~Mesh()
@@ -110,6 +110,6 @@ Mesh::~Mesh()
         glDeleteVertexArrays(1, &VAO);
         glDeleteBuffers(1, &VBO);
         glDeleteBuffers(1, &EBO);
-        cout<<"destroy mesh: (VAO)"<<VAO<<endl;
+        std::cout<<"destroy mesh: (VAO)"<<VAO<<std::endl;
     }
 }

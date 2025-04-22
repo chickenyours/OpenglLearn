@@ -14,7 +14,6 @@
 #include <assimp/material.h>
 
 
-using namespace std;
 
 #define MAX_OPENGL_TEXTURE_CHANNEL 32
 
@@ -26,7 +25,7 @@ using namespace std;
 namespace Render{
     class ShaderProgram;
     class Texture;
-    enum RenderPassFlag;
+    enum class RenderPassFlag : uint64_t;
 
     enum MaterialPropertyFlag{
         MATERIAL_SHADOW_OPAQUE = 1     ,
@@ -35,44 +34,44 @@ namespace Render{
 
     struct UniformParameter{
         static UniformParameter globalUniformParameter;
-        map<string, float> floatParameterMap;
-        map<string, int> intParameterMap;
-        map<string, bool> boolParameterMap;
-        map<string, glm::vec3> vec3ParameterMap;
-        map<string, glm::vec4> vec4ParameterMap;
-        map<string, glm::mat4> mat4ParameterMap;
+        std::map<std::string, float> floatParameterMap;
+        std::map<std::string, int> intParameterMap;
+        std::map<std::string, bool> boolParameterMap;
+        std::map<std::string, glm::vec3> vec3ParameterMap;
+        std::map<std::string, glm::vec4> vec4ParameterMap;
+        std::map<std::string, glm::mat4> mat4ParameterMap;
     };
     
     class Material{
         public:
-            static map<string, float> GlobalFloatParameterMap;
-            static map<string, int> GlobalIntParameterMap;
-            static map<string, bool> GlobalBoolParameterMap;
-            static map<string, glm::vec3> GlobalVec3ParameterMap;
-            static map<string, glm::vec4> GlobalVec4ParameterMap;
-            static map<string, glm::mat4> GlobalMat4ParameterMap;
+            static std::map<std::string, float> GlobalFloatParameterMap;
+            static std::map<std::string, int> GlobalIntParameterMap;
+            static std::map<std::string, bool> GlobalBoolParameterMap;
+            static std::map<std::string, glm::vec3> GlobalVec3ParameterMap;
+            static std::map<std::string, glm::vec4> GlobalVec4ParameterMap;
+            static std::map<std::string, glm::mat4> GlobalMat4ParameterMap;
             // 材质的名称
-            string name;
+            std::string name;
             // 材质的ID(目前没有开发)
             int id = 0;
             // 材质持有的纹理资源
-            vector<Texture> textures;
+            std::vector<Texture> textures;
             // 纹理通道,和m_TextureMap对齐,值为通道值
-            vector<GLuint> textureChannel;
+            std::vector<GLuint> textureChannel;
             // Pass掩码
             uint64_t renderEnablePassFlag_ = 0;
             uint64_t renderDisablePassFlag_ = 0;
             // 材质的参数,在Json文件中的类型标记分别是: float int vec3 vec4 mat4
-            map<string, float> floatParameterMap;
-            map<string, int> intParameterMap;
-            map<string, bool> boolParameterMap;
-            map<string, glm::vec3> vec3ParameterMap;
-            map<string, glm::vec4> vec4ParameterMap;
-            map<string, glm::mat4> mat4ParameterMap;
+            std::map<std::string, float> floatParameterMap;
+            std::map<std::string, int> intParameterMap;
+            std::map<std::string, bool> boolParameterMap;
+            std::map<std::string, glm::vec3> vec3ParameterMap;
+            std::map<std::string, glm::vec4> vec4ParameterMap;
+            std::map<std::string, glm::mat4> mat4ParameterMap;
             // 材质属性掩码
             // int propertyFlag;
             // 材质持有的着色器
-            unique_ptr<ShaderProgram> shaderProgram;
+            std::unique_ptr<ShaderProgram> shaderProgram;
             // 材质的构造函数
             Material(const aiMaterial& material, const Json::Value& materialJson);
             Material(Material&& other);

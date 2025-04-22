@@ -10,7 +10,6 @@
 
 #include <string>
 #include <vector>
-using namespace std;
 
 #define MAX_BONE_INFLUENCE 4
 
@@ -40,13 +39,13 @@ struct Texture {
 class Mesh {
 public:
     // mesh Data
-    vector<Vertex>       vertices;
-    vector<unsigned int> indices;
-    vector<Texture>      textures;
+    std::vector<Vertex>       vertices;
+    std::vector<unsigned int> indices;
+    std::vector<Texture>      textures;
     unsigned int VAO;
 
     // constructor
-    Mesh(vector<Vertex> vertices, vector<unsigned int> indices, vector<Texture> textures)
+    Mesh(std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<Texture> textures)
     {
         this->vertices = vertices;
         this->indices = indices;

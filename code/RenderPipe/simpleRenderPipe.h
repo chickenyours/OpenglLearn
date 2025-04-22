@@ -21,6 +21,7 @@ namespace Render{
     class RenderPipeRenderContext;
     class RenderItem;
 
+    class CameraPass;
     class CSMPass; 
     class ImageToBufferPass;
     class ScenePass;
@@ -36,6 +37,8 @@ namespace Render{
             virtual void Update(const std::vector<RenderItem>& renderItemList) override;
             virtual void Release() override;
         private:
+
+            std::unique_ptr<CameraPass> pCameraPass;
             // CSM Pass
             std::unique_ptr<CSMPass> pCSMPass;
             std::unique_ptr<ImageToBufferPass> pImageToScreenPass;

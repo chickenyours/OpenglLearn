@@ -29,16 +29,16 @@ ModelNode::ModelNode(ModelNode&& other) noexcept {
     other.name = "";
 }
 
-Model::Model(string const &materialConfigPath) 
+Model::Model(std::string const &materialConfigPath) 
 {
     // 加载配置文件
     if (!LoadModelJson(materialConfigPath))
     {
-        cout << "Failed to load model config file: " << materialConfigPath << endl;
+        std::cout << "Failed to load model config file: " << materialConfigPath << std::endl;
         return;
     }
     // 获取模型文件地址
-    string modelFile = _modelConfigJson["model"].asString();
+    std::string modelFile = _modelConfigJson["model"].asString();
 
     // 加载模型文件
     Assimp::Importer importer;
@@ -54,7 +54,7 @@ Model::Model(string const &materialConfigPath)
     );
     if(!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
     {
-        cout << "ERROR::ASSIMP:: " << importer.GetErrorString() << endl;
+        std::cout << "ERROR::ASSIMP:: " << importer.GetErrorString() << std::endl;
         return;
     }
 
@@ -151,8 +151,8 @@ void Model::SetVertexBoneDataToDefault(Vertex& vertex)
 
 Mesh Model::ProcessMesh(aiMesh* mesh, const aiScene* scene)
 {
-    vector<Vertex> vertices;
-    vector<unsigned int> indices;
+    std::vector<Vertex> vertices;
+    std::vector<unsigned int> indices;
 
     for (unsigned int i = 0; i < mesh->mNumVertices; i++)
     {
@@ -253,7 +253,7 @@ void Model::ExtractBoneWeightForVertices(std::vector<Vertex>& vertices, aiMesh* 
     }
 }
 
-bool Model::LoadModelJson(const string& path){
+bool Model::LoadModelJson(const std::string& path){
     Json::Value root;
     Json::CharReaderBuilder builder;
     std::ifstream in(path, std::ios::binary);
@@ -356,24 +356,24 @@ void Model::SetMeshesMaterial(){
 }
 
 void Model::Print(int tabs){
-    string tab = "";
+    std::string tab = "";
     for(int i = 0; i< tabs; i++){
         tab += "\t";
     }
-    cout<<tab<<"======ModelInfo======"<<endl;
-    cout<<tab<<"Name: "<<name<<endl;
-    cout<<tab<<"Directory: "<<directory<<endl;
-    cout<<tab<<"meshes Count: "<<meshes.size()<<endl;
+    std::cout<<tab<<"======ModelInfo======"<<std::endl;
+    std::cout<<tab<<"Name: "<<name<<std::endl;
+    std::cout<<tab<<"Directory: "<<directory<<std::endl;
+    std::cout<<tab<<"meshes Count: "<<meshes.size()<<std::endl;
     for(int i = 0; i< meshes.size();i++){
         meshes[i].Print(tabs + 1);
     }
     
-    cout<<tab<<"materials Count: "<<materials.size()<<endl;
+    std::cout<<tab<<"materials Count: "<<materials.size()<<std::endl;
     for(int i = 0;i < materials.size();i++){
         materials[i].Print(tabs + 1);
     }
     
-    std::cout<< tab <<"Mesh Bone Count: "<<m_BoneCounter<<endl;
+    std::cout<< tab <<"Mesh Bone Count: "<<m_BoneCounter<<std::endl;
     std::cout<< tab <<"MeshBones: "<<m_BoneCounter<<'\n';
     for(const auto& [key, _] : m_BoneInfoMap){
         std::cout << tab << '\t' << key << '\n';
@@ -391,11 +391,11 @@ void Model::Print(int tabs){
         animator->Print(tabs + 1);
     }
 
-    cout<<tab<<"======EndModelInfo======="<<endl;
+    std::cout<<tab<<"======EndModelInfo======="<<std::endl;
 }
 
 Model::~Model(){
-    cout<< "destroy Model: "<< name <<endl;
+    std::cout<< "destroy Model: "<< name <<std::endl;
 }
 
 void Model::VisualAddNodeAttribution(Marker* marker){

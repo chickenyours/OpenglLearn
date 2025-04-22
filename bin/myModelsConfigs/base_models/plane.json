@@ -6,8 +6,8 @@
             "name": "hhh",
             "type": "Material/PBR",
             "shaderProgramPath": {
-                "vertexShader": "shaders/Final/base_render_world.vs",
-                "fragmentShader": "shaders/Final/PBR/PBRStaticLights.fs",
+                "vertexShader": "shaders/Final/base_render_world_b.vs",
+                "fragmentShader": "shaders/Final/PBR/PBRStaticLightsCSM.fs",
                 "geometryShader": ""
             },
             "textures": {
@@ -22,9 +22,11 @@
                 "bool":{"useMetallicMap":false},
                 "vec3":{},
                 "vec4":{},
-                "mat4":{},
-                "flags":[true,true]
-    
+                "mat4":{}
+            },
+            "renderMode":{
+                "ShadowPass": true,
+                "TransparentPass": false
             }
         }
     ],

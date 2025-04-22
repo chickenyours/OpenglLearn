@@ -19,6 +19,9 @@
 #include "code/Config/config.h"
 #include "code/RenderPipe/RenderContext/RenderPipeConfig.h" 
 
+#include "code/TerminalLog/color_log.h"
+#include "code/DebugTool/dynamic_change_vars.h"
+
 #define print(msg) std::cout<<(msg)<<std::endl 
 
 
@@ -53,6 +56,9 @@ float latestTime = 0.0f;
 
 int main()
 {
+#ifdef _WIN32
+    Log::EnableAnsiColor();  // 👈 只需要调用一次
+#endif
     //初始化
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4); 
@@ -75,7 +81,11 @@ int main()
         return -1;
     }    
     //设置Opengl属性
+    GLint maxBindingPoints = 0;
+    glGetIntegerv(GL_MAX_UNIFORM_BUFFER_BINDINGS, &maxBindingPoints);
+    std::cout<<"maxBindingPoints :" << maxBindingPoints<<std::endl;
     glEnable(GL_DEPTH_TEST);                                                    //深度测试
+    glEnable(GL_CULL_FACE);                                                     //开启剔除面测试
     glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);                                    //初始化视口
     //设置对话窗口属性
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);                //隐藏鼠标
@@ -94,8 +104,9 @@ int main()
     Render::RenderPipeConfig cfg;
     cfg.targetBufferWidth = SCR_WIDTH;
     cfg.targetBufferHeight = SCR_HEIGHT;
+    cfg.camera = &cam; 
     renderPipe.Init(cfg);
-    renderPipe.SetCamera(&cam);
+    // renderPipe.SetCamera(&cam);
 
    
     Render::Model m("./myModelsConfigs/Oil_barrel.json");
@@ -117,15 +128,37 @@ int main()
         processInput(window);
         cam.Update();
         //逻辑处理代码写在这里：
-        Render::Material::GlobalMat4ParameterMap["projection"] = cam.GetProjectionMatrix();
-        Render::Material::GlobalMat4ParameterMap["view"] = cam.GetViewMatrix();
-        Render::Material::GlobalVec3ParameterMap["viewPos"] = cam.GetPosition();
         Render::Material::GlobalFloatParameterMap["iTime"] = currentTime;
-        cube.model = glm::scale(model,glm::vec3(0.5));
+        for(int i = -5 ; i < 5 ; i ++){
+            cube.model = 
+                glm::scale(
+                    glm::rotate(
+                        glm::translate(
+                            model,
+                            glm::vec3(1.0f * float(i),0.0,0.0f)
+                        ),
+                        glm::radians(30.0f * (float(i) + currentTime) ),
+                        glm::vec3(1.0,0.0,0.0)
+                    ),
+                    glm::vec3(0.3f,8.0f,0.3f)
+                );
+            cube.CommitMeshToRenderPipe(&renderPipe);
+        }
+        cube.model = glm::scale(glm::translate(model,glm::vec3(3.0f)),glm::vec3(10.0f,0.5f,0.5f));
+            cube.model = 
+            glm::scale(
+                glm::rotate(
+                    glm::translate(
+                        model,
+                        glm::vec3(0.0f,4.0f, 5.0f * std::sin(currentTime * 1.2f))
+                    ),
+                    currentTime * 3.0f,
+                    glm::vec3(0.0f,0.0f,1.0f)
+                ),
+                glm::vec3(10.0f,0.5f,0.5f)
+            );
         cube.CommitMeshToRenderPipe(&renderPipe);
-        cube.model = glm::scale(glm::translate(model,glm::vec3(3.0)),glm::vec3(0.5));
-        cube.CommitMeshToRenderPipe(&renderPipe);
-        plane.model = glm::scale(glm::translate(model,glm::vec3(0.0,-5.0,0.0)),glm::vec3(50.0));
+        plane.model = glm::scale(glm::rotate(glm::translate(model,glm::vec3(0.0,-5.0,0.0)),glm::radians(30.0f),glm::vec3(1.0,0.0,0.0)),glm::vec3(50.0f));
         plane.CommitMeshToRenderPipe(&renderPipe);
         renderPipe.RenderCall();
         glfwSwapBuffers(window);                                //交换缓冲
@@ -176,9 +209,20 @@ void processInput(GLFWwindow *window)
         camPos.y += camMove;
         cam.Move(caup * camMove);
     }
-    if(glfwGetKey(window,GLFW_KEY_LEFT_ALT)){
-        cam.Move(-caup * camMove);
+    
+    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
+        // GlobalVars::CSMVar1 = (GlobalVars::CSMVar1 * 100000.0f + 0.1) / 100000.0f;
+        GlobalVars::CSMVarZmult += 0.001;
+        Log::Info("Main Program", std::to_string(GlobalVars::CSMVarZmult));
     }
+    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
+        // GlobalVars::CSMVar1 = (GlobalVars::CSMVar1 * 100000.0f - 0.1) / 100000.0f;
+        GlobalVars::CSMVarZmult -= 0.001;
+        Log::Info("Main Program", std::to_string(GlobalVars::CSMVarZmult));
+    }
+    // if(glfwGetKey(window,GLFW_KEY_LEFT_ALT)){
+    //     cam.Move(-caup * camMove);
+    // }
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)

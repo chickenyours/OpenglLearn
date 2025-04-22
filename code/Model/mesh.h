@@ -7,8 +7,6 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 
-using namespace std;
-
 #define MAX_BONE_INFLUENCE 4
 #define MAX_BONE_AMOUNT 100
 
@@ -29,13 +27,13 @@ namespace Render{
     
     class Mesh {
         public:
-            Mesh(vector<Vertex> vertices, vector<unsigned int> indices, unsigned int materialIndex);
+            Mesh(std::vector<Vertex> vertices, std::vector<unsigned int> indices, unsigned int materialIndex);
             Mesh(Mesh&& other);
             ~Mesh();
             void Draw();
             void SetMaterial(Material* material);
             int GetMaterialIndex();
-            void setupMesh(vector<Vertex> vertices, vector<unsigned int> indices);
+            void setupMesh(std::vector<Vertex> vertices, std::vector<unsigned int> indices);
             void Print(int tabs);
             inline unsigned int GetVAO() const { return VAO; }
             inline unsigned int GetVBO() const { return VBO; }

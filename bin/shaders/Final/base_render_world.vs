@@ -11,8 +11,16 @@ out vec3 Normal;
 out vec3 Tangent;
 out mat3 TBN;
 
-uniform mat4 projection;
-uniform mat4 view;
+layout (std140, binding = 1) uniform CameraData
+{
+    mat4 view;
+    mat4 projection;
+    vec3 viewPos;
+    vec3 viewDir;
+};
+
+// uniform mat4 view;
+// uniform mat4 projection;
 uniform mat4 model;
 
 void main(){

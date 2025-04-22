@@ -10,9 +10,14 @@ using namespace Render;
 
 Pass::Pass(){}
 
-bool Pass::CheckPass(RenderPassFlag flag, uint64_t renderEnablePassFlag_, uint64_t renderDisablePassFlag_){
-    return (defaultPassFlag && !(renderEnablePassFlag_ & static_cast<uint64_t>(flag))) || (!defaultPassFlag && (renderDisablePassFlag_ & static_cast<uint64_t>(flag)));
+bool Pass::CheckPass(RenderPassFlag flag, uint64_t renderEnablePassFlag, uint64_t renderDisablePassFlag){
+    auto a = renderDisablePassFlag & static_cast<uint64_t>(flag);
+    auto b = renderEnablePassFlag & static_cast<uint64_t>(flag);
+
+    return (defaultPassFlag && !(renderDisablePassFlag & static_cast<uint64_t>(flag))) || (!defaultPassFlag && (renderEnablePassFlag & static_cast<uint64_t>(flag)));
 }
+
+void Pass::Release(){}
 
 Pass::~Pass(){
     Release();

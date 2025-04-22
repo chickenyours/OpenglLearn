@@ -25,6 +25,7 @@ namespace Render{
                 if(pitch_<-89.0f)pitch_ = -89.0f;
             }
             inline glm::vec3 GetPosition() const { return camPos_; }
+            inline const glm::vec3& GetPositionRef() const { return camPos_; }
             inline glm::vec3 GetUp() const { return camUp_; }
             inline float GetPitch() const { return pitch_; }
             inline float GetYaw() const { return yaw_; }

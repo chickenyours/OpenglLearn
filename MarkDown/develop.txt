@@ -1,1 +1,32 @@
 # 这是进展报告
+20250413
+    纹理通道的布局
+        类型	建议布局范围	是否固定	是否可复用
+        材质贴图	0–7	❌	❌
+        GBuffer/Depth	8–11	✅	✅
+        CSM 阴影贴图	12–15	✅	✅
+        环境光照贴图	14–15（可重叠）	✅	✅
+        后处理（SSAO等）	16–19	❌	✅
+        预留贴图扩展段	20–27	❌	✅
+        动态调试通道	28–31	❌	✅
+    ╔══════╤══════════════════════════════════════╗
+    ║ 通道 │ 用途                                  ║
+    ╟──────┼──────────────────────────────────────╢
+    ║  0   │ Albedo / Diffuse                     ║
+    ║  1   │ Normal                               ║
+    ║  2   │ MRA / Specular                       ║
+    ║  3   │ Roughness / Shininess                ║
+    ║  4   │ AO                                   ║
+    ║  5   │ Emissive / Others                    ║
+    ║  6–7 │ Blinn-Phong 临时贴图 / 合图           ║
+    ║  8–9 │ GPosition / GNormal (SSAO + Deferred)║
+    ║ 10–11│ Scene Depth / LinearDepth            ║
+    ║ 12–15│ CSM ShadowMap[0~3]                   ║
+    ║ 16   │ SSAO输出 / Post1                     ║
+    ║ 17   │ Bloom输出 / Post2                    ║
+    ║ 18   │ SceneColor HDR                       ║
+    ║ 19   │ Transparent Pass AO                  ║
+    ║ 20–27│ 预留：SSS / Transmission / ClearCoat  ║
+    ║ 28–31│ 动态绑定测试用 / 临时采样              ║
+    ╚══════╧══════════════════════════════════════╝
+

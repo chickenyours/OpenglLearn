@@ -37,7 +37,10 @@ SRC = code/shader.cpp \
 	code/RenderPipe/Pass/CSMpass.cpp \
 	code/RenderPipe/Pass/ScenePass.cpp \
 	code/RenderPipe/Pass/ImageToBuffer.cpp \
+	code/RenderPipe/Pass/CameraPass.cpp \
+	code/DebugTool/dynamic_change_vars.cpp \
 	include/stb_image.cpp \
+	
 
 # 定义 .o 和 .d 文件的位置
 CPP_FILES = $(SRC) $(TARGET)

@@ -4,10 +4,9 @@
 #include <glad/glad.h>
 #include "stb_image.h"
 
-using namespace std;
 using namespace Render;
 
-Texture::Texture(string type, string path):_type(type),_path(path),_id(0){}
+Texture::Texture(std::string type, std::string path):_type(type),_path(path),_id(0){}
 
 bool Texture::Load()
 {
@@ -37,7 +36,7 @@ bool Texture::Load()
     }
     else
     {
-        cout << "Texture failed to load at path: " << _path << endl;
+        std::cout << "Texture failed to load at path: " << _path << std::endl;
         return false;
         
     }
@@ -50,7 +49,7 @@ unsigned int Texture::GetID()
     return _id;
 }
 
-string Texture::GetPath()
+std::string Texture::GetPath()
 {
     return _path;
 }
@@ -58,20 +57,20 @@ string Texture::GetPath()
 
 Texture::~Texture(){
     if(_id != 0){
-        cout<<"destroy Texture "<<_path<<endl;
+        std::cout<<"destroy Texture "<<_path<< std::endl;
         glDeleteTextures(1, &_id);
     }
 }
 
 void Texture::Print(int tabs){
-    string tab = "";
+    std::string tab = "";
     for(int i = 0; i< tabs; i++){
         tab += "\t";
     }
 
-    cout << tab <<"======TextureInfo======"<<endl;
-    cout << tab <<"UniformName"<< _type << endl;
-    cout << tab <<"LoadPath"<< _path << endl;
-    cout << tab <<"API_ID: "<< _id << endl;
-    cout << tab <<"======EndTextureInfo======"<<endl;
+    std::cout << tab <<"======TextureInfo======"<<std::endl;
+    std::cout << tab <<"UniformName"<< _type << std::endl;
+    std::cout << tab <<"LoadPath"<< _path << std::endl;
+    std::cout << tab <<"API_ID: "<< _id << std::endl;
+    std::cout << tab <<"======EndTextureInfo======"<< std::endl;
 }

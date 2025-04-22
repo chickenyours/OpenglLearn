@@ -22,6 +22,10 @@
                 "mat4":{},
                 "flags":[true,true]
     
+            },
+            "renderMode":{
+                "ShadowPass": true,
+                "TransparentPass": false
             }
         }
     ],

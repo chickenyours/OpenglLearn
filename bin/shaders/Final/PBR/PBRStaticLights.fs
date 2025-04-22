@@ -18,7 +18,14 @@ uniform bool useMetallicMap;
 uniform float metallicValue;
 
 uniform float iTime;
-uniform vec3 viewPos;
+layout (std140, binding = 1) uniform CameraData
+{
+    mat4 view;
+    mat4 projection;
+    vec3 viewPos;
+    vec3 viewDir;
+};
+// uniform vec3 viewPos;
 
 const float PI = 3.14159265359;
   

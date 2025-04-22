@@ -31,9 +31,6 @@
 
 
 
-
-using namespace std;
-
 namespace Render{
 
 //前向声明
@@ -69,7 +66,7 @@ struct ModelNode {
     class Model{
     public:
         // 构造函数，读取模型配置文件并加载模型所有属性
-        Model(string const& modelConfigPath);
+        Model(std::string const& modelConfigPath);
         // 绘制模型
         void Draw();
         // 获取登记过的骨骼信息
@@ -103,33 +100,33 @@ struct ModelNode {
         void CommitMeshToRenderPipe(RenderPipe *renderPipe);
 
         // 模型持有的材质
-        vector<Material> materials;
+        std::vector<Material> materials;
 
         glm::mat4 model = glm::mat4(1.0);
     private:
         // 模型的名称
-        string name;
+        std::string name;
         // 模型的目录
-        string directory;
+        std::string directory;
         // 模型的节点信息
         std::unique_ptr<ModelNode> nodeRoot;
         // 模型持有的网格
-        vector<Mesh> meshes;
+        std::vector<Mesh> meshes;
 
         // 是否支持动画
         bool _isHasAnimation = false;
         // 模型持有的动画
-        vector<Animation> animations;
+        std::vector<Animation> animations;
         // 模型持有的动画机
         std::unique_ptr<Animator> animator;
         
         // 模型登记的骨骼
         int m_BoneCounter = 0;
-        std::map<string, BoneInfo> m_BoneInfoMap;
+        std::map<std::string, BoneInfo> m_BoneInfoMap;
         // 模型配置Json参数对象,根据这个配置加载模型的所有属性
         Json::Value _modelConfigJson;
         // 使用路径加载Json配置文件
-        bool LoadModelJson(const string& path);
+        bool LoadModelJson(const std::string& path);
 
         // 模型加载函数，加载模型需要的网格
         void LoadModel(const aiScene* scene);

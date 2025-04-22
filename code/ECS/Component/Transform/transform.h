@@ -8,10 +8,10 @@
 namespace ECS::Component{
 
     
-    struct transform
+    struct Transform
     {
         //Local space information
-        glm::vec3 pos = {0.0f,0.0f,0.0f};
+        glm::vec3 pos = {0.0f,0.0f,0.0f}; 
         glm::vec3 rotate = {0.0f,0.0f,0.0f};
         glm::vec3 scale = {0.0f,0.0f,0.0f};
         glm::quat quaternion = {0.0f,0.0f,0.0f,1.0f};

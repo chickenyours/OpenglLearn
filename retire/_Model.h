@@ -21,7 +21,7 @@
 using std::string;
 using std::vector;
 
-namespace MyTool{
+namespace Algorithm{
 
 class Texture{
 public:

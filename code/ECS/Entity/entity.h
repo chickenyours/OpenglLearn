@@ -1,5 +1,7 @@
 #pragma once
 
+#include "code/ECS/Component/component_register.h"
+
 #include "code/ECS/data_type.h"
 
 namespace ECS{
@@ -11,7 +13,11 @@ namespace ECS{
             inline EntityID GetID() const { return id_; }
     
             bool operator==(const Entity& other) const { return id_ == other.id_; }
-    
+        
+            // template <typename ComponentT>
+            // void AddComponent(){
+                
+            // }
         private:
             EntityID id_;
         };

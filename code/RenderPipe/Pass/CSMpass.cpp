@@ -353,7 +353,7 @@ glm::mat4 CSMPass::GetLightSpaceMatrix(const float nearPlane, const float farPla
 
     // 严重错误: 
     // const auto lightView = glm::lookAt(center + glm::normalize(lightDir_) * GlobalVars::CSMVar1 , center, glm::vec3(0.0f, 1.0f, 0.0f));
-    const auto lightView = MyTool::GetViewMat4(center,lightDir_);
+    const auto lightView = Algorithm::GetViewMat4(center,lightDir_);
     // const auto lightView = GetStableLightViewMatrix(lightDir_,);
     // glm::vec3 center = ; // frustum center or camera pos
     // glm::vec3 eye = center - glm::normalize(lightDir_) * 200.0f;

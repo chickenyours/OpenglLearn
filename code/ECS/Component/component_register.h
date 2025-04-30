@@ -5,43 +5,56 @@
 
 #include "code/ECS/Component/component_shortage.h"
 
+#include "code/DebugTool/ConsoleHelp/color_log.h"
 
 namespace ECS::Core{
 
 
 class ComponentRegister {
     public:
-        template<typename T>
-        void AddComponent(EntityID id, const T& comp) {
-            GetStorage<T>().Add(id, comp);
+        template<typename ComponentT>
+        ComponentT* AddComponent(EntityID entity, const ComponentT& comp = ComponentT{}) {
+            Check(entity);
+            return GetStorage<ComponentT>().Add(entity, comp);
         }
     
-        template<typename T>
-        T& GetComponent(EntityID id) {
-            return GetStorage<T>().Get(id);
+        //如果此处没有收入entity的组件(没有添加过),就会返回nullptr
+        template<typename ComponentT>
+        ComponentT* GetComponent(EntityID entity) {
+            Check(entity);
+            return GetStorage<ComponentT>().Get(entity);
         }
     
-        template<typename T>
-        bool HasComponent(EntityID id) {
-            return GetStorage<T>().Has(id);
+        template<typename ComponentT>
+        bool HasComponent(EntityID entity) {
+            Check(entity);
+            return GetStorage<ComponentT>().Has(entity);
         }
     
-        template<typename T>
-        void RemoveComponent(EntityID id) {
-            GetStorage<T>().Remove(id);
+        template<typename ComponentT>
+        void RemoveComponent(EntityID entity) {
+            Check(entity);
+            GetStorage<ComponentT>().Remove(entity);
         }
     
         // 遍历组件实体列表（例如用于系统查询）
-        template<typename T>
+        template<typename ComponentT>
         const std::vector<EntityID>& View() {
-            return GetStorage<T>().GetEntities();
+            return GetStorage<ComponentT>().GetEntities();
         }
     
     private:
-        template<typename T>
-        ComponentStorage<T>& GetStorage() {
-            static ComponentStorage<T> storage;
+        template<typename ComponentT>
+        ComponentStorage<ComponentT>& GetStorage() {
+            static ComponentStorage<ComponentT> storage;
             return storage;
+        }
+        bool Check(EntityID id){
+            if(id == INVALID_ENTITY){
+                Log::Error("ComponentRegister","Submit a INVALID_ENTITY");
+                return true;
+            }
+            return false;
         }
 };
         

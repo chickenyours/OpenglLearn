@@ -12,8 +12,8 @@
 
 #include "code/RenderPipe/Pass/RenderPassFlag.h"
 
-#include "code/TerminalLog/color_log.h"
-#include "code/DebugTool/dynamic_change_vars.h"
+#include "code/DebugTool/ConsoleHelp/color_log.h"
+#include "code/DebugTool/DynamicVarChange/dynamic_change_vars.h"
 #include "code/ToolAndAlgorithm/transformation.h"
 
 using namespace Render;

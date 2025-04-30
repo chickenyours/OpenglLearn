@@ -166,12 +166,49 @@ void test3() {
     // 👀 你可以根据 `SceneTreeSystem` 的打印格式手动验证输出
 }
 
+void testRemoveEntityRecursive() {
+    using ECS::Entity;
+    using ID = ECS::EntityID;
+
+    // 创建实体：1是根，2和3是1的子节点，4和5是2的子节点，6是4的子节点
+    Entity e1(1), e2(2), e3(3), e4(4), e5(5), e6(6);
+
+    st.SetParent(e2.GetID(), e1.GetID()); // 2 -> 1
+    st.SetParent(e3.GetID(), e1.GetID()); // 3 -> 1
+    st.SetParent(e4.GetID(), e2.GetID()); // 4 -> 2
+    st.SetParent(e5.GetID(), e2.GetID()); // 5 -> 2
+    st.SetParent(e6.GetID(), e4.GetID()); // 6 -> 4
+
+    std::cout << "[Before RemoveEntityRecursive(2)]\n";
+    st.Print();
+
+    // 递归移除2（应同时移除 2,4,5,6）
+    st.RemoveEntityRecursive(e2.GetID());
+
+    std::cout << "\n[After RemoveEntityRecursive(2)]\n";
+    st.Print();
+
+    // Root
+    // └───1
+    //     ├───2
+    //     │   ├───4
+    //     │   │   └───6
+    //     │   └───5
+    //     └───3
+
+    // ✅ 期望输出：
+    // Root
+    // └───1
+    //     └───3
+}
+
+
 
 
 
 
 int main() {
     st.SetComponentRegister(&reg);
-    test3();
+    testRemoveEntityRecursive();
     return 0;
 }

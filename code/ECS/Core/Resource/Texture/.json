@@ -1,0 +1,15 @@
+{
+    "configType": "resource",
+    "resource": {
+      "resourceType": "texture",
+      "texture": {
+        "textureType": "2D",
+        "path": "assets/tex/metal.png",
+        "wrapS": "REPEAT",
+        "wrapT": "REPEAT",
+        "mipmap": true,
+        "filter": "LINEAR"
+      }
+    }
+  }
+  

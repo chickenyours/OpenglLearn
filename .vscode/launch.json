@@ -28,7 +28,25 @@
                     "ignoreFailures": true
                 }
             ]
+        },
+
+        {
+            "name": "GDB Native Debugging",
+            "type": "gdb",
+            "request": "launch",
+            "target": "${workspaceFolder}/bin/${fileBasenameNoExtension}.exe",
+            "cwd": "${workspaceFolder}/bin",
+            "gdbpath": "C:/Mydata/x86_64-14.2.0-release-win32-seh-msvcrt-rt_v12-rev0/mingw64/bin/gdb.exe",
+            "arguments": [],
+            "autorun": [
+                "set disassembly-flavor intel",
+                "set print pretty on",
+                "set charset utf-8",
+                "break main",
+                "-exec-run"
+            ]
         }
 
     ]
 }
+

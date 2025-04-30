@@ -1,5 +1,6 @@
 {
-    "github.copilot.editor.enableAutoCompletions": false,
+    "cmake.enabled": false,
+    // "github.copilot.editor.enableAutoCompletions": false,
     "files.associations": {
         "iostream": "cpp",
         "*.tcc": "cpp",

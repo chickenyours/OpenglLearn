@@ -144,3 +144,34 @@
     只读访问	用const引用 (const T&)	取决于场景，返回 const T& 或指针 const T*
     可能不存在的返回（比如容器查询）	用指针 (T*)	指针可以用 nullptr 表示失败
     必须存在的返回（比如内部一定存在）	返回引用 (T&)	如果不存在就抛异常或assert
+
+20250504
+    当异常复杂时,可以设计递归异常报告
+    [ResourceManager::Load]
+            ↑ catch 最顶层
+            |
+    [Material::Load]               // 抛出 ResourceLoadException("Material load failed", ... e)
+            ↑
+    [Texture::Load]                // 抛出 ResourceLoadException("Texture load failed", ... e)
+            ↑
+    [JsonWalker::get]              // 抛出 JsonAccessException("Missing 'wrapS'")
+
+    - Material load failed [file: materials/metal.json]
+    - Texture load failed [file: textures/metal.json]
+        ↳ (inner) JSON access error: Missing 'wrapS' [path: $.args.wrapS]
+
+    字段重要性	处理方式	示例
+    ✅ 必须字段	throw 异常，终止加载	"path"、"textureType"
+    ⚠ 推荐字段	catch 异常，设默认值	"wrapS", "magFilter"
+    🟢 可选字段	args.get("foo", default)	"needHDR", "mipmap"
+
+20250507
+    渲染管线会渲染指定的材质类型,而材质类型和渲染管线的合作会为材质中的着色器搭建指定的上下文,
+    着色器使用上下文数据进行计算,比方traditional renderPipe 可以使用 BaseMaterial 以及它的子类 
+    TradittionalMaterial 并为他们创建正确的渲染上下文, TradittionalMaterial 
+    类型的材质对象可以自由编写在 TradittionalMaterial 支持的上下文下的着色器程序,
+    比如可以使用currentTime, deltaTime, vec3 normal , 以渲染bling-Phone形式渲染物体, 
+    或是渲染顶点三角形骨架调试等
+
+    Material 与 UBO 的高聚合设计 :
+    模板 + CRTP (Curiously Recurring Template Pattern)

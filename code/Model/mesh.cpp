@@ -4,7 +4,7 @@
 #include "code/Material/material.h"
 #include "code/RenderPipe/simpleRenderPipe.h"
 
-#include "code/TerminalLog/color_log.h"
+#include "code/DebugTool/ConsoleHelp/color_log.h"
 
 
 using namespace Render;

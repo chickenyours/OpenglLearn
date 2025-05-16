@@ -1,8 +1,4 @@
-#pragma once
 
-#include <string>
-#include <glad/glad.h>
-#include "code/ECS/Core/Resource/resource.h"
 
 // 1D 纹理	GL_TEXTURE_1D	x	稀有，用于曲线、lookup
 // 2D 纹理	GL_TEXTURE_2D	x, y	最常见，标准贴图、UI、GBuffer 等
@@ -13,11 +9,39 @@
 // 多重采样数组	GL_TEXTURE_2D_MULTISAMPLE_ARRAY	x, y, layer + sample	用于延迟渲染 MSAA
 // 矩阵纹理	GL_TEXTURE_RECTANGLE	类似 2D，但不归一化坐标	用于 FBO 等特殊情况
 
+// {
+        //     "configType": "resource",
+        //     "resource": {
+        //       "resourceType": "texture",
+        //       "texture": {
+        //         "textureType": "2D",
+        //         "args":{
+        //           "path": "./images/R.jpg",
+        //           "wrapS": "REPEAT",
+        //           "wrapT": "REPEAT",
+        //           "minFilter": "LINEAR",
+        //           "magFilter": "LINEAR",
+        //           "needHDR" : false,
+        //           "needMipMap": true
+        //         }
+        //       }
+        //     }
+        //   }
+
+#pragma once
+
+#include <string>
+#include <glad/glad.h>
+#include "code/ECS/Core/Resource/resource.h"
 
 namespace Resource {
+
+    constexpr char* DefualtTexture2DPath = ".json";
+
     class Texture : public AbstractResource {
         public:
-            bool Load(const Json::Value& config) override;
+
+            bool LoadFromConfigFile(const std::string& configFile) override;
         
             // 从文件加载 2D 纹理
             bool LoadFromFile2D(
@@ -53,6 +77,9 @@ namespace Resource {
             );
         
             void Release() override;
+
+            inline GLuint GetID(){return id_;}
+            inline uint32_t GetTextureType(){return textureType_;}
         
         private:
             GLuint id_ = 0;

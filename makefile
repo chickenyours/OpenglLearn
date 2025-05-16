@@ -39,8 +39,9 @@ SRC = code/shader.cpp \
 	code/RenderPipe/Pass/ImageToBuffer.cpp \
 	code/RenderPipe/Pass/CameraPass.cpp \
 	code/ECS/System/SceneTree/scene_tree.cpp \
-	code/DebugTool/dynamic_change_vars.cpp \
+	code/DebugTool/DynamicVarChange/dynamic_change_vars.cpp \
 	include/stb_image.cpp \
+	code/Resource/Texture/texture.cpp \
 	
 
 # 定义 .o 和 .d 文件的位置

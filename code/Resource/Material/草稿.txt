@@ -1,0 +1,177 @@
+材质系统,或叫做渲染系统,是一个非常复杂的系统
+
+以RenderPipeMesh为例子,下面是一个渲染循环周期中会做到的事情?
+    1. 外部调用者会向RenderPipe传入一组需要渲染的实体
+    2. RenderPipe遍历每一个对象,这是它会做这些:
+        1. 判断组件 RenderMesh 是否存在
+        2. 取出RenderMesh的 Mesh 资源引用和 Material 资源的引用
+        3. Mesh 绑定, 对Material分析,这是我们目前开发的重点,如何分析:
+            1. 高效快速判断 Material 资源到底是什么类型的资源,并转换对应的数据对象
+            2. 通过Material的性质掩码或显示调用Pass掩码来执行这两种Pass安排类型的程序,来判断进入各种内部队列中
+            3. 在执行特定环节取出对应的内部队列中的材质
+            4. 上传Material引用的UBO为属性参数合集到GPU
+            5. 去除Material的着色器绑定到特定上下文
+            6. 绘制
+            7. 在进行下一个Pass,可能会重复3 4 5 6
+            8. 结束
+        4. 如果过程中出现要处理子渲染管线,则会递归进入处理子渲染管线的渲染过程程序,
+
+    说明:
+        1. 采用状态机驱动,也就是说,每一次Pass或子RenderPipe的执行都会改变当前上下文,比如纹理发生绑定,UBO上传覆盖等等
+
+关于材质Material:
+    设计理念:
+        Material只提供数据,定义材质的性质,但解释在于RenderPipe
+    数据布局:
+        string name
+        bool determine_pattern_flag : 决定模式,0为让RenderPipe根据材质性质掩码推导如何安排渲染
+                                    1为材质显式决定RenderPipe采用什么样的渲染方式,如何启动
+        uint_64 quality_mask     : 是材质的性质掩码
+        uint_64 pass_mask_yes    : 是材质的显式强制使用pass掩码
+        uint_64 pass_mask_yes    : 是材质的显式强制不使用pass掩码
+        Texture* textures[n]      : 固定Textrue数组(槽位)
+        Shader* shaders[n]       : 固定的shader数组(槽位)
+        MaterialUBOProperty property          : 具体类的ubo友好的属性集合
+    通用方法:
+        MaterialType GetType() : 返回材质类掩码,为RenderPipeMesh能够快速判断
+        void LoadArgs(string path) : 加载文件读取数据并构造MaterialUBOProperty
+
+关于MaterialUBOProperty:
+    通用方法:
+        上传GPU:将自己的所有成员全部打包上传到某个绑定点
+    数据布局: 
+        和ubo数据布局基本一致,采用一致的对齐方法
+    使用场景:
+        外部的逻辑程序从Material 
+
+关于如何创建这个体系:
+    自定义材质: 
+        得益于自动化程序,用户可以一键创建自定义材质:
+            1.用户可以新建材质类,设置textures槽位大小,每个槽位可以自定义名称,
+                设置shader槽位大小,每个槽位可以自定义名称.
+            2.自定义属性表:
+                bool a
+                vec3 b
+                vec4 c
+                float d
+                ...
+                mat4 e
+            3.自定义材质性质名称,自定义材质pass
+
+        自动化程序的工作:
+            1. 代码生成继承Material类的派生类,生成固定textures和shaders槽位.
+            2. 创建映射表对象,反射用户定义的名称到程序中,比如用户在元数据文件或在可视化编辑器中定义名称则会在程序中根据名称找回槽位索引
+                比如 int GetTextureIndex(string name);
+            3. 生成MaterialUBOProperty派生类,并写入用户定义的属性类型和名称
+            4. 生成获取MaterialUBOProperty,同时也在Material生成所有的属性访问器
+            5. 创建映射表对象,反射用户定义的属性比如: 
+                void SetProperty(string,vec3)
+                float GetProperty(string);
+            6. 整个过程数据结构和接口在头文件中生成,用户不需要修改
+    自定义渲染管线:
+        基类RenderPipe定义以下接口:
+            virtual bool Init(const RenderPipeConfig& cfg) = 0;
+            virtual void SetConfig(const RenderPipeConfig& cfg) = 0;
+            void RenderCall();
+            void Push(const RenderItem& renderItem);
+            virtual void Update(const std::vector<RenderItem>& renderItemList) = 0;
+            virtual void Release() = 0;
+            std::vector<RenderItem> renderItemList_;
+        
+        自动化程序的工作:
+            1. 用户为渲染管线时指定名字和渲染管线处理类型,自动程序会生成派生类头文件renderpipe_name.h,renderpipe_name_pass.h和源文件renderpipe_name.cpp并生成代码模板:
+            2. 用户需要为渲染管线指定Pass,在此期间的重新生成头文件里#include "renderpipe_name_pass.h"
+            3. 用户只需要在源文件中实现接口,不需要修改renderpipe_name_pass.h
+            4. 用户需要定义pass的使用情况
+            5. 用户可以引入材质头文件使用组件的材质,自用编程
+
+    自动化材质着色器:
+        着色器是渲染的核心,是一系列工作流的最终执行者,着色器的代码和渲染系统的关系十分紧密:
+        1. Sahder属于资源类型,可以使用管理资源的形式轻松管理
+        2. Sahder用在程序各处中:
+            1.在 Pass 中的作为内聚着色器,生成上下文数据
+            2.在 Material 中作为渲染效果的最终执行者
+        3. Material Shader的生成:
+            1. 影响生成的因素:
+                1. 检测到 Material 包含了注册的pass会触发对应的生成服务:
+                    检测到Material使用 CSMPass
+                    //---------------CAMERA_UBO---------------//
+                    // depend UBO : CAMERA_UBO->view
+                    layout(binding = 5) uniform sampler2DArray CSMshadowMap;
+                    layout (std140, binding = 4) uniform LightMatrices
+                    {
+                        mat4 lightSpaceMatrices[16];
+                    };
+                    layout(std140, binding = 5) uniform CSMInfo {
+                        vec4 cascadePlaneDistances[16];
+                        int cascadeCount;
+                        vec3 lightDir;
+                        vec4 farPlane;
+                    };
+                    float ShadowCalculation(vec3 fragPosWorldSpace);
+                    //---------------End CAMERA_UBO---------------//
+
+                    检测到 CameraPass
+                    //---------------CAMERA_UBO---------------//
+                    layout (std140, binding = 1) uniform CameraData
+                    {
+                        mat4 view;
+                        mat4 projection;
+                        vec3 viewPos;
+                        vec3 viewDir;
+                    };
+                    //---------------End CAMERA_UBO---------------//
+
+                    检测到PBRScenePass
+                    const float PI = 3.14159265359;
+
+                    float DistributionGGX(vec3 N, vec3 H, float roughness);
+                    float GeometrySchlickGGX(float NdotV, float roughness);
+                    float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
+                    vec3 fresnelSchlick(float cosTheta, vec3 F0);
+
+                    vec3 GetLight();
+
+    自定义pass:
+        1. 和RenderPipe一样需要继承基类并实现接口
+                class Pass {
+            public:
+                Pass();
+                virtual void Init(const PassConfig& cfg) = 0;
+                virtual void SetConfig(const PassConfig& cfg) = 0;
+                virtual void Update(const PassRenderContext& ctx, const std::vector<RenderItem>& renderItemList) = 0;
+                virtual void Release();
+                virtual ~Pass();
+            protected:
+                inline void SetDefaultPass(bool flag){defaultPassFlag = flag;}
+                bool CheckPass(RenderPassFlag flag, uint64_t renderEnablePassFlag, uint64_t renderDisablePassFlag);
+            private:
+                bool defaultPassFlag = true;
+        };
+
+        2. 除了实现接口之外,每个Pass都是一个 "输入输出" 机, 
+            输入:
+                定义状态接口比如:
+                    void SetDiffuseTexture(Gluint texture_id);
+                    void AddViewPort(int xOffset, int yOffset, int width, int height)
+                    void SetFBOTarget(Gluint fbo);
+                    void SetTergetAttachment(unsigned int color_attachment);
+                    ...
+                更新函数:
+                    virtual void Update(const PassRenderContext& ctx, const std::vector<RenderItem>& renderItemList) = 0;
+                    传入PassRenderContext,有RenderPipe构造传入
+            输出:
+                更新上下文,ubo,纹理输出等
+        3. 用户会指定Pass的名称并写一些注释,会生成对应头文件和源文件模板
+
+        4. 注册机制:
+            通过生成元数据提供支持
+
+
+
+
+
+
+
+
+

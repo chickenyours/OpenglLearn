@@ -1,30 +1,57 @@
 #pragma once
 
+#include <functional>
 #include <json/json.h>
 
 namespace ECS {
     namespace Core {
-        class ResourcePool; // 前向声明
+        namespace ResourceSystem{
+            template <typename T>
+            class ResourcePool; // 前向声明
+        }
     }
 
 } // namespace ECS
-
 namespace Resource {
 
-        class AbstractResource  {
-        protected:
-            AbstractResource () = default;
+    class AbstractResource  {
+    public:
+        virtual ~AbstractResource () = default;
+        AbstractResource () = default;
+    protected:
+        virtual bool LoadFromConfigFile(const std::string& configFile) = 0;
+        virtual void Release() = 0;
+        template <typename T>
+        friend class ECS::Core::ResourceSystem::ResourcePool;
+    };
 
-            // 虚析构是必须的：确保 delete 时能析构子类
-            virtual ~AbstractResource () = default;
+    template<typename T>
+    class ResourceHandle {
+    public:
+        ResourceHandle() = default;
+        ResourceHandle(const std::string& name,
+                        T* ptr,
+                        std::function<void(const std::string&)> onRelease)
+            : _name(name), _resource(ptr), _onRelease(onRelease) {}
+    
+        ~ResourceHandle() {
+            if (_onRelease) {
+                _onRelease(_name);
+            }
+        }
+    
+        T* operator->() { return _resource; }
+        const T* operator->() const { return _resource; }
+        T& operator*() { return *_resource; }
+    
+    private:
+    
+        std::string _name;
+        T* _resource = nullptr;
+        std::function<void(const std::string&)> _onRelease;
+    };
 
-            // 更通用的接口，接受配置对象或流式数据更灵活
-            // 可重复加载(覆盖)
-            virtual bool Load(const Json::Value& Config) = 0;
-            virtual void Release() = 0;
+} // namespace Resource
 
-            friend class ECS::Core::ResourcePool;
-        };
 
-    } // namespace Resource
 

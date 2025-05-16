@@ -1,0 +1,14 @@
+{
+    "configType": "resource",
+    "resource": {
+        "resourceType": "shader",
+        "isClass" : false,
+        "filePath": "./path/to/shader_file",
+        "shaderType": "vertex shader",
+        "macros": [
+            "NOT_NEED_NORMAL_MAP",
+            "NOT_NEED_ROUGHNESS_MAP",
+            "NOT_NEED_METALLIC_MAP"
+        ]
+    }
+}

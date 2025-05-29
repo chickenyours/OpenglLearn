@@ -1,38 +1,38 @@
 {
 	"version": "2.0.0",
 	"tasks": [
-		{
-			"type": "cppbuild",
-			"label": "ALL",
-			"command": "C:/Mydata/x86_64-14.2.0-release-win32-seh-msvcrt-rt_v12-rev0/mingw64/bin/g++.exe",
-			"args": [
-				"-std=c++2a",
-				"-fdiagnostics-color=always",
-				"-g",
-				"-I${workspaceFolder}/include",
-				"-I${workspaceFolder}/",
-				"${file}",
-				"${workspaceFolder}/code/ECS/System/SceneTree/scene_tree.cpp",
-				"-L${workspaceFolder}/lib",
-				"-lglfw3dll",
-				"-lglad",
-				"-lassimp.dll",
-				"-ljsonloader",
-				"-o",
-				"${workspaceFolder}/bin/${fileBasenameNoExtension}.exe",
-			],
-			"options": {
-				"cwd": "${fileDirname}"
-			},
-			"problemMatcher": [
-				"$gcc"
-			],
-			"group": {
-				"kind": "build",
-				"isDefault": true
-			},
-			"detail": "compiler: C:\\Users\\16620\\Desktop\\lingshi\\mingw64\\bin\\g++.exe"
-		},
+		// {
+		// 	"type": "cppbuild",
+		// 	"label": "ALL",
+		// 	"command": "C:/Mydata/x86_64-14.2.0-release-win32-seh-msvcrt-rt_v12-rev0/mingw64/bin/g++.exe",
+		// 	"args": [
+		// 		"-std=c++2a",
+		// 		"-fdiagnostics-color=always",
+		// 		"-g",
+		// 		"-I${workspaceFolder}/include",
+		// 		"-I${workspaceFolder}/",
+		// 		"${file}",
+		// 		"${workspaceFolder}/code/ECS/System/SceneTree/scene_tree.cpp",
+		// 		"-L${workspaceFolder}/lib",
+		// 		"-lglfw3dll",
+		// 		"-lglad",
+		// 		"-lassimp.dll",
+		// 		"-ljsonloader",
+		// 		"-o",
+		// 		"${workspaceFolder}/bin/${fileBasenameNoExtension}.exe",
+		// 	],
+		// 	"options": {
+		// 		"cwd": "${fileDirname}"
+		// 	},
+		// 	"problemMatcher": [
+		// 		"$gcc"
+		// 	],
+		// 	"group": {
+		// 		"kind": "build",
+		// 		"isDefault": true
+		// 	},
+		// 	"detail": "compiler: C:\\Users\\16620\\Desktop\\lingshi\\mingw64\\bin\\g++.exe"
+		// },
 		{
 			"type": "cppbuild",
 			"label": "Makefile",
@@ -41,7 +41,8 @@
 				"-f",
 				"${workspaceFolder}/Makefile",
 				"all",
-				"TARGET=${relativeFile}"
+				"TARGET=resourcetest.cpp",
+				// "TARGET=${relativeFile}"
 			],
 			"options": {
 				"cwd": "${workspaceFolder}"

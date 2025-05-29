@@ -4,106 +4,153 @@
 #include <memory>
 #include <string>
 #include <json/json.h>
-
-#include "code/ECS/Core/Resource/resource.h"
-
-#include "code/DebugTool/ConsoleHelp/color_log.h"
+#include <functional>
 
 
-namespace ECS::Core::ResourceSystem {
+
+namespace Resource{
+
+    template <typename T>
+    class ResourceHandle;
+
+    class ILoadFromConfig;
+}
+
+
+namespace ECS::Core::ResourceModule {
+    
+template <typename T>
+struct LoadOptions;
 
 template <typename T>
 class ResourcePool {
     public:
-
-        // 用于预添加
-        void Load(const std::string& configfile){
-            static_assert(std::is_base_of_v<Resource::AbstractResource, T>,
-                "T must inherit from AbstractResource");
-            auto& entry = pool_[configfile];
-            if(!entry){
-                // 如果是空指针,则加载
-                entry.resource = std::make_unique<T>();
-                entry.resource->Load(configfile);
-                LOG_INFO("RESOURCE POOL", "已创建配置文件相关资源: " + configfile);
-            }
-        }
-
-        Resource::ResourceHandle<T> Get(const std::string& configfile){
-            static_assert(std::is_base_of_v<Resource::AbstractResource, T>,
-                "T must inherit from AbstractResource");
-            // 如果pool_无configfile键,则会自动生成这一对键值元素,值会采用默认初始化,std::unique_ptr会初始化为空指针
-            auto& entry = pool_[configfile];
-            if(!entry.resource){
-                // 如果是空指针,则加载
-                entry.resource = std::make_unique<T>();
-                entry.resource->Load(configfile);
-                LOG_INFO("RESOURCE POOL", "已创建配置文件相关资源: " + configfile);
-            }
-
-            entry.refCount++;
-
-            // 构造资源句柄对象并返回
-            return Resource::ResourceHandle<T>(
-                configfile,
-                static_cast<T*>(entry.resource.get()),
-                [this](const std::string& configfile){ this->OnHandleRelease(configfile); }
-            );
-
-        }
-
-        void OnHandleRelease(const std::string& configfile){
-            auto it = pool_.find(configfile);
-            if(it != pool_.end()){
-                it->second.refCount--;
-                if(it->second.refCount == 0){
-                    // 释放资源
-                    it->second.resource->Release();
-                    pool_.erase(configfile);
-                    LOG_INFO("RESOURCE POOL", "已释放配置文件相关资源: " + configfile);
-                }
-            }
-        }
-
-        void OnHandleReleaseAll(){
-            for (auto it = pool_.begin(); it != pool_.end(); ) {
-                if (it->second.refCount == 0 && it->second.resource) {
-                    it->second.resource->Release();
-                    LOG_INFO("RESOURCE POOL", "已释放配置文件相关资源: " + it->first);
-                    it = pool_.erase(it);
-                } else {
-                    ++it;
-                }
-            }
-        }
-
-        ~ResourcePool(){
-            for (auto& [configfile, entry] : pool_) {
-                if (entry.resource) {
-                    if(entry.refCount == 0){
-                        LOG_ERROR("RESOURCE POOL", "资源引用计数为0,但仍存在未释放的资源: " + configfile);
-                    }
-                    entry.resource->Release();
-                    LOG_INFO("RESOURCE POOL", "已释放配置文件相关资源: " + configfile);
-                }
-            }
-            pool_.clear();
-        }
-
+        Resource::ResourceHandle<T> Get(const LoadOptions<T>& options);
+        void OnHandleReleaseAll();
+        void OnZeroRefRelease(const std::string& key);
+        void OnHandleRelease(const std::string& configfile);
+        ~ResourcePool(); 
     private:
-
-        struct ResourceEntry {
-            std::unique_ptr<Resource::AbstractResource> resource;
-            size_t refCount = 0;
-        };
-
+        struct ResourceEntry;
         std::unordered_map<std::string, ResourceEntry> pool_;
-
-        
-
-
-        
-        
-};
+    };
 } // namespace ECS::Core
+
+#include "code/ECS/Core/Resource/resource_interface.h"
+#include "code/DebugTool/ConsoleHelp/color_log.h"
+#include "code/ECS/Core/Resource/resource_handle.h"
+#include "code/ECS/Core/Resource/resource_load_option.h"
+
+using namespace ECS::Core::ResourceModule;
+using namespace Resource;
+
+template <typename T>
+struct ResourcePool<T>::ResourceEntry {
+    std::unique_ptr<Resource::ILoadable> resource = nullptr;
+    size_t refCount = 0;                                //引用计数器
+    // 策略回调
+    OnZeroRefStrategyFunc<T> onZeroCallFunc = nullptr;               //Get回调(如果包含资源)
+    OnGetRestoreStrategyFunc<T> onGetRestoreCallFunc = nullptr;      //计时器结束回调
+};
+
+template <typename T>
+ResourceHandle<T> ResourcePool<T>::Get(const LoadOptions<T>& options){
+    
+    auto& entry = pool_[options.key];
+
+    if(!entry.resource){
+        if (options.generator){
+            entry.resource = options.generator();
+        }
+        entry.onZeroCallFunc = options.onZeroCallFunc;
+        entry.onGetRestoreCallFunc = options.onGetRestoreCallFunc;
+        LOG_INFO_TEMPLATE("RESOURCE POOL", "Create resource: [key = " + options.key +" ]");
+    }
+    else { // 如果有资源,则执行相应策略并返回句柄
+        if(entry.onGetRestoreCallFunc){
+            entry.onGetRestoreCallFunc(options.key, static_cast<T*>(entry.resource.get()));
+        }
+    }
+
+    entry.refCount++;
+    
+    return Resource::ResourceHandle<T>(
+        options.key,
+        static_cast<T*>(entry.resource.get()),
+        [this](const std::string& key) {
+            this->OnHandleRelease(key);
+        }
+    );
+}
+        
+template <typename T>
+void ResourcePool<T>::OnHandleReleaseAll(){
+    for (auto it = pool_.begin(); it != pool_.end(); ) {
+        if (it->second.refCount == 0 && it->second.resource) {
+            it->second.resource->Release();
+            LOG_INFO_TEMPLATE("RESOURCE POOL", "已释放配置文件相关资源: " + it->first);
+            it = pool_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+template <typename T>
+void ResourcePool<T>::OnZeroRefRelease(const std::string& key){
+    auto it = pool_.find(key);
+    if(it != pool_.end()){
+        if(it->second.refCount == 0 && it->second.resource){
+            it->second.resource->Release();
+            LOG_INFO_TEMPLATE("RESOURCE POOL", "已释放配置文件相关资源: " + it->first);
+            it = pool_.erase(it);
+        }
+    }
+    else{
+        LOG_WARNING_TEMPLATE("RESOURCE POOL", "已释放配置文件相关资源: " + it->first);
+    }
+}
+
+template <typename T>
+ResourcePool<T>::~ResourcePool(){
+    for (auto& [configfile, entry] : pool_) {
+        if (entry.resource) {
+            entry.resource->Release();
+            if(entry.refCount != 0){
+                LOG_WARNING_TEMPLATE("RESOURCE POOL", "资源引用计数不为,但仍存在未释放的资源: " + configfile);
+            }
+            else if(entry.refCount == 0){
+                LOG_INFO_TEMPLATE("RESOURCE POOL", "资源引用计数为0,但仍存在未释放的资源: " + configfile);
+            }
+            else{
+                LOG_INFO_TEMPLATE("RESOURCE POOL", "已释放配置文件相关资源: " + configfile);
+            }
+        }
+    }
+    pool_.clear();
+}
+
+
+template <typename T>
+void ResourcePool<T>::OnHandleRelease(const std::string& key){
+    auto it = pool_.find(key);
+    if(it != pool_.end() && it->second.resource){
+        it->second.refCount--;
+        if(it->second.refCount == 0){
+            if (it->second.onZeroCallFunc) {
+                it->second.onZeroCallFunc(key, static_cast<T*>(it->second.resource.get())); // 外部接管资源
+                //  LOG_INFO_TEMPLATE("RESOURCE POOL", "资源已被外部策略执行移除操作: " + key);
+            } else {
+                // 默认行为：释放并删除
+                it->second.resource->Release();
+                pool_.erase(it);
+                LOG_INFO_TEMPLATE("RESOURCE POOL", "资源已被默认策略移除: " + key);
+            }
+        }
+    }
+    else{
+        LOG_ERROR_TEMPLATE("RESOURCE POOL", "资源不存在: " + key);
+    }
+}
+
 

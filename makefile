@@ -42,6 +42,10 @@ SRC = code/shader.cpp \
 	code/DebugTool/DynamicVarChange/dynamic_change_vars.cpp \
 	include/stb_image.cpp \
 	code/Resource/Texture/texture.cpp \
+	code/Resource/Shader/shader.cpp \
+	code/Resource/Shader/shader_factory.cpp \
+	code/Resource/Shader/shader_manager.cpp \
+
 	
 
 # 定义 .o 和 .d 文件的位置

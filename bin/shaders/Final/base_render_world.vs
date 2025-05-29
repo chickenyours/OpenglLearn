@@ -24,7 +24,7 @@ layout (std140, binding = 1) uniform CameraData
 uniform mat4 model;
 
 void main(){
-    vec4 Pos =  model * vec4(aPos,1.0);
+    vec4 Pos =  model * vec4(aPos,1.0); 
     gl_Position = projection * view * Pos;
     FragPos = Pos.xyz;
     TexCoords = aTex;

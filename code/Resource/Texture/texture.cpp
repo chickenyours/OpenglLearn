@@ -5,7 +5,7 @@
 
 #include "code/DebugTool/ConsoleHelp/color_log.h"
 
-#include "code/ToolAndAlgorithm/Json/json_loader.h"
+#include "code/ToolAndAlgorithm/Json/json_helper.h"
 
 
 using namespace Resource;
@@ -15,123 +15,138 @@ bool Texture::LoadFromConfigFile(const std::string& configFile){
     Json::Value config;
 
     
-    if(!Tool::LoadJsonValueFromFile(configFile, config)){
+    if (!Tool::JsonHelper::LoadJsonValueFromFile(configFile, config)){
         LOG_ERROR("RESOURCE TEXTURE","texture config file can't to be load" + configFile);
         return false;
     }
-    
-    
 
-    if(!config.isObject()){
-        LOG_ERROR("RESOURCE TEXTURE","config Object is not exist: " + configFile);
-        return false;
-    }
-
-
-    if(!config.isMember("configType") || config["configType"].asString() != "resource"){
+    std::string configType;
+    if (!Tool::JsonHelper::TryGetString(config, "configType", configType) || configType != "resource"){
         LOG_ERROR("RESOURCE TEXTURE","configType Error: " + configFile);
         return false;
     }
 
-    if(!config.isMember("resource") || !config["resource"].isObject()){
+    const Json::Value* resource;
+    if (!Tool::JsonHelper::TryGetObject(config, "resource", resource)){
         LOG_ERROR("RESOURCE TEXTURE", "resource Object is not exist: " + configFile);
         return false;
     }
 
-    const Json::Value& resource = config["resource"];
+    // resource 已通过 JsonHelper 获取
 
-    if(!resource.isMember("resourceType") || resource["resourceType"].asString() != "texture"){
+    std::string resourceType;
+    if (!Tool::JsonHelper::TryGetString(*resource, "resourceType", resourceType) || resourceType != "texture"){
         LOG_ERROR("RESOURCE TEXTURE","resourceType Error: " + configFile);
         return false;
     }
 
-    if(!resource.isMember("texture") || !resource["texture"].isObject()){
+    const Json::Value* textureConfig;
+    if (!Tool::JsonHelper::TryGetObject(*resource, "texture", textureConfig)){
         LOG_ERROR("RESOURCE TEXTURE","resource Object is not exist: " + configFile);
         return false;
     }
 
-    const Json::Value& textureConfig = resource["texture"];
+    // textureConfig 已通过 JsonHelper 获取
 
-    if(!textureConfig.isMember("textureType")){
+    std::string textureType;
+    if (!Tool::JsonHelper::TryGetString(*textureConfig, "textureType", textureType)){
         LOG_ERROR("RESOURCE TEXTURE","textureType Error: " + configFile);
         return false;
     }
 
-    if(!textureConfig.isMember("args") || !textureConfig["args"].isObject()){
+    const Json::Value* args;
+    if (!Tool::JsonHelper::TryGetObject(*textureConfig, "args", args)){
         LOG_ERROR("RESOURCE TEXTURE","args Object is not exist: " + configFile);
         return false;
     }
 
-
-    
-
-
-
-        
-    const Json::Value& args = textureConfig["args"];
-    std::string textureType = textureConfig["textureType"].asString();
-
-    std::string imagePath = args["path"].asString();
-    if (!std::filesystem::exists(imagePath)) {
-        LOG_ERROR("RESOURCE TEXTURE","Image file does not exist: " + imagePath);
+    std::string imagePath;
+    if (!Tool::JsonHelper::TryGetString(*args,"path", imagePath)) {
+        LOG_ERROR("RESOURCE TEXTURE","Image file does not exist, in " + configFile);
         return false;
     }
 
     if(textureType == "2D"){
-        const Json::Value& args = textureConfig["args"]; 
+        // args 已通过 JsonHelper 获取 
 
         
-
+        std::string warpSString;
+        if(!Tool::JsonHelper::TryGetString(*args,"wrapS", warpSString, "REPEAT")){
+            LOG_WARNING("RESOURCE TEXTURE", "wrapS is not exist, in " + configFile);
+        }
         uint32_t wrapS = [&]() {
-            std::string wrapMode = args["wrapS"].asString();
-            if (wrapMode == "REPEAT") return GL_REPEAT;
-            else if (wrapMode == "CLAMP_TO_EDGE") return GL_CLAMP_TO_EDGE;
-            else if (wrapMode == "MIRRORED_REPEAT") return GL_MIRRORED_REPEAT;
-            else if (wrapMode == "CLAMP_TO_BORDER") return GL_CLAMP_TO_BORDER;
+
+            if (warpSString == "REPEAT") return GL_REPEAT;
+            else if (warpSString == "CLAMP_TO_EDGE") return GL_CLAMP_TO_EDGE;
+            else if (warpSString == "MIRRORED_REPEAT") return GL_MIRRORED_REPEAT;
+            else if (warpSString == "CLAMP_TO_BORDER") return GL_CLAMP_TO_BORDER;
             else {
-            LOG_WARNING("RESOURCE TEXTURE", "Unknown wrapS mode: " + wrapMode);
+            LOG_WARNING("RESOURCE TEXTURE", "Unknown wrapS mode: " + warpSString);
+            return GL_REPEAT; // Default fallback
+            }
+        }();
+
+        std::string warpTString;
+        if(!Tool::JsonHelper::TryGetString(*args,"wrapT", warpTString, "REPEAT")){
+            LOG_WARNING("RESOURCE TEXTURE", "wrapS is not exist, in " + configFile);
+        }
+        uint32_t wrapT = [&]() {
+
+            if (warpTString == "REPEAT") return GL_REPEAT;
+            else if (warpTString == "CLAMP_TO_EDGE") return GL_CLAMP_TO_EDGE;
+            else if (warpTString == "MIRRORED_REPEAT") return GL_MIRRORED_REPEAT;
+            else if (warpTString == "CLAMP_TO_BORDER") return GL_CLAMP_TO_BORDER;
+            else {
+            LOG_WARNING("RESOURCE TEXTURE", "Unknown wrapS mode: " + warpTString);
             return GL_REPEAT; // Default fallback
             }
         }();
         
-        uint32_t wrapT = [&]() {
-            std::string wrapMode = args["wrapT"].asString();
-            if (wrapMode == "REPEAT") return GL_REPEAT;
-            else if (wrapMode == "CLAMP_TO_EDGE") return GL_CLAMP_TO_EDGE;
-            else if (wrapMode == "MIRRORED_REPEAT") return GL_MIRRORED_REPEAT;
-            else if (wrapMode == "CLAMP_TO_BORDER") return GL_CLAMP_TO_BORDER;
-            else {
-            LOG_WARNING("RESOURCE TEXTURE", "Unknown wrapT mode: " + wrapMode);
-            return GL_REPEAT; // Default fallback
-            }
-        }();
-
+        std::string minFilterString;
+        if(!Tool::JsonHelper::TryGetString(*args,"minFilter", minFilterString, "LINEAR")){
+            LOG_WARNING("RESOURCE TEXTURE", "minFilter is not exist, in " + configFile);
+        }
         uint32_t minFilter = [&]() {
-            std::string filterMode = args["minFilter"].asString();
-            if (filterMode == "NEAREST") return GL_NEAREST;
-            else if (filterMode == "LINEAR") return GL_LINEAR;
-            else if (filterMode == "NEAREST_MIPMAP_NEAREST") return GL_NEAREST_MIPMAP_NEAREST;
-            else if (filterMode == "LINEAR_MIPMAP_NEAREST") return GL_LINEAR_MIPMAP_NEAREST;
-            else if (filterMode == "NEAREST_MIPMAP_LINEAR") return GL_NEAREST_MIPMAP_LINEAR;
-            else if (filterMode == "LINEAR_MIPMAP_LINEAR") return GL_LINEAR_MIPMAP_LINEAR;
+            if (minFilterString == "NEAREST") return GL_NEAREST;
+            else if (minFilterString == "LINEAR") return GL_LINEAR;
+            else if (minFilterString == "NEAREST_MIPMAP_NEAREST") return GL_NEAREST_MIPMAP_NEAREST;
+            else if (minFilterString == "LINEAR_MIPMAP_NEAREST") return GL_LINEAR_MIPMAP_NEAREST;
+            else if (minFilterString == "NEAREST_MIPMAP_LINEAR") return GL_NEAREST_MIPMAP_LINEAR;
+            else if (minFilterString == "LINEAR_MIPMAP_LINEAR") return GL_LINEAR_MIPMAP_LINEAR;
             else {
-            LOG_WARNING("RESOURCE TEXTURE", "Unknown minFilter mode: " + filterMode);
+            LOG_WARNING("RESOURCE TEXTURE", "Unknown minFilter mode: " + minFilterString);
             return GL_LINEAR; // Default fallback
             }
         }();
 
+        std::string magFilterString;
+        if(!Tool::JsonHelper::TryGetString(*args,"magFilter", magFilterString, "LINEAR")){
+            LOG_WARNING("RESOURCE TEXTURE", "magFilter is not exist, in " + configFile);
+        }
         uint32_t magFilter = [&]() {
-            std::string filterMode = args["magFilter"].asString();
-            if (filterMode == "NEAREST") return GL_NEAREST;
-            else if (filterMode == "LINEAR") return GL_LINEAR;
+            if (magFilterString == "NEAREST") return GL_NEAREST;
+            else if (magFilterString == "LINEAR") return GL_LINEAR;
+            else if (magFilterString == "NEAREST_MIPMAP_NEAREST") return GL_NEAREST_MIPMAP_NEAREST;
+            else if (magFilterString == "LINEAR_MIPMAP_NEAREST") return GL_LINEAR_MIPMAP_NEAREST;
+            else if (magFilterString == "NEAREST_MIPMAP_LINEAR") return GL_NEAREST_MIPMAP_LINEAR;
+            else if (magFilterString == "LINEAR_MIPMAP_LINEAR") return GL_LINEAR_MIPMAP_LINEAR;
             else {
-            LOG_WARNING("RESOURCE TEXTURE", "Unknown magFilter mode: " + filterMode);
+            LOG_WARNING("RESOURCE TEXTURE", "Unknown magFilter mode: " + magFilterString);
             return GL_LINEAR; // Default fallback
             }
         }();
 
-        bool needHDR = args.get("needHDR", false).asBool();
-        bool needMipMap = args.get("needMipMap", true).asBool();
+      
+
+        bool needHDR;
+        bool needMipMap;
+        if(!Tool::JsonHelper::TryGetBool(*args, "needHDR", needHDR, false)){
+            LOG_WARNING("RESOURCE TEXTURE", "needHDR mode is not exsit: " + magFilterString);
+        }
+
+        if(!Tool::JsonHelper::TryGetBool(*args, "needMipMap", needMipMap, true)){
+            LOG_WARNING("RESOURCE TEXTURE", "needMipMap mode is not exsit: " + magFilterString);
+        }
 
 
         if(!LoadFromFile2D(imagePath, wrapS, wrapT, minFilter, magFilter, needHDR, needMipMap)){

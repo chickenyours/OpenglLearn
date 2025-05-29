@@ -2,6 +2,7 @@
 #include <iostream>
 #include <string>
 #include <stdlib.h>
+#include <regex>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -78,11 +79,27 @@ namespace Log {
 
     inline void Fatal(const std::string& module, const std::string& message) {
         Print(Level::Fatal, module, message);
+        
     }
 
-    #define LOG_INFO(module, message)    Log::Info(module, std::string(message) + " (" + __FILE__ + ":" + std::to_string(__LINE__) + ", " + __func__ + ")")
-    #define LOG_WARNING(module, message) Log::Warning(module, std::string(message) + " (" + __FILE__ + ":" + std::to_string(__LINE__) + ", " + __func__ + ")")
-    #define LOG_ERROR(module, message)   Log::Error(module, std::string(message) + " (" + __FILE__ + ":" + std::to_string(__LINE__) + ", " + __func__ + ")")
-    #define LOG_FATAL(module, message)   Log::Fatal(module, std::string(message) + " (" + __FILE__ + ":" + std::to_string(__LINE__) + ", " + __func__ + ")")
+    #define LOG_INFO(module, message)    Log::Info(module, std::string(message) + " (" + __FILE__ + ":" + std::to_string(__LINE__) + ", @" + __func__ + ")")
+    #define LOG_WARNING(module, message) Log::Warning(module, std::string(message) + " (" + __FILE__ + ":" + std::to_string(__LINE__) + ", @" + __func__ + ")")
+    #define LOG_ERROR(module, message)   Log::Error(module, std::string(message) + " (" + __FILE__ + ":" + std::to_string(__LINE__) + ", @" + __func__ + ")")
+    #define LOG_FATAL(module, message)   Log::Fatal(module, std::string(message) + " (" + __FILE__ + ":" + std::to_string(__LINE__) + ", @" + __func__ + ")")
+
+    // =================== 轻量级模板版本 ===================
+    #define LOG_INFO_TEMPLATE(module, message) \
+        Log::Info(module, std::string(message) + " (" + __FILE__ + ":" + std::to_string(__LINE__) + ", " + std::string(__PRETTY_FUNCTION__) + ")")
+
+    #define LOG_WARNING_TEMPLATE(module, message) \
+        Log::Warning(module, std::string(message) + " (" + __FILE__ + ":" + std::to_string(__LINE__) + ", " + std::string(__PRETTY_FUNCTION__) + ")")
+
+    #define LOG_ERROR_TEMPLATE(module, message) \
+        Log::Error(module, std::string(message) + " (" + __FILE__ + ":" + std::to_string(__LINE__) + ", " + std::string(__PRETTY_FUNCTION__) + ")")
+
+    #define LOG_FATAL_TEMPLATE(module, message) \
+        Log::Fatal(module, std::string(message) + " (" + __FILE__ + ":" + std::to_string(__LINE__) + ", " + std::string(__PRETTY_FUNCTION__) + ")")
+
+
 
 } // namespace Log

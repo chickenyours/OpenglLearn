@@ -51,20 +51,34 @@
 #include <glad/glad.h>
 #include <unordered_map>
 #include "code/ECS/Core/Resource/resource_interface.h"
+#include "code/ECS/Core/Resource/resource_handle.h"
 
 namespace Resource {
-    class ShaderManager;
-    class ShaderFactory;
 
-    // 由ShaderManager系统管理
-    class Shader : public ILoadable{
+    class Shader;
+
+    class ShaderFactory : public ILoadFromConfig {
         public:
-            inline GLuint GetShaderID(){return shaderID_;}
-            virtual void Release() override;
-            ~Shader();
+            bool LoadFromConfigFile(const std::string& configFile) override;
+            bool LoadShaderCodeFromFile(unsigned int shaderType, const std::string& filePath);
+            void AddMacro(const std::string& value);
+            void ClearMacro();
+            void ReleaseCodeCache();
+            void GenerateFinalShaderCode(std::string& out);
+
+            bool GenerateShader(std::string& errorMsg, Shader& out);
+            bool GenerateShaderToResourceManager(std::string& errorMsg, Resource::ResourceHandle<Shader>& out);
+            
+            void Release() override;
+            inline unsigned int GetShaderType(){return shaderType_;}
+            
+            void Print();
         private:
-            GLuint shaderID_ = 0;
-            friend class ShaderManager; 
-            friend class ShaderFactory;
+            
+            std::string source;
+            std::string codeFilePath_;
+            unsigned int shaderType_;
+            std::vector<std::string> macroCache_;
+            std::string codeCache_;
     };
 }

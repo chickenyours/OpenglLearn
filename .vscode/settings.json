@@ -72,7 +72,9 @@
         "cassert": "cpp",
         "condition_variable": "cpp",
         "mutex": "cpp",
-        "typeindex": "cpp"
+        "typeindex": "cpp",
+        "bitset": "cpp",
+        "regex": "cpp"
     },
     "cmake.sourceDirectory": "C:/Users/16620/Desktop/projects/OpenglLearn/include/glm"
 }

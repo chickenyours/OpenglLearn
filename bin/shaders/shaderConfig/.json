@@ -1,0 +1,15 @@
+{
+    "configType": "resource",
+    "resource": {
+        "resourceType": "shader",
+        "isClass" : false,
+        "filePath": "./shaders/Final/base_render_world.vs",
+        "shaderType": "vertex shader",
+        "macros": [
+            "NOT_NEED_NORMAL_MAP",
+            "NOT_NEED_ROUGHNESS_MAP",
+            "NOT_NEED_METALLIC_MAP",
+            "PI 3.15"
+        ]
+    }
+}

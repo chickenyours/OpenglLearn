@@ -8,17 +8,52 @@
 #include "code/DebugTool/ConsoleHelp/color_log.h"
 
 #include "code/ECS/Core/Resource/resource_manager.h"
+
 #include "code/Resource/Texture/texture.h"
-
-
-ECS::Core::ResourceSystem::ResourceManager rm;
-
+#include "code/Resource/Shader/shader.h"
+#include "code/Resource/Shader/shader_manager.h"
+#include "code/Resource/Shader/shader_factory.h"
 
 void test1(){
-    auto tex = rm.Get<Resource::Texture>("./images/texconfig/.json");
-    auto tex2 = rm.Get<Resource::Texture>("./images/texconfig/.json");
-    std::cout << tex2->GetID() << std::endl;
+    Resource::ResourceHandle<Resource::Shader> shader5;
+    {
+
+        // auto tex = ECS::Core::ResourceModule::ResourceManager::GetInctance().Get<Resource::Texture>("./images/texconfig/.json");
+        // auto tex2 = ECS::Core::ResourceModule::ResourceManager::GetInctance().Get<Resource::Texture>("./images/texconfig/.json");
+      
+
+        auto factory3 = Resource::ShaderManager::GetInstance().GetShaderFactoryFromConfigFile("./shaders/shaderConfig/2.json");
+        auto factory = Resource::ShaderManager::GetInstance().GetShaderFactoryFromConfigFile("./shaders/shaderConfig/.json");
+        auto factory2 = Resource::ShaderManager::GetInstance().GetShaderFactoryFromConfigFile("./shaders/shaderConfig/.json");
+
+        // Resource::Shader shader;
+        // std::string err;
+        // if(factory){
+        //     if(!factory->GenerateShader(err,shader)){
+        //         LOG_ERROR("MAIN", err);
+        //         return;
+        //     }
+        //     factory->Print();
+        //     std::string code;
+        //     factory->GenerateFinalShaderCode(code);
+        //     std::cout << code << std::endl;
+        // } 
+
+
+        // std::cout<< shader.GetShaderID() << std::endl;
+        // std::cout<< &(*factory) << std::endl;
+        // std::cout<< &(*factory2) << std::endl;
+    }
+
+    
+
 }
+
+void test2(){
+    auto factory = Resource::ShaderManager::GetInstance().GetShaderFactoryFromConfigFile("./shaders/shaderConfig/3.json");
+}
+
+
 
 
 int main(){
@@ -55,7 +90,8 @@ int main(){
 
 
     test1();
-
+    test2();
+    // std::cout<< "hhhhh" << std::endl;
     
 
     // 清理

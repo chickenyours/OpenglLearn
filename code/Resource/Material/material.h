@@ -1,59 +1,66 @@
-// 使用UBO上传技术
 #pragma once
 
-#include <memory>
-#include <json/json.h>
+#include <unordered_map>
 #include <string>
+#include <memory>
 #include <glad/glad.h>
+
 #include "code/ECS/Core/Resource/resource.h"
+
 
 namespace Resource {
 
-class MaterialUBO;
+template <typename Derived>
+class MaterialBlueprint;
 
-class Material : public AbstractResource {
-    public:
-        
-        bool LoadFromConfigFile(const std::string& configFile) override;
+class Texture;
+class ShaderProgram;
 
-        /*
-        你需要实现相应配套的UBO的定义的构造
-        会接收到一整个material json对象
-        "material": {
-            "materialType": "BPR or some type",
-            "args": {
-                "textures" : {
-                    "diffuseMap": "./materials/tite/diffuse.json",
-                    ...
-                },
-                "properties" : { 
-                    "color" : [1.0, 1.0, 1.0],
-                    "roughness" : 0.5,
-                    "needNormalMap" : true,
-                    "needShadow" : false,
-                    ...
-                    },
-                "shaders" : { ... }
-            }
-        */ 
-        virtual bool LoadArgs(
-            const std::string& materialType,
-            const Json::Value& textures,
-            const Json::Value& properties,
-            const Json::Value& shaders
-        ) = 0;
+class Material : public ILoadFromConfig {
+public:
+    Material() = default;
+    ~Material();
 
-        
+    uint32_t GetMaterialTypeFlag() const { return materialTypeFlag_; }
+    const std::string& GetName() const { return name_; }
+    inline bool IsLoaded(){return isLoaded_;}
 
-        virtual void UploadPropertyToGPU() = 0;
+    virtual bool LoadFromConfigFile(const std::string& configFile) override;
+    virtual void Release() override;
+    void UploadPropertyToUBO();
 
+    void BindTexture(ResourceHandle<Texture>&& texture, size_t index);
+    void BindShader(ResourceHandle<ShaderProgram>&& shaderID, size_t index);
+    void BindTexture(ResourceHandle<Texture>& texture, size_t index);
+    void BindShader(ResourceHandle<ShaderProgram>& shaderID, size_t index);
+    void UploadPropertyData(size_t start, size_t size, const void* data);
 
-        virtual void Release() = 0;
+protected:
 
+    uint32_t materialTypeFlag_;
+    std::string name_;
 
-    protected:
-        std::string name_;
+    size_t propertySize_;
+    char* propertybuffer_; 
+
+    size_t textureSize_;
+    GLuint* textures_;
+
+    size_t shaderProgramSize_;
+    GLuint* shaderPrograms_;
+
+    // 资源句柄容器
+    std::vector<ResourceHandle<Texture>> textureHandles_;
+    std::vector<ResourceHandle<ShaderProgram>> shaderHandles_;
+
+private:
+    bool isLoaded_ = false;
+
+template <typename Derived>
+friend class MaterialBlueprint;
+
 };
+
 
 } // namespace Resource
 

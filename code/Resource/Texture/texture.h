@@ -32,13 +32,13 @@
 
 #include <string>
 #include <glad/glad.h>
-#include "code/ECS/Core/Resource/resource.h"
+#include "code/ECS/Core/Resource/resource_interface.h"
 
 namespace Resource {
 
-    constexpr char* DefualtTexture2DPath = ".json";
+    constexpr const char* DefualtTexture2DPath = ".json";
 
-    class Texture : public AbstractResource {
+    class Texture : public ILoadFromConfig {
         public:
 
             bool LoadFromConfigFile(const std::string& configFile) override;

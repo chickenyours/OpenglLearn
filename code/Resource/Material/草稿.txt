@@ -171,6 +171,32 @@
 
 
 
+ /*
+        你需要实现相应配套的UBO的定义的构造
+        会接收到一整个material json对象
+        "material": {
+            "materialType": "BPR or some type",
+            "args": {
+                "textures" : {
+                    "diffuseMap": "./materials/tite/diffuse.json",
+                    ...
+                },
+                "properties" : { 
+                    "color" : [1.0, 1.0, 1.0],
+                    "roughness" : 0.5,
+                    "needNormalMap" : true,
+                    "needShadow" : false,
+                    ...
+                    },
+                "shaders" : { ... }
+            }
+        */ 
+
+/*
+Material 无法独自加载属性,需要蓝图辅助, 所以有理由保留蓝图的创建Material代码, 
+而且我有个想法就是 Material独自加载属性,遇到MaterialType 时可以 MaterialType和自身 
+给 MaterialRegister , MaterialRegister找到对应蓝图就吗Material交给这个蓝图加载,这个可行且高效吗?
+*/
 
 
 

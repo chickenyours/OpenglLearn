@@ -8,50 +8,40 @@
 #include "code/DebugTool/ConsoleHelp/color_log.h"
 
 #include "code/ECS/Core/Resource/resource_manager.h"
+#include "code/ECS/Core/Resource/resource_load_option.h"
 
 #include "code/Resource/Texture/texture.h"
 #include "code/Resource/Shader/shader.h"
 #include "code/Resource/Shader/shader_manager.h"
 #include "code/Resource/Shader/shader_factory.h"
+#include "code/Resource/Shader/shader_program.h"
 
 void test1(){
-    Resource::ResourceHandle<Resource::Shader> shader5;
-    {
+    std::cout<< "jjj" << std::endl;
+    auto shader = ShaderManager::GetInstance().GetShaderFromShaderFile("./shaders/Final/base_render_world_animation.vs");
+    std::cout<< "hhh" << std::endl;
+}
 
-        // auto tex = ECS::Core::ResourceModule::ResourceManager::GetInctance().Get<Resource::Texture>("./images/texconfig/.json");
-        // auto tex2 = ECS::Core::ResourceModule::ResourceManager::GetInctance().Get<Resource::Texture>("./images/texconfig/.json");
-      
+void TestShaderProgram1(){
+    // 检验模块是否成功加载以及处理异常情况
+    
+    auto shaderProgram = ECS::Core::ResourceModule::ResourceManager::GetInctance().Get<Resource::ShaderProgram>(
+        ECS::Core::ResourceModule::FromConfig<Resource::ShaderProgram>("./ShaderProgramConfig/1.json")
+    );
 
-        auto factory3 = Resource::ShaderManager::GetInstance().GetShaderFactoryFromConfigFile("./shaders/shaderConfig/2.json");
-        auto factory = Resource::ShaderManager::GetInstance().GetShaderFactoryFromConfigFile("./shaders/shaderConfig/.json");
-        auto factory2 = Resource::ShaderManager::GetInstance().GetShaderFactoryFromConfigFile("./shaders/shaderConfig/.json");
-
-        // Resource::Shader shader;
-        // std::string err;
-        // if(factory){
-        //     if(!factory->GenerateShader(err,shader)){
-        //         LOG_ERROR("MAIN", err);
-        //         return;
-        //     }
-        //     factory->Print();
-        //     std::string code;
-        //     factory->GenerateFinalShaderCode(code);
-        //     std::cout << code << std::endl;
-        // } 
-
-
-        // std::cout<< shader.GetShaderID() << std::endl;
-        // std::cout<< &(*factory) << std::endl;
-        // std::cout<< &(*factory2) << std::endl;
-    }
+    auto shaderProgram2 = ECS::Core::ResourceModule::ResourceManager::GetInctance().Get<Resource::ShaderProgram>(
+        ECS::Core::ResourceModule::FromConfig<Resource::ShaderProgram>("./ShaderProgramConfig/1.json")
+    );
 
     
 
+    if(shaderProgram2){
+        std::cout<< (unsigned int)shaderProgram->GetID() << std::endl;
+    }
 }
 
-void test2(){
-    auto factory = Resource::ShaderManager::GetInstance().GetShaderFactoryFromConfigFile("./shaders/shaderConfig/3.json");
-}
+
+
 
 
 
@@ -88,11 +78,19 @@ int main(){
 
     std::cout << "OpenGL Version: " << glGetString(GL_VERSION) << std::endl;
 
+    int b = 2;
 
-    test1();
-    test2();
-    // std::cout<< "hhhhh" << std::endl;
-    
+    std::function<std::unique_ptr<Resource::Shader>(Log::StackLogErrorHandle)> a(
+        [](Log::StackLogErrorHandle) -> std::unique_ptr<Resource::Shader> {
+            return std::make_unique<Resource::Shader>();
+        }
+    );
+
+    auto c = [b](Log::StackLogErrorHandle) -> std::unique_ptr<Resource::Shader> {
+            return std::make_unique<Resource::Shader>();
+    };
+
+    TestShaderProgram1();
 
     // 清理
     glfwDestroyWindow(window);

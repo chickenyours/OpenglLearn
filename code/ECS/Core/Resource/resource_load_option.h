@@ -3,8 +3,12 @@
 #include <functional>
 #include <memory>
 
+#include "code/DebugTool/ConsoleHelp/color_log.h"
+
 namespace ECS::Core::ResourceModule {
 
+template <typename T>
+using LoadGeneratorCall = std::function<std::unique_ptr<T>(Log::StackLogErrorHandle)> ;
 
 // OnZeroRefStrategyFunc 和 OnGetRestoreStrategyFunc 都是资源管理器中的类
 template <typename T>
@@ -28,24 +32,28 @@ LoadOptions<T> FromPointer(const std::string& key,
 
 template<typename T>
 LoadOptions<T> FromGenerator(const std::string& key, 
-    std::function<std::unique_ptr<T>()>,
+    LoadGeneratorCall<T>,
     OnZeroRefStrategyFunc<T> onZeroCallFunc = nullptr,
     OnGetRestoreStrategyFunc<T> onGetRestoreCallFunc = nullptr);
+
+template<typename T>
+LoadOptions<T> FromKey(const std::string& key);
 
 template <typename T>
 struct LoadOptions {
     std::string key;
-    std::function<std::unique_ptr<T>()> generator;          // 如果加载器失败需要返回空指针,资源管理器会识别这个结果
+    LoadGeneratorCall<T> generator;          // 如果加载器失败需要返回空指针,资源管理器会识别这个结果
     OnZeroRefStrategyFunc<T> onZeroCallFunc = nullptr;
     OnGetRestoreStrategyFunc<T> onGetRestoreCallFunc = nullptr;
 
 private:
     LoadOptions(const std::string& k,
-            std::function<std::unique_ptr<T>()> gen,
+            LoadGeneratorCall<T> gen,
             OnZeroRefStrategyFunc<T> onZero,
             OnGetRestoreStrategyFunc<T> onRestore)
     : key(k), generator(std::move(gen)),
       onZeroCallFunc(onZero), onGetRestoreCallFunc(onRestore) {}
+    
     template<typename U>
     friend LoadOptions<U> FromConfig(const std::string& fileConfig,
         OnZeroRefStrategyFunc<U> onZeroCallFunc,
@@ -62,10 +70,13 @@ private:
 
     template<typename U>
     friend LoadOptions<U> FromGenerator(const std::string& key, 
-        std::function<std::unique_ptr<U>()>,
+        LoadGeneratorCall<U>,
         OnZeroRefStrategyFunc<U> onZeroCallFunc,
         OnGetRestoreStrategyFunc<U> onGetRestoreCallFunc
     );
+
+    template<typename U>
+    friend LoadOptions<U> FromKey(const std::string& key);
 
 };
 
@@ -88,10 +99,10 @@ ECS::Core::ResourceModule::LoadOptions<T> ECS::Core::ResourceModule::FromConfig(
 
     return LoadOptions<T>(
         fileConfig,
-        [fileConfig]() -> std::unique_ptr<T> {
+        [fileConfig](Log::StackLogErrorHandle errHandle = nullptr) -> std::unique_ptr<T> {
             auto ptr = new T();
-            if (!ptr->LoadFromConfigFile(fileConfig)) {
-                LOG_ERROR_TEMPLATE("Resource LoadOption", "fail to load configFile,in " + fileConfig);
+            if (!ptr->LoadFromConfigFile(fileConfig, errHandle)) {
+                REPORT_STACK_ERROR(errHandle, "LoadOption->FromConfig", "Failed to load configuration file: " + fileConfig);
                 return nullptr;
             }
             return std::unique_ptr<T>(ptr);
@@ -125,7 +136,7 @@ ECS::Core::ResourceModule::LoadOptions<T> ECS::Core::ResourceModule::FromPointer
 template<typename T>
 ECS::Core::ResourceModule::LoadOptions<T> ECS::Core::ResourceModule::FromGenerator(
     const std::string& key,
-    std::function<std::unique_ptr<T>()> generator,
+    LoadGeneratorCall<T> generator,
     OnZeroRefStrategyFunc<T> onZeroCallFunc,
     OnGetRestoreStrategyFunc<T> onGetRestoreCallFunc
 ) {
@@ -134,5 +145,15 @@ ECS::Core::ResourceModule::LoadOptions<T> ECS::Core::ResourceModule::FromGenerat
         std::move(generator),
         onZeroCallFunc,
         onGetRestoreCallFunc
+    );
+}
+
+template<typename T>
+ECS::Core::ResourceModule::LoadOptions<T> ECS::Core::ResourceModule::FromKey(const std::string& key){
+    return LoadOptions<T>(
+        key,
+        nullptr,
+        nullptr,
+        nullptr
     );
 }

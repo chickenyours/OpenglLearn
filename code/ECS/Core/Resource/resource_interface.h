@@ -4,6 +4,7 @@
 #include <json/json.h>
 #include <string>
 
+#include "code/DebugTool/ConsoleHelp/color_log.h"
 
 
 namespace ECS {
@@ -48,7 +49,7 @@ namespace Resource {
     // 可通过配置文件加载接口: 可以使用配置文件地址实现加载的能力
     class ILoadFromConfig : public ILoadable {
         public:
-            virtual bool LoadFromConfigFile(const std::string& configFile) = 0;
+            virtual bool LoadFromConfigFile(const std::string& configFile, Log::StackLogErrorHandle errHandle = nullptr) = 0;
     };
 
 }

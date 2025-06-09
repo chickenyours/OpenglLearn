@@ -10,7 +10,7 @@
 
 using namespace Resource;
 
-bool Texture::LoadFromConfigFile(const std::string& configFile){
+bool Texture::LoadFromConfigFile(const std::string& configFile, Log::StackLogErrorHandle errHandle){
 
     Json::Value config;
 

@@ -1,29 +1,27 @@
 #pragma once
 
+#include <string>
 #include "code/ECS/Core/Resource/resource_interface.h"
 #include "code/ECS/Core/Resource/resource_handle.h"
-#include <string>
+
+#include "code/Resource/Shader/shader_description.h"
+
+#include "code/DebugTool/ConsoleHelp/color_log.h"
 
 namespace Resource{
 
     class ShaderFactory;
     class Shader;
 
+    class ShaderDescription;
+
     class ShaderManager{
         public:
             static ShaderManager& GetInstance();
-
             // 获取工厂
-            ResourceHandle<ShaderFactory> GetShaderFactoryFromConfigFile(const std::string& configFile);
-
-            ResourceHandle<ShaderFactory> GetShaderFactoryFromSahderFile(unsigned int shaderType, const std::string& shaderFile);
-
-            // 获取shader
-            
-
-            // 未被外部资源管理的实例,但制造它的工厂会被管理
-            bool GetShader(unsigned int shaderType, const std::string& filePath, Shader& out);
-
-
+            ResourceHandle<ShaderFactory> GetShaderFactoryFromShaderFile(const std::string& shaderFile, Log::StackLogErrorHandle errHandle = nullptr);
+            // 获取Sahder
+            ResourceHandle<Shader> GetShaderFromShaderFile(const std::string& shaderFile,  const ShaderDescription& description = {}, Log::StackLogErrorHandle errHandle = nullptr);
+        private:
     };
 }

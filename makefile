@@ -45,6 +45,8 @@ SRC = code/shader.cpp \
 	code/Resource/Shader/shader.cpp \
 	code/Resource/Shader/shader_factory.cpp \
 	code/Resource/Shader/shader_manager.cpp \
+	code/Resource/Shader/shader_program.cpp \
+	code/ToolAndAlgorithm/Hash/md5.cpp \
 
 	
 

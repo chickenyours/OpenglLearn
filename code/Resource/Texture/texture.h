@@ -41,7 +41,7 @@ namespace Resource {
     class Texture : public ILoadFromConfig {
         public:
 
-            bool LoadFromConfigFile(const std::string& configFile) override;
+            bool LoadFromConfigFile(const std::string& configFile, Log::StackLogErrorHandle errHandle = nullptr) override;
         
             // 从文件加载 2D 纹理
             bool LoadFromFile2D(

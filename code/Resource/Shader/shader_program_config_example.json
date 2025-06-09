@@ -1,0 +1,35 @@
+{
+    "configType": "resource",
+    "resource": {
+        "resourceType": "shader program",
+        "args":{ 
+            "vertexShader": {
+                "filePath": "./your/vertex_shader.vs",
+                "macros": [
+                    "YOUR_VERTEX_SHADER_MACRO"
+                ]
+            },
+            "fragmentShader": {
+                "filePath": "./your/fragment_shader.fs",
+                "macros": [
+                    "YOUR_FRAGMENT_SHADER_MACRO"
+                ]
+            },
+            "geometryShader": {
+                "filePath": "./your/geometry_shader.gs", 
+                "macros": [
+                    "YOUR_GEOMETRY_SHADER_MACRO"
+                ]
+            },
+            "computeShader": {
+                "filePath": "./your/geometry_shader.gs",
+                "macros": [
+                    "YOUR_GEOMETRY_SHADER_MACRO"
+                ]
+            },
+            "macros": [
+                "YOUR_COMMON_SHADER_MACRO"
+            ]
+        }
+    }
+}

@@ -1,6 +1,7 @@
 #include "shader_factory.h"
 
 #include <sstream>
+#include <functional>
 
 #include "code/ToolAndAlgorithm/Json/json_helper.h"
 #include "code/ToolAndAlgorithm/File/file_loader.h"
@@ -8,149 +9,206 @@
 
 #include "code/Resource/Shader/shader.h"
 
+#include "code/ToolAndAlgorithm/Hash/md5.h"
+
 using namespace Resource;
 
-bool ShaderFactory::LoadFromConfigFile(const std::string& configFile){
 
-    source = configFile;
 
-    Json::Value config;
-    std::string configType;
-    const Json::Value* resource;
-    std::string resourceType;
-    bool isClass;
-    const Json::Value* macros;
+// bool ShaderFactory::LoadFromConfigFile(const std::string& configFile){
+
+//     source = configFile;
+
+//     Json::Value config;
+//     std::string configType;
+//     const Json::Value* resource;
+//     std::string resourceType;
+//     bool isClass;
+//     const Json::Value* macros;
     
 
-    if(!Tool::JsonHelper::LoadJsonValueFromFile(configFile,config)){
-        LOG_ERROR("Resource Shader","Error configFile");
+//     if(!Tool::JsonHelper::LoadJsonValueFromFile(configFile,config)){
+//         LOG_ERROR("Resource Shader","Error configFile");
+//         return false;
+//     }
+
+//     if(!Tool::JsonHelper::TryGetString(config, "configType", configType) && configType != "resource"){
+//         LOG_ERROR("Resource Shader","Error configType");
+//         return false;
+//     }
+
+//     if(!Tool::JsonHelper::TryGetObject(config, "resource", resource)){
+//         LOG_ERROR("Resource Shader","Error resource");
+//         return false;
+//     }
+
+//     if(!Tool::JsonHelper::TryGetString(*resource, "resourceType", resourceType) && resourceType != "shader"){
+//         LOG_ERROR("Resource Shader","Error resourceType");
+//         return false;
+//     }
+
+//     if(!Tool::JsonHelper::TryGetBool(*resource,"isClass", isClass)){
+//         LOG_ERROR("Resource Shader","Error isClass");
+//         return false;
+//     }
+
+//     if(!Tool::JsonHelper::TryGetArray(*resource,"macros", macros)){
+//         LOG_ERROR("Resource Shader","Error macros");
+//         return false;
+//     }
+
+
+//     if(isClass){
+//         // 注册机制
+//     }
+//     else{
+
+//         std::string filePath;
+//         std::string shaderTypeString;
+//         unsigned int shaderType;
+
+//         if(!Tool::JsonHelper::TryGetString(*resource, "filePath", filePath)){
+//             LOG_ERROR("Resource Shader","filePath is not exist");
+//             return false;
+//         }
+
+//         codeFilePath_ = filePath;
+
+//         if(!Tool::JsonHelper::TryGetString(*resource, "shaderType", shaderTypeString)){
+//             LOG_ERROR("Resource Shader","shaderType is not exist");
+//             return false;
+//         }
+
+//         // 翻译类型
+//             if(shaderTypeString == "vertex shader") shaderType = GL_VERTEX_SHADER;
+//             else if(shaderTypeString == "fragment shader") shaderType = GL_FRAGMENT_SHADER;
+//             else if(shaderTypeString == "geometry shader") shaderType = GL_GEOMETRY_SHADER;
+//             else if(shaderTypeString == "compute shader") shaderType = GL_COMPUTE_SHADER;
+//             else {
+//                 LOG_WARNING("Resource Shader", "Unknown shaderType: " + shaderTypeString);
+//                 shaderType = GL_INVALID_ENUM;
+//             }
+
+//         // 直接文件加载
+//         if(!LoadShaderCodeFromFile(shaderType, filePath)){
+//             LOG_ERROR("Resource Shader","File cannot be opened");
+//             return false;
+//         }
+//     }
+
+
+//     // 载入宏
+//     if(!Tool::JsonHelper::TryTraverseArray(*macros, macroCache_)){
+//         LOG_ERROR("Resource Shader","Appearing unexpect type in macro array");
+//             return false;
+//     }
+
+//     // std::string errorMsg;
+//     // if(!GenerateShader(errorMsg)){
+//     //     LOG_ERROR("Resource Shader","Fail to generate shader: " + errorMsg);
+//     //     return false;
+//     // }
+
+//     isLoad_ = true;
+//     return true;
+
+// }
+
+bool ShaderFactory::LoadShaderCode(Log::StackLogErrorHandle errHandle){
+    if(codeFilePath_.empty()){
+        return false;
+    }
+    if(!Tool::FileLoader::LoadFileToString(codeFilePath_, codeCache_)){
+        REPORT_STACK_ERROR(errHandle,"Shader Factory", "Failed to load shader code from file: " + codeFilePath_);
         return false;
     }
 
-    if(!Tool::JsonHelper::TryGetString(config, "configType", configType) && configType != "resource"){
-        LOG_ERROR("Resource Shader","Error configType");
-        return false;
-    }
-
-    if(!Tool::JsonHelper::TryGetObject(config, "resource", resource)){
-        LOG_ERROR("Resource Shader","Error resource");
-        return false;
-    }
-
-    if(!Tool::JsonHelper::TryGetString(*resource, "resourceType", resourceType) && resourceType != "shader"){
-        LOG_ERROR("Resource Shader","Error resourceType");
-        return false;
-    }
-
-    if(!Tool::JsonHelper::TryGetBool(*resource,"isClass", isClass)){
-        LOG_ERROR("Resource Shader","Error isClass");
-        return false;
-    }
-
-    if(!Tool::JsonHelper::TryGetArray(*resource,"macros", macros)){
-        LOG_ERROR("Resource Shader","Error macros");
-        return false;
-    }
-
-
-    if(isClass){
-        // 注册机制
-    }
-    else{
-
-        std::string filePath;
-        std::string shaderTypeString;
-        unsigned int shaderType;
-
-        if(!Tool::JsonHelper::TryGetString(*resource, "filePath", filePath)){
-            LOG_ERROR("Resource Shader","filePath is not exist");
-            return false;
+    // 推导 shaderType_ 根据文件后缀
+    std::string::size_type dotPos = codeFilePath_.find_last_of('.');
+    if (dotPos != std::string::npos) {
+        std::string extension = codeFilePath_.substr(dotPos + 1);
+        if (extension == "vs") shaderType_ = GL_VERTEX_SHADER;
+        else if (extension == "fs") shaderType_ = GL_FRAGMENT_SHADER;
+        else if (extension == "gs") shaderType_ = GL_GEOMETRY_SHADER;
+        else if (extension == "cs") shaderType_ = GL_COMPUTE_SHADER;
+        else {
+            LOG_WARNING("Resource ShaderFactory", "Unknown shader file extension: " + extension);
+            shaderType_ = GL_INVALID_ENUM;
         }
-
-        codeFilePath_ = filePath;
-
-        if(!Tool::JsonHelper::TryGetString(*resource, "shaderType", shaderTypeString)){
-            LOG_ERROR("Resource Shader","shaderType is not exist");
-            return false;
-        }
-
-        // 翻译类型
-            if(shaderTypeString == "vertex shader") shaderType = GL_VERTEX_SHADER;
-            else if(shaderTypeString == "fragment shader") shaderType = GL_FRAGMENT_SHADER;
-            else if(shaderTypeString == "geometry shader") shaderType = GL_GEOMETRY_SHADER;
-            else if(shaderTypeString == "compute shader") shaderType = GL_COMPUTE_SHADER;
-            else {
-                LOG_WARNING("Resource Shader", "Unknown shaderType: " + shaderTypeString);
-                shaderType = GL_INVALID_ENUM;
-            }
-
-        // 直接文件加载
-        if(!LoadShaderCodeFromFile(shaderType, filePath)){
-            LOG_ERROR("Resource Shader","File cannot be opened");
-            return false;
-        }
+    } else {
+        LOG_WARNING("Resource ShaderFactory", "File path does not have an extension: " + codeFilePath_);
+        shaderType_ = GL_INVALID_ENUM;
     }
 
-
-    // 载入宏
-    if(!Tool::JsonHelper::TryTraverseArray(*macros, macroCache_)){
-        LOG_ERROR("Resource Shader","Appearing unexpect type in macro array");
-            return false;
-    }
-
-    // std::string errorMsg;
-    // if(!GenerateShader(errorMsg)){
-    //     LOG_ERROR("Resource Shader","Fail to generate shader: " + errorMsg);
-    //     return false;
-    // }
-
-    isLoad_ = true;
+    isCodeLoaded_ = true;
     return true;
-
 }
 
-bool ShaderFactory::LoadShaderCodeFromFile(unsigned int shaderType, const std::string& filePath){
-    if(source.empty()) source = filePath;
-    codeFilePath_ = filePath;
-    if(!Tool::FileLoader::LoadFileToString(filePath, codeCache_)){
-        LOG_ERROR("Resource ShaderFactory", "Failed to load shader code from file: " + filePath);
-        return false;
-    }
-    shaderType_ = shaderType;
-    isLoad_ = true;
-    return true;
-}
 
-void ShaderFactory::AddMacro(const std::string& value){
-    macroCache_.push_back(value);
-}
-void ShaderFactory::ClearMacro(){
-    macroCache_.clear();
-}
 void ShaderFactory::ReleaseCodeCache(){
     codeCache_.clear();
+    this->isCodeLoaded_ = false;
 }
 
-bool ShaderFactory::GenerateShader(std::string& errorMsg, Shader& out){
+std::string ShaderFactory::GetShaderResourceKey(std::string filePath, const ShaderDescription& despription){
+    // 将宏进行字典排序
+    std::vector<std::string> sortedMacros = despription.macros;
+    std::sort(sortedMacros.begin(), sortedMacros.end());
+
+    // 拼接 filePath 和排序后的宏
+    std::string combinedString = filePath;
+    for (const auto& macro : sortedMacros) {
+        combinedString += macro;
+    }
+
+    // 计算 MD5 值并返回
+    MD5 md5;
+    // std::cout<< md5(combinedString) << std::endl; 
+    return "ShaderInstance:" + filePath + ":" + md5(combinedString);
+    
+}
+
+ResourceHandle<Shader> ShaderFactory::TryGetShaderInstance(const ShaderDescription& description, Log::StackLogErrorHandle errHandle){
+
+    // 变体解析
+    if(codeFilePath_.empty()){
+        REPORT_STACK_ERROR(errHandle,"Shader Factory", "Shader file path is empty.");
+        return nullptr;
+    }
+
+    std::string shaderResourceKey = GetShaderResourceKey(codeFilePath_,description);
+
+    Log::StackLogErrorHandle nouse(nullptr);
+    auto shader = ECS::Core::ResourceModule::ResourceManager::GetInctance().Get<Shader>(ECS::Core::ResourceModule::FromKey<Shader>(shaderResourceKey), nouse);
+    // 在ResourceManager中找寻是否有存在的shader
+    if(shader){
+        return std::move(shader);
+    }
+    
+    if(!isCodeLoaded_ && !LoadShaderCode()){
+        REPORT_STACK_ERROR(errHandle,"Shader Factory", "Failed to load shader code");
+        return nullptr;
+    }
+
     GLuint shaderID = glCreateShader(shaderType_); 
     if(shaderID == 0){   //创建失败
         GLenum error = glGetError();
         if (error == GL_INVALID_ENUM) {
-            errorMsg = "glCreateShader: Invalid Shader Type";
+            REPORT_STACK_ERROR(errHandle,"Shader Factory", "glCreateShader: Invalid Shader Type");
         } else if (error == GL_INVALID_OPERATION) {
-            errorMsg = "No valid OpenGL Context found";
+            REPORT_STACK_ERROR(errHandle, "Shader Factory", "glCreateShader: No valid OpenGL Context found");
         } else if (error == GL_OUT_OF_MEMORY) {
-            errorMsg = "Out of memory, unable to allocate shader";
+            REPORT_STACK_ERROR(errHandle, "Shader Factory", "glCreateShader: Out of memory, unable to allocate shader");
         } else {
-            errorMsg = "Unknown error occurred";
+            REPORT_STACK_ERROR(errHandle, "Shader Factory", "glCreateShader: Unknown error occurred");
         }
-        return false;
+        return nullptr;
     }
 
     if(codeCache_.empty()){
-        errorMsg = "Shader code cache is empty";
         glDeleteShader(shaderID); // ✨ 释放分配的 Shader 资源
-        return false;
+        REPORT_STACK_ERROR(errHandle, "Shader Factory", "Shader code cache is empty");
+        return nullptr;
     }
 
     std::vector<std::string> sourceStrings;
@@ -166,7 +224,7 @@ bool ShaderFactory::GenerateShader(std::string& errorMsg, Shader& out){
     sourceStrings.push_back(versionLine + "\n");
 
     // 加入宏定义
-    for (const auto& macro : macroCache_) {
+    for (const auto& macro : description.macros) {
         sourceStrings.push_back("#define " + macro + "\n");
     }
 
@@ -190,24 +248,33 @@ bool ShaderFactory::GenerateShader(std::string& errorMsg, Shader& out){
     if (!success)
     {
         glGetShaderInfoLog(shaderID, 1024, NULL, infolog);
-        errorMsg = "Shader compilation failed:\n" + std::string(infolog);
+        REPORT_STACK_ERROR(errHandle, "ShaderFactory", "Shader compilation failed: " + std::string(infolog));
         glDeleteShader(shaderID); // ✨ 编译失败时释放资源
-        return false;
+        return nullptr;
     }
 
-    if(!out.shaderID_){
-        glDeleteShader(out.shaderID_);
-    }
+    // 放入ResourceManager,并返回句柄
+    shader = ECS::Core::ResourceModule::ResourceManager::GetInctance().Get<Shader>(
+        ECS::Core::ResourceModule::FromGenerator<Shader>(
+            shaderResourceKey,
+            [shaderID](Log::StackLogErrorHandle errHandle) -> std::unique_ptr<Shader> {
+                auto shaderInstance = std::make_unique<Shader>();
+                shaderInstance->shaderID_ = shaderID;
+                shaderInstance->isLoad_ = true;
+                return shaderInstance;
+            }
+        )
+        ,errHandle
+    );
 
-    out.shaderID_ = shaderID;
+    // std::cout<<codeFilePath_ << std::endl;
+    // std::cout<<shader->shaderID_ << std::endl;
 
-    return true;
-
+    return std::move(shader);
 }
 
 void ShaderFactory::Release(){
-    LOG_INFO("Resource ShaderFactory", "Release ShaderFactory, source: " + source);
-    ClearMacro();
+    LOG_INFO("Resource ShaderFactory", "Release ShaderFactory, codeFilePath: " + codeFilePath_);
     ReleaseCodeCache();
 }
 
@@ -218,7 +285,7 @@ void ShaderFactory::Print(){
     }
     std::stringstream ss;
     ss  << "\n===========Shader Info==========\n"
-        << "source file path: " + source + '\n'
+        << "code file path: " + codeFilePath_ << "\n"
         << "shaderType: " << 
             [this]() -> std::string {
                 if(shaderType_ == GL_VERTEX_SHADER) return "vertex shader";
@@ -227,17 +294,11 @@ void ShaderFactory::Print(){
                 else if(shaderType_ == GL_COMPUTE_SHADER) return "compute shader";
                 else return "unknown";
             }() << '\n'
-        << "macros: " << '\n'
-            <<  [this]() -> std::string {
-                    std::stringstream ss;
-                    for(auto& it : macroCache_){
-                        ss << '\t' << it << '\n';
-                    }
-                    return ss.str();
-                }()
-        << "code file path: " + codeFilePath_ << "\n"
         << "code: " << "\n\t"
             << [this]() -> std::string {
+                if(!isCodeLoaded_ && !LoadShaderCode()){
+                    return "Failed to load shader code.";
+                }
                 size_t size = std::min(codeCache_.size(), static_cast<size_t>(512));
                 std::string out;
                 out.reserve(size * 2 + 5);
@@ -257,29 +318,3 @@ void ShaderFactory::Print(){
     LOG_INFO("Resource ShaderFactory", ss.str());
 }   
 
-void ShaderFactory::GenerateFinalShaderCode(std::string& out) {
-    if(!isLoad_) return;
-
-    out.clear();  // 清空旧内容
-
-    // 拆分 codeCache_ 中的 #version 行和剩余代码
-    std::string::size_type versionEnd = codeCache_.find('\n');
-    std::string versionLine = (versionEnd != std::string::npos)
-        ? codeCache_.substr(0, versionEnd)
-        : "#version 460 core"; // fallback
-
-    std::string remainingCode = (versionEnd != std::string::npos)
-        ? codeCache_.substr(versionEnd + 1)
-        : "";
-
-    // 加入 #version 行
-    out += versionLine + "\n";
-
-    // 加入宏定义
-    for (const auto& macro : macroCache_) {
-        out += "#define " + macro + "\n";
-    }
-
-    // 加入主代码体
-    out += remainingCode;
-}

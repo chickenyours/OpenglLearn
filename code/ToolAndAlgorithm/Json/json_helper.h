@@ -1,3 +1,4 @@
+#pragma once
 #include <iostream>
 #include <vector>
 #include <string>
@@ -17,21 +18,23 @@ namespace Tool{
 class JsonHelper {
 public:
 
-    static bool LoadJsonValueFromFile(const std::string& filePath, Json::Value& out) {
+    static bool LoadJsonValueFromFile(const std::string& filePath, Json::Value& out, Log::StackLogErrorHandle errHandle = nullptr) {
         Json::CharReaderBuilder builder;
         std::ifstream in(filePath, std::ios::binary);
 
         if (!in.is_open()) {
-            
+            REPORT_STACK_ERROR(errHandle,"JsonHelper", "Failed to open file: " + filePath);
             return false;
         }
 
         std::string errs;
         Json::Value root;
         if (!Json::parseFromStream(builder, in, &root, &errs)) {
+            REPORT_STACK_ERROR(errHandle, "JsonHelper", "Failed to parse JSON: " + errs);
             return false;
         }
         if(!root.isObject()){
+            REPORT_STACK_ERROR(errHandle, "JsonHelper", "JSON root is not an object.");
             return false;
         }
         out = std::move(root);

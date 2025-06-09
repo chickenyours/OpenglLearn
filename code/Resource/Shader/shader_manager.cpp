@@ -15,6 +15,7 @@ namespace {
     std::unordered_map<std::string, std::list<std::string>::iterator> lruMap;
 }
 
+// 目前是超出释放,可能之后改为只释放code缓存,保留工厂,因为工厂会持有shader产品缓存
 static void AddToLRUCache(const std::string& key, ShaderFactory* factory) {
     if (lruMap.count(key)) return;
     if (lruList.size() >= MAX_SHADER_CACHE_SIZE) {
@@ -41,33 +42,14 @@ ShaderManager& ShaderManager::GetInstance(){
     return instance;
 } 
 
-ResourceHandle<ShaderFactory> ShaderManager::GetShaderFactoryFromConfigFile(const std::string& configFile){
-    return ECS::Core::ResourceModule::ResourceManager::GetInctance().Get<ShaderFactory>(
-        ECS::Core::ResourceModule::FromConfig<ShaderFactory>(
-            configFile,
-            [configFile](const std::string& key, ShaderFactory* resource) {
-                AddToLRUCache(key, resource);
-                LOG_INFO("Resource ShaderManager", "trigger Zero Function, key: " + key + ", file: " + configFile);
-            },
-            [configFile](const std::string& key, ShaderFactory* resource) {
-                RemoveFromLRUCache(key);
-                LOG_INFO("Resource ShaderManager", "trigger Restore Function, key: " + key + ", file: " + configFile);
-            }
-        )
-    );
-}
-
-ResourceHandle<ShaderFactory> ShaderManager::GetShaderFactoryFromSahderFile(unsigned int shaderType, const std::string& shaderFile){
+ResourceHandle<ShaderFactory> ShaderManager::GetShaderFactoryFromShaderFile(const std::string& shaderFile, Log::StackLogErrorHandle errHandle){
     return ECS::Core::ResourceModule::ResourceManager::GetInctance().Get<ShaderFactory>(
         ECS::Core::ResourceModule::FromGenerator<ShaderFactory>(
-            shaderFile + "::FromGenerator",
-            [shaderType, shaderFile]() -> std::unique_ptr<ShaderFactory> {
-                auto factory = std::make_unique<ShaderFactory>();
-                if(!factory->LoadShaderCodeFromFile(shaderType, shaderFile)){
-                    LOG_ERROR("Resource ShaderManager", "Can't load successfully ShaderFactory, source: " + shaderFile);
-                    return nullptr;
-                }
-                return factory;
+            "ShaderFactory: " + shaderFile,
+            [shaderFile](Log::StackLogErrorHandle errHandle) -> std::unique_ptr<ShaderFactory> {
+                auto shaderFactory = std::make_unique<ShaderFactory>();
+                shaderFactory->SetCodeFilePath(shaderFile);
+                return shaderFactory;
             },
             [shaderFile](const std::string& key, ShaderFactory* resource) {
                 AddToLRUCache(key, resource);
@@ -79,16 +61,19 @@ ResourceHandle<ShaderFactory> ShaderManager::GetShaderFactoryFromSahderFile(unsi
             }
         )
     );
-} 
+}
 
             
-bool ShaderManager::GetShader(unsigned int shaderType, const std::string& shaderFile, Shader& out){
-    auto factory = GetShaderFactoryFromSahderFile(shaderType, shaderFile);
-    if(!factory) return false;
-    std::string ErrMsg;
-    if(!factory->GenerateShader(ErrMsg, out)){
-        LOG_ERROR("Resource ShaderManager", "Failed to generate shader: " + ErrMsg);
-        return false;
+ResourceHandle<Shader> ShaderManager::GetShaderFromShaderFile(const std::string& shaderFile, const ShaderDescription& description, Log::StackLogErrorHandle errHandle){
+    auto shaderFactory = GetShaderFactoryFromShaderFile(shaderFile);
+    if(!shaderFactory){
+        REPORT_STACK_ERROR(errHandle, "ShaderManager", "Failed to get ShaderFactory for shader file: " + shaderFile);
+        return nullptr;
     }
-    return true;
+    auto shader = shaderFactory->TryGetShaderInstance(description, errHandle);  
+    if(!shader){
+        REPORT_STACK_ERROR(errHandle, "ShaderManager", "Failed to create Shader instance for shader file: " + shaderFile);
+        return nullptr;
+    }
+    return shader;
 }

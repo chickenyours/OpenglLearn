@@ -4,6 +4,8 @@
 #include <string>
 #include <functional>
 
+#include "code/DebugTool/ConsoleHelp/color_log.h"
+
 namespace Resource{
     template <typename T>
     class ResourceHandle;
@@ -29,24 +31,8 @@ namespace ECS::Core::ResourceModule{
                 return instance;
             }
 
-            // template <typename T>
-            // void Load(const std::string& fileConfig);
-
-            // template <typename T>
-            // void Load(
-            //     const std::string& key,
-            //     std::function<std::unique_ptr<T>()> generator);
-
-            // template <typename T>
-            // Resource::ResourceHandle<T> Get(const std::string& fileConfig);
-
-            // template <typename T>
-            // Resource::ResourceHandle<T> Get(
-            //     const std::string& key,
-            //     std::function<std::unique_ptr<T>()> generator);
-
             template <typename T>
-            Resource::ResourceHandle<T> Get(const LoadOptions<T>& options);
+            Resource::ResourceHandle<T> Get(const LoadOptions<T>& options, Log::StackLogErrorHandle errHandle = nullptr);
 
             template <typename T>
             void OnHandleRelease(const std::string& fileConfig);
@@ -71,26 +57,13 @@ namespace ECS::Core::ResourceModule{
 
 using namespace ECS::Core::ResourceModule;
 
-// template <typename T>
-// void ResourceManager::Load(const std::string& fileConfig){
-//     GetPool<T>().Load(fileConfig);
-// }
-
-// template <typename T>
-// Resource::ResourceHandle<T> ResourceManager::Get(const std::string& fileConfig){
-//     return GetPool<T>().Get(fileConfig);
-// }
-
-// template <typename T>
-// Resource::ResourceHandle<T> ResourceManager::Get(
-//     const std::string& key,
-//     std::function<std::unique_ptr<T>()> generator){
-//         return GetPool<T>().Get(key,generator);
-// }
-
 template <typename T>
-Resource::ResourceHandle<T> ResourceManager::Get(const LoadOptions<T>& options) {
-    return GetPool<T>().Get(options); 
+Resource::ResourceHandle<T> ResourceManager::Get(const LoadOptions<T>& options, Log::StackLogErrorHandle errHandle) {
+    auto handle = GetPool<T>().Get(options, errHandle); 
+    if(!handle){
+        REPORT_STACK_ERROR(errHandle, "ResourceManager", "Failed to load resource");
+    }
+    return handle;
 }
 
 template <typename T>

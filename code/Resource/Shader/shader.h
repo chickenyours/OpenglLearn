@@ -52,6 +52,7 @@
 #include <unordered_map>
 #include "code/ECS/Core/Resource/resource_interface.h"
 
+
 namespace Resource {
     class ShaderManager;
     class ShaderFactory;
@@ -59,6 +60,7 @@ namespace Resource {
     // 由ShaderManager系统管理
     class Shader : public ILoadable{
         public:
+            Shader() = default;
             inline GLuint GetShaderID(){return shaderID_;}
             virtual void Release() override;
             ~Shader();

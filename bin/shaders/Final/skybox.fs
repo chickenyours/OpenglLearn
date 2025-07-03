@@ -1,5 +1,5 @@
 #version 330 core
-
+#pragma SLOT(common_macros)
 in vec3 FragPos;
 
 uniform samplerCube cubeMap;

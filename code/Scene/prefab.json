@@ -1,0 +1,62 @@
+{
+    "name" : "myPrefab",
+    "configType": "prefab",
+    "prefab": {
+        "label" : "My Prefab",
+        "entities": [
+            {
+                "localId" : 1,
+                "label" : "gun-M16A4",
+                "parent": 0,
+                "components" : {
+                    "transform": {
+                        "position": [0.0, 0.0, 0.0],
+                        "rotation": [0.0, 0.0, 0.0],
+                        "scale": [1.0, 1.0, 1.0]
+                    },
+                    "mesh": {
+                        "meshPath" :{
+                            "modelFilePath": "./models/gun-M16A4.obj",
+                            "nodePath": "/gun-M16A4/main"
+                        }
+                    },
+                    "meshRenderer": {
+                        "material": "./materials/barrel.json"
+                    },
+                    "collider": {
+                        "type": "cylinder",
+                        "radius": 1.0,
+                        "height": 2.0
+                    }
+                }
+            },
+            {
+                "localId" : 2,
+                "label" : "human",
+                "parent": 1,
+                "components": {
+                    "transform": {
+                        "position": [0.0, 1.0, 0.0],
+                        "rotation": [0.0, 0.0, 0.0],
+                        "scale": [1.0, 1.0, 1.0]
+                    },
+                    "Model":{
+                        "modelFilePath": "./models/human.obj"
+                    },
+                    "SkinnedMeshRenderer": {
+                        "materials":[
+                            "./materials/human_skin.json",
+                            "./materials/human_clothes.json",
+                            "./materials/human_hair.json"
+                        ]
+                    },
+                    "Animator": {
+                        "animationFilePath": "./animations/human_animation.json",
+                        "loop": true,
+                        "speed": 1.0
+                    }
+                }
+            }
+        ]
+    }
+}

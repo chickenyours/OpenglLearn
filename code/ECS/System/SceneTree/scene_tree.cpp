@@ -29,8 +29,14 @@ void SceneTreeSystem::ApplyToRoot(EntityID entity){
 }
 
 void SceneTreeSystem::SetParent(EntityID child, EntityID newParent) {
+
+    if(newParent == INVALID_ENTITY){
+        ApplyToRoot(child);
+        return;
+    }
+
     if(!child || !newParent || child == newParent){
-        LOG_ERROR(systemName_, "Invaild entity in child or newParent: " + std::to_string(child) + ":" + std::to_string(child));
+        LOG_ERROR(systemName_, "Invaild entity in child or newParent: child: " + std::to_string(child) + " parent:" + std::to_string(newParent));
         return;
     }
 

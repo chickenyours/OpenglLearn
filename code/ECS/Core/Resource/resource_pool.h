@@ -66,7 +66,7 @@ ResourceHandle<T> ResourcePool<T>::Get(const LoadOptions<T>& options, Log::Stack
             }
             entry.onZeroCallFunc = options.onZeroCallFunc;
             entry.onGetRestoreCallFunc = options.onGetRestoreCallFunc;
-            LOG_INFO_TEMPLATE("RESOURCE POOL", std::string("Create resource: [key = ") + LOG_COLOR_BRIGHT_GREEN + options.key + LOG_INFO_COLOR +" ]");
+            LOG_INFO("RESOURCE POOL", std::string("Create resource: [key = ") + LOG_COLOR_BRIGHT_GREEN + options.key + LOG_INFO_COLOR +" ]");
         }
         else{
             REPORT_STACK_ERROR(errHandle, "Resource Pool", "Failed to create resource: generator is null.");

@@ -6,7 +6,6 @@
 
 #include "code/DebugTool/ConsoleHelp/color_log.h"
 
-
 using namespace Render;
 
 Mesh::Mesh(std::vector<Vertex> vertices, std::vector<unsigned int> indices, unsigned int materialIndex):VAO(0)
@@ -56,7 +55,7 @@ void Mesh::Draw()
 void Mesh::setupMesh(std::vector<Vertex> vertices, std::vector<unsigned int> indices)
 {
     glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
+    glGenBuffers(1, &VBO);  
     glGenBuffers(1, &EBO);
     glBindVertexArray(VAO);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);

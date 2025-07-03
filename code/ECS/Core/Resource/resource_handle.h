@@ -14,7 +14,7 @@ namespace ECS {
 } 
 
 namespace Resource {
-
+ 
 template<typename T>
 class ResourceHandle {
 public:
@@ -45,6 +45,7 @@ public:
     T* operator->() { return resource_; }
     const T* operator->() const { return resource_; }
     T& operator*() { return *resource_; }
+    T* get(){return resource_;}
 
     explicit operator bool() const {
         return resource_ != nullptr;
@@ -63,7 +64,7 @@ private:
 
     std::string name_ = "";
     T* resource_ = nullptr;
-    std::function<void(const std::string&)> _onRelease;
+    std::function<void(const std::string&)> _onRelease = nullptr;
 };
 
 

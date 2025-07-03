@@ -17,6 +17,7 @@ using OnZeroRefStrategyFunc = std::function<void(const std::string&, T*)>;
 template <typename T>
 using OnGetRestoreStrategyFunc = std::function<void(const std::string&, T*)>;
 
+// the object will be discard if its LoadFromConfigFile return false
 template<typename T>
 LoadOptions<T> FromConfig(const std::string& fileConfig,
     OnZeroRefStrategyFunc<T> onZeroCallFunc = nullptr,

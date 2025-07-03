@@ -10,6 +10,8 @@
 
 #include <json/json.h>
 
+#include "code/DebugTool/ConsoleHelp/color_log.h"
+
 
 namespace Tool{
     
@@ -40,6 +42,7 @@ public:
         out = std::move(root);
         return true;
     }
+
 
     static bool TryGetInt(const Json::Value& value, const std::string& key, int& out) {
         if (value.isMember(key) && value[key].isInt()) {
@@ -116,6 +119,23 @@ public:
         }
         return false;
     }
+    
+    static bool TryGetObject(const Json::Value& value, const std::string& key, const Json::Value*& out, const Json::Value& defaultValue) {
+        if (value.isMember(key) && value[key].isObject()) {
+            out = &value[key];
+            return true;
+        }
+        out = &defaultValue;
+        return false;
+    }
+
+    static bool TryGetObject(Json::Value& value, const std::string& key ,Json::Value*& out) {
+        if (value.isMember(key) && value[key].isObject()) {
+            out = &value[key];
+            return true;
+        }
+        return false;
+    }
 
     static bool TryGetVec3(const Json::Value& value, const std::string& key, glm::vec3& out) {
         if (value.isMember(key) && value[key].isArray() && value[key].size() == 3) {
@@ -144,6 +164,14 @@ public:
     static bool TryGetArray(const Json::Value& value, const std::string& key,const Json::Value*& out) {
         if (value.isMember(key) && value[key].isArray()) {
             out = &value[key];
+            return true;
+        }
+        return false;
+    }
+
+    static bool TryGetArray(Json::Value& value, const std::string& key, Json::Value*& out) {
+        if (value.isMember(key) && value[key].isArray()) {
+            out = &value[key];  // 获取可修改的引用地址
             return true;
         }
         return false;
@@ -253,6 +281,49 @@ public:
         out = std::move(temp);
         return true;
     }
+
+   static bool TryTraverseArray(const Json::Value& value, std::vector<const Json::Value*>& out) {
+        if (!value.isArray()) {
+            return false;
+        }
+
+        std::vector<const Json::Value*> temp;
+        temp.reserve(value.size());
+
+        for (Json::ArrayIndex i = 0; i < value.size(); ++i) {
+            const Json::Value& element = value[i];
+            if (!element.isObject()) {
+                return false;
+            }
+            temp.push_back(&value[i]);  // ✔️ 直接取源 value 中的地址
+        }
+
+        out = std::move(temp);
+        return true;
+    }
+    
+    static bool TryTraverseArray(Json::Value& value, std::vector<Json::Value*>& out) {
+        if (!value.isArray()) {
+            return false;
+        }
+
+        std::vector<Json::Value*> temp;
+        temp.reserve(value.size());
+
+        for (Json::ArrayIndex i = 0; i < value.size(); ++i) {
+            Json::Value& element = value[i];
+            if (!element.isObject()) {
+                return false;
+            }
+            temp.push_back(&value[i]);
+        }
+
+        out = std::move(temp);
+        return true;
+    }
+
 };
+
+
 
 } // namespace Tool

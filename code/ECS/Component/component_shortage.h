@@ -7,9 +7,15 @@
 
 namespace ECS::Core{
 
-template<typename ComponentT>
-class ComponentStorage {
+class IComponentStorageBase{
     public:
+        virtual ~IComponentStorageBase() = default;
+};
+
+template<typename ComponentT>
+class ComponentStorage final : public IComponentStorageBase {
+    public:
+        virtual ~ComponentStorage() = default;
         ComponentStorage() {
             denseComponents.reserve(4096);  // 足够大的默认容量,目前能足够避免扩容带来的外部悬空指针问题
             denseEntities.reserve(4096);    // 未来可以编写 Stable Vector
@@ -18,6 +24,14 @@ class ComponentStorage {
         ComponentT* Add(EntityID id, const ComponentT& comp) {
             if (Has(id)) return nullptr;
             denseComponents.push_back(comp);
+            denseEntities.push_back(id);
+            sparseMap[id] = denseComponents.size() - 1;
+            return &denseComponents.back();
+        }
+
+        ComponentT* Add(EntityID id) {
+            if (Has(id)) return nullptr;
+            denseComponents.emplace_back();
             denseEntities.push_back(id);
             sparseMap[id] = denseComponents.size() - 1;
             return &denseComponents.back();

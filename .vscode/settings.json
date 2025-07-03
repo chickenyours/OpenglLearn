@@ -74,7 +74,10 @@
         "mutex": "cpp",
         "typeindex": "cpp",
         "bitset": "cpp",
-        "regex": "cpp"
+        "regex": "cpp",
+        "any": "cpp",
+        "simd": "cpp",
+        "future": "cpp"
     },
     "cmake.sourceDirectory": "C:/Users/16620/Desktop/projects/OpenglLearn/include/glm"
 }

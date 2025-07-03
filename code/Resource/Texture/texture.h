@@ -38,7 +38,7 @@ namespace Resource {
 
     constexpr const char* DefualtTexture2DPath = ".json";
 
-    class Texture : public ILoadFromConfig {
+    class Texture2D : public ILoadFromConfig {
         public:
 
             bool LoadFromConfigFile(const std::string& configFile, Log::StackLogErrorHandle errHandle = nullptr) override;
@@ -78,11 +78,19 @@ namespace Resource {
         
             void Release() override;
 
-            inline GLuint GetID(){return id_;}
+            inline GLuint GetID() const {return id_;}
             inline uint32_t GetTextureType(){return textureType_;}
         
         private:
             GLuint id_ = 0;
             uint32_t textureType_ = GL_TEXTURE_2D;
         };
+
+    class TextureCube{
+
+    };
+
+    class Texture2DArray{
+        
+    };
 }

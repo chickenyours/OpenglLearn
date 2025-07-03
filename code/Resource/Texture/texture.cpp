@@ -10,7 +10,7 @@
 
 using namespace Resource;
 
-bool Texture::LoadFromConfigFile(const std::string& configFile, Log::StackLogErrorHandle errHandle){
+bool Texture2D::LoadFromConfigFile(const std::string& configFile, Log::StackLogErrorHandle errHandle){
 
     Json::Value config;
 
@@ -261,7 +261,7 @@ bool Texture::LoadFromConfigFile(const std::string& configFile, Log::StackLogErr
 
 
 
-bool Texture::LoadFromFile2D(
+bool Texture2D::LoadFromFile2D(
     const std::string& imagePath,
     uint32_t wrapS,
     uint32_t wrapT,
@@ -338,7 +338,7 @@ bool Texture::LoadFromFile2D(
     return true;
 }
 
-bool Texture::CreateEmpty2D(
+bool Texture2D::CreateEmpty2D(
     unsigned int width,
     unsigned int height,
     bool needHDR,
@@ -386,7 +386,7 @@ bool Texture::CreateEmpty2D(
     return true;
 }
 
-bool Texture::LoadFromFileCube(
+bool Texture2D::LoadFromFileCube(
     const std::string& posX, const std::string& negX,
     const std::string& posY, const std::string& negY,
     const std::string& posZ, const std::string& negZ,
@@ -465,7 +465,7 @@ bool Texture::LoadFromFileCube(
     return true;
 }
 
-void Texture::Release(){
+void Texture2D::Release(){
     if (glIsTexture(id_)) {
         LOG_INFO("RESOURCE TEXTURE", "释放纹理: id_: " + std::to_string(id_));
         glDeleteTextures(1, &id_);

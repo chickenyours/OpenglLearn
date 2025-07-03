@@ -16,6 +16,14 @@
 #include "code/Resource/Shader/shader_factory.h"
 #include "code/Resource/Shader/shader_program.h"
 
+#include "code/Resource/Material/material.h"
+#include "code/Resource/Material/Interfaces/common.h"
+
+#include "code/ECS/Component/component_register.h"
+#include "code/ECS/Entity/entity.h"
+
+#include "code/ECS/Component/Render/mesh_renderer.h"
+
 void test1(){
     std::cout<< "jjj" << std::endl;
     auto shader = ShaderManager::GetInstance().GetShaderFromShaderFile("./shaders/Final/base_render_world_animation.vs");
@@ -40,8 +48,47 @@ void TestShaderProgram1(){
     }
 }
 
+void TestMaterial1(){
+    Resource::Material material;
 
+    material.AddFeature<Resource::IBase>(
+        [](){
+            Resource::IBase a;
+            a.time = 1.0;
+            return a;
+        }()
+    );
 
+    std::cout << material.TryGetFeature<Resource::IBase>()->time << std::endl;
+}
+
+void TestRenderQueue(){
+    ECS::Entity a(1);
+    ECS::Core::ComponentRegister::Instance().AddComponent<ECS::Component::MeshRenderer>(
+        a.GetID(),[]{
+            ECS::Component::MeshRenderer mesh;
+            mesh.material = ECS::Core::ResourceModule::ResourceManager::GetInctance().Get(
+                ECS::Core::ResourceModule::FromGenerator<Resource::Material>(
+                    "myMaterial",
+                    [](Log::StackLogErrorHandle err)-> std::unique_ptr<Resource::Material> {
+                        auto material = std::make_unique<Resource::Material>();
+                        material->AddFeature<Resource::IBase>(
+                            []{
+                                Resource::IBase feature;
+                                feature.time = 1.0;
+                                return feature;
+                            }()
+                        );
+                        return material;
+                    }
+                )
+            );
+            return mesh;
+        }()
+    );
+
+    std::cout<< ECS::Core::ComponentRegister::Instance().GetComponent<ECS::Component::MeshRenderer>(a.GetID())->material->TryGetFeature<Resource::IBase>()->time << std::endl;
+}
 
 
 
@@ -90,7 +137,9 @@ int main(){
             return std::make_unique<Resource::Shader>();
     };
 
-    TestShaderProgram1();
+    // TestShaderProgram1();
+    // TestMaterial1();
+    TestRenderQueue();
 
     // 清理
     glfwDestroyWindow(window);

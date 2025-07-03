@@ -9,7 +9,7 @@
             "type": "cppdbg",
             "request": "launch",
             // "program": "${workspaceFolder}\\bin\\${fileBasenameNoExtension}.exe",
-            "program": "${workspaceFolder}\\bin\\resourcetest.exe",
+            "program": "${workspaceFolder}\\bin\\apprun.exe",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}\\bin",

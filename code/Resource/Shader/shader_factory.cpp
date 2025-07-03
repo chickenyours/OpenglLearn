@@ -13,107 +13,6 @@
 
 using namespace Resource;
 
-
-
-// bool ShaderFactory::LoadFromConfigFile(const std::string& configFile){
-
-//     source = configFile;
-
-//     Json::Value config;
-//     std::string configType;
-//     const Json::Value* resource;
-//     std::string resourceType;
-//     bool isClass;
-//     const Json::Value* macros;
-    
-
-//     if(!Tool::JsonHelper::LoadJsonValueFromFile(configFile,config)){
-//         LOG_ERROR("Resource Shader","Error configFile");
-//         return false;
-//     }
-
-//     if(!Tool::JsonHelper::TryGetString(config, "configType", configType) && configType != "resource"){
-//         LOG_ERROR("Resource Shader","Error configType");
-//         return false;
-//     }
-
-//     if(!Tool::JsonHelper::TryGetObject(config, "resource", resource)){
-//         LOG_ERROR("Resource Shader","Error resource");
-//         return false;
-//     }
-
-//     if(!Tool::JsonHelper::TryGetString(*resource, "resourceType", resourceType) && resourceType != "shader"){
-//         LOG_ERROR("Resource Shader","Error resourceType");
-//         return false;
-//     }
-
-//     if(!Tool::JsonHelper::TryGetBool(*resource,"isClass", isClass)){
-//         LOG_ERROR("Resource Shader","Error isClass");
-//         return false;
-//     }
-
-//     if(!Tool::JsonHelper::TryGetArray(*resource,"macros", macros)){
-//         LOG_ERROR("Resource Shader","Error macros");
-//         return false;
-//     }
-
-
-//     if(isClass){
-//         // 注册机制
-//     }
-//     else{
-
-//         std::string filePath;
-//         std::string shaderTypeString;
-//         unsigned int shaderType;
-
-//         if(!Tool::JsonHelper::TryGetString(*resource, "filePath", filePath)){
-//             LOG_ERROR("Resource Shader","filePath is not exist");
-//             return false;
-//         }
-
-//         codeFilePath_ = filePath;
-
-//         if(!Tool::JsonHelper::TryGetString(*resource, "shaderType", shaderTypeString)){
-//             LOG_ERROR("Resource Shader","shaderType is not exist");
-//             return false;
-//         }
-
-//         // 翻译类型
-//             if(shaderTypeString == "vertex shader") shaderType = GL_VERTEX_SHADER;
-//             else if(shaderTypeString == "fragment shader") shaderType = GL_FRAGMENT_SHADER;
-//             else if(shaderTypeString == "geometry shader") shaderType = GL_GEOMETRY_SHADER;
-//             else if(shaderTypeString == "compute shader") shaderType = GL_COMPUTE_SHADER;
-//             else {
-//                 LOG_WARNING("Resource Shader", "Unknown shaderType: " + shaderTypeString);
-//                 shaderType = GL_INVALID_ENUM;
-//             }
-
-//         // 直接文件加载
-//         if(!LoadShaderCodeFromFile(shaderType, filePath)){
-//             LOG_ERROR("Resource Shader","File cannot be opened");
-//             return false;
-//         }
-//     }
-
-
-//     // 载入宏
-//     if(!Tool::JsonHelper::TryTraverseArray(*macros, macroCache_)){
-//         LOG_ERROR("Resource Shader","Appearing unexpect type in macro array");
-//             return false;
-//     }
-
-//     // std::string errorMsg;
-//     // if(!GenerateShader(errorMsg)){
-//     //     LOG_ERROR("Resource Shader","Fail to generate shader: " + errorMsg);
-//     //     return false;
-//     // }
-
-//     isLoad_ = true;
-//     return true;
-
-// }
-
 bool ShaderFactory::LoadShaderCode(Log::StackLogErrorHandle errHandle){
     if(codeFilePath_.empty()){
         return false;
@@ -178,7 +77,7 @@ ResourceHandle<Shader> ShaderFactory::TryGetShaderInstance(const ShaderDescripti
 
     std::string shaderResourceKey = GetShaderResourceKey(codeFilePath_,description);
 
-    Log::StackLogErrorHandle nouse(nullptr);
+    Log::StackLogErrorHandle nouse(nullptr); // 需要改进!!!
     auto shader = ECS::Core::ResourceModule::ResourceManager::GetInctance().Get<Shader>(ECS::Core::ResourceModule::FromKey<Shader>(shaderResourceKey), nouse);
     // 在ResourceManager中找寻是否有存在的shader
     if(shader){
@@ -262,6 +161,9 @@ ResourceHandle<Shader> ShaderFactory::TryGetShaderInstance(const ShaderDescripti
                 shaderInstance->shaderID_ = shaderID;
                 shaderInstance->isLoad_ = true;
                 return shaderInstance;
+            },
+            [](const std::string& key, Shader* resource){
+                
             }
         )
         ,errHandle

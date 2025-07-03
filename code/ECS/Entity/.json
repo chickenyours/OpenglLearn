@@ -1,0 +1,48 @@
+{
+    "name": "barrel",
+    "configType": "entity prefab",
+    "entityPrefab": {
+        "label": "barrel",
+        "components" : {
+            "transform": {
+                "position": [0.0, 0.0, 0.0],
+                "rotation": [0.0, 0.0, 0.0],
+                "scale": [1.0, 1.0, 1.0]
+            },
+            "meshRenderer": {
+                "mesh": "./meshes/barrel.json",
+                "material": "./materials/barrel.json"
+            },
+            "collider": {
+                "type": "cylinder",
+                "radius": 1.0,
+                "height": 2.0
+            }
+            
+        },
+        "children": [
+            {
+                "label": "barrel_top",
+                "components": {
+                    "transform": {
+                        "position": [0.0, 1.0, 0.0],
+                        "rotation": [0.0, 0.0, 0.0],
+                        "scale": [1.0, 1.0, 1.0]
+                    },
+                    "meshRenderer": {
+                        "mesh": "./meshes/barrel_top.json",
+                        "material": "./materials/barrel_top.json"
+                    }
+                },
+                "children": [
+                    {
+                        "$include": "./entities/props/barrel_top_handle.json"
+                    }
+                ]
+            },
+            {
+                "$include": "./entities/props/barrel_handle.json"
+            }
+        ]
+    }
+}

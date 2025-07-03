@@ -20,33 +20,29 @@ LDLIBS = -lglfw3dll -lglad -lassimp.dll -ljsonloader
 BUILD_DIR = devel
 BIN_DIR = bin
 
-# 源文件和目标文件
-SRC = code/shader.cpp \
-	code/Material/material.cpp \
-	code/Texture/texture.cpp \
-	code/Model/mesh.cpp \
+OLD = code/Model/mesh.cpp \
 	code/Model/model_animation.cpp \
 	code/Model/bone.cpp \
 	code/Model/animation.cpp \
 	code/Model/animator.cpp \
 	code/RenderPipe/RenderPipe.cpp \
 	code/RenderPipe/simpleRenderPipe.cpp \
-	code/VisualTool/visual.cpp \
-	code/Camera/camera.cpp \
-	code/RenderPipe/Pass/pass.cpp \
-	code/RenderPipe/Pass/CSMpass.cpp \
-	code/RenderPipe/Pass/ScenePass.cpp \
-	code/RenderPipe/Pass/ImageToBuffer.cpp \
-	code/RenderPipe/Pass/CameraPass.cpp \
-	code/ECS/System/SceneTree/scene_tree.cpp \
-	code/DebugTool/DynamicVarChange/dynamic_change_vars.cpp \
-	include/stb_image.cpp \
+
+# 源文件和目标文件
+SRC = include/stb_image.cpp \
 	code/Resource/Texture/texture.cpp \
 	code/Resource/Shader/shader.cpp \
 	code/Resource/Shader/shader_factory.cpp \
 	code/Resource/Shader/shader_manager.cpp \
 	code/Resource/Shader/shader_program.cpp \
+	code/Resource/Shader/shader_program_factory.cpp \
+	code/Resource/Model/mesh.cpp \
+	code/Resource/Model/model.cpp \
 	code/ToolAndAlgorithm/Hash/md5.cpp \
+	code/Resource/Material/material.cpp \
+	code/Application/application.cpp \
+	code/Scene/scene.cpp \
+	code/ECS/System/SceneTree/scene_tree.cpp \
 
 	
 

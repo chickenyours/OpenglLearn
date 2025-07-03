@@ -1,0 +1,43 @@
+{
+    "name" : "myScene",
+    "configType": "scene",
+    "scene": {
+        "label" : "My Scene",
+        "args" : {
+            "decl": {
+                "entities": ["123", "133", "2354"],
+                "prefabs":  ["456"]
+            },
+            "hier": [
+                { "uuid": "root",  "children": ["123"] },
+                { "uuid": "123",   "children": ["133","2354","456"] }
+            ],
+            "impl": {
+                "123": {
+                    "label": "barrel",
+                    "components": {
+                        "transform": {
+                            "position": [0.0, 0.0, 0.0],
+                            "rotation": [0.0, 0.0, 0.0],
+                            "scale": [1.0, 1.0, 1.0]
+                        },
+                        "mesh": {
+                            "meshPath" :{
+                                "modelFilePath": "./code/Resource/Model/model.json"
+                            }
+                        },
+                        "meshRenderer": {
+                            "mesh": "./meshes/barrel.json",
+                            "material": "./materials/barrel.json"
+                        },
+                        "collider": {
+                            "type": "cylinder",
+                            "radius": 1.0,
+                            "height": 2.0
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

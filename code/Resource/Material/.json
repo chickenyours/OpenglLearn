@@ -1,0 +1,50 @@
+{
+  "name": "myMaterial",
+  "configType": "resource",
+  "resource": {
+    "resourceType": "material",
+    "material": {
+      "label": "MyMaterial",
+      "interfaces": [
+        {
+          "type": "IPBR",
+          "args": {
+            "shaderPrograms": {
+              "mainShader": "./ShaderProgramConfig/1.json"
+            },
+            "textures": {
+              "albedoMap": "./materials/tite/diffuse.json",
+              "normalMap": "./materials/tite/normal.json",
+              "roughnessMap": "./materials/tite/rough.json",
+              "aoMap": "./materials/tite/ao.json"
+            },
+            "properties": {
+              "metallic": 0.5,
+              "roughness": 0.5,
+              "ao": 1.0,
+              "refractionRatio": 1.02
+            },
+  
+            "state":{
+              "useMetallicMap": false,
+              "useRoughnessMap": true,
+              "useAoMap" : true
+            }
+          }
+        },
+        {
+          "type": "ITransparent",
+          "properties": {
+            "float": {
+              "transparency": 0.3,
+              "refractionRatio": 1.02
+            }
+          }
+        }
+      ],
+      "renderMode": {
+              "ShadowPass": true
+            }
+    }
+  }
+}

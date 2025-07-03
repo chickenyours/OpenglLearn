@@ -1,0 +1,11 @@
+{
+  "name": "myModel",
+  "configType": "resource",
+  "resource": {
+    "resourceType": "model",
+    "model": {
+      "label": "MyMesh",
+      "modelFilePath": "./models/myModel.obj"
+    }
+  }
+}

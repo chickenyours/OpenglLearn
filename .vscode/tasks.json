@@ -41,7 +41,7 @@
 				"-f",
 				"${workspaceFolder}/Makefile",
 				"all",
-				"TARGET=resourcetest.cpp",
+				"TARGET=apprun.cpp",
 				// "TARGET=${relativeFile}"
 			],
 			"options": {

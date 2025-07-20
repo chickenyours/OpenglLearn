@@ -11,15 +11,16 @@
 namespace ECS::System{
     class System{
         public:
+            virtual bool Init() = 0;
             virtual bool AddEntity(EntityID entity, ECS::Core::ComponentRegister& reg) = 0;
             void AddEntities(std::vector<EntityID> entities, ECS::Core::ComponentRegister& reg){
                 for(EntityID entity : entities){
                     AddEntity(entity, reg);
                 }
             }
+            virtual void Update() = 0;
         protected:
             inline System(std::string systemName) : systemName_(systemName){}
-            virtual void Update() = 0;
             std::string systemName_;
     };
 }

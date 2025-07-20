@@ -137,6 +137,11 @@ ResourceHandle<Shader> ShaderFactory::TryGetShaderInstance(const ShaderDescripti
         rawPointers.push_back(str.c_str());
     }
 
+    // for(auto c : rawPointers){
+    //     std::cout << c;
+    // }
+    // std::cout << std::endl;
+
     // 编译 Shader
     glShaderSource(shaderID, rawPointers.size(), rawPointers.data(), nullptr);
     glCompileShader(shaderID);
@@ -181,7 +186,7 @@ void ShaderFactory::Release(){
 }
 
 void ShaderFactory::Print(){
-    if(!isLoad_){
+    if(!isCodeLoaded_){
         LOG_ERROR("Resource ShaderFactory", "Print fail because the object is not loaded");
         return;
     }

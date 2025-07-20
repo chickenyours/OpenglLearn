@@ -19,8 +19,8 @@ namespace Render{
         private:
             unsigned int targetBufferWidth_ = 0;
             unsigned int targetBufferHeight_ = 0;
-            GLuint FBO_;
-            GLuint colorBufferTexture_;
-            GLuint depthBuffer_;
+            GLuint FBO_ = 0;
+            GLuint colorBufferTexture_ = 0;
+            GLuint depthBuffer_ = 0;
     };
 }

@@ -67,7 +67,7 @@ void TestRenderQueue(){
     ECS::Core::ComponentRegister::Instance().AddComponent<ECS::Component::MeshRenderer>(
         a.GetID(),[]{
             ECS::Component::MeshRenderer mesh;
-            mesh.material = ECS::Core::ResourceModule::ResourceManager::GetInctance().Get(
+            mesh.materialList = ECS::Core::ResourceModule::ResourceManager::GetInctance().Get(
                 ECS::Core::ResourceModule::FromGenerator<Resource::Material>(
                     "myMaterial",
                     [](Log::StackLogErrorHandle err)-> std::unique_ptr<Resource::Material> {

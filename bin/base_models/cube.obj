@@ -1,8 +1,9 @@
-# 使用了逆时针（CCW, Counter-Clockwise）顺序来定义正面。
-# cube.obj
 mtllib hhh.mtl      # 添加材质库引用
 o Cube
 usemtl hhh
+
+# 使用了逆时针（CCW, Counter-Clockwise）顺序来定义正面。
+# cube.obj
 
 # 顶点
 v -1.0 -1.0 -1.0

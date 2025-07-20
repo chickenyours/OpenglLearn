@@ -47,11 +47,16 @@ namespace ECS{
                 }
                 return INVALID_ENTITY;
             }
+
+            EntityID CreateNewEntity(){
+                return counter.GetNewEntity();
+            }
+
+            EntityID GetCount() {return counter.count;}
         private:
             class EntityCounter{
                 public:
                     EntityID GetNewEntity(){return ++count;}
-                private:
                     EntityID count = 0u;
             } counter;
 

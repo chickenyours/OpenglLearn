@@ -19,6 +19,14 @@ namespace ECS::System{
     class SceneTreeSystem:public System {
         public:
 
+            virtual bool Init() override {
+                return true;
+            }
+
+            virtual bool AddEntity(EntityID entity, ECS::Core::ComponentRegister& reg) override;
+
+            void SetComponentRegister(ECS::Core::ComponentRegister* reg) {reg_ = reg;}
+
             SceneTreeSystem():System("SceneTreeSystem"){}
 
             // 添加到根. 自动为entity添加Hierarchy. 引起相关改变的说明:
@@ -60,7 +68,14 @@ namespace ECS::System{
             // 打印当前状态
             void Print() const;
 
+            virtual void Update() override;
+
         private:
+
+            ECS::Core::ComponentRegister* reg_;
+
+            
+
             // 无序容器
             std::vector<EntityID> roots_;
             void PrintRecursive(EntityID entity, std::string& prefix, int tabs, std::ostringstream& oss) const;

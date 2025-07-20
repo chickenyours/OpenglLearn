@@ -31,3 +31,4 @@ auto MeasureTimeMs(const std::string& label, Func&& func, const std::string posi
 }
 
 #define MEASURETIMEMS(label, func) MeasureTimeMs(label, [&](){ return func; }, std::string(" (") + __FILE__ + ":" + std::to_string(__LINE__) + ", @" + __func__ + ")" )
+#define MEASURETIME(label, func) MeasureTime(label, [&](){ return func; })

@@ -265,7 +265,7 @@ void SceneTreeSystem::UpdateRecursive(EntityID entity, const glm::mat4& parentMa
     auto entityHierarchy = reg_->GetComponent<ECS::Component::Hierarchy>(entity);
     auto& children = entityHierarchy->children;
     if(entityTransform){
-        entityTransform->UpdateLocalMatrix();
+        // entityTransform->UpdateLocalMatrix();
         entityTransform->worldMatrix = parentMatrix * entityTransform->localMatrix;
         for(auto child : children){
             UpdateRecursive(child, entityTransform->worldMatrix);
@@ -277,6 +277,10 @@ void SceneTreeSystem::UpdateRecursive(EntityID entity, const glm::mat4& parentMa
         }
     }   
 
+}
+
+void SceneTreeSystem::Update(){
+    UpdateTransforms();
 }
 
 const int wordLength = 12;
@@ -343,3 +347,6 @@ void SceneTreeSystem::PrintRecursive(EntityID entity, std::string& prefix, int t
     }
 }
 
+bool SceneTreeSystem::AddEntity(EntityID entity, ECS::Core::ComponentRegister& reg){
+    return false;
+}

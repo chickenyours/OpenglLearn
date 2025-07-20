@@ -134,7 +134,6 @@ bool ShaderProgramFactory::LoadFromConfigFile(const std::string& configFile, Log
             REPORT_STACK_ERROR(errHandle, "ShaderProgramFactory", "Failed to load fragment shader");
             return false;
         }
-
         shaderFactories_.emplace(ShaderStage::Vertex,std::move(v));
         shaderFactories_.emplace(ShaderStage::Fragment,std::move(f));
 
@@ -171,10 +170,7 @@ bool ShaderProgramFactory::LoadFromConfigFile(const std::string& configFile, Log
         localShaderDescriptions_.emplace(ShaderStage::Vertex,loadShaderLocalDescription(vs,errHandle)); 
         localShaderDescriptions_.emplace(ShaderStage::Fragment,loadShaderLocalDescription(fs,errHandle)); 
         localShaderDescriptions_.emplace(ShaderStage::Geometry,loadShaderLocalDescription(gs,errHandle)); 
-        // if(!linkProgram({v->GetShaderID(), g->GetShaderID(), f->GetShaderID()}, errHandle)){
-        //     REPORT_STACK_ERROR(errHandle, "ShaderProgram", "Failed to link vertex, geometry, and fragment shaders");
-        //     return false;
-        // }
+        
     } 
     else if (shaderType_ == ShaderProgramType::COMPUTE) {
         // TODO: compute shader 支持
@@ -246,6 +242,9 @@ ResourceHandle<ShaderProgram> ShaderProgramFactory::GetShaderProgramInstance(con
             REPORT_STACK_ERROR(errHandle, "ShaderProgramFactory->GetShaderProgramInstance", "Failed to create fragment shader instance");
             return nullptr;
         }
+
+        // vertex->second->Print();
+        // fragment->second->Print();
 
         ResourceHandle<Shader> geometryShader;
         if(shaderType_ == ShaderProgramType::VERTEX_GEOMETRY_FRAGMENT){

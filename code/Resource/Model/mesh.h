@@ -27,8 +27,12 @@ namespace Resource {
     class Mesh { 
         public:
             Mesh() = default;
-            Mesh(aiMesh& mesh);
+            Mesh(const aiMesh&);
             Mesh(std::vector<Vertex>&& movedVertices, std::vector<unsigned int>&& movedIndices);
+            Mesh(Mesh&&) noexcept;                     // ✔️ 允许移动构造
+            Mesh& operator=(Mesh&&) noexcept;          // ✔️ 允许移动赋值
+            Mesh(const Mesh&) = delete;                // ❌ 禁用拷贝构造
+            Mesh& operator=(const Mesh&) = delete;     // ❌ 禁用拷贝赋值
             bool SetUpMesh(std::vector<Vertex>&& movedVertices, std::vector<unsigned int>&& movedIndices);
             ~Mesh();
             GLuint GetVAO() const {return VAO;}
@@ -37,7 +41,9 @@ namespace Resource {
             void SetMaterialIndex(size_t materialIndex){
                 materialIndex_ = materialIndex;
             }
-            size_t GetMaterialIndex(){return materialIndex_;}
+            size_t GetMaterialIndex() const {return materialIndex_;}
+            size_t GetIndicesSize() const {return indices_.size();}
+            size_t GetVertexSize() const {return vertices_.size();}
         private:
             std::string fromNodeName_;
             GLuint VAO = 0u;

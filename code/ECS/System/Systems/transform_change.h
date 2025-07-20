@@ -11,6 +11,9 @@
 namespace ECS::System{
     class LocalTransformCalculator : public System{
         public:
+            virtual bool Init() override{
+                return true;
+            }
             LocalTransformCalculator():System("TransformChanger"){}
             virtual bool AddEntity(EntityID entity, ECS::Core::ComponentRegister& reg) override {
                 auto transform = reg.GetComponent<ECS::Component::Transform>(entity);

@@ -18,7 +18,7 @@ namespace Resource{
     class ShaderProgramFactory : public ILoadFromConfig{
         public:
             bool LoadFromConfigFile(const std::string& configFile, Log::StackLogErrorHandle errHandle = nullptr) override;
-            ResourceHandle<ShaderProgram> GetShaderProgramInstance(const std::unordered_map<ShaderStage, ShaderDescription>& shaderDescriptions, Log::StackLogErrorHandle errHandle = nullptr);
+            ResourceHandle<ShaderProgram> GetShaderProgramInstance(const std::unordered_map<ShaderStage, ShaderDescription>& shaderDescriptions = {}, Log::StackLogErrorHandle errHandle = nullptr);
             virtual void Release() override;
             inline ShaderProgramType GetShaderType() const { return shaderType_; }
         private:

@@ -2,6 +2,34 @@
 #include "code\ToolAndAlgorithm\ModelLoad\assimp_glm_helper.h"
 using namespace Resource;
 
+Mesh::Mesh(Mesh&& other) noexcept {
+    VAO = other.VAO; other.VAO = 0;
+    VBO = other.VBO; other.VBO = 0;
+    EBO = other.EBO; other.EBO = 0;
+    vertices_ = std::move(other.vertices_);
+    indices_ = std::move(other.indices_);
+    fromNodeName_ = std::move(other.fromNodeName_);
+    materialIndex_ = other.materialIndex_;
+}
+
+Mesh& Mesh::operator=(Mesh&& other) noexcept {
+    if (this != &other) {
+        // 清理旧资源
+        glDeleteVertexArrays(1, &VAO);
+        glDeleteBuffers(1, &VBO);
+        glDeleteBuffers(1, &EBO);
+
+        VAO = other.VAO; other.VAO = 0;
+        VBO = other.VBO; other.VBO = 0;
+        EBO = other.EBO; other.EBO = 0;
+        vertices_ = std::move(other.vertices_);
+        indices_ = std::move(other.indices_);
+        fromNodeName_ = std::move(other.fromNodeName_);
+        materialIndex_ = other.materialIndex_;
+    }
+    return *this;
+}
+
 bool Mesh::SetUpMesh(std::vector<Vertex>&& movedVertices, std::vector<unsigned int>&& movedIndices){
 
     vertices_ = std::move(movedVertices);
@@ -13,13 +41,11 @@ bool Mesh::SetUpMesh(std::vector<Vertex>&& movedVertices, std::vector<unsigned i
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferData(GL_ARRAY_BUFFER, vertices_.size() * sizeof(Vertex), &vertices_[0], GL_STATIC_DRAW);
     if (GLenum err = glGetError(); err != GL_NO_ERROR) {
-        // REPORT_STACK_ERROR(errHandle, "Mesh", "glBufferData VBO failed: GL error code " + std::to_string(err));
         return false;
     }
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_.size() * sizeof(unsigned int), &indices_[0], GL_STATIC_DRAW);
     if (GLenum err = glGetError(); err != GL_NO_ERROR) {
-        // REPORT_STACK_ERROR(errHandle, "Mesh", "glBufferData EBO failed: GL error code " + std::to_string(err));
         return false;
     }
 
@@ -45,18 +71,15 @@ bool Mesh::SetUpMesh(std::vector<Vertex>&& movedVertices, std::vector<unsigned i
     
      // ✅ 检查创建是否成功
     if (!glIsVertexArray(VAO)) {
-        // REPORT_STACK_ERROR(errHandle, "Mesh", "Failed to generate VAO");
         LOG_ERROR("Mesh","Failed to generate VAO");
         return false;
     }
     if (!glIsBuffer(VBO)) {
         LOG_ERROR("Mesh","Failed to generate VBO");
-        // REPORT_STACK_ERROR(errHandle, "Mesh", "Failed to generate VBO");
         return false;
     }
     if (!glIsBuffer(EBO)) {
         LOG_ERROR("Mesh","Failed to generate EBO");
-        // REPORT_STACK_ERROR(errHandle, "Mesh", "Failed to generate EBO");
         return false;
     }
 
@@ -68,23 +91,36 @@ Mesh::Mesh(std::vector<Vertex>&& movedVertices, std::vector<unsigned int>&& move
     SetUpMesh(std::move(movedVertices), std::move(movedIndices));
 }
 
-Mesh::Mesh(aiMesh& mesh){
+Mesh::Mesh(const aiMesh& mesh){
     std::vector<Vertex> vertices;
     std::vector<unsigned int> indices;
     // 只处理3角面
     vertices.reserve(mesh.mNumVertices);
     indices.reserve(mesh.mNumFaces * 3);
-    const bool hasTexCoords = mesh.HasTextureCoords(0);
     
+    if(mesh.mMaterialIndex == 0){
+        LOG_ERROR("Mesh", "mMaterialIndex == 0");
+    }
+    materialIndex_ = mesh.mMaterialIndex - 1;
+
+    const bool hasTexCoords = mesh.HasTextureCoords(0);
+    if(!hasTexCoords){
+        LOG_WARNING("Mesh", "Mesh does not have texture coordinates.");
+    }
+    const bool hasNormals = mesh.HasNormals();
+    if(!hasNormals){
+        LOG_WARNING("Mesh", "Mesh does not have normals.");
+    }
+    const bool hasTangents = mesh.HasTangentsAndBitangents();
+    if(!hasNormals){
+        LOG_WARNING("Mesh", "Mesh does not have tangents and bitangents.");
+    }
     for(unsigned int i = 0; i < mesh.mNumVertices; i++){
-    vertices.emplace_back(
-        AssimpGLMHelpers::GetGLMVec(mesh.mVertices[i]),
-            hasTexCoords 
-                ? glm::vec2(mesh.mTextureCoords[0][i].x, mesh.mTextureCoords[0][i].y)
-                : glm::vec2(0.0f, 0.0f),
-                AssimpGLMHelpers::GetGLMVec(mesh.mNormals[i]),
-                AssimpGLMHelpers::GetGLMVec(mesh.mTangents[i])
-    );
+        glm::vec3 pos = AssimpGLMHelpers::GetGLMVec(mesh.mVertices[i]);
+        glm::vec3 normal = hasNormals ? AssimpGLMHelpers::GetGLMVec(mesh.mNormals[i]) : glm::vec3(0.0f);
+        glm::vec3 tangent = hasTangents ? AssimpGLMHelpers::GetGLMVec(mesh.mTangents[i]) : glm::vec3(0.0f);
+        glm::vec2 uv = hasTexCoords ? glm::vec2(mesh.mTextureCoords[0][i].x, mesh.mTextureCoords[0][i].y) : glm::vec2(0.0f);
+        vertices.emplace_back(pos, uv, normal, tangent);
     }
 
     for (unsigned int i = 0; i < mesh.mNumFaces; i++)
@@ -97,7 +133,7 @@ Mesh::Mesh(aiMesh& mesh){
 }
 
 Mesh::~Mesh(){
-    glDeleteVertexArrays(1, &VAO);
-    glDeleteBuffers(1, &VBO);
-    glDeleteBuffers(1, &EBO);
+    if (VAO) glDeleteVertexArrays(1, &VAO);
+    if (VBO) glDeleteBuffers(1, &VBO);
+    if (EBO) glDeleteBuffers(1, &EBO);
 }

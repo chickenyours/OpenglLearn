@@ -4,6 +4,8 @@
 
 #include "code/ECS/Component/Transform/transform.h"
 
+#include "code/Config/config.h"
+
 namespace ECS::Component{
 
 struct Camera : public Component<Camera>
@@ -13,12 +15,12 @@ struct Camera : public Component<Camera>
     glm::vec3 camFront;
     glm::mat4 view;
     glm::mat4 projection;
-    glm::vec3 camUp;
     // 状态属性
-    float near_;
-    float far_;
-    float zoom_;
-    float aspectRatio_;
+    float near_ = 0.1f;
+    float far_ = 500.0f;
+    float zoom_ = glm::radians(45.0f);
+    float aspectRatio_ = (float)SCR_WIDTH/(float)SCR_HEIGHT;
+    glm::vec3 camUp = glm::vec3(0.0,1.0,0.0);
 
     void Update(const Transform& transform){
         camPos = transform.position;

@@ -45,7 +45,7 @@ public:
     T* operator->() { return resource_; }
     const T* operator->() const { return resource_; }
     T& operator*() { return *resource_; }
-    T* get(){return resource_;}
+    T* get() const {return resource_;}
 
     explicit operator bool() const {
         return resource_ != nullptr;

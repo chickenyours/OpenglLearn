@@ -14,6 +14,7 @@ namespace Resource {
         public:
             virtual bool LoadFromConfigFile(const std::string& configFile, Log::StackLogErrorHandle errHandle) override;
             virtual void Release() override;
+            const std::vector<Mesh>& GetMeshes() const {return meshes_;}; 
             std::string GetInfo();
         private:
             std::vector<Mesh> meshes_;

@@ -77,7 +77,8 @@
         "regex": "cpp",
         "any": "cpp",
         "simd": "cpp",
-        "future": "cpp"
+        "future": "cpp",
+        "gsl_util": "cpp"
     },
     "cmake.sourceDirectory": "C:/Users/16620/Desktop/projects/OpenglLearn/include/glm"
 }

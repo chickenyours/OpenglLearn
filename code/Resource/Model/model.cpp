@@ -17,7 +17,7 @@ using namespace Resource;
 
 std::vector<Mesh> Model::LoadMeshes(const aiScene& scene){
     std::vector<Mesh> result;
-
+    result.reserve(scene.mNumMeshes);  // 🔒 防止中途扩容
     std::stack<aiNode*> nodes;
     nodes.push(scene.mRootNode);
     auto LoadMesh = [&](){
@@ -27,7 +27,7 @@ std::vector<Mesh> Model::LoadMeshes(const aiScene& scene){
             aiMesh* mesh = scene.mMeshes[node->mMeshes[i]];
             result.emplace_back(*mesh);
             auto& newMesh = result.back();
-            newMesh.SetMaterialIndex(mesh->mMaterialIndex);
+            // newMesh.SetMaterialIndex(mesh->mMaterialIndex);
             newMesh.fromNodeName_ = node->mName.C_Str();
         }
         for(unsigned int i = 0; i < node->mNumChildren; i++){

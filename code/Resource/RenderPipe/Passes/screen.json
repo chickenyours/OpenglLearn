@@ -1,0 +1,23 @@
+{
+    "configType": "resource",
+    "resource": {
+        "resourceType": "shader program",
+        "args":{ 
+            "vertexShader": {
+                "filePath": "./shaders/Final/base_render_world.vs",
+                "macros": [
+                    "YOUR_VERTEX_SHADER_MACRO"
+                ]
+            },
+            "fragmentShader": {
+                "filePath": "./shaders/Final/PBR/PBRStaticLights.fs",
+                "macros": [
+                    "YOUR_FRAGMENT_SHADER_MACRO"
+                ]
+            },
+            "macros": [
+                "YOUR_COMMON_SHADER_MACRO"
+            ]
+        }
+    }
+}

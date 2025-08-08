@@ -4,27 +4,46 @@
 
 #include "code/ECS/data_type.h"
 
-#include "code/ECS/Component/component.h"
-#include "code/ECS/Component/component_shortage.h"
 #include "code/ECS/Component/component_register.h"
+
+namespace ECS{
+    class Scene;
+}
 
 namespace ECS::System{
     class System{
         public:
-            virtual bool Init() = 0;
-            virtual bool AddEntity(EntityID entity, ECS::Core::ComponentRegister& reg) = 0;
-            void AddEntities(std::vector<EntityID> entities, ECS::Core::ComponentRegister& reg){
-                for(EntityID entity : entities){
-                    AddEntity(entity, reg);
+            void Init(Scene* scene){
+                if(scene){
+                    scene_ = scene;
+                    InitDerive();
+                }
+                else{
+                    LOG_ERROR("System:"+systemName_,"reg is nullptr");
+                }
+            }
+            void AddEntities(std::vector<EntityID> entities){
+                if(scene_){
+                    for(EntityID entity : entities){
+                        AddEntity(entity);
+                    }
+                }
+                else{
+                    LOG_ERROR("System:"+systemName_,"reg is nullptr");
                 }
             }
             virtual void Update() = 0;
         protected:
+            virtual bool AddEntity(EntityID AddEntity) = 0;
+            virtual bool InitDerive() = 0;
             inline System(std::string systemName) : systemName_(systemName){}
             std::string systemName_;
+            // ECS::Core::ComponentRegister* reg_;
+            Scene* scene_;
     };
 }
 
+#include "code/Scene/scene.h"
 
 // template<typename... Components>
 // class SystemFilter : public ISystemFilter {

@@ -6,8 +6,12 @@ namespace Input{
 class KeyboardInput {
     public:
         static KeyboardInput& Instance(){
-            static KeyboardInput instance;
-            return instance;
+            // static KeyboardInput instance;
+            return *instance_;
+        }
+
+        static void SetInstance(KeyboardInput* instance){
+            instance_ = instance;
         }
 
         static constexpr int KEY_COUNT = 256;
@@ -45,8 +49,9 @@ class KeyboardInput {
             return _state[vk_code];
         }
 
-    private:
         KeyboardInput() = default;
+    private:
+        inline static KeyboardInput* instance_;
         bool _prevState[KEY_COUNT] = {};
         KeyState _state[KEY_COUNT] = {};
 };

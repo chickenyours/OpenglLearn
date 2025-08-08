@@ -1,27 +1,24 @@
 #include "application.h"
 
+#include <windows.h>
+
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
 #include "code/Scene/scene.h"
-
 #include "code/ECS/Component/component_init.h"
 #include "code/Resource/Material/material_init.h"
-
-#include "code/Resource/Material/Interfaces/BPR.h"
-
 #include "code/ECS/System/Systems/transform_change.h"
-
 #include "code/ECS/System/Systems/static_mesh_render.h"
-
-#include "code/Input/key_get.h"
-#include "code/Input/mouse_input.h"
-
 #include "code/Config/config.h"
-
 #include "ToolAndAlgorithm/Performance/time.h"
-
 #include "code/ECS/System/Camera/move_able.h"
+#include "code/ModuleManager/module_manager.h"
+#include "code/Script/script_interface.h"
+#include "code/ECS/System/Script/script_system.h"
+
+// #include "code/"
+
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height){
     Environment::Environment::Instance().windowSize = glm::vec2(width,height);
@@ -65,6 +62,11 @@ static void ReleaseOpengl(){
     glfwTerminate();
 }
 
+// 模块
+// static ECS::Core::ResourceModule::ResourceManager rs;
+
+// static Module::ModuleManager mod;
+
 bool Application::Init(Log::StackLogErrorHandle errHandle){
 
 #ifdef _WIN32
@@ -74,10 +76,21 @@ bool Application::Init(Log::StackLogErrorHandle errHandle){
         REPORT_STACK_ERROR(errHandle, "Application->Init", "Failed to initialize OpenGL");
         return false;
     }
+
+    // 初始化模块
+    
+    Module::ModuleManager::Instance().Init();
+
+    ScriptManager::Instance().Init();
+
     isInited_ = true;
     return true;
-
+    // ECS::Core::ResourceModule::ResourceManager::SetInstance(&rs);
 }
+
+typedef void(*set_dll_module_api)(const Module::ModuleHost& host);
+typedef IScript*(*GetScript)();
+typedef void(*DeleteScriptObject)(IScript*);
 
 void Application::Run(){
     RegisterAllComponents();
@@ -100,28 +113,72 @@ void Application::Run(){
     }
 
     ECS::System::LocalTransformCalculator lTC;
-    lTC.AddEntities(entities, *s.registry_);
+    lTC.Init(&s);
+    lTC.AddEntities(entities);
+
+    ECS::System::ScriptSystem ss;
+    ss.Init(&s);
+    ss.AddEntities(entities);
 
     ECS::System::CameraMovable camMove;
-    camMove.AddEntity(camEntity,*s.registry_);
+    camMove.Init(&s);
+    camMove.AddEntities({camEntity});
 
     ECS::System::StaticMeshRender rd;
-    rd.Init();
-    rd.AddEntities(entities, *s.registry_);
+    rd.Init(&s);
+    rd.AddEntities(entities);
 
-    rd.SetCameraObject(camEntity, *s.registry_);
+    rd.SetCameraObject(camEntity);
+
+    ECS::EntityID e = s.GetEntity("123");
+    auto ren = s.registry_->GetComponent<ECS::Component::MeshRenderer>(e);
+
+    // // 插入脚本
+    // HMODULE hDll = LoadLibraryA("script.dll");
+    // if(!hDll){
+    //     // std::cerr << "Failed to load DLL!" << std::endl;
+    //     LOG_ERROR("Application","Failed to load DLL!");
+    //     return;
+    // }
+    
+    // set_dll_module_api setmod = (set_dll_module_api)GetProcAddress(hDll,"SetModule"); 
+    // GetScript get_script_XuanZhuang = (GetScript)GetProcAddress(hDll, "create_plugin_object_XuanZhuang");
+    // DeleteScriptObject delete_script = (DeleteScriptObject)GetProcAddress(hDll,"DeleteScriptObject");
+
+    // if(!setmod || !get_script_XuanZhuang || !delete_script){
+    //     LOG_ERROR("Application","Failed to load functions!");
+    //     return;
+    // }
+
+    // // 初始化插件
+    // setmod(Module::ModuleManager::Instance().Export());
+    // // 创建插件脚本对象
+    // std::unique_ptr<IScript, DeleteScriptObject> script(get_script_XuanZhuang(), delete_script);
+    // std::unique_ptr<IScript, DeleteScriptObject> script2(get_script_XuanZhuang(), delete_script);
+
+    // script->OnStart(&s, camEntity);
+    // script2->OnStart(&s, e);
 
     do{
         Environment::Environment::Instance().Update();
         Input::KeyboardInput::Instance().Update();
         Input::MouseInput::Instance().Update();
 
+        // 更新脚本
+        // script->OnUpdate(&s,e);
+        // script2->OnUpdate(&s,e);
+        ss.Update();
+
         lTC.Update();
+        s.hierarchySystem_->Update();
         camMove.Update();
+        if(ren){
+            ren->uboData.values[0] = glm::vec4(cam->camFront,1.0);
+        }
+
         rd.Update();
 
         UpdateWindow();
-        // std::cout << "camPos:" << "<" << cam->camPos.x << "," << cam->camPos.y << "," << cam->camPos.z << ">" << " camFront:" << "<" << cam->camFront.x << "," << cam->camFront.y << "," << cam->camFront.z << ">" << std::endl;
     }while(Input::KeyboardInput::Instance().GetKeyState(VK_ESCAPE) != Input::KeyboardInput::KeyState::PRESSED);
 
 

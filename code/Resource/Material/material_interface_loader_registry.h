@@ -3,8 +3,8 @@
 #include <string>
 #include <json/json.h>
 #include <functional>
-#include "code/DebugTool/ConsoleHelp/color_log.h"
 #include <typeindex>
+#include "code/DebugTool/ConsoleHelp/color_log.h"
 
 #include "code/Resource/Material/material_interface.h"
 

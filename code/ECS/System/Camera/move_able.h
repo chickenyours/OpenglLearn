@@ -12,17 +12,18 @@
 
 #include "code/ToolAndAlgorithm/transformation.h"
 
+#include "code/Scene/scene.h"
 
 namespace ECS::System{
     class CameraMovable : public System{
         public:
             CameraMovable():System("CameraMovable"){}
-            virtual bool Init() override {
+            virtual bool InitDerive() override {
                 return true;
             }
-            virtual bool AddEntity(EntityID entity, ECS::Core::ComponentRegister& reg) override {
-                auto camera = reg.GetComponent<ECS::Component::Camera>(entity); 
-                auto transform = reg.GetComponent<ECS::Component::Transform>(entity); 
+            virtual bool AddEntity(EntityID entity) override {
+                auto camera = scene_->registry_->GetComponent<ECS::Component::Camera>(entity); 
+                auto transform = scene_->registry_->GetComponent<ECS::Component::Transform>(entity); 
                 if(camera && transform){
                     camera_ = camera;
                     transform_ = transform;

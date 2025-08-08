@@ -4,18 +4,23 @@
             "name": "Win32",
             "includePath": [
                 "${workspaceFolder}/**",
-                "${workspaceFolder}/code"
+                "${workspaceFolder}/code",
+                "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include",
+                "C:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um",
+                "C:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared",
+                "C:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt",
+                "C:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/include"
             ],
             "defines": [
                 "_DEBUG",
                 "UNICODE",
                 "_UNICODE"
             ],
-            "windowsSdkVersion": "10.0.18362.0",
-            "compilerPath": "C:/Mydata/x86_64-14.2.0-release-win32-seh-msvcrt-rt_v12-rev0/mingw64/bin/g++.exe",
+            "windowsSdkVersion": "10.0.22621.0",
+            "compilerPath": "C:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/bin/clang++.exe",
             "cStandard": "c17",
             "cppStandard": "c++17",
-            "intelliSenseMode": "windows-gcc-x64"
+            "intelliSenseMode": "clang-x64"
         }
     ],
     "version": 4

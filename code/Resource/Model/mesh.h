@@ -21,6 +21,12 @@ struct Vertex {
     glm::vec3 Bitangent;
     // int m_BoneIDs[MAX_BONE_INFLUENCE];
     // float m_Weights[MAX_BONE_INFLUENCE];
+    // ✅ 显式构造函数（匹配 emplace_back 的调用参数）
+    Vertex(const glm::vec3& pos,
+           const glm::vec2& uv,
+           const glm::vec3& normal,
+           const glm::vec3& tangent)
+        : Position(pos), TexCoords(uv), Normal(normal), Tangent(tangent), Bitangent(0.0f) {}
 };
 
 namespace Resource {

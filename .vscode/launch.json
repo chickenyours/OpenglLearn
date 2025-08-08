@@ -46,7 +46,22 @@
                 "break main",
                 "-exec-run"
             ]
-        }
+        },
+        {
+            "name": "LLDB Native Debugging",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/bin/main_exec.exe",   // ✅ 用 program，不是 target
+            "cwd": "${workspaceFolder}/bin",
+            "args": [],                                          // ✅ 用 args，不是 arguments
+            "stopOnEntry": false,
+            // 可省略，CodeLLDB 自带 adapter；若想显式指定，用 "adapter"
+            "adapter": "C:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/bin/lldb-dap.exe",
+            "preRunCommands": [                                  // ✅ 用 LLDB 命令，不是 GDB 命令
+                "settings set target.x86-disassembly-flavor intel",
+                "breakpoint set --name main"
+        ]
+}
 
     ]
 }

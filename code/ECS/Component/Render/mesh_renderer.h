@@ -1,14 +1,21 @@
 #pragma once
+
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
 #include "code/ECS/Component/component.h"
-
-
 #include "code/Resource/Material/material.h"
+
+#include "code/Resource/RenderPipe/UniformBindings.h"
 
 
 namespace ECS::Component{
     
     struct MeshRenderer : Component<MeshRenderer>
     {
+        Render::StaticModelComponentDataUBOLayout uboData;
+
         // GLuint VAO;
         std::vector<Resource::ResourceHandle<Material>> materialList;
 

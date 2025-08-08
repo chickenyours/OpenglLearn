@@ -85,6 +85,19 @@ namespace Render{
                 }
                 
                 glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+                // UBO
+
+                glGenBuffers(1, &UBOComponent_);
+                if(CHECK_GL_ERROR("glGenBuffers")) return false;
+                glBindBuffer(GL_UNIFORM_BUFFER, UBOComponent_);
+                if(CHECK_GL_ERROR("glBindBuffer")) return false;
+                glBufferData(GL_UNIFORM_BUFFER, sizeof(StaticModelComponentDataUBOLayout), nullptr, GL_DYNAMIC_DRAW);
+                if(CHECK_GL_ERROR("glBufferData")) return false;
+                glBindBufferBase(GL_UNIFORM_BUFFER, UBO_STATIC_MODEL_COMPONENT_DATA, UBOComponent_);
+                if(CHECK_GL_ERROR("glBindBufferBase")) return false;
+                glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
                 return true;
             }
 
@@ -94,14 +107,14 @@ namespace Render{
                     LOG_ERROR("RenderPass:ScenePass->SetConfig", "Invalid output resolution: x=" + std::to_string(cfg.outputResolution.x) + ", y=" + std::to_string(cfg.outputResolution.y));
                     return;
                 }
-                colorBufferResolution == cfg.outputResolution;
+                colorBufferResolution = cfg.outputResolution;
                 glBindTexture(GL_TEXTURE_2D, colorBuffer_);
                 CHECK_GL_ERROR("glBindTexture");
-                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, cfg.outputResolution.x, cfg.outputResolution.y, 0, GL_RGBA, GL_FLOAT, nullptr);
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, colorBufferResolution.x, colorBufferResolution.y, 0, GL_RGBA, GL_FLOAT, nullptr);
                 CHECK_GL_ERROR("glTexImage2D");
                 glBindRenderbuffer(GL_RENDERBUFFER, depthBuffer_);
                 CHECK_GL_ERROR("glBindRenderbuffer");
-                glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, cfg.outputResolution.x, cfg.outputResolution.y);
+                glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, colorBufferResolution.x, colorBufferResolution.y);
                 CHECK_GL_ERROR("glRenderbufferStorage");
                 glBindFramebuffer(GL_FRAMEBUFFER, FBO_);
                 CHECK_GL_ERROR("glBindFramebuffer");
@@ -133,7 +146,7 @@ namespace Render{
                     }
                     auto material = keys[mesh.GetMaterialIndex()];
                     if(material){
-                        cache[material].push_back({&mesh,item.modelMatrix});
+                        cache[material].push_back(Item{&mesh,item.modelMatrix,item.com});
                     }
                 }
                 return true;
@@ -147,14 +160,15 @@ namespace Render{
             GLuint inline GetOutputColorBuffer(){return colorBuffer_;}
 
             virtual void Update() override {
-
+                
                 // BPR
                 glBindFramebuffer(GL_FRAMEBUFFER, FBO_);
                 CHECK_GL_ERROR("glBindFramebuffer");
                 glEnable(GL_DEPTH_TEST);
                 CHECK_GL_ERROR("glEnable(GL_DEPTH_TEST)");
-                glClearColor(0.2f, 0.2f, 0.0f, 1.0f);
+                glClearColor(0.2f, 0.2f, 0.6f, 1.0f);
                 glClear(GL_COLOR_BUFFER_BIT| GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+                glViewport(0,0,colorBufferResolution.x,colorBufferResolution.y);
                 glDepthFunc(GL_LESS);
                 CHECK_GL_ERROR("glDepthFunc(GL_LESS)");
                 for(auto& [key,v] : cache){
@@ -188,13 +202,14 @@ namespace Render{
                     glUseProgram(key->mainShader_->GetID());
                     // std::cout << key->mainShader_->GetID() << std::endl;
                     CHECK_GL_ERROR("glUseProgram");
-                    for(auto& it : v){
-                        ShaderUmatf4(key->mainShader_->GetID(), "model", *it.second);
-                        glBindVertexArray(it.first->GetVAO());
-                        // std::cout << it.first->GetVAO() << std::endl;
-                        // std::cout << it.first->GetIndicesSize() << std::endl;
+                    for(auto& item : v){
+                        glBindBuffer(GL_UNIFORM_BUFFER,UBOComponent_);
+                        glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(StaticModelComponentDataUBOLayout), &item.com->uboData);
+                        CHECK_GL_ERROR("glBufferSubData");
+                        ShaderUmatf4(key->mainShader_->GetID(), "model", *item.modelMatrix);
+                        glBindVertexArray(item.mesh->GetVAO());
                         CHECK_GL_ERROR("glBindVertexArray");
-                        glDrawElements(GL_TRIANGLES, it.first->GetIndicesSize(), GL_UNSIGNED_INT, 0);
+                        glDrawElements(GL_TRIANGLES, item.mesh->GetIndicesSize(), GL_UNSIGNED_INT, 0);
                         CHECK_GL_ERROR("glDrawElements");
                     }
                 }
@@ -215,12 +230,20 @@ namespace Render{
             }
         private:
             // std::vector<std::pair<Mesh*,IBPR*>> cache;
+
+            struct Item{
+                const Mesh* mesh;
+                glm::mat4* modelMatrix;
+                ECS::Component::MeshRenderer* com;
+            };
             
-            std::unordered_map<IBPR*,std::vector<std::pair<const Mesh*,glm::mat4*>>> cache;
+            std::unordered_map<IBPR*,std::vector<Item>> cache;
 
             GLuint FBO_ = 0;
             GLuint colorBuffer_ = 0;
             glm::ivec2 colorBufferResolution;
             GLuint depthBuffer_ = 0;
+
+            GLuint UBOComponent_ = 0;
     };
 }

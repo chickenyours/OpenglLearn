@@ -5,28 +5,22 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <map>
+#include <vector>
+#include <Json/json.h>
 
-#include "code/DebugTool/ConsoleHelp/color_log.h"
 #include "code/ECS/data_type.h"
 
-#include "code/ECS/Component/component_register.h"
-#include "code/ECS/System/SceneTree/scene_tree.h"
-#include "code/ECS/Component/component_loader_registry.h"
+#include "code/DebugTool/ConsoleHelp/color_log.h"
 
-
-// namespace ECS{
-//     namespace Core{
-//         class ComponentRegister;
-//         class EntityManager;
-//     }
-//     namespace Component{
-
-//     }
-//     namespace System{
-//         class SceneTreeSystem;
-//     }
+namespace ECS{
+    namespace Core{
+        class ComponentRegister;
+    }
+    namespace System{
+        class SceneTreeSystem;
+    }
     
-// }
+}
 
 namespace ECS{
 
@@ -71,3 +65,6 @@ namespace ECS{
             void EntityIDDistribute(std::vector<Json::Value*>& itemsMataDataArray, Log::StackLogErrorHandle errHandle = nullptr);
     };
 }
+
+#include "code/ECS/Component/component_register.h"
+#include "code/ECS/System/SceneTree/scene_tree.h"

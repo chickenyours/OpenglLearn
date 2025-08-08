@@ -15,5 +15,7 @@ namespace Render{
         Model* model;
         std::vector<Material*> materialList;
         glm::mat4* modelMatrix; 
+        ECS::Component::MeshRenderer* com;
+        // std::vector<glm::vec4>* testValues;
     };
 }

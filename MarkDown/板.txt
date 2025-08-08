@@ -24,3 +24,21 @@
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(2,3,GL_FLOAT,GL_FALSE,8*sizeof(float),(void*)(5*sizeof(float)));
     glEnableVertexAttribArray(2);
+
+set PATH=C:\Users\16620\AppData\Local\Microsoft\WinGet\Packages\Ninja-build.Ninja_Microsoft.Winget.Source_8wekyb3d8bbwe;%PATH%
+set PROJDIR=%~dp0
+
+set PATH=C:\Mydata\clang+llvm-20.1.8-x86_64-pc-windows-msvc\bin;%PATH%
+set PATH=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64;%PATH%
+set PATH=C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64;%PATH%
+
+set INCLUDE=^
+C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\include;^
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.22621.0\um;^
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.22621.0\ucrt;^
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.22621.0\shared
+
+set LIB= ^
+C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\lib\x64;^
+C:\Program Files (x86)\Windows Kits\10\Lib\10.0.22621.0\um\x64;^
+C:\Program Files (x86)\Windows Kits\10\Lib\10.0.22621.0\ucrt\x64

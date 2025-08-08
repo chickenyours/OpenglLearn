@@ -4,6 +4,20 @@
 #include <glad/glad.h>
 #include "stb_image.h"
 
+#ifdef __SSE2__
+
+#pragma message("__SSE2__ defined")
+
+#endif
+
+
+
+#ifdef __AVX__
+
+#pragma message("__AVX__ defined")
+
+#endif
+
 using namespace Render;
 
 Texture::Texture(std::string type, std::string path):_type(type),_path(path),_id(0){}

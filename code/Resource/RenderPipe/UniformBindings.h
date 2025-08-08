@@ -12,15 +12,13 @@ namespace Render {
 
 constexpr int UBO_BINDING_ENVIRONMENT = 0;
 constexpr int UBO_BINDING_CAMERA = 1;
-
+constexpr int UBO_STATIC_MODEL_COMPONENT_DATA = 2;
 
 // layout (std140, binding = 0) uniform Environment
 // {
-//     float values[16];
 //     float iTime;
 // };
 struct alignas(16) EnvironmentDataUBOLayout{
-    glm::vec4 values[16];
     float iTime;
 };
 
@@ -38,8 +36,13 @@ struct alignas(16) CameraDataUBOLayout{
     alignas(16) glm::vec3 viewDereict;
 };
 
-
-
+// layout (std140, binding = 2) uniform StaticModelComponentData
+// {
+//     vec4 values[4];
+// };
+struct alignas(16) StaticModelComponentDataUBOLayout{
+    glm::vec4 values[4];
+};
 
 
 

@@ -5,7 +5,6 @@
 
 using namespace Resource;
 
-
 void Shader::Release(){
     if(shaderID_){
         glDeleteShader(shaderID_);

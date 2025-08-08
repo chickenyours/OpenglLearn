@@ -11,12 +11,9 @@
 namespace ECS::System{
     class LocalTransformCalculator : public System{
         public:
-            virtual bool Init() override{
-                return true;
-            }
             LocalTransformCalculator():System("TransformChanger"){}
-            virtual bool AddEntity(EntityID entity, ECS::Core::ComponentRegister& reg) override {
-                auto transform = reg.GetComponent<ECS::Component::Transform>(entity);
+            virtual bool AddEntity(EntityID entity) override {
+                auto transform = scene_->registry_->GetComponent<ECS::Component::Transform>(entity);
                 if(!transform){
                     return false;
                 }
@@ -46,6 +43,10 @@ namespace ECS::System{
                     transform->position
                 );
                 }
+            }
+        protected:
+            virtual bool InitDerive() override{
+                return true;
             }
         private:
             std::vector<ECS::Component::Transform*> seq_;

@@ -34,7 +34,6 @@ layout(binding = 4) uniform sampler2D aoMap;
 
 layout (std140, binding = 0) uniform Environment
 {
-    vec4 values[16];
     float iTime;
 };
 
@@ -45,6 +44,11 @@ layout (std140, binding = 1) uniform CameraData
     vec3 viewPos;
     vec3 viewDir;
 };
+
+layout (std140, binding = 2) uniform StaticModelComponentData
+{
+    vec4 values[4];
+} cmp;
 
 layout (std140, binding = 32) uniform BPRMaterialProperties{
     float metallic;
@@ -85,7 +89,7 @@ void main()
     color = color / (color + vec3(0.2));
     //color = pow(color, vec3(1.0/2.2));   //gama
 
-    FragColor = vec4(color, 1.0);
+    FragColor = vec4(color, 1.0) * cmp.values[0]; // 乘以透明度
     // FragColor = vec4(1.0,1.0,0.0, 1.0);
 
 }  

@@ -347,6 +347,6 @@ void SceneTreeSystem::PrintRecursive(EntityID entity, std::string& prefix, int t
     }
 }
 
-bool SceneTreeSystem::AddEntity(EntityID entity, ECS::Core::ComponentRegister& reg){
+bool SceneTreeSystem::AddEntity(EntityID entity){
     return false;
 }

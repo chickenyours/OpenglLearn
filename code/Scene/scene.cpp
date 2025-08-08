@@ -1,6 +1,9 @@
 #include "scene.h"
 
-
+#include "code/DebugTool/ConsoleHelp/color_log.h"
+#include "code/ECS/Component/component_register.h"
+#include "code/ECS/System/SceneTree/scene_tree.h"
+#include "code/ECS/Component/component_loader_registry.h"
 #include "code/ToolAndAlgorithm/Json/json_helper.h"
 
 

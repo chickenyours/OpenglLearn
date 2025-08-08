@@ -15,19 +15,20 @@
 
 namespace ECS::System{
     class StaticMeshRender: public System{
+        protected:
+            virtual bool InitDerive() override{
+                ctx.outputResolution = Environment::Environment::Instance().windowSize;
+                renderPipe.Init(ctx);
+                return true;
+            }
         public:
             StaticMeshRender():System("StaticMeshRender"){
 
             }
 
-            virtual bool Init(){
-                ctx.outputResolution = Environment::Environment::Instance().windowSize;
-                renderPipe.Init(ctx);
-                return true;
-            }
 
-            int SetCameraObject(EntityID entity, ECS::Core::ComponentRegister& reg){
-                ECS::Component::Camera* camera = reg.GetComponent<ECS::Component::Camera>(entity);
+            int SetCameraObject(EntityID entity){
+                ECS::Component::Camera* camera = scene_->registry_->GetComponent<ECS::Component::Camera>(entity);
                 if(camera){
                     ctx.camera = camera;
                     renderPipe.SetConfig(ctx);
@@ -38,10 +39,10 @@ namespace ECS::System{
 
 
 
-            virtual bool AddEntity(EntityID entity, ECS::Core::ComponentRegister& reg) override {
-                ECS::Component::Transform* transform = reg.GetComponent<ECS::Component::Transform>(entity);
-                ECS::Component::StaticModel* model = reg.GetComponent<ECS::Component::StaticModel>(entity);
-                ECS::Component::MeshRenderer* meshRender  = reg.GetComponent<ECS::Component::MeshRenderer>(entity);
+            virtual bool AddEntity(EntityID entity) override {
+                ECS::Component::Transform* transform = scene_->registry_->GetComponent<ECS::Component::Transform>(entity);
+                ECS::Component::StaticModel* model = scene_->registry_->GetComponent<ECS::Component::StaticModel>(entity);
+                ECS::Component::MeshRenderer* meshRender  = scene_->registry_->GetComponent<ECS::Component::MeshRenderer>(entity);
                 if(transform && model && meshRender){
                     Render::ModelRenderItem item{
                         model->model.get(),
@@ -53,7 +54,8 @@ namespace ECS::System{
                             }
                             return list;
                         }(meshRender),
-                        &transform->worldMatrix
+                        &transform->worldMatrix,
+                        meshRender
                     };
                     renderPipe.RegisterItem(item);
                 }
@@ -68,6 +70,7 @@ namespace ECS::System{
                 if(Environment::Environment::Instance().isWindowSizeChange){
                     ctx.outputResolution = Environment::Environment::Instance().windowSize;
                     renderPipe.SetConfig(ctx);
+                    Environment::Environment::Instance().isWindowSizeChange = false;
                 }
                 renderPipe.RenderCall();
             }

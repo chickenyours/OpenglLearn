@@ -27,8 +27,12 @@ namespace ECS::Core::ResourceModule{
     class ResourceManager{
         public:
             static ResourceManager& GetInctance(){
-                static ResourceManager instance;
-                return instance;
+                // static ResourceManager instance;
+                return *instance_;
+            }
+
+            static void SetInstance(ResourceManager* instance){
+                instance_ = instance;
             }
 
             template <typename T>
@@ -44,7 +48,7 @@ namespace ECS::Core::ResourceModule{
             void TryReleaseAll();
 
         private:
-
+            inline static ResourceManager* instance_ = nullptr;
             template <typename T>
             ResourcePool<T>& GetPool();
     };

@@ -1,0 +1,4 @@
+C:/Users/16620/Desktop/projects/OpenglLearn/build/CMakeFiles/main_exec.dir
+C:/Users/16620/Desktop/projects/OpenglLearn/build/CMakeFiles/script.dir
+C:/Users/16620/Desktop/projects/OpenglLearn/build/CMakeFiles/edit_cache.dir
+C:/Users/16620/Desktop/projects/OpenglLearn/build/CMakeFiles/rebuild_cache.dir

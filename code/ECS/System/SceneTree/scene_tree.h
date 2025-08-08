@@ -19,11 +19,11 @@ namespace ECS::System{
     class SceneTreeSystem:public System {
         public:
 
-            virtual bool Init() override {
+            virtual bool InitDerive() override {
                 return true;
             }
 
-            virtual bool AddEntity(EntityID entity, ECS::Core::ComponentRegister& reg) override;
+            virtual bool AddEntity(EntityID entity) override;
 
             void SetComponentRegister(ECS::Core::ComponentRegister* reg) {reg_ = reg;}
 

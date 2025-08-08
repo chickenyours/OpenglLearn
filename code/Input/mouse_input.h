@@ -10,8 +10,12 @@ namespace Input {
 class MouseInput {
 public:
     static MouseInput& Instance() {
-        static MouseInput instance;
-        return instance;
+        // static MouseInput instance;
+        return *instance_;
+    }
+
+    static void SetInstance(MouseInput* instance){
+        instance_ = instance;
     }
 
     enum MouseButton {
@@ -89,10 +93,15 @@ public:
         return {oldPos.x,oldPos.y};
     }
 
-private:
     MouseInput(){
         GetCursorPos(&oldPos);
     }
+
+private:
+
+    inline static MouseInput* instance_;
+
+   
 
     bool _prevState[BUTTON_COUNT] = {};
     ButtonState _state[BUTTON_COUNT] = {};

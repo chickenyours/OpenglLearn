@@ -45,12 +45,15 @@ set(SRC
     code/Scene/scene.cpp
     code/ECS/System/SceneTree/scene_tree.cpp
     code/ECS/System/Script/script_system.cpp
+    code/CodeMomeryInsert/memory_insert.cpp
 )
 
 set(DLL_SCRIPT_SRC
-    script_program.cpp
-    code/Resource/Scripts/xuanzhuan.cpp
+    code/Resource/Scripts/XuanZhuan.cpp
+    code/Resource/Scripts/XianShi.cpp
 )
+
+set(DLL_SCRIPT_PROGRAM script_program.cpp)
 
 # 传入 TARGET 源文件变量，默认为 main.cpp
 set(TARGET apprun.cpp)
@@ -76,9 +79,46 @@ target_link_libraries(main_exec PRIVATE
 )
 
 # 添加 DLL 插件
-add_library(script MODULE ${DLL_SCRIPT_SRC})
+add_library(script MODULE ${DLL_SCRIPT_PROGRAM} ${DLL_SCRIPT_SRC})
 set_target_properties(script PROPERTIES
     OUTPUT_NAME "script"
     PREFIX ""
     SUFFIX ".dll"
 )
+
+# 放在 add_library(script ...) 之后
+# 1) bat 绝对路径
+set(ONLY_DERIVED_BAT "${CMAKE_CURRENT_SOURCE_DIR}/code_analyst/only_derived.bat")
+if(NOT EXISTS "${ONLY_DERIVED_BAT}")
+  message(FATAL_ERROR "only_derived.bat not found at: ${ONLY_DERIVED_BAT}")
+endif()
+
+# 2) 输出目录
+set(BLUEPRINT_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/Scripts/BluePrint")
+file(MAKE_DIRECTORY "${BLUEPRINT_DIR}")
+
+set(BLUEPRINT_OUTPUTS)  # 别忘了收集输出
+
+# 3) 为每个脚本源生成对应的 .json
+foreach(src IN LISTS DLL_SCRIPT_SRC)
+  get_filename_component(src_abs "${src}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+  get_filename_component(fname   "${src}" NAME_WE)
+  set(out_json "${BLUEPRINT_DIR}/${fname}.json")
+
+  add_custom_command(
+    OUTPUT "${out_json}"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${BLUEPRINT_DIR}"
+    # 用 chdir 包住 cmd /c 调用 .bat（你的 CMake 没有 -E cmd）
+    COMMAND "${CMAKE_COMMAND}" -E chdir "${CMAKE_CURRENT_SOURCE_DIR}" cmd /c
+            "${ONLY_DERIVED_BAT}" "${src_abs}" IScript "${out_json}"
+    DEPENDS "${src_abs}" "${ONLY_DERIVED_BAT}"
+    VERBATIM
+    COMMENT "Generating blueprint: ${out_json}"
+  )
+
+  list(APPEND BLUEPRINT_OUTPUTS "${out_json}")
+endforeach()
+
+add_custom_target(gen_script_blueprints DEPENDS ${BLUEPRINT_OUTPUTS})
+add_dependencies(script gen_script_blueprints)
+

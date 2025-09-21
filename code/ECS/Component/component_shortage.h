@@ -5,6 +5,8 @@
 
 #include "code/ECS/data_type.h"
 
+#include "code/ECS/Component/component.h"
+
 namespace ECS::Core{
 
 class IComponentStorageBase{
@@ -14,6 +16,13 @@ class IComponentStorageBase{
 
 template<typename ComponentT>
 class ComponentStorage final : public IComponentStorageBase {
+    static_assert(
+        std::is_base_of<
+            ECS::Component::Component<ComponentT>, 
+            ComponentT
+        >::value,
+        "ComponentT must derive from ECS::Component::Component<ComponentT>"
+    ); // 基类是 Component<ComponentT>
     public:
         virtual ~ComponentStorage() = default;
         ComponentStorage() {

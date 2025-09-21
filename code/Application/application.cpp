@@ -16,7 +16,8 @@
 #include "code/ModuleManager/module_manager.h"
 #include "code/Script/script_interface.h"
 #include "code/ECS/System/Script/script_system.h"
-
+#include "code/CodeMomeryInsert/memory_insert.h"
+#include "code/ECS/System/Collision/aabb_system.h"
 // #include "code/"
 
 
@@ -130,136 +131,92 @@ void Application::Run(){
 
     rd.SetCameraObject(camEntity);
 
+    ECS::System::AABBSystem aabbs;
+    aabbs.Init(&s);
+    aabbs.SetEventSub(&ss.queue);
+    aabbs.AddEntities(entities);
+
     ECS::EntityID e = s.GetEntity("123");
     auto ren = s.registry_->GetComponent<ECS::Component::MeshRenderer>(e);
 
-    // // 插入脚本
-    // HMODULE hDll = LoadLibraryA("script.dll");
-    // if(!hDll){
-    //     // std::cerr << "Failed to load DLL!" << std::endl;
-    //     LOG_ERROR("Application","Failed to load DLL!");
-    //     return;
-    // }
-    
-    // set_dll_module_api setmod = (set_dll_module_api)GetProcAddress(hDll,"SetModule"); 
-    // GetScript get_script_XuanZhuang = (GetScript)GetProcAddress(hDll, "create_plugin_object_XuanZhuang");
-    // DeleteScriptObject delete_script = (DeleteScriptObject)GetProcAddress(hDll,"DeleteScriptObject");
+    auto script = s.registry_->GetComponent<ECS::Component::Script>(e);
+    auto interface = script->scriptInterface;
+    if(!interface){
+        LOG_ERROR("main","hh");
+        return;
+    }
 
-    // if(!setmod || !get_script_XuanZhuang || !delete_script){
-    //     LOG_ERROR("Application","Failed to load functions!");
+    // Json::Value data;
+    // if(!Tool::JsonHelper::LoadJsonValueFromFile("./Scripts/Data/1.json",data)){
+    //     LOG_ERROR("main","hh");
     //     return;
     // }
 
-    // // 初始化插件
-    // setmod(Module::ModuleManager::Instance().Export());
-    // // 创建插件脚本对象
-    // std::unique_ptr<IScript, DeleteScriptObject> script(get_script_XuanZhuang(), delete_script);
-    // std::unique_ptr<IScript, DeleteScriptObject> script2(get_script_XuanZhuang(), delete_script);
+    // Json::Value blueprint;
+    // if(!Tool::JsonHelper::LoadJsonValueFromFile("./Scripts/BluePrint/XuanZhuan.json",blueprint)){
+    //     LOG_ERROR("main","XuanZhuang");
+    //     return;
+    // }
 
-    // script->OnStart(&s, camEntity);
-    // script2->OnStart(&s, e);
+    // SetObjectProperty(data,blueprint,interface);
+
+    // 物体控制器变量
+    int currentControl = 0;
+    auto currentTransform = s.registry_->GetComponent<ECS::Component::Transform>(entities[currentControl]);
+    float controlSpeed = 1.0;
 
     do{
         Environment::Environment::Instance().Update();
         Input::KeyboardInput::Instance().Update();
         Input::MouseInput::Instance().Update();
 
-        // 更新脚本
-        // script->OnUpdate(&s,e);
-        // script2->OnUpdate(&s,e);
-        ss.Update();
+        if(Input::KeyboardInput::Instance().GetKeyState('O') == Input::KeyboardInput::KeyState::PRESSED){
+            currentControl = std::min((int)entities.size() - 1, currentControl + 1);
+            currentTransform = s.registry_->GetComponent<ECS::Component::Transform>(entities[currentControl]);
+            std::cout << "switch to " << entities[currentControl] << std::endl;
+        }
+        else if (Input::KeyboardInput::Instance().GetKeyState('P') == Input::KeyboardInput::KeyState::PRESSED){
+            currentControl = std::max(0, currentControl - 1);
+            currentTransform = s.registry_->GetComponent<ECS::Component::Transform>(entities[currentControl]);
+            std::cout << "switch to " << entities[currentControl] << std::endl;
+        }
+        if(currentTransform){
+            float deltaTime = Environment::Environment::Instance().GetUpdateIntervalTime();
+            if(Input::KeyboardInput::Instance().GetKeyState(VK_UP) == Input::KeyboardInput::KeyState::HELD){
+                currentTransform->position.z += controlSpeed * deltaTime;
+            }
+            if(Input::KeyboardInput::Instance().GetKeyState(VK_DOWN) == Input::KeyboardInput::KeyState::HELD){
+                currentTransform->position.z -= controlSpeed * deltaTime;
+            }
+            if(Input::KeyboardInput::Instance().GetKeyState(VK_LEFT) == Input::KeyboardInput::KeyState::HELD){
+                currentTransform->position.x += controlSpeed * deltaTime;
+            }
+            if(Input::KeyboardInput::Instance().GetKeyState(VK_RIGHT) == Input::KeyboardInput::KeyState::HELD){
+                currentTransform->position.x -= controlSpeed * deltaTime;
+            }
+            if(Input::KeyboardInput::Instance().GetKeyState('N') == Input::KeyboardInput::KeyState::HELD){
+                currentTransform->position.y += controlSpeed * deltaTime;
+            }
+            if(Input::KeyboardInput::Instance().GetKeyState('M') == Input::KeyboardInput::KeyState::HELD){
+                currentTransform->position.y -= controlSpeed * deltaTime;
+            }
+        }
 
+        // 更新碰撞
+        aabbs.Update();
+        // 更新脚本
+        ss.Update();
         lTC.Update();
         s.hierarchySystem_->Update();
         camMove.Update();
-        if(ren){
-            ren->uboData.values[0] = glm::vec4(cam->camFront,1.0);
-        }
+        // if(ren){
+        //     ren->uboData.values[0] = glm::vec4(cam->camFront,1.0);
+        // }
 
         rd.Update();
 
         UpdateWindow();
     }while(Input::KeyboardInput::Instance().GetKeyState(VK_ESCAPE) != Input::KeyboardInput::KeyState::PRESSED);
-
-
-    // ECS::System::StaticMeshRender mr;
-    // mr.AddEntities(entities, *s.registry_);
-
-    // while (Input::KeyboardInput::Instance().GetKeyState(VK_ESCAPE) != Input::KeyboardInput::KeyState::PRESSED){
-    //     Input::KeyboardInput::Instance().Update();
-    //     Input::MouseInput::Instance().Update();
-    //     auto left = Input::MouseInput::Instance().GetButtonState(Input::MouseInput::MouseButton::LEFT);
-    //     if(left == Input::MouseInput::ButtonState::PRESSED){
-    //         std::cout << "left == Input::MouseInput::ButtonState::PRESSED" << std::endl;
-    //     }
-    //     if(left == Input::MouseInput::ButtonState::RELEASED){
-    //         std::cout << "left == Input::MouseInput::ButtonState::RELEASED" << std::endl;
-    //     }
-
-    //     auto offset = Input::MouseInput::Instance().GetMouseOffset();
-    //     if(offset != glm::ivec2(0)){
-    //         std::cout << "<" << offset.x << "," << offset.y << ">" << std::endl;
-    //     }
-    // }
-
-    // while (Input::KeyboardInput::Instance().GetKeyState(VK_ESCAPE) != Input::KeyboardInput::KeyState::PRESSED)
-    // {
-        
-    //     Input::KeyboardInput::Instance().Update();
-    //     auto w = Input::KeyboardInput::Instance().GetKeyState('W');      
-    //     // auto a = Input::KeyboardInput::Instance().GetKeyState('A');
-    //     // auto s = Input::KeyboardInput::Instance().GetKeyState('S');
-    //     // auto d = Input::KeyboardInput::Instance().GetKeyState('D');
-    
-    //     if(w == Input::KeyboardInput::KeyState::PRESSED){
-    //         std::cout << "w == Input::KeyboardInput::KeyState::PRESSED" << std::endl;
-    //     }
-    //     else if(w == Input::KeyboardInput::KeyState::RELEASED){
-    //         std::cout << "w == Input::KeyboardInput::KeyState::RELEASED" << std::endl;
-    //     }
-    // }
-    
-
-
-
-    // ECS::EntityID a = s.GetEntity("123");
-   
-    // if(a){
-    //     float material = s.registry_->GetComponent<ECS::Component::MeshRenderer>(a)->materialList[0]->TryGetFeature<Resource::IBPR>()->property.metallic;
-    //     std::cout<< material << std::endl;
-    // }
-    // s.hierarchySystem_->Print();
-    // std::string info = s.registry_->GetComponent<ECS::Component::StaticModel>(a)->model->GetInfo();
-    // LOG_INFO("Run", info);
-
-    // lTC.Update();
-    
-    // s.hierarchySystem_->Update();
-
-    
-    // auto printTransform = [](const glm::mat4& matrix){
-    //     for (int i = 0; i < 4; ++i) {
-    //         for (int j = 0; j < 4; ++j) {
-    //             std::cout << matrix[j][i] << " ";
-    //         }
-    //         std::cout << std::endl;
-    //     }
-    // };
-
-    // for(const std::string& it : {"123","456","789"}){
-    //     ECS::EntityID a = s.GetEntity(it);
-    //     auto transform = s.registry_->GetComponent<ECS::Component::Transform>(a);
-    //     auto local = transform->localMatrix;
-    //     auto world = transform->worldMatrix;
-    //     std::cout<< it + " local matrix" << std::endl;
-    //     printTransform(local);
-    //     std::cout<< it + " world matrix" << std::endl;
-    //     printTransform(world);
-    // }
-
-
-
-
     
 }
 

@@ -1,0 +1,40 @@
+{
+    "alignment" : 8,
+    "class" : "XuanZhuang",
+    "fields" : 
+    [
+        {
+            "decorators" : 
+            [
+                {
+                    "args" : 
+                    [
+                        "0.0",
+                        "1.0"
+                    ],
+                    "name" : "clamp"
+                },
+                {
+                    "name" : "invisible"
+                }
+            ],
+            "default" : "0.",
+            "name" : "y",
+            "offset_bits" : 64,
+            "type" : "float"
+        },
+        {
+            "default" : null,
+            "name" : "hhh",
+            "offset_bits" : 96,
+            "type" : "glm::vec3"
+        },
+        {
+            "default" : null,
+            "name" : "trans",
+            "offset_bits" : 192,
+            "type" : "ECS::Component::Transform *"
+        }
+    ],
+    "size_bytes" : 32
+}

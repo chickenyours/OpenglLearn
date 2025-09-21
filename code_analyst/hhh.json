@@ -1,0 +1,26 @@
+{
+    "alignment" : 8,
+    "class" : "XuanZhuang",
+    "fields" : 
+    [
+        {
+            "default" : null,
+            "name" : "fields_",
+            "offset_bits" : 64,
+            "type" : "std::vector<BindableBase *>"
+        },
+        {
+            "default" : "0.",
+            "name" : "x",
+            "offset_bits" : 256,
+            "type" : "float"
+        },
+        {
+            "default" : null,
+            "name" : "trans",
+            "offset_bits" : 320,
+            "type" : "ECS::Component::Transform *"
+        }
+    ],
+    "size_bytes" : 48
+}

@@ -14,6 +14,7 @@
 #include "code/ECS/Component/Transform/transform.h"
 #include "code/ECS/Component/Model/static_model.h"
 #include "code/ECS/Component/Script/scirpt.h"
+#include "code/ECS/Component/Collision/aabb_3D.h"
 
 
 void RegisterAllComponents() {
@@ -21,6 +22,7 @@ void RegisterAllComponents() {
     REGISTER_COMPONENT("meshRenderer", ECS::Component::MeshRenderer);
     REGISTER_COMPONENT("staticModel", ECS::Component::StaticModel);
     REGISTER_COMPONENT("script", ECS::Component::Script);
+    REGISTER_COMPONENT("aabb_3D", ECS::Component::AABB_3D);
     // REGISTER_COMPONENT(ECS::Component::Collider);
 }
 

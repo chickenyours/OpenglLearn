@@ -16,13 +16,15 @@ namespace ECS::System{
             void Init(Scene* scene){
                 if(scene){
                     scene_ = scene;
-                    InitDerive();
+                    if (!InitDerive()) {
+                        LOG_ERROR("System:" + systemName_, "InitDerive() failed");
+                    }
                 }
                 else{
-                    LOG_ERROR("System:"+systemName_,"reg is nullptr");
+                    LOG_ERROR("System:"+systemName_,"scene is nullptr");
                 }
             }
-            void AddEntities(std::vector<EntityID> entities){
+            void AddEntities(const std::vector<EntityID>& entities){
                 if(scene_){
                     for(EntityID entity : entities){
                         AddEntity(entity);
@@ -33,13 +35,14 @@ namespace ECS::System{
                 }
             }
             virtual void Update() = 0;
+            virtual ~System() = default;
         protected:
             virtual bool AddEntity(EntityID AddEntity) = 0;
             virtual bool InitDerive() = 0;
             inline System(std::string systemName) : systemName_(systemName){}
             std::string systemName_;
             // ECS::Core::ComponentRegister* reg_;
-            Scene* scene_;
+            Scene* scene_ = nullptr;
     };
 }
 

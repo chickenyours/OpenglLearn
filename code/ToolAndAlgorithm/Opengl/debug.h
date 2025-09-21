@@ -1,7 +1,7 @@
 #pragma once
 
 #include "code/DebugTool/ConsoleHelp/color_log.h"
-#include <GL/gl.h>
+#include <glad/glad.h>
 #include <string>
 
 inline bool CheckGLErrorFunc(const char* step) {

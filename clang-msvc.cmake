@@ -8,7 +8,7 @@ set(CMAKE_LINKER       "C:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang
 # 设置默认 CRT 类型（影响 msvcrtd.lib）
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDebugDLL")  # /MDd
 
-set(CLANG_BUILTIN_INC "C:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include")
+set(CLANG_BUILTIN_INC "C:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include")
 set(MSVC_INC          "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include")
 set(WINSDK_UCRT_INC   "C:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt")
 set(WINSDK_UM_INC     "C:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um")

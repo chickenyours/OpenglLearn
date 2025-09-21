@@ -12,7 +12,7 @@
 
 namespace ECS::Component{
     struct Script : public Component<Script>{
-        IScript* scriptInsterface = nullptr;
+        IScript* scriptInterface = nullptr;
         int state = 0;
 
         bool LoadFromMetaDataImpl(const Json::Value& data, Log::StackLogErrorHandle errHandle = nullptr) {
@@ -22,9 +22,9 @@ namespace ECS::Component{
                 return false;
             }
             
-            scriptInsterface = ScriptManager::Instance().GetScriptObject(scriptName);
+            scriptInterface = ScriptManager::Instance().GetScriptObject(scriptName);
             
-            if(!scriptInsterface){
+            if(!scriptInterface){
                 REPORT_STACK_ERROR(errHandle,"Component:Script->LoadFromMetaDataImpl","Cannot load script interface object: " + scriptName);
                 return false;
             }

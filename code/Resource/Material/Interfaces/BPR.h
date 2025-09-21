@@ -54,7 +54,7 @@ class IBPR : public IMaterial{
         //     int propertyUBOBinding = 32;
         // } slot_;
 
-
+        
        
         void UpLoadProperty(){
             if(!isInitUBO_){

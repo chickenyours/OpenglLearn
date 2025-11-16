@@ -204,6 +204,7 @@ namespace Render{
                     CHECK_GL_ERROR("glUseProgram");
                     for(auto& item : v){
                         glBindBuffer(GL_UNIFORM_BUFFER,UBOComponent_);
+                        glBindBufferBase(GL_UNIFORM_BUFFER, UBO_STATIC_MODEL_COMPONENT_DATA, UBOComponent_);
                         glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(StaticModelComponentDataUBOLayout), &item.com->uboData);
                         CHECK_GL_ERROR("glBufferSubData");
                         ShaderUmatf4(key->mainShader_->GetID(), "model", *item.modelMatrix);
@@ -238,12 +239,11 @@ namespace Render{
             };
             
             std::unordered_map<IBPR*,std::vector<Item>> cache;
-
+        public:
+            glm::ivec2 colorBufferResolution;
             GLuint FBO_ = 0;
             GLuint colorBuffer_ = 0;
-            glm::ivec2 colorBufferResolution;
             GLuint depthBuffer_ = 0;
-
             GLuint UBOComponent_ = 0;
     };
 }

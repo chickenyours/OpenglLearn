@@ -61,7 +61,7 @@ class ModifierHandle{
             LOG_ERROR("ModifierHandle", "can't find subscriber in subscribers");
         }
     public:
-        ModifierHandle(T* ptr) : ptr_(ptr){} // 移交后管理权变更
+        ModifierHandle(std::unique_ptr<T>&& ptr) : ptr_(std::move(ptr)){} // 移交后管理权变更
 
         void Set(std::function<void(T&)> fun){
             fun(*ptr_);
@@ -86,6 +86,20 @@ class ModifierHandle{
             addr->isChange = true;
             subscribers.push_back(addr);
         }
+
+        bool Peer(T* v){
+            return v == ptr_;
+        }
+
+        const T* Get(){ // 临时性地址检测,并非订阅器
+            return ptr_;
+        }
         
     friend HandleViewer<T>;
 };
+
+// MakeModifierHandle<T>(Args... arg)
+template <typename T, typename... Args>
+ModifierHandle<T> MakeModifierHandle(Args&&... args) {
+    return ModifierHandle<T>(std::make_unique<T>(std::forward<Args>(args)...));
+}

@@ -10,6 +10,7 @@ namespace Resource{
 class ShaderProgram : public ILoadable{
     public:
         virtual void Release() override;
+        // return ShaderProgram Gluint id
         GLuint GetID(){return id_;}
     private:
         GLuint id_ = 0;

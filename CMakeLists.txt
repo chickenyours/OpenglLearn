@@ -11,6 +11,7 @@ foreach(flag_var CMAKE_C_FLAGS_DEBUG CMAKE_CXX_FLAGS_DEBUG)
     string(REPLACE "/MD" "/MDd" ${flag_var} "${${flag_var}}")
 endforeach()
 
+
 # 设置项目include路径
 include_directories(
     ${CMAKE_SOURCE_DIR}/include

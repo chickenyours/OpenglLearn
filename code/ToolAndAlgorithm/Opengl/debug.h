@@ -14,5 +14,3 @@ inline bool CheckGLErrorFunc(const char* step) {
 }
 
 #define CHECK_GL_ERROR(step) CheckGLErrorFunc(step)
-
-// std::cerr << "OpenGL Error after " << step << ": " << std::hex << err << std::endl; 

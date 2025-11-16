@@ -18,7 +18,10 @@ namespace ECS::System{
         protected:
             virtual bool InitDerive() override{
                 ctx.outputResolution = Environment::Environment::Instance().windowSize;
-                renderPipe.Init(ctx);
+                int code = renderPipe.Init(ctx);
+                if(code){
+                    LOG_ERROR("StaticMeshRender::InitDerive", "init error : " + std::to_string(code));
+                }
                 return true;
             }
         public:

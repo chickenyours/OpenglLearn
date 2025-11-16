@@ -1,34 +1,19 @@
 #pragma once
 
 #include "code/ToolAndAlgorithm/DateType/version_array.h"
+#include "code/ToolAndAlgorithm/RegisterData/registered_data.h"
 
 template <typename T>
-class Target{
-    private:
-        size_t verison_;
-        T* ptr_ = nullptr;
-    public:
-        Target():ptr_(nullptr),verison_(0){}
-        Target(T* ptr):ptr_(ptr),verison_(0){}
+class Target;
 
-        void Set(T* ptr){
-            ptr_ = ptr;
-            verison_++;
-        }
+template <typename T>
+class TargetArray;
 
-        T* Get(){
-            return ptr_;
-        }
-        size_t Version(){return verison_;}
-        bool New(size_t& version, T** change){
-            if(verison_ == version) return true;
-            *change = ptr_;
-            return false;
-        }
-        T& operator*(){
-            return *T;
-        }
-};
+template <typename T>
+class TargetGroup;
+
+template <typename T>
+using VersionTarget = ModifierHandle<T>;
 
 template <typename T>
 using VersionTargetArray = VersionPTRArray<T>;
@@ -36,34 +21,20 @@ using VersionTargetArray = VersionPTRArray<T>;
 template <typename T>
 using VersionTargetGroup = VersionPTRArray<VersionPTRArray<T>>;
 
+#include "code/ToolAndAlgorithm/DAT/target_viewer.h"
+
 template <typename T>
-class VersionTargetGroupViewer{
+class Target{
     private:
-        VersionTargetGroup<T>* source_ = nullptr;
-        std::vector<T*> addArray;
-        std::vector<T*> removeArray;
-        size_t view_version_;
-        bool isChangeAll;
+        T* ptr_;
     public:
-        void SetSource(VersionTargetGroup<T>* group){
-            source_ = group;
-            isChangeAll = true;
-        }
-        int Update(){ 
-            
-            if(isChangeAll){
-                isChangeAll = false;
-                view_version_ = source_->Version();
-                return 2;
-            }
-            if(source_->GetChange(view_version_,&addArray,&removeArray)){
-                return 0;
-            }
-            else{
-                return 1;
-            }
+        T* Get(){return ptr_;}
+        void Set(T* value){
+            ptr_ = value;
         }
 };
+
+
 
 
 

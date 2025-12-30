@@ -30,7 +30,7 @@ CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS:FILEPATH=C:/Mydata/clang+llvm-20.1.8-x86_64-p
 CMAKE_CXX_COMPILER_RANLIB:FILEPATH=C:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/bin/llvm-ranlib.exe
 
 //Flags used by the CXX compiler during all build types.
-CMAKE_CXX_FLAGS:STRING=/X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc
+CMAKE_CXX_FLAGS:STRING=/X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc
 
 //Flags used by the CXX compiler during DEBUG builds.
 CMAKE_CXX_FLAGS_DEBUG:STRING=/Zi /Ob0 /Od /RTC1
@@ -75,7 +75,7 @@ CMAKE_FIND_PACKAGE_REDIRECTS_DIR:STATIC=C:/Users/16620/Desktop/projects/OpenglLe
 CMAKE_INSTALL_PREFIX:PATH=C:/Program Files (x86)/MyProject
 
 //Program used to build from build.ninja files.
-CMAKE_MAKE_PROGRAM:FILEPATH=C:/Users/16620/AppData/Local/Microsoft/WinGet/Packages/Ninja-build.Ninja_Microsoft.Winget.Source_8wekyb3d8bbwe/ninja.exe
+CMAKE_MAKE_PROGRAM:FILEPATH=C:/Users/16620/AppData/Local/Programs/Python/Python310/Scripts/ninja.exe
 
 //Flags used by the linker during the creation of modules during
 // all build types.
@@ -284,7 +284,7 @@ CMAKE_MT-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_NM
 CMAKE_NM-ADVANCED:INTERNAL=1
 //number of local generators
-CMAKE_NUMBER_OF_MAKEFILES:INTERNAL=1
+CMAKE_NUMBER_OF_MAKEFILES:INTERNAL=5
 //Platform information initialized
 CMAKE_PLATFORM_INFO_INITIALIZED:INTERNAL=1
 //noop for ranlib

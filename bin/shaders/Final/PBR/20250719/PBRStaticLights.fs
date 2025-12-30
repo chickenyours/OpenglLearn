@@ -35,8 +35,8 @@ layout(binding = 4) uniform sampler2D aoMap;
 layout (std140, binding = 0) uniform Environment
 {
     float iTime;
+    float deltaTime;
 };
-
 layout (std140, binding = 1) uniform CameraData
 {
     mat4 view;

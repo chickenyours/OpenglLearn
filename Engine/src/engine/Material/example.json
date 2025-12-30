@@ -1,0 +1,25 @@
+{
+    "name": "example",
+    "type": "Material/PBR",
+    "shaderProgramPath": "PBR",
+    "textures": {
+        "albedo": ["example.png",0],
+        "normal":  ["example_normal.png",1],
+        "metallic": ["example_metallic.png",2],
+        "roughness": ["example_roughness.png",3],
+        "ao": ["example_ao.png",4]
+    },
+    "properties":{
+        "float":{
+            "metallic": 0.5,
+            "roughness": 0.5
+        },
+        "int":{},
+        "vec3":{
+            "albedo": [1.0, 1.0, 1.0]
+        },
+        "vec4":{},
+        "mat4":{}
+
+    }
+}

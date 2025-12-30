@@ -40,257 +40,6 @@ include CMakeFiles\rules.ninja
 # Logical path to working directory; prefix for absolute paths.
 
 cmake_ninja_workdir = C$:\Users\16620\Desktop\projects\OpenglLearn\build\
-# =============================================================================
-# Object build statements for EXECUTABLE target main_exec
-
-
-#############################################
-# Order-only phony target for main_exec
-
-build cmake_object_order_depends_target_main_exec: phony || .
-
-build CMakeFiles\main_exec.dir\include\stb_image.cpp.obj: CXX_COMPILER__main_exec_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\include\stb_image.cpp || cmake_object_order_depends_target_main_exec
-  CONFIG = Debug
-  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd -Wno-nonportable-include-path -Wno-pragma-pack -Wno-ignored-pragma-intrinsic -Wno-ignored-attributes
-  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn -IC:\Users\16620\Desktop\projects\OpenglLearn\code
-  OBJECT_DIR = CMakeFiles\main_exec.dir
-  OBJECT_FILE_DIR = CMakeFiles\main_exec.dir\include
-  TARGET_COMPILE_PDB = CMakeFiles\main_exec.dir\
-  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.pdb
-
-build CMakeFiles\main_exec.dir\code\Resource\Texture\texture.cpp.obj: CXX_COMPILER__main_exec_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\code\Resource\Texture\texture.cpp || cmake_object_order_depends_target_main_exec
-  CONFIG = Debug
-  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd -Wno-nonportable-include-path -Wno-pragma-pack -Wno-ignored-pragma-intrinsic -Wno-ignored-attributes
-  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn -IC:\Users\16620\Desktop\projects\OpenglLearn\code
-  OBJECT_DIR = CMakeFiles\main_exec.dir
-  OBJECT_FILE_DIR = CMakeFiles\main_exec.dir\code\Resource\Texture
-  TARGET_COMPILE_PDB = CMakeFiles\main_exec.dir\
-  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.pdb
-
-build CMakeFiles\main_exec.dir\code\Resource\Shader\shader.cpp.obj: CXX_COMPILER__main_exec_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\code\Resource\Shader\shader.cpp || cmake_object_order_depends_target_main_exec
-  CONFIG = Debug
-  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd -Wno-nonportable-include-path -Wno-pragma-pack -Wno-ignored-pragma-intrinsic -Wno-ignored-attributes
-  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn -IC:\Users\16620\Desktop\projects\OpenglLearn\code
-  OBJECT_DIR = CMakeFiles\main_exec.dir
-  OBJECT_FILE_DIR = CMakeFiles\main_exec.dir\code\Resource\Shader
-  TARGET_COMPILE_PDB = CMakeFiles\main_exec.dir\
-  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.pdb
-
-build CMakeFiles\main_exec.dir\code\Resource\Shader\shader_factory.cpp.obj: CXX_COMPILER__main_exec_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\code\Resource\Shader\shader_factory.cpp || cmake_object_order_depends_target_main_exec
-  CONFIG = Debug
-  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd -Wno-nonportable-include-path -Wno-pragma-pack -Wno-ignored-pragma-intrinsic -Wno-ignored-attributes
-  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn -IC:\Users\16620\Desktop\projects\OpenglLearn\code
-  OBJECT_DIR = CMakeFiles\main_exec.dir
-  OBJECT_FILE_DIR = CMakeFiles\main_exec.dir\code\Resource\Shader
-  TARGET_COMPILE_PDB = CMakeFiles\main_exec.dir\
-  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.pdb
-
-build CMakeFiles\main_exec.dir\code\Resource\Shader\shader_manager.cpp.obj: CXX_COMPILER__main_exec_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\code\Resource\Shader\shader_manager.cpp || cmake_object_order_depends_target_main_exec
-  CONFIG = Debug
-  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd -Wno-nonportable-include-path -Wno-pragma-pack -Wno-ignored-pragma-intrinsic -Wno-ignored-attributes
-  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn -IC:\Users\16620\Desktop\projects\OpenglLearn\code
-  OBJECT_DIR = CMakeFiles\main_exec.dir
-  OBJECT_FILE_DIR = CMakeFiles\main_exec.dir\code\Resource\Shader
-  TARGET_COMPILE_PDB = CMakeFiles\main_exec.dir\
-  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.pdb
-
-build CMakeFiles\main_exec.dir\code\Resource\Shader\shader_program.cpp.obj: CXX_COMPILER__main_exec_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\code\Resource\Shader\shader_program.cpp || cmake_object_order_depends_target_main_exec
-  CONFIG = Debug
-  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd -Wno-nonportable-include-path -Wno-pragma-pack -Wno-ignored-pragma-intrinsic -Wno-ignored-attributes
-  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn -IC:\Users\16620\Desktop\projects\OpenglLearn\code
-  OBJECT_DIR = CMakeFiles\main_exec.dir
-  OBJECT_FILE_DIR = CMakeFiles\main_exec.dir\code\Resource\Shader
-  TARGET_COMPILE_PDB = CMakeFiles\main_exec.dir\
-  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.pdb
-
-build CMakeFiles\main_exec.dir\code\Resource\Shader\shader_program_factory.cpp.obj: CXX_COMPILER__main_exec_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\code\Resource\Shader\shader_program_factory.cpp || cmake_object_order_depends_target_main_exec
-  CONFIG = Debug
-  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd -Wno-nonportable-include-path -Wno-pragma-pack -Wno-ignored-pragma-intrinsic -Wno-ignored-attributes
-  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn -IC:\Users\16620\Desktop\projects\OpenglLearn\code
-  OBJECT_DIR = CMakeFiles\main_exec.dir
-  OBJECT_FILE_DIR = CMakeFiles\main_exec.dir\code\Resource\Shader
-  TARGET_COMPILE_PDB = CMakeFiles\main_exec.dir\
-  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.pdb
-
-build CMakeFiles\main_exec.dir\code\Resource\Model\mesh.cpp.obj: CXX_COMPILER__main_exec_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\code\Resource\Model\mesh.cpp || cmake_object_order_depends_target_main_exec
-  CONFIG = Debug
-  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd -Wno-nonportable-include-path -Wno-pragma-pack -Wno-ignored-pragma-intrinsic -Wno-ignored-attributes
-  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn -IC:\Users\16620\Desktop\projects\OpenglLearn\code
-  OBJECT_DIR = CMakeFiles\main_exec.dir
-  OBJECT_FILE_DIR = CMakeFiles\main_exec.dir\code\Resource\Model
-  TARGET_COMPILE_PDB = CMakeFiles\main_exec.dir\
-  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.pdb
-
-build CMakeFiles\main_exec.dir\code\Resource\Model\model.cpp.obj: CXX_COMPILER__main_exec_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\code\Resource\Model\model.cpp || cmake_object_order_depends_target_main_exec
-  CONFIG = Debug
-  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd -Wno-nonportable-include-path -Wno-pragma-pack -Wno-ignored-pragma-intrinsic -Wno-ignored-attributes
-  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn -IC:\Users\16620\Desktop\projects\OpenglLearn\code
-  OBJECT_DIR = CMakeFiles\main_exec.dir
-  OBJECT_FILE_DIR = CMakeFiles\main_exec.dir\code\Resource\Model
-  TARGET_COMPILE_PDB = CMakeFiles\main_exec.dir\
-  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.pdb
-
-build CMakeFiles\main_exec.dir\code\ToolAndAlgorithm\Hash\md5.cpp.obj: CXX_COMPILER__main_exec_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\code\ToolAndAlgorithm\Hash\md5.cpp || cmake_object_order_depends_target_main_exec
-  CONFIG = Debug
-  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd -Wno-nonportable-include-path -Wno-pragma-pack -Wno-ignored-pragma-intrinsic -Wno-ignored-attributes
-  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn -IC:\Users\16620\Desktop\projects\OpenglLearn\code
-  OBJECT_DIR = CMakeFiles\main_exec.dir
-  OBJECT_FILE_DIR = CMakeFiles\main_exec.dir\code\ToolAndAlgorithm\Hash
-  TARGET_COMPILE_PDB = CMakeFiles\main_exec.dir\
-  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.pdb
-
-build CMakeFiles\main_exec.dir\code\Resource\Material\material.cpp.obj: CXX_COMPILER__main_exec_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\code\Resource\Material\material.cpp || cmake_object_order_depends_target_main_exec
-  CONFIG = Debug
-  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd -Wno-nonportable-include-path -Wno-pragma-pack -Wno-ignored-pragma-intrinsic -Wno-ignored-attributes
-  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn -IC:\Users\16620\Desktop\projects\OpenglLearn\code
-  OBJECT_DIR = CMakeFiles\main_exec.dir
-  OBJECT_FILE_DIR = CMakeFiles\main_exec.dir\code\Resource\Material
-  TARGET_COMPILE_PDB = CMakeFiles\main_exec.dir\
-  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.pdb
-
-build CMakeFiles\main_exec.dir\code\Application\application.cpp.obj: CXX_COMPILER__main_exec_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\code\Application\application.cpp || cmake_object_order_depends_target_main_exec
-  CONFIG = Debug
-  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd -Wno-nonportable-include-path -Wno-pragma-pack -Wno-ignored-pragma-intrinsic -Wno-ignored-attributes
-  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn -IC:\Users\16620\Desktop\projects\OpenglLearn\code
-  OBJECT_DIR = CMakeFiles\main_exec.dir
-  OBJECT_FILE_DIR = CMakeFiles\main_exec.dir\code\Application
-  TARGET_COMPILE_PDB = CMakeFiles\main_exec.dir\
-  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.pdb
-
-build CMakeFiles\main_exec.dir\code\Scene\scene.cpp.obj: CXX_COMPILER__main_exec_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\code\Scene\scene.cpp || cmake_object_order_depends_target_main_exec
-  CONFIG = Debug
-  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd -Wno-nonportable-include-path -Wno-pragma-pack -Wno-ignored-pragma-intrinsic -Wno-ignored-attributes
-  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn -IC:\Users\16620\Desktop\projects\OpenglLearn\code
-  OBJECT_DIR = CMakeFiles\main_exec.dir
-  OBJECT_FILE_DIR = CMakeFiles\main_exec.dir\code\Scene
-  TARGET_COMPILE_PDB = CMakeFiles\main_exec.dir\
-  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.pdb
-
-build CMakeFiles\main_exec.dir\code\ECS\System\SceneTree\scene_tree.cpp.obj: CXX_COMPILER__main_exec_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\code\ECS\System\SceneTree\scene_tree.cpp || cmake_object_order_depends_target_main_exec
-  CONFIG = Debug
-  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd -Wno-nonportable-include-path -Wno-pragma-pack -Wno-ignored-pragma-intrinsic -Wno-ignored-attributes
-  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn -IC:\Users\16620\Desktop\projects\OpenglLearn\code
-  OBJECT_DIR = CMakeFiles\main_exec.dir
-  OBJECT_FILE_DIR = CMakeFiles\main_exec.dir\code\ECS\System\SceneTree
-  TARGET_COMPILE_PDB = CMakeFiles\main_exec.dir\
-  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.pdb
-
-build CMakeFiles\main_exec.dir\code\ECS\System\Script\script_system.cpp.obj: CXX_COMPILER__main_exec_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\code\ECS\System\Script\script_system.cpp || cmake_object_order_depends_target_main_exec
-  CONFIG = Debug
-  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd -Wno-nonportable-include-path -Wno-pragma-pack -Wno-ignored-pragma-intrinsic -Wno-ignored-attributes
-  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn -IC:\Users\16620\Desktop\projects\OpenglLearn\code
-  OBJECT_DIR = CMakeFiles\main_exec.dir
-  OBJECT_FILE_DIR = CMakeFiles\main_exec.dir\code\ECS\System\Script
-  TARGET_COMPILE_PDB = CMakeFiles\main_exec.dir\
-  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.pdb
-
-build CMakeFiles\main_exec.dir\code\CodeMomeryInsert\memory_insert.cpp.obj: CXX_COMPILER__main_exec_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\code\CodeMomeryInsert\memory_insert.cpp || cmake_object_order_depends_target_main_exec
-  CONFIG = Debug
-  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd -Wno-nonportable-include-path -Wno-pragma-pack -Wno-ignored-pragma-intrinsic -Wno-ignored-attributes
-  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn -IC:\Users\16620\Desktop\projects\OpenglLearn\code
-  OBJECT_DIR = CMakeFiles\main_exec.dir
-  OBJECT_FILE_DIR = CMakeFiles\main_exec.dir\code\CodeMomeryInsert
-  TARGET_COMPILE_PDB = CMakeFiles\main_exec.dir\
-  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.pdb
-
-build CMakeFiles\main_exec.dir\apprun.cpp.obj: CXX_COMPILER__main_exec_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\apprun.cpp || cmake_object_order_depends_target_main_exec
-  CONFIG = Debug
-  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd -Wno-nonportable-include-path -Wno-pragma-pack -Wno-ignored-pragma-intrinsic -Wno-ignored-attributes
-  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn -IC:\Users\16620\Desktop\projects\OpenglLearn\code
-  OBJECT_DIR = CMakeFiles\main_exec.dir
-  OBJECT_FILE_DIR = CMakeFiles\main_exec.dir
-  TARGET_COMPILE_PDB = CMakeFiles\main_exec.dir\
-  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.pdb
-
-
-# =============================================================================
-# Link build statements for EXECUTABLE target main_exec
-
-
-#############################################
-# Link the executable C:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.exe
-
-build C$:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.exe: CXX_EXECUTABLE_LINKER__main_exec_Debug CMakeFiles\main_exec.dir\include\stb_image.cpp.obj CMakeFiles\main_exec.dir\code\Resource\Texture\texture.cpp.obj CMakeFiles\main_exec.dir\code\Resource\Shader\shader.cpp.obj CMakeFiles\main_exec.dir\code\Resource\Shader\shader_factory.cpp.obj CMakeFiles\main_exec.dir\code\Resource\Shader\shader_manager.cpp.obj CMakeFiles\main_exec.dir\code\Resource\Shader\shader_program.cpp.obj CMakeFiles\main_exec.dir\code\Resource\Shader\shader_program_factory.cpp.obj CMakeFiles\main_exec.dir\code\Resource\Model\mesh.cpp.obj CMakeFiles\main_exec.dir\code\Resource\Model\model.cpp.obj CMakeFiles\main_exec.dir\code\ToolAndAlgorithm\Hash\md5.cpp.obj CMakeFiles\main_exec.dir\code\Resource\Material\material.cpp.obj CMakeFiles\main_exec.dir\code\Application\application.cpp.obj CMakeFiles\main_exec.dir\code\Scene\scene.cpp.obj CMakeFiles\main_exec.dir\code\ECS\System\SceneTree\scene_tree.cpp.obj CMakeFiles\main_exec.dir\code\ECS\System\Script\script_system.cpp.obj CMakeFiles\main_exec.dir\code\CodeMomeryInsert\memory_insert.cpp.obj CMakeFiles\main_exec.dir\apprun.cpp.obj
-  CONFIG = Debug
-  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -MDd
-  LINK_FLAGS = /machine:x64 /debug /INCREMENTAL /subsystem:console
-  LINK_LIBRARIES = assimp-vc143-mtd.lib  glad.lib  jsonloader.lib  glfw3.lib  kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib
-  LINK_PATH = -LIBPATH:C:\Users\16620\Desktop\projects\OpenglLearn\lib\debug
-  OBJECT_DIR = CMakeFiles\main_exec.dir
-  POST_BUILD = cd .
-  PRE_LINK = cd .
-  TARGET_COMPILE_PDB = CMakeFiles\main_exec.dir\
-  TARGET_FILE = C:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.exe
-  TARGET_IMPLIB = C:\Users\16620\Desktop\projects\OpenglLearn\lib\main_exec.lib
-  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.pdb
-
-# =============================================================================
-# Object build statements for MODULE_LIBRARY target script
-
-
-#############################################
-# Order-only phony target for script
-
-build cmake_object_order_depends_target_script: phony || gen_script_blueprints
-
-build CMakeFiles\script.dir\script_program.cpp.obj: CXX_COMPILER__script_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\script_program.cpp || cmake_object_order_depends_target_script
-  CONFIG = Debug
-  DEFINES = -Dscript_EXPORTS
-  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd
-  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn -IC:\Users\16620\Desktop\projects\OpenglLearn\code
-  OBJECT_DIR = CMakeFiles\script.dir
-  OBJECT_FILE_DIR = CMakeFiles\script.dir
-  TARGET_COMPILE_PDB = CMakeFiles\script.dir\
-  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\bin\script.pdb
-
-build CMakeFiles\script.dir\code\Resource\Scripts\XuanZhuan.cpp.obj: CXX_COMPILER__script_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\code\Resource\Scripts\XuanZhuan.cpp || cmake_object_order_depends_target_script
-  CONFIG = Debug
-  DEFINES = -Dscript_EXPORTS
-  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd
-  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn -IC:\Users\16620\Desktop\projects\OpenglLearn\code
-  OBJECT_DIR = CMakeFiles\script.dir
-  OBJECT_FILE_DIR = CMakeFiles\script.dir\code\Resource\Scripts
-  TARGET_COMPILE_PDB = CMakeFiles\script.dir\
-  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\bin\script.pdb
-
-build CMakeFiles\script.dir\code\Resource\Scripts\XianShi.cpp.obj: CXX_COMPILER__script_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\code\Resource\Scripts\XianShi.cpp || cmake_object_order_depends_target_script
-  CONFIG = Debug
-  DEFINES = -Dscript_EXPORTS
-  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd
-  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn -IC:\Users\16620\Desktop\projects\OpenglLearn\code
-  OBJECT_DIR = CMakeFiles\script.dir
-  OBJECT_FILE_DIR = CMakeFiles\script.dir\code\Resource\Scripts
-  TARGET_COMPILE_PDB = CMakeFiles\script.dir\
-  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\bin\script.pdb
-
-
-# =============================================================================
-# Link build statements for MODULE_LIBRARY target script
-
-
-#############################################
-# Link the shared module C:\Users\16620\Desktop\projects\OpenglLearn\bin\script.dll
-
-build C$:\Users\16620\Desktop\projects\OpenglLearn\bin\script.dll: CXX_MODULE_LIBRARY_LINKER__script_Debug CMakeFiles\script.dir\script_program.cpp.obj CMakeFiles\script.dir\code\Resource\Scripts\XuanZhuan.cpp.obj CMakeFiles\script.dir\code\Resource\Scripts\XianShi.cpp.obj || gen_script_blueprints
-  CONFIG = Debug
-  LANGUAGE_COMPILE_FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -MDd
-  LINK_FLAGS = /machine:x64 /debug /INCREMENTAL
-  LINK_LIBRARIES = kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib
-  LINK_PATH = -LIBPATH:C:\Users\16620\Desktop\projects\OpenglLearn\lib\debug
-  OBJECT_DIR = CMakeFiles\script.dir
-  POST_BUILD = cd .
-  PRE_LINK = cd .
-  TARGET_COMPILE_PDB = CMakeFiles\script.dir\
-  TARGET_FILE = C:\Users\16620\Desktop\projects\OpenglLearn\bin\script.dll
-  TARGET_IMPLIB = C:\Users\16620\Desktop\projects\OpenglLearn\lib\script.lib
-  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\bin\script.pdb
-
-
-#############################################
-# Utility command for gen_script_blueprints
-
-build gen_script_blueprints: phony CMakeFiles\gen_script_blueprints C$:\Users\16620\Desktop\projects\OpenglLearn\bin\Scripts\BluePrint\XianShi.json C$:\Users\16620\Desktop\projects\OpenglLearn\bin\Scripts\BluePrint\XuanZhuan.json
-
 
 #############################################
 # Utility command for edit_cache
@@ -315,18 +64,440 @@ build CMakeFiles\rebuild_cache.util: CUSTOM_COMMAND
 
 build rebuild_cache: phony CMakeFiles\rebuild_cache.util
 
+# =============================================================================
+# Write statements declared in CMakeLists.txt:
+# C:/Users/16620/Desktop/projects/OpenglLearn/CMakeLists.txt
+# =============================================================================
+
 
 #############################################
-# Phony custom command for CMakeFiles\gen_script_blueprints
+# Utility command for edit_cache
 
-build CMakeFiles\gen_script_blueprints | ${cmake_ninja_workdir}CMakeFiles\gen_script_blueprints: phony C$:\Users\16620\Desktop\projects\OpenglLearn\bin\Scripts\BluePrint\XuanZhuan.json C$:\Users\16620\Desktop\projects\OpenglLearn\bin\Scripts\BluePrint\XianShi.json
+build Engine\CMakeFiles\edit_cache.util: CUSTOM_COMMAND
+  COMMAND = C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Users\16620\Desktop\projects\OpenglLearn\build\Engine && "C:\Program Files\CMake\bin\cmake-gui.exe" -SC:\Users\16620\Desktop\projects\OpenglLearn -BC:\Users\16620\Desktop\projects\OpenglLearn\build"
+  DESC = Running CMake cache editor...
+  pool = console
+  restat = 1
+
+build Engine\edit_cache: phony Engine\CMakeFiles\edit_cache.util
+
+
+#############################################
+# Utility command for rebuild_cache
+
+build Engine\CMakeFiles\rebuild_cache.util: CUSTOM_COMMAND
+  COMMAND = C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Users\16620\Desktop\projects\OpenglLearn\build\Engine && "C:\Program Files\CMake\bin\cmake.exe" --regenerate-during-build -SC:\Users\16620\Desktop\projects\OpenglLearn -BC:\Users\16620\Desktop\projects\OpenglLearn\build"
+  DESC = Running CMake to regenerate build system...
+  pool = console
+  restat = 1
+
+build Engine\rebuild_cache: phony Engine\CMakeFiles\rebuild_cache.util
+
+# =============================================================================
+# Write statements declared in CMakeLists.txt:
+# C:/Users/16620/Desktop/projects/OpenglLearn/Engine/CMakeLists.txt
+# =============================================================================
+
+# =============================================================================
+# Object build statements for STATIC_LIBRARY target script_program
+
+
+#############################################
+# Order-only phony target for script_program
+
+build cmake_object_order_depends_target_script_program: phony || .
+
+build Engine\src\plugin\CMakeFiles\script_program.dir\script_program.cpp.obj: CXX_COMPILER__script_program_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\Engine\src\plugin\script_program.cpp || cmake_object_order_depends_target_script_program
+  CONFIG = Debug
+  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd -Wno-nonportable-include-path -Wno-pragma-pack -Wno-ignored-pragma-intrinsic -Wno-ignored-attributes
+  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn\Engine\include
+  OBJECT_DIR = Engine\src\plugin\CMakeFiles\script_program.dir
+  OBJECT_FILE_DIR = Engine\src\plugin\CMakeFiles\script_program.dir
+  TARGET_COMPILE_PDB = Engine\src\plugin\CMakeFiles\script_program.dir\script_program.pdb
+  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine_script_manager.pdb
+
+
+# =============================================================================
+# Link build statements for STATIC_LIBRARY target script_program
+
+
+#############################################
+# Link the static library C:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine_script_manager.lib
+
+build C$:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine_script_manager.lib: CXX_STATIC_LIBRARY_LINKER__script_program_Debug Engine\src\plugin\CMakeFiles\script_program.dir\script_program.cpp.obj
+  CONFIG = Debug
+  LANGUAGE_COMPILE_FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -MDd
+  LINK_FLAGS = /machine:x64
+  OBJECT_DIR = Engine\src\plugin\CMakeFiles\script_program.dir
+  POST_BUILD = cd .
+  PRE_LINK = cd .
+  TARGET_COMPILE_PDB = Engine\src\plugin\CMakeFiles\script_program.dir\script_program.pdb
+  TARGET_FILE = C:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine_script_manager.lib
+  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine_script_manager.pdb
+
+
+#############################################
+# Utility command for edit_cache
+
+build Engine\src\plugin\CMakeFiles\edit_cache.util: CUSTOM_COMMAND
+  COMMAND = C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Users\16620\Desktop\projects\OpenglLearn\build\Engine\src\plugin && "C:\Program Files\CMake\bin\cmake-gui.exe" -SC:\Users\16620\Desktop\projects\OpenglLearn -BC:\Users\16620\Desktop\projects\OpenglLearn\build"
+  DESC = Running CMake cache editor...
+  pool = console
+  restat = 1
+
+build Engine\src\plugin\edit_cache: phony Engine\src\plugin\CMakeFiles\edit_cache.util
+
+
+#############################################
+# Utility command for rebuild_cache
+
+build Engine\src\plugin\CMakeFiles\rebuild_cache.util: CUSTOM_COMMAND
+  COMMAND = C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Users\16620\Desktop\projects\OpenglLearn\build\Engine\src\plugin && "C:\Program Files\CMake\bin\cmake.exe" --regenerate-during-build -SC:\Users\16620\Desktop\projects\OpenglLearn -BC:\Users\16620\Desktop\projects\OpenglLearn\build"
+  DESC = Running CMake to regenerate build system...
+  pool = console
+  restat = 1
+
+build Engine\src\plugin\rebuild_cache: phony Engine\src\plugin\CMakeFiles\rebuild_cache.util
+
+# =============================================================================
+# Write statements declared in CMakeLists.txt:
+# C:/Users/16620/Desktop/projects/OpenglLearn/Engine/CMakeLists.txt
+# =============================================================================
+
+# =============================================================================
+# Object build statements for STATIC_LIBRARY target engine
+
+
+#############################################
+# Order-only phony target for engine
+
+build cmake_object_order_depends_target_engine: phony || .
+
+build Engine\src\engine\CMakeFiles\engine.dir\StdImage\stb_image.cpp.obj: CXX_COMPILER__engine_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\Engine\src\engine\StdImage\stb_image.cpp || cmake_object_order_depends_target_engine
+  CONFIG = Debug
+  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd
+  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn\Engine\include
+  OBJECT_DIR = Engine\src\engine\CMakeFiles\engine.dir
+  OBJECT_FILE_DIR = Engine\src\engine\CMakeFiles\engine.dir\StdImage
+  TARGET_COMPILE_PDB = Engine\src\engine\CMakeFiles\engine.dir\engine.pdb
+  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine.pdb
+
+build Engine\src\engine\CMakeFiles\engine.dir\Resource\Texture\texture.cpp.obj: CXX_COMPILER__engine_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\Engine\src\engine\Resource\Texture\texture.cpp || cmake_object_order_depends_target_engine
+  CONFIG = Debug
+  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd
+  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn\Engine\include
+  OBJECT_DIR = Engine\src\engine\CMakeFiles\engine.dir
+  OBJECT_FILE_DIR = Engine\src\engine\CMakeFiles\engine.dir\Resource\Texture
+  TARGET_COMPILE_PDB = Engine\src\engine\CMakeFiles\engine.dir\engine.pdb
+  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine.pdb
+
+build Engine\src\engine\CMakeFiles\engine.dir\Resource\Shader\shader.cpp.obj: CXX_COMPILER__engine_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\Engine\src\engine\Resource\Shader\shader.cpp || cmake_object_order_depends_target_engine
+  CONFIG = Debug
+  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd
+  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn\Engine\include
+  OBJECT_DIR = Engine\src\engine\CMakeFiles\engine.dir
+  OBJECT_FILE_DIR = Engine\src\engine\CMakeFiles\engine.dir\Resource\Shader
+  TARGET_COMPILE_PDB = Engine\src\engine\CMakeFiles\engine.dir\engine.pdb
+  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine.pdb
+
+build Engine\src\engine\CMakeFiles\engine.dir\Resource\Shader\shader_factory.cpp.obj: CXX_COMPILER__engine_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\Engine\src\engine\Resource\Shader\shader_factory.cpp || cmake_object_order_depends_target_engine
+  CONFIG = Debug
+  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd
+  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn\Engine\include
+  OBJECT_DIR = Engine\src\engine\CMakeFiles\engine.dir
+  OBJECT_FILE_DIR = Engine\src\engine\CMakeFiles\engine.dir\Resource\Shader
+  TARGET_COMPILE_PDB = Engine\src\engine\CMakeFiles\engine.dir\engine.pdb
+  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine.pdb
+
+build Engine\src\engine\CMakeFiles\engine.dir\Resource\Shader\shader_manager.cpp.obj: CXX_COMPILER__engine_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\Engine\src\engine\Resource\Shader\shader_manager.cpp || cmake_object_order_depends_target_engine
+  CONFIG = Debug
+  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd
+  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn\Engine\include
+  OBJECT_DIR = Engine\src\engine\CMakeFiles\engine.dir
+  OBJECT_FILE_DIR = Engine\src\engine\CMakeFiles\engine.dir\Resource\Shader
+  TARGET_COMPILE_PDB = Engine\src\engine\CMakeFiles\engine.dir\engine.pdb
+  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine.pdb
+
+build Engine\src\engine\CMakeFiles\engine.dir\Resource\Shader\shader_program.cpp.obj: CXX_COMPILER__engine_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\Engine\src\engine\Resource\Shader\shader_program.cpp || cmake_object_order_depends_target_engine
+  CONFIG = Debug
+  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd
+  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn\Engine\include
+  OBJECT_DIR = Engine\src\engine\CMakeFiles\engine.dir
+  OBJECT_FILE_DIR = Engine\src\engine\CMakeFiles\engine.dir\Resource\Shader
+  TARGET_COMPILE_PDB = Engine\src\engine\CMakeFiles\engine.dir\engine.pdb
+  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine.pdb
+
+build Engine\src\engine\CMakeFiles\engine.dir\Resource\Shader\shader_program_factory.cpp.obj: CXX_COMPILER__engine_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\Engine\src\engine\Resource\Shader\shader_program_factory.cpp || cmake_object_order_depends_target_engine
+  CONFIG = Debug
+  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd
+  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn\Engine\include
+  OBJECT_DIR = Engine\src\engine\CMakeFiles\engine.dir
+  OBJECT_FILE_DIR = Engine\src\engine\CMakeFiles\engine.dir\Resource\Shader
+  TARGET_COMPILE_PDB = Engine\src\engine\CMakeFiles\engine.dir\engine.pdb
+  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine.pdb
+
+build Engine\src\engine\CMakeFiles\engine.dir\Resource\Model\mesh.cpp.obj: CXX_COMPILER__engine_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\Engine\src\engine\Resource\Model\mesh.cpp || cmake_object_order_depends_target_engine
+  CONFIG = Debug
+  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd
+  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn\Engine\include
+  OBJECT_DIR = Engine\src\engine\CMakeFiles\engine.dir
+  OBJECT_FILE_DIR = Engine\src\engine\CMakeFiles\engine.dir\Resource\Model
+  TARGET_COMPILE_PDB = Engine\src\engine\CMakeFiles\engine.dir\engine.pdb
+  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine.pdb
+
+build Engine\src\engine\CMakeFiles\engine.dir\Resource\Model\model.cpp.obj: CXX_COMPILER__engine_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\Engine\src\engine\Resource\Model\model.cpp || cmake_object_order_depends_target_engine
+  CONFIG = Debug
+  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd
+  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn\Engine\include
+  OBJECT_DIR = Engine\src\engine\CMakeFiles\engine.dir
+  OBJECT_FILE_DIR = Engine\src\engine\CMakeFiles\engine.dir\Resource\Model
+  TARGET_COMPILE_PDB = Engine\src\engine\CMakeFiles\engine.dir\engine.pdb
+  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine.pdb
+
+build Engine\src\engine\CMakeFiles\engine.dir\ToolAndAlgorithm\Hash\md5.cpp.obj: CXX_COMPILER__engine_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\Engine\src\engine\ToolAndAlgorithm\Hash\md5.cpp || cmake_object_order_depends_target_engine
+  CONFIG = Debug
+  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd
+  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn\Engine\include
+  OBJECT_DIR = Engine\src\engine\CMakeFiles\engine.dir
+  OBJECT_FILE_DIR = Engine\src\engine\CMakeFiles\engine.dir\ToolAndAlgorithm\Hash
+  TARGET_COMPILE_PDB = Engine\src\engine\CMakeFiles\engine.dir\engine.pdb
+  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine.pdb
+
+build Engine\src\engine\CMakeFiles\engine.dir\Resource\Material\material.cpp.obj: CXX_COMPILER__engine_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\Engine\src\engine\Resource\Material\material.cpp || cmake_object_order_depends_target_engine
+  CONFIG = Debug
+  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd
+  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn\Engine\include
+  OBJECT_DIR = Engine\src\engine\CMakeFiles\engine.dir
+  OBJECT_FILE_DIR = Engine\src\engine\CMakeFiles\engine.dir\Resource\Material
+  TARGET_COMPILE_PDB = Engine\src\engine\CMakeFiles\engine.dir\engine.pdb
+  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine.pdb
+
+build Engine\src\engine\CMakeFiles\engine.dir\Scene\scene.cpp.obj: CXX_COMPILER__engine_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\Engine\src\engine\Scene\scene.cpp || cmake_object_order_depends_target_engine
+  CONFIG = Debug
+  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd
+  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn\Engine\include
+  OBJECT_DIR = Engine\src\engine\CMakeFiles\engine.dir
+  OBJECT_FILE_DIR = Engine\src\engine\CMakeFiles\engine.dir\Scene
+  TARGET_COMPILE_PDB = Engine\src\engine\CMakeFiles\engine.dir\engine.pdb
+  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine.pdb
+
+build Engine\src\engine\CMakeFiles\engine.dir\ECS\System\SceneTree\scene_tree.cpp.obj: CXX_COMPILER__engine_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\Engine\src\engine\ECS\System\SceneTree\scene_tree.cpp || cmake_object_order_depends_target_engine
+  CONFIG = Debug
+  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd
+  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn\Engine\include
+  OBJECT_DIR = Engine\src\engine\CMakeFiles\engine.dir
+  OBJECT_FILE_DIR = Engine\src\engine\CMakeFiles\engine.dir\ECS\System\SceneTree
+  TARGET_COMPILE_PDB = Engine\src\engine\CMakeFiles\engine.dir\engine.pdb
+  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine.pdb
+
+build Engine\src\engine\CMakeFiles\engine.dir\CodeMomeryInsert\memory_insert.cpp.obj: CXX_COMPILER__engine_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\Engine\src\engine\CodeMomeryInsert\memory_insert.cpp || cmake_object_order_depends_target_engine
+  CONFIG = Debug
+  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd
+  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn\Engine\include
+  OBJECT_DIR = Engine\src\engine\CMakeFiles\engine.dir
+  OBJECT_FILE_DIR = Engine\src\engine\CMakeFiles\engine.dir\CodeMomeryInsert
+  TARGET_COMPILE_PDB = Engine\src\engine\CMakeFiles\engine.dir\engine.pdb
+  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine.pdb
+
+build Engine\src\engine\CMakeFiles\engine.dir\ECS\System\Script\script_system.cpp.obj: CXX_COMPILER__engine_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\Engine\src\engine\ECS\System\Script\script_system.cpp || cmake_object_order_depends_target_engine
+  CONFIG = Debug
+  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd
+  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn\Engine\include
+  OBJECT_DIR = Engine\src\engine\CMakeFiles\engine.dir
+  OBJECT_FILE_DIR = Engine\src\engine\CMakeFiles\engine.dir\ECS\System\Script
+  TARGET_COMPILE_PDB = Engine\src\engine\CMakeFiles\engine.dir\engine.pdb
+  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine.pdb
+
+
+# =============================================================================
+# Link build statements for STATIC_LIBRARY target engine
+
+
+#############################################
+# Link the static library C:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine.lib
+
+build C$:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine.lib: CXX_STATIC_LIBRARY_LINKER__engine_Debug Engine\src\engine\CMakeFiles\engine.dir\StdImage\stb_image.cpp.obj Engine\src\engine\CMakeFiles\engine.dir\Resource\Texture\texture.cpp.obj Engine\src\engine\CMakeFiles\engine.dir\Resource\Shader\shader.cpp.obj Engine\src\engine\CMakeFiles\engine.dir\Resource\Shader\shader_factory.cpp.obj Engine\src\engine\CMakeFiles\engine.dir\Resource\Shader\shader_manager.cpp.obj Engine\src\engine\CMakeFiles\engine.dir\Resource\Shader\shader_program.cpp.obj Engine\src\engine\CMakeFiles\engine.dir\Resource\Shader\shader_program_factory.cpp.obj Engine\src\engine\CMakeFiles\engine.dir\Resource\Model\mesh.cpp.obj Engine\src\engine\CMakeFiles\engine.dir\Resource\Model\model.cpp.obj Engine\src\engine\CMakeFiles\engine.dir\ToolAndAlgorithm\Hash\md5.cpp.obj Engine\src\engine\CMakeFiles\engine.dir\Resource\Material\material.cpp.obj Engine\src\engine\CMakeFiles\engine.dir\Scene\scene.cpp.obj Engine\src\engine\CMakeFiles\engine.dir\ECS\System\SceneTree\scene_tree.cpp.obj Engine\src\engine\CMakeFiles\engine.dir\CodeMomeryInsert\memory_insert.cpp.obj Engine\src\engine\CMakeFiles\engine.dir\ECS\System\Script\script_system.cpp.obj
+  CONFIG = Debug
+  LANGUAGE_COMPILE_FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -MDd
+  LINK_FLAGS = /machine:x64
+  OBJECT_DIR = Engine\src\engine\CMakeFiles\engine.dir
+  POST_BUILD = cd .
+  PRE_LINK = cd .
+  TARGET_COMPILE_PDB = Engine\src\engine\CMakeFiles\engine.dir\engine.pdb
+  TARGET_FILE = C:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine.lib
+  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine.pdb
+
+
+#############################################
+# Utility command for edit_cache
+
+build Engine\src\engine\CMakeFiles\edit_cache.util: CUSTOM_COMMAND
+  COMMAND = C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Users\16620\Desktop\projects\OpenglLearn\build\Engine\src\engine && "C:\Program Files\CMake\bin\cmake-gui.exe" -SC:\Users\16620\Desktop\projects\OpenglLearn -BC:\Users\16620\Desktop\projects\OpenglLearn\build"
+  DESC = Running CMake cache editor...
+  pool = console
+  restat = 1
+
+build Engine\src\engine\edit_cache: phony Engine\src\engine\CMakeFiles\edit_cache.util
+
+
+#############################################
+# Utility command for rebuild_cache
+
+build Engine\src\engine\CMakeFiles\rebuild_cache.util: CUSTOM_COMMAND
+  COMMAND = C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Users\16620\Desktop\projects\OpenglLearn\build\Engine\src\engine && "C:\Program Files\CMake\bin\cmake.exe" --regenerate-during-build -SC:\Users\16620\Desktop\projects\OpenglLearn -BC:\Users\16620\Desktop\projects\OpenglLearn\build"
+  DESC = Running CMake to regenerate build system...
+  pool = console
+  restat = 1
+
+build Engine\src\engine\rebuild_cache: phony Engine\src\engine\CMakeFiles\rebuild_cache.util
+
+# =============================================================================
+# Write statements declared in CMakeLists.txt:
+# C:/Users/16620/Desktop/projects/OpenglLearn/CMakeLists.txt
+# =============================================================================
+
+# =============================================================================
+# Object build statements for EXECUTABLE target main_exec
+
+
+#############################################
+# Order-only phony target for main_exec
+
+build cmake_object_order_depends_target_main_exec: phony || cmake_object_order_depends_target_engine
+
+build Application\CMakeFiles\main_exec.dir\application.cpp.obj: CXX_COMPILER__main_exec_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\Application\application.cpp || cmake_object_order_depends_target_main_exec
+  CONFIG = Debug
+  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd -Wno-nonportable-include-path -Wno-pragma-pack -Wno-ignored-pragma-intrinsic -Wno-ignored-attributes
+  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn\Engine\include
+  OBJECT_DIR = Application\CMakeFiles\main_exec.dir
+  OBJECT_FILE_DIR = Application\CMakeFiles\main_exec.dir
+  TARGET_COMPILE_PDB = Application\CMakeFiles\main_exec.dir\
+  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.pdb
+
+build Application\CMakeFiles\main_exec.dir\main.cpp.obj: CXX_COMPILER__main_exec_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\Application\main.cpp || cmake_object_order_depends_target_main_exec
+  CONFIG = Debug
+  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd -Wno-nonportable-include-path -Wno-pragma-pack -Wno-ignored-pragma-intrinsic -Wno-ignored-attributes
+  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn\Engine\include
+  OBJECT_DIR = Application\CMakeFiles\main_exec.dir
+  OBJECT_FILE_DIR = Application\CMakeFiles\main_exec.dir
+  TARGET_COMPILE_PDB = Application\CMakeFiles\main_exec.dir\
+  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.pdb
+
+
+# =============================================================================
+# Link build statements for EXECUTABLE target main_exec
+
+
+#############################################
+# Link the executable C:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.exe
+
+build C$:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.exe: CXX_EXECUTABLE_LINKER__main_exec_Debug Application\CMakeFiles\main_exec.dir\application.cpp.obj Application\CMakeFiles\main_exec.dir\main.cpp.obj | C$:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine.lib || C$:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine.lib
+  CONFIG = Debug
+  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -MDd
+  LINK_FLAGS = /machine:x64 /debug /INCREMENTAL /subsystem:console
+  LINK_LIBRARIES = assimp-vc143-mtd.lib  glad.lib  jsonloader.lib  glfw3.lib  C:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine.lib  kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib
+  LINK_PATH = -LIBPATH:C:\Users\16620\Desktop\projects\OpenglLearn\lib\debug
+  OBJECT_DIR = Application\CMakeFiles\main_exec.dir
+  POST_BUILD = cd .
+  PRE_LINK = cd .
+  TARGET_COMPILE_PDB = Application\CMakeFiles\main_exec.dir\
+  TARGET_FILE = C:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.exe
+  TARGET_IMPLIB = C:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\main_exec.lib
+  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.pdb
+
+# =============================================================================
+# Object build statements for MODULE_LIBRARY target script
+
+
+#############################################
+# Order-only phony target for script
+
+build cmake_object_order_depends_target_script: phony || Application\gen_script_blueprints
+
+build Application\CMakeFiles\script.dir\__\Asset\Scripts\XuanZhuan.cpp.obj: CXX_COMPILER__script_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\Asset\Scripts\XuanZhuan.cpp || cmake_object_order_depends_target_script
+  CONFIG = Debug
+  DEFINES = -Dscript_EXPORTS
+  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd
+  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn\Engine\include
+  OBJECT_DIR = Application\CMakeFiles\script.dir
+  OBJECT_FILE_DIR = Application\CMakeFiles\script.dir\__\Asset\Scripts
+  TARGET_COMPILE_PDB = Application\CMakeFiles\script.dir\
+  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\bin\script.pdb
+
+build Application\CMakeFiles\script.dir\__\Asset\Scripts\XianShi.cpp.obj: CXX_COMPILER__script_unscanned_Debug C$:\Users\16620\Desktop\projects\OpenglLearn\Asset\Scripts\XianShi.cpp || cmake_object_order_depends_target_script
+  CONFIG = Debug
+  DEFINES = -Dscript_EXPORTS
+  FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++17 -MDd
+  INCLUDES = -IC:\Users\16620\Desktop\projects\OpenglLearn\include -IC:\Users\16620\Desktop\projects\OpenglLearn\Engine\include
+  OBJECT_DIR = Application\CMakeFiles\script.dir
+  OBJECT_FILE_DIR = Application\CMakeFiles\script.dir\__\Asset\Scripts
+  TARGET_COMPILE_PDB = Application\CMakeFiles\script.dir\
+  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\bin\script.pdb
+
+
+# =============================================================================
+# Link build statements for MODULE_LIBRARY target script
+
+
+#############################################
+# Link the shared module C:\Users\16620\Desktop\projects\OpenglLearn\bin\script.dll
+
+build C$:\Users\16620\Desktop\projects\OpenglLearn\bin\script.dll: CXX_MODULE_LIBRARY_LINKER__script_Debug Application\CMakeFiles\script.dir\__\Asset\Scripts\XuanZhuan.cpp.obj Application\CMakeFiles\script.dir\__\Asset\Scripts\XianShi.cpp.obj || Application\gen_script_blueprints
+  CONFIG = Debug
+  LANGUAGE_COMPILE_FLAGS = /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -MDd
+  LINK_FLAGS = /machine:x64 /debug /INCREMENTAL
+  LINK_LIBRARIES = engine_script_manager.lib  kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib
+  LINK_PATH = -LIBPATH:C:\Users\16620\Desktop\projects\OpenglLearn\lib\debug
+  OBJECT_DIR = Application\CMakeFiles\script.dir
+  POST_BUILD = cd .
+  PRE_LINK = cd .
+  TARGET_COMPILE_PDB = Application\CMakeFiles\script.dir\
+  TARGET_FILE = C:\Users\16620\Desktop\projects\OpenglLearn\bin\script.dll
+  TARGET_IMPLIB = C:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\script.lib
+  TARGET_PDB = C:\Users\16620\Desktop\projects\OpenglLearn\bin\script.pdb
+
+
+#############################################
+# Utility command for gen_script_blueprints
+
+build Application\gen_script_blueprints: phony Application\CMakeFiles\gen_script_blueprints C$:\Users\16620\Desktop\projects\OpenglLearn\bin\Scripts\BluePrint\XianShi.json C$:\Users\16620\Desktop\projects\OpenglLearn\bin\Scripts\BluePrint\XuanZhuan.json
+
+
+#############################################
+# Utility command for edit_cache
+
+build Application\CMakeFiles\edit_cache.util: CUSTOM_COMMAND
+  COMMAND = C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Users\16620\Desktop\projects\OpenglLearn\build\Application && "C:\Program Files\CMake\bin\cmake-gui.exe" -SC:\Users\16620\Desktop\projects\OpenglLearn -BC:\Users\16620\Desktop\projects\OpenglLearn\build"
+  DESC = Running CMake cache editor...
+  pool = console
+  restat = 1
+
+build Application\edit_cache: phony Application\CMakeFiles\edit_cache.util
+
+
+#############################################
+# Utility command for rebuild_cache
+
+build Application\CMakeFiles\rebuild_cache.util: CUSTOM_COMMAND
+  COMMAND = C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Users\16620\Desktop\projects\OpenglLearn\build\Application && "C:\Program Files\CMake\bin\cmake.exe" --regenerate-during-build -SC:\Users\16620\Desktop\projects\OpenglLearn -BC:\Users\16620\Desktop\projects\OpenglLearn\build"
+  DESC = Running CMake to regenerate build system...
+  pool = console
+  restat = 1
+
+build Application\rebuild_cache: phony Application\CMakeFiles\rebuild_cache.util
+
+
+#############################################
+# Phony custom command for Application\CMakeFiles\gen_script_blueprints
+
+build Application\CMakeFiles\gen_script_blueprints | ${cmake_ninja_workdir}Application\CMakeFiles\gen_script_blueprints: phony C$:\Users\16620\Desktop\projects\OpenglLearn\bin\Scripts\BluePrint\XuanZhuan.json C$:\Users\16620\Desktop\projects\OpenglLearn\bin\Scripts\BluePrint\XianShi.json
 
 
 #############################################
 # Custom command for C:\Users\16620\Desktop\projects\OpenglLearn\bin\Scripts\BluePrint\XianShi.json
 
-build C$:\Users\16620\Desktop\projects\OpenglLearn\bin\Scripts\BluePrint\XianShi.json: CUSTOM_COMMAND C$:\Users\16620\Desktop\projects\OpenglLearn\code\Resource\Scripts\XianShi.cpp C$:\Users\16620\Desktop\projects\OpenglLearn\code_analyst\only_derived.bat
-  COMMAND = C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Users\16620\Desktop\projects\OpenglLearn\build && "C:\Program Files\CMake\bin\cmake.exe" -E make_directory C:/Users/16620/Desktop/projects/OpenglLearn/bin/Scripts/BluePrint && "C:\Program Files\CMake\bin\cmake.exe" -E chdir C:/Users/16620/Desktop/projects/OpenglLearn cmd /c C:/Users/16620/Desktop/projects/OpenglLearn/code_analyst/only_derived.bat C:/Users/16620/Desktop/projects/OpenglLearn/code/Resource/Scripts/XianShi.cpp IScript C:/Users/16620/Desktop/projects/OpenglLearn/bin/Scripts/BluePrint/XianShi.json"
+build C$:\Users\16620\Desktop\projects\OpenglLearn\bin\Scripts\BluePrint\XianShi.json: CUSTOM_COMMAND C$:\Users\16620\Desktop\projects\OpenglLearn\Asset\Scripts\XianShi.cpp C$:\Users\16620\Desktop\projects\OpenglLearn\Engine\tools\code_analyst\only_derived.bat
+  COMMAND = C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Users\16620\Desktop\projects\OpenglLearn\build\Application && "C:\Program Files\CMake\bin\cmake.exe" -E make_directory C:/Users/16620/Desktop/projects/OpenglLearn/bin/Scripts/BluePrint && "C:\Program Files\CMake\bin\cmake.exe" -E chdir C:/Users/16620/Desktop/projects/OpenglLearn/Application cmd /c C:/Users/16620/Desktop/projects/OpenglLearn/Engine/tools/code_analyst/only_derived.bat C:/Users/16620/Desktop/projects/OpenglLearn/Asset/Scripts/XianShi.cpp IScript C:/Users/16620/Desktop/projects/OpenglLearn/bin/Scripts/BluePrint/XianShi.json"
   DESC = Generating blueprint: C:/Users/16620/Desktop/projects/OpenglLearn/bin/Scripts/BluePrint/XianShi.json
   restat = 1
 
@@ -334,13 +505,21 @@ build C$:\Users\16620\Desktop\projects\OpenglLearn\bin\Scripts\BluePrint\XianShi
 #############################################
 # Custom command for C:\Users\16620\Desktop\projects\OpenglLearn\bin\Scripts\BluePrint\XuanZhuan.json
 
-build C$:\Users\16620\Desktop\projects\OpenglLearn\bin\Scripts\BluePrint\XuanZhuan.json: CUSTOM_COMMAND C$:\Users\16620\Desktop\projects\OpenglLearn\code\Resource\Scripts\XuanZhuan.cpp C$:\Users\16620\Desktop\projects\OpenglLearn\code_analyst\only_derived.bat
-  COMMAND = C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Users\16620\Desktop\projects\OpenglLearn\build && "C:\Program Files\CMake\bin\cmake.exe" -E make_directory C:/Users/16620/Desktop/projects/OpenglLearn/bin/Scripts/BluePrint && "C:\Program Files\CMake\bin\cmake.exe" -E chdir C:/Users/16620/Desktop/projects/OpenglLearn cmd /c C:/Users/16620/Desktop/projects/OpenglLearn/code_analyst/only_derived.bat C:/Users/16620/Desktop/projects/OpenglLearn/code/Resource/Scripts/XuanZhuan.cpp IScript C:/Users/16620/Desktop/projects/OpenglLearn/bin/Scripts/BluePrint/XuanZhuan.json"
+build C$:\Users\16620\Desktop\projects\OpenglLearn\bin\Scripts\BluePrint\XuanZhuan.json: CUSTOM_COMMAND C$:\Users\16620\Desktop\projects\OpenglLearn\Asset\Scripts\XuanZhuan.cpp C$:\Users\16620\Desktop\projects\OpenglLearn\Engine\tools\code_analyst\only_derived.bat
+  COMMAND = C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Users\16620\Desktop\projects\OpenglLearn\build\Application && "C:\Program Files\CMake\bin\cmake.exe" -E make_directory C:/Users/16620/Desktop/projects/OpenglLearn/bin/Scripts/BluePrint && "C:\Program Files\CMake\bin\cmake.exe" -E chdir C:/Users/16620/Desktop/projects/OpenglLearn/Application cmd /c C:/Users/16620/Desktop/projects/OpenglLearn/Engine/tools/code_analyst/only_derived.bat C:/Users/16620/Desktop/projects/OpenglLearn/Asset/Scripts/XuanZhuan.cpp IScript C:/Users/16620/Desktop/projects/OpenglLearn/bin/Scripts/BluePrint/XuanZhuan.json"
   DESC = Generating blueprint: C:/Users/16620/Desktop/projects/OpenglLearn/bin/Scripts/BluePrint/XuanZhuan.json
   restat = 1
 
 # =============================================================================
 # Target aliases.
+
+build engine: phony C$:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine.lib
+
+build engine.lib: phony C$:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine.lib
+
+build engine_script_manager.lib: phony C$:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine_script_manager.lib
+
+build gen_script_blueprints: phony Application\gen_script_blueprints
 
 build main_exec: phony C$:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.exe
 
@@ -350,6 +529,8 @@ build script: phony C$:\Users\16620\Desktop\projects\OpenglLearn\bin\script.dll
 
 build script.dll: phony C$:\Users\16620\Desktop\projects\OpenglLearn\bin\script.dll
 
+build script_program: phony C$:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine_script_manager.lib
+
 # =============================================================================
 # Folder targets.
 
@@ -358,7 +539,35 @@ build script.dll: phony C$:\Users\16620\Desktop\projects\OpenglLearn\bin\script.
 #############################################
 # Folder: C:/Users/16620/Desktop/projects/OpenglLearn/build
 
-build all: phony C$:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.exe C$:\Users\16620\Desktop\projects\OpenglLearn\bin\script.dll
+build all: phony Engine\all Application\all
+
+# =============================================================================
+
+#############################################
+# Folder: C:/Users/16620/Desktop/projects/OpenglLearn/build/Application
+
+build Application\all: phony C$:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.exe C$:\Users\16620\Desktop\projects\OpenglLearn\bin\script.dll
+
+# =============================================================================
+
+#############################################
+# Folder: C:/Users/16620/Desktop/projects/OpenglLearn/build/Engine
+
+build Engine\all: phony Engine\src\plugin\all Engine\src\engine\all
+
+# =============================================================================
+
+#############################################
+# Folder: C:/Users/16620/Desktop/projects/OpenglLearn/build/Engine/src/engine
+
+build Engine\src\engine\all: phony C$:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine.lib
+
+# =============================================================================
+
+#############################################
+# Folder: C:/Users/16620/Desktop/projects/OpenglLearn/build/Engine/src/plugin
+
+build Engine\src\plugin\all: phony C$:\Users\16620\Desktop\projects\OpenglLearn\lib\debug\engine_script_manager.lib
 
 # =============================================================================
 # Built-in targets
@@ -367,14 +576,14 @@ build all: phony C$:\Users\16620\Desktop\projects\OpenglLearn\bin\main_exec.exe 
 #############################################
 # Re-run CMake if any of its inputs changed.
 
-build build.ninja C$:\Users\16620\Desktop\projects\OpenglLearn\build\cmake_install.cmake: RERUN_CMAKE | C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeCXXInformation.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeCommonLanguageInclude.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeGenericSystem.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeInitializeConfigs.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeLanguageInformation.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeRCInformation.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeSystemSpecificInformation.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeSystemSpecificInitialize.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Compiler\CMakeCommonCompilerMacros.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Compiler\Clang-CXX.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Compiler\Clang.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Internal\CMakeCXXLinkerInformation.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Internal\CMakeCommonLinkerInformation.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Linker\LLD-CXX.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Linker\LLD.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Linker\MSVC.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Linker\Windows-LLD-CXX.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Linker\Windows-LLD.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Linker\Windows-MSVC.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Windows-Clang-CXX.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Windows-Clang.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Windows-Initialize.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Windows-MSVC.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Windows.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\WindowsPaths.cmake C$:\Users\16620\Desktop\projects\OpenglLearn\CMakeLists.txt C$:\Users\16620\Desktop\projects\OpenglLearn\clang-msvc.cmake CMakeCache.txt CMakeFiles\4.0.3\CMakeCXXCompiler.cmake CMakeFiles\4.0.3\CMakeRCCompiler.cmake CMakeFiles\4.0.3\CMakeSystem.cmake
+build build.ninja C$:\Users\16620\Desktop\projects\OpenglLearn\build\cmake_install.cmake C$:\Users\16620\Desktop\projects\OpenglLearn\build\Engine\cmake_install.cmake C$:\Users\16620\Desktop\projects\OpenglLearn\build\Engine\src\plugin\cmake_install.cmake C$:\Users\16620\Desktop\projects\OpenglLearn\build\Engine\src\engine\cmake_install.cmake C$:\Users\16620\Desktop\projects\OpenglLearn\build\Application\cmake_install.cmake: RERUN_CMAKE | C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeCXXInformation.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeCommonLanguageInclude.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeGenericSystem.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeInitializeConfigs.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeLanguageInformation.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeRCInformation.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeSystemSpecificInformation.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeSystemSpecificInitialize.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Compiler\CMakeCommonCompilerMacros.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Compiler\Clang-CXX.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Compiler\Clang.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Internal\CMakeCXXLinkerInformation.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Internal\CMakeCommonLinkerInformation.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Linker\LLD-CXX.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Linker\LLD.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Linker\MSVC.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Linker\Windows-LLD-CXX.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Linker\Windows-LLD.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Linker\Windows-MSVC.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Windows-Clang-CXX.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Windows-Clang.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Windows-Initialize.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Windows-MSVC.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Windows.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\WindowsPaths.cmake C$:\Users\16620\Desktop\projects\OpenglLearn\Application\CMakeLists.txt C$:\Users\16620\Desktop\projects\OpenglLearn\CMakeLists.txt C$:\Users\16620\Desktop\projects\OpenglLearn\Engine\CMakeLists.txt C$:\Users\16620\Desktop\projects\OpenglLearn\Engine\src\engine\CMakeLists.txt C$:\Users\16620\Desktop\projects\OpenglLearn\Engine\src\plugin\CMakeLists.txt C$:\Users\16620\Desktop\projects\OpenglLearn\clang-msvc.cmake CMakeCache.txt CMakeFiles\4.0.3\CMakeCXXCompiler.cmake CMakeFiles\4.0.3\CMakeRCCompiler.cmake CMakeFiles\4.0.3\CMakeSystem.cmake
   pool = console
 
 
 #############################################
 # A missing CMake input file is not an error.
 
-build C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeCXXInformation.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeCommonLanguageInclude.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeGenericSystem.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeInitializeConfigs.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeLanguageInformation.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeRCInformation.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeSystemSpecificInformation.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeSystemSpecificInitialize.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Compiler\CMakeCommonCompilerMacros.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Compiler\Clang-CXX.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Compiler\Clang.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Internal\CMakeCXXLinkerInformation.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Internal\CMakeCommonLinkerInformation.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Linker\LLD-CXX.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Linker\LLD.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Linker\MSVC.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Linker\Windows-LLD-CXX.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Linker\Windows-LLD.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Linker\Windows-MSVC.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Windows-Clang-CXX.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Windows-Clang.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Windows-Initialize.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Windows-MSVC.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Windows.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\WindowsPaths.cmake C$:\Users\16620\Desktop\projects\OpenglLearn\CMakeLists.txt C$:\Users\16620\Desktop\projects\OpenglLearn\clang-msvc.cmake CMakeCache.txt CMakeFiles\4.0.3\CMakeCXXCompiler.cmake CMakeFiles\4.0.3\CMakeRCCompiler.cmake CMakeFiles\4.0.3\CMakeSystem.cmake: phony
+build C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeCXXInformation.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeCommonLanguageInclude.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeGenericSystem.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeInitializeConfigs.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeLanguageInformation.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeRCInformation.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeSystemSpecificInformation.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\CMakeSystemSpecificInitialize.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Compiler\CMakeCommonCompilerMacros.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Compiler\Clang-CXX.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Compiler\Clang.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Internal\CMakeCXXLinkerInformation.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Internal\CMakeCommonLinkerInformation.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Linker\LLD-CXX.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Linker\LLD.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Linker\MSVC.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Linker\Windows-LLD-CXX.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Linker\Windows-LLD.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Linker\Windows-MSVC.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Windows-Clang-CXX.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Windows-Clang.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Windows-Initialize.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Windows-MSVC.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\Windows.cmake C$:\Program$ Files\CMake\share\cmake-4.0\Modules\Platform\WindowsPaths.cmake C$:\Users\16620\Desktop\projects\OpenglLearn\Application\CMakeLists.txt C$:\Users\16620\Desktop\projects\OpenglLearn\CMakeLists.txt C$:\Users\16620\Desktop\projects\OpenglLearn\Engine\CMakeLists.txt C$:\Users\16620\Desktop\projects\OpenglLearn\Engine\src\engine\CMakeLists.txt C$:\Users\16620\Desktop\projects\OpenglLearn\Engine\src\plugin\CMakeLists.txt C$:\Users\16620\Desktop\projects\OpenglLearn\clang-msvc.cmake CMakeCache.txt CMakeFiles\4.0.3\CMakeCXXCompiler.cmake CMakeFiles\4.0.3\CMakeRCCompiler.cmake CMakeFiles\4.0.3\CMakeSystem.cmake: phony
 
 
 #############################################

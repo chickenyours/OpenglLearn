@@ -1,0 +1,55 @@
+ECS::Component::Transform poolTrans;
+ECS::Component::Camera reflectCamera;
+CameraPass reflectCameraPass; // 反转相机
+ScenePass reflectScenePass;
+ECS::Component::Camera* mainCamera = nullptr;
+GLuint meshVAO = 0; 
+ResourceHandle<ShaderProgram> shader;
+
+...
+
+// 前向渲染
+cameraPass.Update();
+scenePass.Update();
+
+// 复制到折射贴图
+glCopyImageSubData(
+    scenePass.colorBuffer_, GL_TEXTURE_2D, 0, 0, 0, 0,
+    Refraction, GL_TEXTURE_2D, 0, 0, 0, 0,
+    currentResolution.x, currentResolution.y, 1
+);
+CHECK_GL_ERROR("glCopyImageSubData");
+
+// 反射相机
+glm::vec3 poolforward;
+float yawdeg;
+poolTrans.CalForwardAndYaw(poolforward,yawdeg);
+ComputeReflectCameraView(reflectCamera,*mainCamera,poolTrans.position,poolforward);
+// reflectCamera.projection = HardcodedObliquePerspective();
+ComputeObliqueMatrix(poolTrans.position,poolforward,mainCamera->projection,reflectCamera.view,reflectCamera.projection);
+
+// 获取反射贴图
+GLdouble planeEq[4] = {0, 1, 0, 0}; // 例如 y = 0 的水平面
+
+
+reflectCameraPass.Update();
+reflectScenePass.Update(); 
+
+reflectCamera.projection = mainCamera->projection;
+reflectCameraPass.Update();
+
+// 绘制
+poolTrans.CalMatrix();
+cameraPass.Update();
+glBindFramebuffer(GL_FRAMEBUFFER, scenePass.FBO_);
+glEnable(GL_DEPTH_TEST);
+glViewport(0,0,scenePass.colorBufferResolution.x,scenePass.colorBufferResolution.y);
+glDepthFunc(GL_LESS);
+glBindVertexArray(meshVAO);
+glUseProgram(shader->GetID());
+ShaderUmatf4(shader->GetID(),"model",poolTrans.localMatrix);
+ShaderUmatf4(shader->GetID(),"uReflectionVP",reflectCamera.projection * reflectCamera.view);
+ShaderUvec3(shader->GetID(),"uCameraPos",mainCamera->camPos);
+glActiveTexture(GL_TEXTURE10);
+glBindTexture(GL_TEXTURE_2D,reflectScenePass.GetOutputColorBuffer());
+glDrawArrays(GL_TRIANGLES, 0, 6);

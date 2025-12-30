@@ -18,7 +18,7 @@ events:
     message: |
       Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" succeeded.
       Compiler: C:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/bin/clang-cl.exe 
-      Build flags: /X;-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include;-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include;-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt;-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared;-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um
+      Build flags: /X;-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include;-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include;-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt;-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared;-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um
       Id flags:  
       
       The output was:
@@ -51,11 +51,11 @@ events:
     checks:
       - "Detecting CXX compiler ABI info"
     directories:
-      source: "C:/Users/16620/Desktop/projects/OpenglLearn/build/CMakeFiles/CMakeScratch/TryCompile-6mfwtj"
-      binary: "C:/Users/16620/Desktop/projects/OpenglLearn/build/CMakeFiles/CMakeScratch/TryCompile-6mfwtj"
+      source: "C:/Users/16620/Desktop/projects/OpenglLearn/build/CMakeFiles/CMakeScratch/TryCompile-xxmryu"
+      binary: "C:/Users/16620/Desktop/projects/OpenglLearn/build/CMakeFiles/CMakeScratch/TryCompile-xxmryu"
     cmakeVariables:
       CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "C:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/bin/clang-scan-deps.exe"
-      CMAKE_CXX_FLAGS: "/X \"-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include\" \"-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include\" \"-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt\" \"-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared\" \"-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um\" /DWIN32 /D_WINDOWS /EHsc"
+      CMAKE_CXX_FLAGS: "/X \"-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include\" \"-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include\" \"-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt\" \"-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared\" \"-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um\" /DWIN32 /D_WINDOWS /EHsc"
       CMAKE_CXX_FLAGS_DEBUG: "/Zi /Ob0 /Od /RTC1"
       CMAKE_CXX_SCAN_FOR_MODULES: "OFF"
       CMAKE_EXE_LINKER_FLAGS: "/machine:x64"
@@ -64,11 +64,11 @@ events:
       variable: "CMAKE_CXX_ABI_COMPILED"
       cached: true
       stdout: |
-        Change Dir: 'C:/Users/16620/Desktop/projects/OpenglLearn/build/CMakeFiles/CMakeScratch/TryCompile-6mfwtj'
+        Change Dir: 'C:/Users/16620/Desktop/projects/OpenglLearn/build/CMakeFiles/CMakeScratch/TryCompile-xxmryu'
         
-        Run Build Command(s): C:/Users/16620/AppData/Local/Microsoft/WinGet/Packages/Ninja-build.Ninja_Microsoft.Winget.Source_8wekyb3d8bbwe/ninja.exe -v cmTC_df8a3
-        [1/2] C:\\Mydata\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\bin\\clang-cl.exe  /nologo -TP   /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc  /Zi /Ob0 /Od /RTC1 -MDd /showIncludes /FoCMakeFiles\\cmTC_df8a3.dir\\CMakeCXXCompilerABI.cpp.obj /FdCMakeFiles\\cmTC_df8a3.dir\\ -c -- "C:\\Program Files\\CMake\\share\\cmake-4.0\\Modules\\CMakeCXXCompilerABI.cpp"
-        [2/2] C:\\WINDOWS\\system32\\cmd.exe /C "cd . && "C:\\Program Files\\CMake\\bin\\cmake.exe" -E vs_link_exe --msvc-ver=1944 --intdir=CMakeFiles\\cmTC_df8a3.dir --rc=C:\\Mydata\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\bin\\llvm-rc.exe --mt=C:\\Mydata\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\bin\\llvm-mt.exe --manifests  -- C:\\Mydata\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\bin\\lld-link.exe /nologo CMakeFiles\\cmTC_df8a3.dir\\CMakeCXXCompilerABI.cpp.obj  /out:cmTC_df8a3.exe /implib:cmTC_df8a3.lib /pdb:cmTC_df8a3.pdb /version:0.0 /machine:x64  /debug /INCREMENTAL /subsystem:console   && cd ."
+        Run Build Command(s): C:/Users/16620/AppData/Local/Programs/Python/Python310/Scripts/ninja.exe -v cmTC_5792e
+        [1/2] C:\\Mydata\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\bin\\clang-cl.exe  /nologo -TP   /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc  /Zi /Ob0 /Od /RTC1 -MDd /showIncludes /FoCMakeFiles\\cmTC_5792e.dir\\CMakeCXXCompilerABI.cpp.obj /FdCMakeFiles\\cmTC_5792e.dir\\ -c -- "C:\\Program Files\\CMake\\share\\cmake-4.0\\Modules\\CMakeCXXCompilerABI.cpp"
+        [2/2] C:\\WINDOWS\\system32\\cmd.exe /C "cd . && "C:\\Program Files\\CMake\\bin\\cmake.exe" -E vs_link_exe --msvc-ver=1944 --intdir=CMakeFiles\\cmTC_5792e.dir --rc=C:\\Mydata\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\bin\\llvm-rc.exe --mt=C:\\Mydata\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\bin\\llvm-mt.exe --manifests  -- C:\\Mydata\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\bin\\lld-link.exe /nologo CMakeFiles\\cmTC_5792e.dir\\CMakeCXXCompilerABI.cpp.obj  /out:cmTC_5792e.exe /implib:cmTC_5792e.lib /pdb:cmTC_5792e.pdb /version:0.0 /machine:x64  /debug /INCREMENTAL /subsystem:console   && cd ."
         
       exitCode: 0
   -
@@ -132,11 +132,11 @@ events:
     checks:
       - "Detecting CXX compile features"
     directories:
-      source: "C:/Users/16620/Desktop/projects/OpenglLearn/build/CMakeFiles/CMakeScratch/TryCompile-zf3zj1"
-      binary: "C:/Users/16620/Desktop/projects/OpenglLearn/build/CMakeFiles/CMakeScratch/TryCompile-zf3zj1"
+      source: "C:/Users/16620/Desktop/projects/OpenglLearn/build/CMakeFiles/CMakeScratch/TryCompile-4h1ucv"
+      binary: "C:/Users/16620/Desktop/projects/OpenglLearn/build/CMakeFiles/CMakeScratch/TryCompile-4h1ucv"
     cmakeVariables:
       CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "C:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/bin/clang-scan-deps.exe"
-      CMAKE_CXX_FLAGS: "/X \"-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include\" \"-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include\" \"-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt\" \"-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared\" \"-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um\" /DWIN32 /D_WINDOWS /EHsc"
+      CMAKE_CXX_FLAGS: "/X \"-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include\" \"-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include\" \"-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt\" \"-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared\" \"-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um\" /DWIN32 /D_WINDOWS /EHsc"
       CMAKE_CXX_FLAGS_DEBUG: "/Zi /Ob0 /Od /RTC1"
       CMAKE_EXE_LINKER_FLAGS: "/machine:x64"
       CMAKE_MSVC_RUNTIME_LIBRARY: "MultiThreadedDebugDLL"
@@ -144,11 +144,11 @@ events:
       variable: "CMAKE_CXX_FEATURE_TEST"
       cached: true
       stdout: |
-        Change Dir: 'C:/Users/16620/Desktop/projects/OpenglLearn/build/CMakeFiles/CMakeScratch/TryCompile-zf3zj1'
+        Change Dir: 'C:/Users/16620/Desktop/projects/OpenglLearn/build/CMakeFiles/CMakeScratch/TryCompile-4h1ucv'
         
-        Run Build Command(s): C:/Users/16620/AppData/Local/Microsoft/WinGet/Packages/Ninja-build.Ninja_Microsoft.Winget.Source_8wekyb3d8bbwe/ninja.exe -v cmTC_313d4
-        [1/2] C:\\Mydata\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\bin\\clang-cl.exe  /nologo -TP   /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc  /Zi /Ob0 /Od /RTC1 -MDd   -std:c++14 /showIncludes /FoCMakeFiles\\cmTC_313d4.dir\\feature_tests.cxx.obj /FdCMakeFiles\\cmTC_313d4.dir\\ -c -- C:\\Users\\16620\\Desktop\\projects\\OpenglLearn\\build\\CMakeFiles\\CMakeScratch\\TryCompile-zf3zj1\\feature_tests.cxx
-        [2/2] C:\\WINDOWS\\system32\\cmd.exe /C "cd . && "C:\\Program Files\\CMake\\bin\\cmake.exe" -E vs_link_exe --msvc-ver=1944 --intdir=CMakeFiles\\cmTC_313d4.dir --rc=C:\\Mydata\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\bin\\llvm-rc.exe --mt=C:\\Mydata\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\bin\\llvm-mt.exe --manifests  -- C:\\Mydata\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\bin\\lld-link.exe /nologo CMakeFiles\\cmTC_313d4.dir\\feature_tests.cxx.obj  /out:cmTC_313d4.exe /implib:cmTC_313d4.lib /pdb:cmTC_313d4.pdb /version:0.0 /machine:x64  /debug /INCREMENTAL /subsystem:console  kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib && cd ."
+        Run Build Command(s): C:/Users/16620/AppData/Local/Programs/Python/Python310/Scripts/ninja.exe -v cmTC_44a2c
+        [1/2] C:\\Mydata\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\bin\\clang-cl.exe  /nologo -TP   /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc  /Zi /Ob0 /Od /RTC1 -MDd   -std:c++14 /showIncludes /FoCMakeFiles\\cmTC_44a2c.dir\\feature_tests.cxx.obj /FdCMakeFiles\\cmTC_44a2c.dir\\ -c -- C:\\Users\\16620\\Desktop\\projects\\OpenglLearn\\build\\CMakeFiles\\CMakeScratch\\TryCompile-4h1ucv\\feature_tests.cxx
+        [2/2] C:\\WINDOWS\\system32\\cmd.exe /C "cd . && "C:\\Program Files\\CMake\\bin\\cmake.exe" -E vs_link_exe --msvc-ver=1944 --intdir=CMakeFiles\\cmTC_44a2c.dir --rc=C:\\Mydata\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\bin\\llvm-rc.exe --mt=C:\\Mydata\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\bin\\llvm-mt.exe --manifests  -- C:\\Mydata\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\bin\\lld-link.exe /nologo CMakeFiles\\cmTC_44a2c.dir\\feature_tests.cxx.obj  /out:cmTC_44a2c.exe /implib:cmTC_44a2c.lib /pdb:cmTC_44a2c.pdb /version:0.0 /machine:x64  /debug /INCREMENTAL /subsystem:console  kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib && cd ."
         
       exitCode: 0
   -
@@ -163,11 +163,11 @@ events:
     checks:
       - "Detecting CXX compile features"
     directories:
-      source: "C:/Users/16620/Desktop/projects/OpenglLearn/build/CMakeFiles/CMakeScratch/TryCompile-2i7416"
-      binary: "C:/Users/16620/Desktop/projects/OpenglLearn/build/CMakeFiles/CMakeScratch/TryCompile-2i7416"
+      source: "C:/Users/16620/Desktop/projects/OpenglLearn/build/CMakeFiles/CMakeScratch/TryCompile-b5pqnz"
+      binary: "C:/Users/16620/Desktop/projects/OpenglLearn/build/CMakeFiles/CMakeScratch/TryCompile-b5pqnz"
     cmakeVariables:
       CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "C:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/bin/clang-scan-deps.exe"
-      CMAKE_CXX_FLAGS: "/X \"-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include\" \"-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include\" \"-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt\" \"-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared\" \"-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um\" /DWIN32 /D_WINDOWS /EHsc"
+      CMAKE_CXX_FLAGS: "/X \"-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include\" \"-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include\" \"-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt\" \"-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared\" \"-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um\" /DWIN32 /D_WINDOWS /EHsc"
       CMAKE_CXX_FLAGS_DEBUG: "/Zi /Ob0 /Od /RTC1"
       CMAKE_EXE_LINKER_FLAGS: "/machine:x64"
       CMAKE_MSVC_RUNTIME_LIBRARY: "MultiThreadedDebugDLL"
@@ -175,11 +175,11 @@ events:
       variable: "CMAKE_CXX_FEATURE_TEST"
       cached: true
       stdout: |
-        Change Dir: 'C:/Users/16620/Desktop/projects/OpenglLearn/build/CMakeFiles/CMakeScratch/TryCompile-2i7416'
+        Change Dir: 'C:/Users/16620/Desktop/projects/OpenglLearn/build/CMakeFiles/CMakeScratch/TryCompile-b5pqnz'
         
-        Run Build Command(s): C:/Users/16620/AppData/Local/Microsoft/WinGet/Packages/Ninja-build.Ninja_Microsoft.Winget.Source_8wekyb3d8bbwe/ninja.exe -v cmTC_b7251
-        [1/2] C:\\Mydata\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\bin\\clang-cl.exe  /nologo -TP   /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc  /Zi /Ob0 /Od /RTC1 -MDd /showIncludes /FoCMakeFiles\\cmTC_b7251.dir\\feature_tests.cxx.obj /FdCMakeFiles\\cmTC_b7251.dir\\ -c -- C:\\Users\\16620\\Desktop\\projects\\OpenglLearn\\build\\CMakeFiles\\CMakeScratch\\TryCompile-2i7416\\feature_tests.cxx
-        [2/2] C:\\WINDOWS\\system32\\cmd.exe /C "cd . && "C:\\Program Files\\CMake\\bin\\cmake.exe" -E vs_link_exe --msvc-ver=1944 --intdir=CMakeFiles\\cmTC_b7251.dir --rc=C:\\Mydata\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\bin\\llvm-rc.exe --mt=C:\\Mydata\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\bin\\llvm-mt.exe --manifests  -- C:\\Mydata\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\bin\\lld-link.exe /nologo CMakeFiles\\cmTC_b7251.dir\\feature_tests.cxx.obj  /out:cmTC_b7251.exe /implib:cmTC_b7251.lib /pdb:cmTC_b7251.pdb /version:0.0 /machine:x64  /debug /INCREMENTAL /subsystem:console  kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib && cd ."
+        Run Build Command(s): C:/Users/16620/AppData/Local/Programs/Python/Python310/Scripts/ninja.exe -v cmTC_27e04
+        [1/2] C:\\Mydata\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\bin\\clang-cl.exe  /nologo -TP   /X "-imsvcC:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include" "-imsvcC:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared" "-imsvcC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um" /DWIN32 /D_WINDOWS /EHsc  /Zi /Ob0 /Od /RTC1 -MDd /showIncludes /FoCMakeFiles\\cmTC_27e04.dir\\feature_tests.cxx.obj /FdCMakeFiles\\cmTC_27e04.dir\\ -c -- C:\\Users\\16620\\Desktop\\projects\\OpenglLearn\\build\\CMakeFiles\\CMakeScratch\\TryCompile-b5pqnz\\feature_tests.cxx
+        [2/2] C:\\WINDOWS\\system32\\cmd.exe /C "cd . && "C:\\Program Files\\CMake\\bin\\cmake.exe" -E vs_link_exe --msvc-ver=1944 --intdir=CMakeFiles\\cmTC_27e04.dir --rc=C:\\Mydata\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\bin\\llvm-rc.exe --mt=C:\\Mydata\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\bin\\llvm-mt.exe --manifests  -- C:\\Mydata\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\clang+llvm-20.1.8-x86_64-pc-windows-msvc\\bin\\lld-link.exe /nologo CMakeFiles\\cmTC_27e04.dir\\feature_tests.cxx.obj  /out:cmTC_27e04.exe /implib:cmTC_27e04.lib /pdb:cmTC_27e04.pdb /version:0.0 /machine:x64  /debug /INCREMENTAL /subsystem:console  kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib && cd ."
         
       exitCode: 0
 ...

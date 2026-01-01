@@ -364,14 +364,18 @@ namespace Render{
                             auto shaderProgram = material->mainShader.get();
                             if(shaderProgram){
                                 glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, item.particleBuffer->GetID());
+                                CHECK_GL_ERROR("glDrawElements");
                                 glUseProgram(shaderProgram->GetID());
+                                CHECK_GL_ERROR("glDrawElements");
                                 glDrawArrays(GL_POINTS, 0, item.particleBuffer->GetNumElements());
+                                CHECK_GL_ERROR("glDrawElements");
                             }
                             else{
                                 LOG_ERROR("ScenePass::Update","item shaderProgram is nullptr");
                             }
                         }
                     }
+                    m_partical_items.clear();
 
                 }
 

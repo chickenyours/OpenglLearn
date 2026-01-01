@@ -318,6 +318,82 @@ ResourceHandle<ShaderProgram> ShaderProgramFactory::GetShaderProgramInstance(con
             ));
             return program;
         }
+    else if (shaderType_ == ShaderProgramType::COMPUTE) {
+
+        // 1. 查找 Compute Shader Factory
+        auto compute = shaderFactories_.find(ShaderStage::Compute);
+        if (compute == shaderFactories_.end()) {
+            REPORT_STACK_ERROR(errHandle, 
+                "ShaderProgramFactory->GetShaderProgramInstance",
+                "Compute shader factory not found");
+            return nullptr;
+        }
+
+        // 2. 查找本地 Compute Shader 描述
+        auto computeDescription = localShaderDescriptions_.find(ShaderStage::Compute);
+        if (computeDescription == localShaderDescriptions_.end()) {
+            REPORT_STACK_ERROR(errHandle,
+                "ShaderProgramFactory->GetShaderProgramInstance",
+                "Compute shader description not found");
+            return nullptr;
+        }
+
+        // 3. 合并外部描述（宏 / define / variant）
+        auto computeDescriptionFromOutside = shaderDescriptions.find(ShaderStage::Compute);
+
+        auto computeShader = compute->second->TryGetShaderInstance(
+            computeDescriptionFromOutside != shaderDescriptions.end()
+                ? computeDescription->second + computeDescriptionFromOutside->second
+                : computeDescription->second,
+            errHandle
+        );
+
+        if (!computeShader) {
+            REPORT_STACK_ERROR(errHandle,
+                "ShaderProgramFactory->GetShaderProgramInstance",
+                "Failed to create compute shader instance");
+            return nullptr;
+        }
+
+        // 4. 生成 Program Resource Key（Compute 单独一类）
+        MD5 md5;
+        std::string combinedString = computeShader.GetName();
+        std::string shaderProgramResourceKey =
+            "ShaderProgram:" + configFilePath_ + ":COMPUTE:" + md5(combinedString);
+
+        // 5. 创建 / 复用 ShaderProgram
+        auto program = ECS::Core::ResourceModule::ResourceManager::GetInctance().Get(
+            FromGenerator<ShaderProgram>(
+                shaderProgramResourceKey,
+                [&](Log::StackLogErrorHandle errhandle) -> std::unique_ptr<ShaderProgram> {
+
+                    auto instance = std::make_unique<ShaderProgram>();
+
+                    GLuint program = glCreateProgram();
+                    glAttachShader(program, computeShader->GetShaderID());
+                    glLinkProgram(program);
+
+                    GLint success;
+                    char infoLog[1024];
+                    glGetProgramiv(program, GL_LINK_STATUS, &success);
+                    if (!success) {
+                        glGetProgramInfoLog(program, 1024, nullptr, infoLog);
+                        REPORT_STACK_ERROR(errHandle,
+                            "ShaderProgramFactory->GetShaderProgramInstance",
+                            std::string("Compute program link error: ") + infoLog);
+                        glDeleteProgram(program);
+                        return nullptr;
+                    }
+
+                    instance->id_ = program;
+                    return instance;
+                }
+            )
+        );
+
+        return program;
+    }
+
     return nullptr;
 }
 

@@ -166,6 +166,11 @@ void Application::Run(){
     auto currentTransform = s.registry_->GetComponent<ECS::Component::Transform>(entities[currentControl]);
     float controlSpeed = 1.0;
 
+    // 粒子系统
+    SimpleParticleSystem part;
+    part.Init();
+    
+
     do{
         Environment::Environment::Instance().Update();
         Input::KeyboardInput::Instance().Update();
@@ -214,6 +219,10 @@ void Application::Run(){
         //     ren->uboData.values[0] = glm::vec4(cam->camFront,1.0);
         // }
 
+        // 粒子更新
+        part.UpdateLogic();
+        part.CollectComputeTasks(rd.GetProxyItemsQueue());
+        rd.AddParticalItem(&part.GetDrawItem());
         rd.Update();
 
         UpdateWindow();

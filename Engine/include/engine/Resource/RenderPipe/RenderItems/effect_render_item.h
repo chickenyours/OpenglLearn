@@ -15,13 +15,13 @@ struct BaseParticleDrawItem {
     Graphic::SSBO* particleBuffer = nullptr;   // position, size, color...
 };
 
-struct ParticleParams{
+struct ParticleComputeTaskParams{
     float simulationTime;
     float deltaTime;
 };
 
-struct ParticleRenderProxy{
+struct ParticleComputeTask{
     Graphic::SSBO* particleBuffer = nullptr;
     Resource::ShaderProgram* computeShaderProgram = nullptr;
-    ParticleParams params;
+    ParticleComputeTaskParams params;
 };

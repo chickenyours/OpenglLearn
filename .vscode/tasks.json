@@ -34,27 +34,23 @@
 		// 	"detail": "compiler: C:\\Users\\16620\\Desktop\\lingshi\\mingw64\\bin\\g++.exe"
 		// },
 		{
-			"type": "cppbuild",
-			"label": "Makefile",
-			"command": "C:/Mydata/x86_64-14.2.0-release-win32-seh-msvcrt-rt_v12-rev0/mingw64/bin/mingw32-make.exe",
+			"label": "Build All",
+			"type": "shell",
+			"command": "cmd.exe",
 			"args": [
-				"-f",
-				"${workspaceFolder}/Makefile",
-				"all",
-				"TARGET=apprun.cpp",
-				// "TARGET=${relativeFile}"
+				"/c",
+				"build.bat"
 			],
 			"options": {
 				"cwd": "${workspaceFolder}"
 			},
-			"problemMatcher": [
-				"$gcc"
-			],
 			"group": {
 				"kind": "build",
 				"isDefault": true
 			},
-			"detail": "compiler: C:\\Users\\16620\\Desktop\\lingshi\\mingw64\\bin\\g++.exe"
+			"problemMatcher": "$gcc"
 		}
+
+
 	]
 }

@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <memory>
 #include <glad/glad.h>
+#include "engine/ToolAndAlgorithm/Opengl/debug.h"
 
 namespace Graphic {
 
@@ -56,9 +57,13 @@ public:
         this->elementSize = elementSize;
         if (id != 0) return;
         glGenBuffers(1, &id);
+        CHECK_GL_ERROR("glGenBuffers");
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, id);
+        CHECK_GL_ERROR("glBindBuffer");
         glBufferData(GL_SHADER_STORAGE_BUFFER, numElements * elementSize, data, GL_DYNAMIC_DRAW);
+        CHECK_GL_ERROR("glGenFramebuffers");
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+        CHECK_GL_ERROR("glGenFramebuffers");
     }
 
     void Destroy() {
@@ -76,6 +81,7 @@ public:
     void BindBase(GLuint binding) const {
         if (id != 0)
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, binding, id);
+            CHECK_GL_ERROR("glGenFramebuffers");
     }
 };
 }

@@ -77,6 +77,16 @@ namespace ECS::System{
                 }
                 renderPipe.RenderCall();
             }
+
+            std::vector<ParticleComputeTask>& GetProxyItemsQueue(){
+                return renderPipe.GetProxyItemsQueue();
+            }
+
+            void AddParticalItem(const BaseParticleDrawItem* drawItem) {
+                renderPipe.AddParticalItem(drawItem);
+            }
+            
+
         private:
             Render::StaicMesh renderPipe;
             Render::RenderPipeContex ctx;

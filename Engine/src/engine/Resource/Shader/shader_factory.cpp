@@ -29,7 +29,7 @@ bool ShaderFactory::LoadShaderCode(Log::StackLogErrorHandle errHandle){
         if (extension == "vs") shaderType_ = GL_VERTEX_SHADER;
         else if (extension == "fs") shaderType_ = GL_FRAGMENT_SHADER;
         else if (extension == "gs") shaderType_ = GL_GEOMETRY_SHADER;
-        else if (extension == "cs") shaderType_ = GL_COMPUTE_SHADER;
+        else if (extension == "comp") shaderType_ = GL_COMPUTE_SHADER;
         else {
             LOG_WARNING("Resource ShaderFactory", "Unknown shader file extension: " + extension);
             shaderType_ = GL_INVALID_ENUM;

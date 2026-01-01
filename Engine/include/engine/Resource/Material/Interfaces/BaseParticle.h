@@ -16,8 +16,8 @@ class IBaseParticle : public IMaterial{
             Log::StackLogErrorHandle errHandle
         ) override {
             std::string mainShaderProgramPath;
-            if(!Tool::JsonHelper::TryGetString(shaderPrograms, "mainShader", mainShaderProgramPath)){
-                REPORT_STACK_ERROR(errHandle, "Material:BPR", "Failed to load mainShader from metadata.");
+            if(!Tool::JsonHelper::TryGetString(shaderPrograms, "mainShaderProgram", mainShaderProgramPath)){
+                REPORT_STACK_ERROR(errHandle, "Material:BPR", "Failed to load mainShaderProgram from metadata.");
                 return false;
             }
 
@@ -25,7 +25,7 @@ class IBaseParticle : public IMaterial{
                 FromConfig<ShaderProgramFactory>(mainShaderProgramPath))->GetShaderProgramInstance());
             
             if(!mainShader){
-                REPORT_STACK_ERROR(errHandle, "Material:BPR", "Failed to load mainShader resource.");
+                REPORT_STACK_ERROR(errHandle, "Material:BPR", "Failed to load mainShaderProgram resource.");
                 return false;
             }
             return true;

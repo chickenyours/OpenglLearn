@@ -330,18 +330,21 @@ namespace Render{
                 // 粒子计算
                 for(auto& item : m_proxy_items){
                     glUseProgram(item.computeShaderProgram->GetID());
+                    CHECK_GL_ERROR("glGenFramebuffers");
                     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, item.particleBuffer->GetID());
+                    CHECK_GL_ERROR("glGenFramebuffers");
                     GLuint numParticles = item.particleBuffer->GetNumElements();
                     GLuint workGroupSize = 256;
                     GLuint numGroups = (numParticles + workGroupSize - 1) / workGroupSize;
                     ShaderU1f(item.computeShaderProgram->GetID(),"deltaTime",item.params.deltaTime);
                     ShaderU1f(item.computeShaderProgram->GetID(),"iTime",item.params.simulationTime);
                     glDispatchCompute(numGroups, 1, 1);
+                    CHECK_GL_ERROR("glGenFramebuffers");
                 }
                 m_proxy_items.clear();
                 // 等待 GPU 写完
                 glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-
+                CHECK_GL_ERROR("glGenFramebuffers");
                 
                 cameraPass.Update();
                 // 前向渲染
@@ -414,9 +417,13 @@ namespace Render{
         public: // 粒子效果
            
 
-            std::vector<ParticleRenderProxy> m_proxy_items;
-            virtual void AddParticalProcessProxyItem(const ParticleRenderProxy* proxy) override {
+            std::vector<ParticleComputeTask> m_proxy_items;
+            virtual void AddParticalProcessProxyItem(const ParticleComputeTask* proxy) override {
                 m_proxy_items.emplace_back(*proxy);
+            }
+
+            std::vector<ParticleComputeTask>& GetProxyItemsQueue(){
+                return m_proxy_items;
             }
             
             virtual void AddParticalItem(const BaseParticleDrawItem* drawItem) override {

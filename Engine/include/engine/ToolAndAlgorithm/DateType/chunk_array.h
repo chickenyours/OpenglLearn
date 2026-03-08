@@ -9,7 +9,7 @@
 #include "engine/DebugTool/ConsoleHelp/color_log.h"
 
 template <typename T>
-class FixedChuckArray {
+class FixedChunkArray {
 private:
     size_t size_ = 0;          // 已构造元素个数
     size_t capacity_ = 0;      // 可容纳元素总数（chunk * sizePerChuck）
@@ -58,7 +58,7 @@ private:
     }
 
 public:
-    explicit FixedChuckArray(size_t sizePerChuck) {
+    explicit FixedChunkArray(size_t sizePerChuck) {
         if (sizePerChuck > static_cast<size_t>(2048)) {
             LOG_WARNING("FixedChuckArray",
                         "sizePerChuck too large, clamped to 2048: " + std::to_string(sizePerChuck));
@@ -70,17 +70,17 @@ public:
         }
     }
 
-    ~FixedChuckArray() noexcept {
+    ~FixedChunkArray() noexcept {
         destroy_constructed_range();
         for (T* p : chunkHeads_) {
             free_chunk(p);
         }
     }
 
-    FixedChuckArray(const FixedChuckArray&) = delete;
-    FixedChuckArray& operator=(const FixedChuckArray&) = delete;
+    FixedChunkArray(const FixedChunkArray&) = delete;
+    FixedChunkArray& operator=(const FixedChunkArray&) = delete;
 
-    FixedChuckArray(FixedChuckArray&& other) noexcept
+    FixedChunkArray(FixedChunkArray&& other) noexcept
         : size_(other.size_),
           capacity_(other.capacity_),
           sizePerChuck_(other.sizePerChuck_),
@@ -90,7 +90,7 @@ public:
         other.sizePerChuck_ = 0;
     }
 
-    FixedChuckArray& operator=(FixedChuckArray&& other) noexcept {
+    FixedChunkArray& operator=(FixedChunkArray&& other) noexcept {
         if (this == &other) return *this;
 
         // 释放自身

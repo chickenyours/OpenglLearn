@@ -4,6 +4,10 @@
 #include <cstddef>
 #include <cassert>
 
+// 前置声明
+template <class T>
+class ObjectWeakPtr;
+
 // 控制块：管理 weak 计数 + 对象指针 + owner 是否还存在
 template <class T>
 class ObjectControlBlock {
@@ -73,11 +77,8 @@ private:
     T* ptr_ = nullptr;
     std::size_t weakCount_ = 0;
     bool ownerGone_ = false;
+    friend class ObjectWeakPtr<T>;
 };
-
-// 前置声明
-template <class T>
-class ObjectWeakPtr;
 
 // 唯一拥有指针（像 unique_ptr）：只有一个 owner
 template <class T>
@@ -142,10 +143,10 @@ template <class T>
 class ObjectWeakPtr {
 public:
     ObjectWeakPtr() = default;
+    
     explicit ObjectWeakPtr(ObjectControlBlock<T>* b) : block_(b) {
         if (block_) block_->IncWeak();
     }
-
     // 拷贝：计数+1
     ObjectWeakPtr(const ObjectWeakPtr& o) : block_(o.block_) {
         if (block_) block_->IncWeak();

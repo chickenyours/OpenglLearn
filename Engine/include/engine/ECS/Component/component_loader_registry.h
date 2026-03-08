@@ -11,7 +11,7 @@
 #include "engine/ECS/Component/component_register.h"
 #include "engine/DebugTool/ConsoleHelp/color_log.h"
 #include "engine/ECS/data_type.h"
-#include "engine/ToolAndAlgorithm/DateType/chuck_array.h"
+#include "engine/ToolAndAlgorithm/DateType/chunk_array.h"
 
 namespace ECS::Component {
 
@@ -33,12 +33,12 @@ inline const std::unordered_map<std::string, ComponentLoader>& GetComponentLoade
 
 template <typename ComponentT>
 void* ComponentChuckArrayConstructor(size_t sizePerChuck) {
-    return new FixedChuckArray<ComponentT>(sizePerChuck);
+    return new FixedChunkArray<ComponentT>(sizePerChuck);
 }
 
 template <typename ComponentT>
 void ComponentChuckArrayDistructor(void* ComponentChuckAddr) {
-    delete reinterpret_cast<FixedChuckArray<ComponentT>*>(ComponentChuckAddr);
+    delete reinterpret_cast<FixedChunkArray<ComponentT>*>(ComponentChuckAddr);
 }
 
 using ComponentChuckArrayConstructorInstance = std::function<void*(size_t)>;

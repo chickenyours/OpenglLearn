@@ -28,8 +28,9 @@ namespace ECS{
 
 namespace ECS::Core{
 
-    class EntitySceneInfo{
-        uint32_t inArchtypeManagerIndex;
+    struct EntitySceneInfo{
+        ArchType* ownArchtype = nullptr;
+        size_t archtypeIndex;
     };
 
     class Scene{
@@ -39,16 +40,16 @@ namespace ECS::Core{
             std::vector<EntitySceneInfo> entity2entityInfo;
             EntityID entityCount_ = 0;
         public:
-            void DeleteEntity(){}
+            
 
-            ArchTypeDescription& CreateArchTypeTemplate(){
+            ArchTypeDescription& CreateArchTypeDescription(){
                 uint32_t nowIndex = archtypeManagers_.size();
                 archtypeManagers_.push_back(ObjectPtr<ArchTypeManager>(nowIndex));
                 return archtypeManagers_[nowIndex]->description_;
             }
 
             ObjectWeakPtr<ArchType> CreateArchType(ArchTypeDescription& description, size_t sizePerChuck){
-                ArchTypeManager* manager = archtypeManagers_[description.sortKey_].Get();
+                ArchTypeManager* manager = archtypeManagers_[description.responseManager_->sortKey_].Get();
                 if(&manager->description_ == &description){
                     manager->CreateArchType(sizePerChuck);
                 }
@@ -57,7 +58,33 @@ namespace ECS::Core{
                 }
             }
 
-            void DeleteArchType(ObjectWeakPtr<ArchType> archtype){
+            void DeleteArchType(ArchType* archtype){
+                if(archtypeManagers_[archtype->manager_->sortKey_].Get() != archtype->manager_){
+                    LOG_ERROR("archtypeManagers_", "not match manager");
+                    return;
+                }   
+                archtypeManagers_[archtype->manager_->sortKey_]->ReleaseArchType(archtype);
+            }
+
+            EntityHandle CreateEntity(ArchType* archtype){
+                EntityHandle result;
+                if(!Check(archtype)){
+                    return result;
+                }
+                size_t index = archtype->CreateUnit();
+                EntitySceneInfo info;
+                info.archtypeIndex = index;
+                info.ownArchtype = archtype;
+                entity2entityInfo.push_back(info);
+                result.id_ = ++entityCount_;
+                return result;
+            }
+
+            bool Check(ArchType* archtype){
+                return archtypeManagers_[archtype->manager_->sortKey_].Get() == archtype->manager_;
+            }
+
+            void DeleteEntity(EntityHandle entity){
                 
             }
         public:

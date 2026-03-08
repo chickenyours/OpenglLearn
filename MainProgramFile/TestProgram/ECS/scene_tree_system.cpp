@@ -12,11 +12,11 @@ ECS::Core::ComponentRegister reg;
 ECS::System::SceneTreeSystem st;
 
 void test1(){
-    ECS::Entity a(1);
-    ECS::Entity b(2);
-    ECS::Entity c(3);
-    ECS::Entity d(4);
-    ECS::Entity e(5);
+    ECS::EntityHandle a(1);
+    ECS::EntityHandle b(2);
+    ECS::EntityHandle c(3);
+    ECS::EntityHandle d(4);
+    ECS::EntityHandle e(5);
     // --- 建立初始父子关系 ---
     st.SetParent(a.GetID(), b.GetID()); // b -> a
     st.SetParent(c.GetID(), a.GetID()); // a -> c
@@ -65,7 +65,7 @@ void test1(){
 }
 
 void TestShaderProgram1(){
-    ECS::Entity a(1), b(2), c(3), d(4), e(5), f(6), g(7);
+    ECS::EntityHandle a(1), b(2), c(3), d(4), e(5), f(6), g(7);
 
     st.SetParent(a.GetID(), b.GetID());
     st.SetParent(c.GetID(), a.GetID());
@@ -93,7 +93,7 @@ void TestShaderProgram1(){
 
 // 综合测试
 void test3() {
-    using ECS::Entity;
+    using ECS::EntityHandle;
     using ID = ECS::EntityID;
 
     ECS::System::SceneTreeSystem st;
@@ -101,7 +101,7 @@ void test3() {
     st.SetComponentRegister(&reg);
 
     // Create entities 1~20
-    std::vector<Entity> nodes;
+    std::vector<EntityHandle> nodes;
     for (int i = 1; i <= 20; ++i) {
         nodes.emplace_back(i);
     }
@@ -167,11 +167,11 @@ void test3() {
 }
 
 void testRemoveEntityRecursive() {
-    using ECS::Entity;
+    using ECS::EntityHandle;
     using ID = ECS::EntityID;
 
     // 创建实体：1是根，2和3是1的子节点，4和5是2的子节点，6是4的子节点
-    Entity e1(1), e2(2), e3(3), e4(4), e5(5), e6(6);
+    EntityHandle e1(1), e2(2), e3(3), e4(4), e5(5), e6(6);
 
     st.SetParent(e2.GetID(), e1.GetID()); // 2 -> 1
     st.SetParent(e3.GetID(), e1.GetID()); // 3 -> 1

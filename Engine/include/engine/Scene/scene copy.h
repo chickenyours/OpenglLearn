@@ -13,7 +13,7 @@
 
 #include "engine/DebugTool/ConsoleHelp/color_log.h"
 #include "engine/ToolAndAlgorithm/container_algorithm.h"
-#include "engine/ToolAndAlgorithm/object.h"
+
 #include "engine/ECS/ArchType/archtype_manager.h"
 
 namespace ECS{
@@ -26,44 +26,17 @@ namespace ECS{
     
 }
 
-namespace ECS::Core{
+namespace ECS{
 
     class EntitySceneInfo{
-        uint32_t inArchtypeManagerIndex;
+
     };
 
     class Scene{
-
-        private:
-            std::vector<ObjectPtr<ArchTypeManager>> archtypeManagers_;
-            std::vector<EntitySceneInfo> entity2entityInfo;
-            EntityID entityCount_ = 0;
-        public:
-            void DeleteEntity(){}
-
-            ArchTypeDescription& CreateArchTypeTemplate(){
-                uint32_t nowIndex = archtypeManagers_.size();
-                archtypeManagers_.push_back(ObjectPtr<ArchTypeManager>(nowIndex));
-                return archtypeManagers_[nowIndex]->description_;
-            }
-
-            ObjectWeakPtr<ArchType> CreateArchType(ArchTypeDescription& description, size_t sizePerChuck){
-                ArchTypeManager* manager = archtypeManagers_[description.sortKey_].Get();
-                if(&manager->description_ == &description){
-                    manager->CreateArchType(sizePerChuck);
-                }
-                else{
-                    return;
-                }
-            }
-
-            void DeleteArchType(ObjectWeakPtr<ArchType> archtype){
-                
-            }
         public:
             Scene();
             bool LoadFromConfigFile(const std::string& filePath, Log::StackLogErrorHandle errHandle = nullptr);
-            std::unique_ptr<ECS::ComponentRegister> registry_;
+            std::unique_ptr<ECS::Core::ComponentRegister> registry_;
             std::unique_ptr<ECS::System::SceneTreeSystem> hierarchySystem_;
             
             // return INVALID_ENTITY if uuid can't find entity in uuidToEntity 

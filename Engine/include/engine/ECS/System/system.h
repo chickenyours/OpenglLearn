@@ -1,16 +1,23 @@
 #pragma once
 
+#include <vector>
 #include <string>
 
 #include "engine/ECS/data_type.h"
 
+#include "engine/ECS/Component/component_view.h"
 #include "engine/ECS/Component/component_register.h"
+#include "engine/ToolAndAlgorithm/object.h"
 
 namespace ECS{
     class Scene;
 }
 
 namespace ECS::System{
+
+    template <typename ComponentT>
+    using ComponentViewArray = std::vector<ObjectWeakPtr<ECS::Core::ComponentStorageView<ComponentT>>>;
+
     class System{
         public:
             void Init(Scene* scene){
@@ -34,11 +41,15 @@ namespace ECS::System{
                     LOG_ERROR("System:"+systemName_,"reg is nullptr");
                 }
             }
-            virtual void Update() = 0;
+            bool RemoveEntity(EntityID entity){
+
+            }
+
+            virtual void Update() {};
             virtual ~System() = default;
         protected:
-            virtual bool AddEntity(EntityID AddEntity) = 0;
-            virtual bool InitDerive() = 0;
+            virtual bool AddEntity(EntityID AddEntity) {};
+            virtual bool InitDerive() {};
             inline System(std::string systemName) : systemName_(systemName){}
             std::string systemName_;
             // ECS::Core::ComponentRegister* reg_;
@@ -46,7 +57,7 @@ namespace ECS::System{
     };
 }
 
-#include "engine/Scene/scene.h"
+// #include "engine/Scene/scene.h"
 
 // template<typename... Components>
 // class SystemFilter : public ISystemFilter {

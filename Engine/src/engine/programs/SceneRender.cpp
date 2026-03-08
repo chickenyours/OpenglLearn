@@ -54,9 +54,9 @@ void fun2(){
 }
 
 void fun3(){
-    ECS::Entity a(1);
-    ECS::Entity b(2);
-    ECS::Entity c(3);
+    ECS::EntityHandle a(1);
+    ECS::EntityHandle b(2);
+    ECS::EntityHandle c(3);
     ECS::Component::Transform ta;
     ta.scale = glm::vec3(2.0);
     ECS::Component::Transform tb;

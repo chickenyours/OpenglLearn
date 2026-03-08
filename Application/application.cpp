@@ -114,7 +114,7 @@ void Application::Run(){
         entities.push_back(i);
     }
 
-    ECS::System::LocalTransformCalculator lTC;
+    ECS::System::LocalTransformCalculator2D lTC;
     lTC.Init(&s);
     lTC.AddEntities(entities);
 

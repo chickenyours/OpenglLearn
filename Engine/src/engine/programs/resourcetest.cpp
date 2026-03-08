@@ -63,7 +63,7 @@ void TestMaterial1(){
 }
 
 void TestRenderQueue(){
-    ECS::Entity a(1);
+    ECS::EntityHandle a(1);
     ECS::Core::ComponentRegister::Instance().AddComponent<ECS::Component::MeshRenderer>(
         a.GetID(),[]{
             ECS::Component::MeshRenderer mesh;

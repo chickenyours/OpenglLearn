@@ -6,6 +6,8 @@
 
 
 #include "engine/ECS/Core/Resource/resource_handle.h"
+#include "engine/ECS/data_type.h"
+
 
 namespace ECS::Component{
 
@@ -19,6 +21,8 @@ struct Component
         }
         return true;
     }
-};
     
+
+};
+
 }

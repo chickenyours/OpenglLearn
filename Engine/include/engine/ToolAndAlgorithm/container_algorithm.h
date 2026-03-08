@@ -104,4 +104,15 @@ void StableEraseIf(std::vector<T>& array, Predicate shouldDelete) {
     array.erase(std::remove_if(array.begin(), array.end(), shouldDelete), array.end());
 }
 
+template<class K, class V, class Hash, class Eq, class Alloc>
+std::vector<K> GetKeys(const std::unordered_map<K, V, Hash, Eq, Alloc>& m)
+{
+    std::vector<K> keys;
+    keys.reserve(m.size());
+    for (const auto& [k, v] : m) {
+        keys.push_back(k);
+    }
+    return keys;
+}
+
 } // namespace Algorithm

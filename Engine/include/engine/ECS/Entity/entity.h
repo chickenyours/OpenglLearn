@@ -1,30 +1,22 @@
 #pragma once
 
-#include "engine/ECS/Entity/entity_manager.h"
-
-#include "engine/ECS/Component/component_register.h"
-
 #include "engine/ECS/data_type.h"
+#include "engine/Scene/scene.h"
 
 namespace ECS{
-    // 十分轻量级对象
-    class Entity {
+    class EntityHandle {
         public:
-            // C++ 17 在类中定义方法会被自动标记为内联函数 inline, 对于短小函数推荐采用这个方式
-            
+            EntityHandle() = default;
+            explicit EntityHandle(EntityID id, Scene* scene) : id_(id), scene_(scene) {}
+            EntityHandle(const EntityHandle& other){ id_ = other.id_; scene_ = other.scene_; }
             inline EntityID GetID() const { return id_; }
-    
-            bool operator==(const Entity& other) const { return id_ == other.id_; }
-        
-            // template <typename ComponentT>
-            // void AddComponent(){
-                
-            // }
+            Scene* GetScene() const { return scene_; }
+            explicit operator EntityID() const{ return GetID(); }
+            explicit operator bool() const { return scene_ != nullptr && id_ != 0; }
+            bool operator==(const EntityHandle& rhs) const { return id_ == rhs.id_ && scene_ == rhs.scene_; }
         private:
-            explicit Entity(EntityID id) : id_(id) {}
-            EntityID id_;
-
-            friend ECS::Core::EntityManager;
+            EntityID id_ = 0;
+            Scene* scene_ = nullptr;
         };
 
 }

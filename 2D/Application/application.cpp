@@ -18,6 +18,9 @@
 #include "engine/ECS/System/Script/script_system.h"
 #include "engine/CodeMomeryInsert/memory_insert.h"
 #include "engine/ECS/System/Collision/aabb_system.h"
+#include "engine/ECS/System/Systems/transform_change_2d.h"
+#include "engine/ECS/System/Camera/2d.h"
+#include "engine/ECS/Component/component_view.h"
 // #include "code/"
 
 
@@ -98,126 +101,29 @@ void Application::Run(){
     RegisterAllMaterial();
     ECS::Scene s;
     
-    s.LoadFromConfigFile("./Scenes/.json");
 
-    ECS::EntityID camEntity = s.CreateNewEntity();
-    auto trans = s.registry_->AddComponent<ECS::Component::Transform>(camEntity);
-    auto cam = s.registry_->AddComponent<ECS::Component::Camera>(camEntity);
-    s.hierarchySystem_->ApplyToRoot(camEntity);
+    ECS::EntityHandle player = s.CreateNewEntity();
+    ECS::EntityHandle MoveCamera = s.CreateNewEntity();
 
-    s.hierarchySystem_->Print();
+    ECS::Core::ComponentStorage<ECS::Component::Transform> moveTransform;
+    ECS::Core::ComponentStorage<ECS::Component::Transform> cameraMoveTransform;
+    ECS::Core::ComponentStorageView<ECS::Component::Transform> allTransformView;
+    ECS::Core::ComponentStorage<ECS::Component::Camera> cameraComponent;
+    ECS::Core::ComponentStorageView<ECS::Component::Camera> cameraComponentView;
 
-    std::vector<ECS::EntityID> entities;
-    entities.reserve(s.GetCount());
-    for(ECS::EntityID i = 1; i <= s.GetCount(); i++){
-        entities.push_back(i);
-    }
+    auto handle1 = moveTransform.Add(player.GetID());
+    auto handle2 = moveTransform.Add(MoveCamera.GetID());
+    allTransformView.PushHandle(handle1);
+    allTransformView.PushHandle(handle2);
 
-    ECS::System::LocalTransformCalculator lTC;
-    lTC.Init(&s);
-    lTC.AddEntities(entities);
+    auto camhandle = cameraComponent.Add(MoveCamera.GetID());
+    cameraComponentView.PushHandle(camhandle);
 
-    ECS::System::ScriptSystem ss;
-    ss.Init(&s);
-    ss.AddEntities(entities);
+    ECS::System::LocalTransformCalculator2D ltc;
 
-    ECS::System::CameraMovable camMove;
-    camMove.Init(&s);
-    camMove.AddEntities({camEntity});
+    ECS::System::CameraMovable2D cm2D;
 
-    ECS::System::StaticMeshRender rd;
-    rd.Init(&s);
-    rd.AddEntities(entities);
 
-    rd.SetCameraObject(camEntity);
-
-    ECS::System::AABBSystem aabbs;
-    aabbs.Init(&s);
-    aabbs.SetEventSub(&ss.queue);
-    aabbs.AddEntities(entities);
-
-    ECS::EntityID e = s.GetEntity("123");
-    auto ren = s.registry_->GetComponent<ECS::Component::MeshRenderer>(e);
-
-    auto script = s.registry_->GetComponent<ECS::Component::Script>(e);
-    auto interface = script->scriptInterface;
-    if(!interface){
-        LOG_ERROR("main","hh");
-        return;
-    }
-
-    // Json::Value data;
-    // if(!Tool::JsonHelper::LoadJsonValueFromFile("./Scripts/Data/1.json",data)){
-    //     LOG_ERROR("main","hh");
-    //     return;
-    // }
-
-    // Json::Value blueprint;
-    // if(!Tool::JsonHelper::LoadJsonValueFromFile("./Scripts/BluePrint/XuanZhuan.json",blueprint)){
-    //     LOG_ERROR("main","XuanZhuang");
-    //     return;
-    // }
-
-    // SetObjectProperty(data,blueprint,interface);
-
-    // 物体控制器变量
-    int currentControl = 0;
-    auto currentTransform = s.registry_->GetComponent<ECS::Component::Transform>(entities[currentControl]);
-    float controlSpeed = 1.0;
-
-    do{
-        Environment::Environment::Instance().Update();
-        Input::KeyboardInput::Instance().Update();
-        Input::MouseInput::Instance().Update();
-
-        if(Input::KeyboardInput::Instance().GetKeyState('O') == Input::KeyboardInput::KeyState::PRESSED){
-            currentControl = std::min((int)entities.size() - 1, currentControl + 1);
-            currentTransform = s.registry_->GetComponent<ECS::Component::Transform>(entities[currentControl]);
-            std::cout << "switch to " << entities[currentControl] << std::endl;
-        }
-        else if (Input::KeyboardInput::Instance().GetKeyState('P') == Input::KeyboardInput::KeyState::PRESSED){
-            currentControl = std::max(0, currentControl - 1);
-            currentTransform = s.registry_->GetComponent<ECS::Component::Transform>(entities[currentControl]);
-            std::cout << "switch to " << entities[currentControl] << std::endl;
-        }
-        if(currentTransform){
-            float deltaTime = Environment::Environment::Instance().GetUpdateIntervalTime();
-            if(Input::KeyboardInput::Instance().GetKeyState(VK_UP) == Input::KeyboardInput::KeyState::HELD){
-                currentTransform->position.z += controlSpeed * deltaTime;
-            }
-            if(Input::KeyboardInput::Instance().GetKeyState(VK_DOWN) == Input::KeyboardInput::KeyState::HELD){
-                currentTransform->position.z -= controlSpeed * deltaTime;
-            }
-            if(Input::KeyboardInput::Instance().GetKeyState(VK_LEFT) == Input::KeyboardInput::KeyState::HELD){
-                currentTransform->position.x += controlSpeed * deltaTime;
-            }
-            if(Input::KeyboardInput::Instance().GetKeyState(VK_RIGHT) == Input::KeyboardInput::KeyState::HELD){
-                currentTransform->position.x -= controlSpeed * deltaTime;
-            }
-            if(Input::KeyboardInput::Instance().GetKeyState('N') == Input::KeyboardInput::KeyState::HELD){
-                currentTransform->position.y += controlSpeed * deltaTime;
-            }
-            if(Input::KeyboardInput::Instance().GetKeyState('M') == Input::KeyboardInput::KeyState::HELD){
-                currentTransform->position.y -= controlSpeed * deltaTime;
-            }
-        }
-
-        // 更新碰撞
-        aabbs.Update();
-        // 更新脚本
-        ss.Update();
-        lTC.Update();
-        s.hierarchySystem_->Update();
-        camMove.Update();
-        // if(ren){
-        //     ren->uboData.values[0] = glm::vec4(cam->camFront,1.0);
-        // }
-
-        rd.Update();
-
-        UpdateWindow();
-    }while(Input::KeyboardInput::Instance().GetKeyState(VK_ESCAPE) != Input::KeyboardInput::KeyState::PRESSED);
-    
 }
 
 Application::~Application(){

@@ -10,12 +10,12 @@ namespace ECS::Core{
     class EntityManager{
         public:
             EntityManager() = default;
-            Entity GenNewEntity(EntityID id, std::string lable = ""){
+            EntityHandle GenNewEntity(EntityID id, std::string lable = ""){
                 entities_.push_back(id);
                 if(!lable.empty()){
                     entityMap_[lable] = id;
                 }
-                return Entity(id);
+                return EntityHandle(id);
             }
         private:
             std::vector<EntityID> entities_;

@@ -32,7 +32,8 @@ namespace ECS::Component{
             return true;
         }
 
-
+        virtual void Init(EntityID entity){}
+        virtual void OnSwitch(EntityID entity){}
 
     };
     

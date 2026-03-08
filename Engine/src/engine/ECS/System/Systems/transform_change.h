@@ -9,9 +9,9 @@
 #include "engine/ECS/Component/Transform/transform.h"
 
 namespace ECS::System{
-    class LocalTransformCalculator : public System{
+    class LocalTransformCalculator2D : public System{
         public:
-            LocalTransformCalculator():System("TransformChanger"){}
+            LocalTransformCalculator2D():System("TransformChanger"){}
             virtual bool AddEntity(EntityID entity) override {
                 auto transform = scene_->registry_->GetComponent<ECS::Component::Transform>(entity);
                 if(!transform){

@@ -4,8 +4,12 @@
 # 忽略所有 .d 文件
 *.d
 
+*.obj
+
 # 仅忽略根目录下的 devel 目录
 /devel/
+
+/build/
 
 # 忽略 bin 目录下的所有文件和目录，除了 shaders 目录
 /bin/*

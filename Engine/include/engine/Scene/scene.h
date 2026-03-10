@@ -6,6 +6,7 @@
 #include <unordered_set>
 #include <map>
 #include <vector>
+#include <queue>
 #include <json/json.h>
 
 #include "engine/ECS/data_type.h"
@@ -31,14 +32,16 @@ namespace ECS::Core{
     struct EntitySceneInfo{
         ArchType* ownArchtype = nullptr;
         size_t archtypeIndex;
+        uint32_t generation = 1;
     };
 
     class Scene{
 
         private:
             std::vector<ObjectPtr<ArchTypeManager>> archtypeManagers_;
-            std::vector<EntitySceneInfo> entity2entityInfo;
-            EntityID entityCount_ = 0;
+            std::vector<EntitySceneInfo> entity2entityInfo_;
+            std::queue<EntityID> recycleEntityID_;
+            uint32_t entityCount_ = 0;
         public:
             
 
@@ -71,12 +74,24 @@ namespace ECS::Core{
                 if(!Check(archtype)){
                     return result;
                 }
+               
                 size_t index = archtype->CreateUnit();
-                EntitySceneInfo info;
-                info.archtypeIndex = index;
-                info.ownArchtype = archtype;
-                entity2entityInfo.push_back(info);
-                result.id_ = ++entityCount_;
+
+                // 分配ID
+                if(!recycleEntityID_.empty()){
+                    EntityID ReUseID = recycleEntityID_.front();
+                    recycleEntityID_.pop();
+                    entity2entityInfo_[ReUseID].ownArchtype = archtype;
+                    result.id_ = ReUseID;
+                }
+                else{
+                    EntitySceneInfo info;
+                    info.archtypeIndex = index;
+                    info.ownArchtype = archtype;
+                    result.id_ = ++entityCount_;
+                    entity2entityInfo_.push_back(info);
+
+                }
                 return result;
             }
 
@@ -85,7 +100,12 @@ namespace ECS::Core{
             }
 
             void DeleteEntity(EntityHandle entity){
-                
+                if(entity.id_ < entity2entityInfo_.size() && entity2entityInfo_[entity.id_].ownArchtype){
+                    entity2entityInfo_[entity.id_].ownArchtype->DeleteUnit(entity2entityInfo_[entity.id_].archtypeIndex);
+                    entity2entityInfo_[entity.id_].ownArchtype = nullptr;
+                    entity2entityInfo_[entity.id_].generation++;
+                    recycleEntityID_.push(entity.id_);
+                }
             }
         public:
             Scene();

@@ -57,6 +57,10 @@ namespace ECS::Core{
                 return size_++;
             }
 
+            void DeleteUnit(size_t index){
+                description_->DeleteUnit(this,index);
+            }
+
         private:
             size_t size_ = 0;
             size_t sizePerChuck_;

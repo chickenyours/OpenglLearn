@@ -21,7 +21,8 @@ namespace ECS::Core{
         private:
             std::unordered_map<std::type_index,size_t> componentArrayDescription_;
             std::vector<std::type_index> index2ComponentArrayType;
-            std::vector<void(*)(void*)> functions;
+            std::vector<void(*)(void*)> addFunctions_;
+            std::vector<void(*)(void*,size_t)> deleteFunctionis_;
             ArchTypeManager* responseManager_ = nullptr;
             size_t componentKinds_ = 0;
             ArchTypeDescription(ArchTypeManager* manager):responseManager_(manager){}
@@ -40,7 +41,32 @@ namespace ECS::Core{
                 chunkptr->push_back();
             }
 
-        public:
+            template <typename ComponentT>
+            static void Delete(void* chunkAddr, size_t index){
+                FixedChunkArray<ComponentT>* chunkptr = reinterpret_cast<FixedChunkArray<ComponentT>*>(chunkAddr);
+                chunkptr->remove(index);
+            }
+
+            void AppendUnit(ArchType* archType){
+                if(!Check(archType)) return;
+
+                for(size_t i = 0; i < addFunctions_.size(); ++i){
+                    addFunctions_[i](archType->addr2ComponentDenseArray[i]);
+                }
+            }
+
+            void DeleteUnit(ArchType* archType, size_t index){
+                if(!Check(archType)) return;
+
+                for(size_t i = 0; i < deleteFunctionis_.size(); ++i){
+                    deleteFunctionis_[i](archType->addr2ComponentDenseArray[i], index);
+                }
+            }
+
+            bool Check(ArchType* archType){ 
+                return archType && archType->description_ == this && addFunctions_.size() == archType->addr2ComponentDenseArray.size(); 
+            }
+
             template <typename ComponentT>
             void AddComponentArray(){
                 auto index = std::type_index(typeid(ComponentT));
@@ -48,7 +74,8 @@ namespace ECS::Core{
                     index2ComponentArrayType.push_back(index);
                     componentArrayDescription_[index] = componentKinds_++;
                     if(responseManager_){
-                        functions.push_back(&Append<ComponentT>);
+                        addFunctions_.push_back(&Append<ComponentT>);
+                        deleteFunctionis_.push_back(&Delete<ComponentT>);
                         responseManager_->ResponseAdd(index);
                     }
                 }
@@ -64,21 +91,10 @@ namespace ECS::Core{
                 return false;
             }
 
-            void AppendUnit(ArchType* archType){
-                if(!archType){
-                    return;
-                }
-                if(archType->description_ != this){
-                    return;
-                }
-                if(functions.size() != archType->addr2ComponentDenseArray.size()){
-                    return;
-                }
 
-                for(size_t i = 0; i < functions.size(); ++i){
-                    functions[i](archType->addr2ComponentDenseArray[i]);
-                }
-            }
+            
+
+            
 
             
 

@@ -1,8 +1,11 @@
 #pragma once
 
+#include <cstdint>
+#include <string>
 #include <typeindex>
 #include <unordered_map>
-#include <cstdint>
+#include <utility>
+#include <vector>
 
 #include "engine/ECS/ArchType/archtype_description.h"
 #include "engine/ECS/ArchType/archtype_instance.h"
@@ -14,75 +17,209 @@ namespace ECS::Core{
     class Scene;
 }
 
-
-
 namespace ECS::Core{
     class ArchTypeManager{
         friend class Scene;
         friend class ArchType;
-        private:
-            std::unordered_map<ArchType*,ObjectPtr<ArchType>> registeredArchTypeArray;
-            ArchTypeDescription description_;
-            uint32_t sortKey_;
-            ArchTypeManager(uint32_t sortKey):description_(this),sortKey_(sortKey){}
 
-            ArchTypeDescription& GetDescription(){ return description_; }
+    private:
+        std::unordered_map<ArchType*, ObjectPtr<ArchType>> registeredArchTypeArray_;
+        ArchTypeDescription description_;
+        uint32_t sortKey_ = 0;
+        bool destroying_ = false;
 
-            ObjectWeakPtr<ArchType> CreateArchType(size_t sizePerChuck){
-                ObjectPtr<ArchType> archtype(&description_, this, sizePerChuck);
-                InitArchType(archtype.Get(), sizePerChuck);
-                auto weak = archtype.GenWeakPtr();
-                registeredArchTypeArray.emplace(archtype.Get(), std::move(archtype));
-                return weak;
+        ArchTypeManager(uint32_t sortKey)
+            : description_(this), sortKey_(sortKey) {}
+
+        ~ArchTypeManager(){
+            destroying_ = true;
+            description_.OnManagerDestroying();
+
+            std::vector<ArchType*> victims;
+            victims.reserve(registeredArchTypeArray_.size());
+            for(auto& [ptr, holder] : registeredArchTypeArray_){
+                (void)holder;
+                victims.push_back(ptr);
             }
 
-            void DestroyArchType(ArchType* archType){
-                if(registeredArchTypeArray.count(archType)){
-                    registeredArchTypeArray.erase(archType);
-                }
+            for(ArchType* archtype : victims){
+                PrepareArchTypeForDestruction(archtype);
+            }
+            registeredArchTypeArray_.clear();
+        }
+
+        ArchTypeDescription& GetDescription(){ return description_; }
+
+        ObjectWeakPtr<ArchType> CreateArchType(size_t sizePerChuck){
+            ObjectPtr<ArchType> archtype(&description_, this, sizePerChuck);
+            if(!InitArchType(archtype.Get(), sizePerChuck)){
+                LOG_ERROR("ArchTypeManager::CreateArchType", "init archtype failed");
+                return {};
             }
 
-            void InitArchType(ArchType* archtype, size_t chunkScale){
-                archtype->addr2ComponentDenseArray.clear();
-                archtype->addr2ComponentDenseArray.reserve(description_.index2ComponentArrayType.size());
-                for(auto typeIndex : description_.index2ComponentArrayType){
-                    ArchTypeAddComponentArray(archtype, typeIndex, chunkScale);
-                }
+            auto weak = archtype.GenWeakPtr();
+            registeredArchTypeArray_.emplace(archtype.Get(), std::move(archtype));
+            return weak;
+        }
+
+        void DestroyArchType(ArchType* archType){
+            auto it = registeredArchTypeArray_.find(archType);
+            if(it == registeredArchTypeArray_.end()){
+                return;
             }
 
-            void ArchTypeAddComponentArray(ArchType* archtype, std::type_index typeIndex, size_t chunkScale){
-                auto& map = ECS::Component::GetComponentChuckArrayConstructorMap();
-                auto componentArrayChuckConstructorItor = map.find(typeIndex);
-                if(componentArrayChuckConstructorItor == map.end()){
-                    LOG_ERROR("ArchTypeManager::InitArchType", "no registered component");
-                    return;
-                }
-                archtype->addr2ComponentDenseArray.push_back(componentArrayChuckConstructorItor->second(chunkScale));
+            PrepareArchTypeForDestruction(archType);
+            registeredArchTypeArray_.erase(it);
+        }
+
+        bool InitArchType(ArchType* archtype, size_t chunkScale){
+            if(archtype == nullptr){
+                return false;
             }
 
-            void ResponseAdd(std::type_index typeIndex){
-                for(auto& [key,val] : registeredArchTypeArray){
-                    ArchTypeAddComponentArray(val.Get(), typeIndex, val->sizePerChuck_);
-                }
-            }
+            archtype->activeAddr2ComponentDenseArray_.clear();
+            archtype->preloadAddr2ComponentDenseArray_.clear();
+            archtype->activeAddr2ComponentDenseArray_.reserve(description_.index2ComponentArrayType.size());
+            archtype->preloadAddr2ComponentDenseArray_.reserve(description_.index2ComponentArrayType.size());
 
-            void ReleaseArchType(ArchType* archtype){
-                if(archtype->description_ != &description_){
-                    LOG_ERROR("ArchTypeManager::InitArchType","the type of archtype is not same");
-                    return;
-                }
-                for(size_t index = 0; index < description_.componentKinds_; index++){
-                    void*& compontStorageAddr = archtype->addr2ComponentDenseArray[index];
-                    std::type_index& typeIndex = description_.index2ComponentArrayType[index];
-                    auto& map = ECS::Component::GetComponentChuckArrayDestructorMap();
-                    auto componentArrayChuckDestructorItor = map.find(typeIndex);
-                    if(componentArrayChuckDestructorItor == map.end()){
-                        LOG_ERROR("ArchTypeManager::InitArchType","can't find the Destructor of " + std::string(typeIndex.name()));
-                        return;
+            for(const auto& typeIndex : description_.index2ComponentArrayType){
+                void* activeStorage = nullptr;
+                void* preloadStorage = nullptr;
+                if(!ConstructComponentStorage(typeIndex, chunkScale, activeStorage) ||
+                   !ConstructComponentStorage(typeIndex, chunkScale, preloadStorage)){
+                    if(activeStorage != nullptr){
+                        DestroyComponentStorage(typeIndex, activeStorage);
                     }
-                    componentArrayChuckDestructorItor->second(compontStorageAddr);
+                    if(preloadStorage != nullptr){
+                        DestroyComponentStorage(typeIndex, preloadStorage);
+                    }
+                    ReleaseArchTypeStorage(archtype);
+                    return false;
                 }
-                archtype->addr2ComponentDenseArray.clear();
+                archtype->activeAddr2ComponentDenseArray_.push_back(activeStorage);
+                archtype->preloadAddr2ComponentDenseArray_.push_back(preloadStorage);
             }
+            return true;
+        }
+
+        bool ResponseAdd(std::type_index typeIndex){
+            std::vector<std::pair<ArchType*, void*>> appendedActive;
+            std::vector<std::pair<ArchType*, void*>> appendedPreload;
+            appendedActive.reserve(registeredArchTypeArray_.size());
+            appendedPreload.reserve(registeredArchTypeArray_.size());
+
+            for(auto& [ptr, holder] : registeredArchTypeArray_){
+                (void)holder;
+                void* activeStorage = nullptr;
+                void* preloadStorage = nullptr;
+                if(!ConstructComponentStorage(typeIndex, ptr->sizePerChuck_, activeStorage) ||
+                   !ConstructComponentStorage(typeIndex, ptr->sizePerChuck_, preloadStorage)){
+                    if(activeStorage != nullptr){
+                        DestroyComponentStorage(typeIndex, activeStorage);
+                    }
+                    if(preloadStorage != nullptr){
+                        DestroyComponentStorage(typeIndex, preloadStorage);
+                    }
+                    for(auto& [arch, storage] : appendedActive){
+                        if(!arch->activeAddr2ComponentDenseArray_.empty() && arch->activeAddr2ComponentDenseArray_.back() == storage){
+                            arch->activeAddr2ComponentDenseArray_.pop_back();
+                        }
+                        DestroyComponentStorage(typeIndex, storage);
+                    }
+                    for(auto& [arch, storage] : appendedPreload){
+                        if(!arch->preloadAddr2ComponentDenseArray_.empty() && arch->preloadAddr2ComponentDenseArray_.back() == storage){
+                            arch->preloadAddr2ComponentDenseArray_.pop_back();
+                        }
+                        DestroyComponentStorage(typeIndex, storage);
+                    }
+                    return false;
+                }
+
+                ptr->activeAddr2ComponentDenseArray_.push_back(activeStorage);
+                ptr->preloadAddr2ComponentDenseArray_.push_back(preloadStorage);
+                appendedActive.emplace_back(ptr, activeStorage);
+                appendedPreload.emplace_back(ptr, preloadStorage);
+            }
+            return true;
+        }
+
+        void ReleaseArchTypeStorage(ArchType* archtype){
+            if(archtype == nullptr || archtype->description_ != &description_){
+                return;
+            }
+            if(archtype->storageReleased_){
+                return;
+            }
+
+            const size_t kinds = description_.index2ComponentArrayType.size();
+            const size_t activeCount = archtype->activeAddr2ComponentDenseArray_.size();
+            const size_t preloadCount = archtype->preloadAddr2ComponentDenseArray_.size();
+            const size_t maxCount = activeCount > preloadCount ? activeCount : preloadCount;
+
+            for(size_t index = 0; index < maxCount; ++index){
+                const std::type_index* typeIndex = (index < kinds) ? &description_.index2ComponentArrayType[index] : nullptr;
+                if(typeIndex == nullptr){
+                    LOG_ERROR("ArchTypeManager::ReleaseArchTypeStorage", "component type metadata missing during release");
+                    continue;
+                }
+                if(index < activeCount && archtype->activeAddr2ComponentDenseArray_[index] != nullptr){
+                    DestroyComponentStorage(*typeIndex, archtype->activeAddr2ComponentDenseArray_[index]);
+                    archtype->activeAddr2ComponentDenseArray_[index] = nullptr;
+                }
+                if(index < preloadCount && archtype->preloadAddr2ComponentDenseArray_[index] != nullptr){
+                    DestroyComponentStorage(*typeIndex, archtype->preloadAddr2ComponentDenseArray_[index]);
+                    archtype->preloadAddr2ComponentDenseArray_[index] = nullptr;
+                }
+            }
+
+            archtype->activeAddr2ComponentDenseArray_.clear();
+            archtype->preloadAddr2ComponentDenseArray_.clear();
+            archtype->MarkStorageReleased();
+        }
+
+        bool ConstructComponentStorage(std::type_index typeIndex, size_t chunkScale, void*& outStorage){
+            outStorage = nullptr;
+            auto& constructorMap = ECS::Component::GetComponentChuckArrayConstructorMap();
+            auto it = constructorMap.find(typeIndex);
+            if(it == constructorMap.end()){
+                LOG_ERROR("ArchTypeManager::ConstructComponentStorage", "no registered component constructor for " + std::string(typeIndex.name()));
+                return false;
+            }
+
+            outStorage = it->second(chunkScale);
+            if(outStorage == nullptr){
+                LOG_ERROR("ArchTypeManager::ConstructComponentStorage", "component constructor returned nullptr for " + std::string(typeIndex.name()));
+                return false;
+            }
+            return true;
+        }
+
+        bool DestroyComponentStorage(std::type_index typeIndex, void* storage){
+            if(storage == nullptr){
+                return true;
+            }
+
+            auto& destructorMap = ECS::Component::GetComponentChuckArrayDestructorMap();
+            auto it = destructorMap.find(typeIndex);
+            if(it == destructorMap.end()){
+                LOG_ERROR("ArchTypeManager::DestroyComponentStorage", "can't find destructor of " + std::string(typeIndex.name()));
+                return false;
+            }
+
+            it->second(storage);
+            return true;
+        }
+
+        void PrepareArchTypeForDestruction(ArchType* archtype){
+            if(archtype == nullptr){
+                return;
+            }
+
+            ReleaseArchTypeStorage(archtype);
+            archtype->ResetMetadataOnly();
+            archtype->DetachFromManager();
+            archtype->description_ = nullptr;
+            archtype->isDestroyed_ = true;
+        }
     };
 }

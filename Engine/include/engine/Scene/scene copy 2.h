@@ -11,11 +11,11 @@
 
 #include "engine/ECS/data_type.h"
 #include "engine/ECS/Entity/entity.h"
+
 #include "engine/DebugTool/ConsoleHelp/color_log.h"
 #include "engine/ToolAndAlgorithm/container_algorithm.h"
 #include "engine/ToolAndAlgorithm/object.h"
 #include "engine/ECS/ArchType/archtype_manager.h"
-#include "engine/ECS/ArchType/archtype_description.h"
 
 namespace ECS{
     namespace Core{
@@ -31,6 +31,8 @@ namespace ECS::Core{
 
     struct EntitySceneInfo{
         ArchType* ownArchtype = nullptr;
+        size_t archtypeIndex;
+        uint32_t generation = 1;
     };
 
     class Scene{
@@ -40,25 +42,19 @@ namespace ECS::Core{
             std::vector<EntitySceneInfo> entity2entityInfo_;
             std::queue<EntityID> recycleEntityID_;
             uint32_t entityCount_ = 0;
-
-            bool Check(ArchType* archtype){
-                return archtypeManagers_[archtype->manager_->sortKey_].Get() == archtype->manager_;
-            }
-
-
         public:
             
 
-            ArchTypeDescription* CreateArchTypeDescription(){
+            ArchTypeDescription& CreateArchTypeDescription(){
                 uint32_t nowIndex = archtypeManagers_.size();
                 archtypeManagers_.push_back(ObjectPtr<ArchTypeManager>(nowIndex));
-                return &archtypeManagers_[nowIndex]->description_;
+                return archtypeManagers_[nowIndex]->description_;
             }
 
-            ObjectWeakPtr<ArchType> CreateArchType(ArchTypeDescription* description, size_t sizePerChuck){
-                ArchTypeManager* manager = archtypeManagers_[description->responseManager_->sortKey_].Get();
-                if(&manager->description_ == description){
-                    return manager->CreateArchType(sizePerChuck);
+            ObjectWeakPtr<ArchType> CreateArchType(ArchTypeDescription& description, size_t sizePerChuck){
+                ArchTypeManager* manager = archtypeManagers_[description.responseManager_->sortKey_].Get();
+                if(&manager->description_ == &description){
+                    manager->CreateArchType(sizePerChuck);
                 }
                 else{
                     return;
@@ -99,6 +95,10 @@ namespace ECS::Core{
                 return result;
             }
 
+            bool Check(ArchType* archtype){
+                return archtypeManagers_[archtype->manager_->sortKey_].Get() == archtype->manager_;
+            }
+
             void DeleteEntity(EntityHandle entity){
                 if(entity.id_ < entity2entityInfo_.size() && entity2entityInfo_[entity.id_].ownArchtype){
                     entity2entityInfo_[entity.id_].ownArchtype->DeleteUnit(entity2entityInfo_[entity.id_].archtypeIndex);
@@ -107,16 +107,54 @@ namespace ECS::Core{
                     recycleEntityID_.push(entity.id_);
                 }
             }
-
-            template <typename ComponentT>
-            ComponentHandle<ComponentT> GetComponent(EntityID entity){
-                if(entity < entity2entityInfo_.size()){
-                    const EntitySceneInfo& info = entity2entityInfo_[entity];
-                    
-                    auto it = info.ownArchtype.
-                    ComponentT* comPtr = info.ownArchtype->description_->GetActiveComponent(info.ownArchtype, index);
-                }
-            }
+        public:
+            Scene();
+            bool LoadFromConfigFile(const std::string& filePath, Log::StackLogErrorHandle errHandle = nullptr);
+            std::unique_ptr<ECS::ComponentRegister> registry_;
+            std::unique_ptr<ECS::System::SceneTreeSystem> hierarchySystem_;
             
+            // return INVALID_ENTITY if uuid can't find entity in uuidToEntity 
+            EntityID GetEntity(std::string uuid){
+                auto entityItor = uuidToEntity_.find(uuid);
+                if(entityItor != uuidToEntity_.end()){
+                    return entityItor->second;
+                }
+                return INVALID_ENTITY;
+            }
+
+            EntityHandle CreateNewEntity(){
+                EntityID newID = counter.GetNewEntity();
+                return EntityHandle(newID);
+            }
+
+            size_t GetCount() {return counter.count;}
+
+            bool HasEntity(EntityHandle entity){
+                return entityInfo.count(entity.GetID());
+            }
+
+            std::vector<EntityID> GetAllEntities(){
+                return Algorithm::GetKeys(entityInfo);
+            }
+        private:
+            class EntityCounter{
+                public:
+                    EntityID GetNewEntity(){return ++count;}
+                    EntityID count = 0u;
+            } counter;
+
+            std::string name_;
+            Json::Value source_;
+
+            std::unordered_map<std::string, EntityID> uuidToEntity_;
+            std::unordered_set<std::string> uuidToPrefab_;
+            std::unordered_map<EntityID,EntitySceneInfo> entityInfo;
+
+            // 遍历处理scene items, 区分类型(如entity, prefab) 动态分配entityID, 自动构造上下层级 
+            // 更新entityMataDataMap_ 和 GlobalIDToEntityIDMap_
+            void EntityIDDistribute(std::vector<Json::Value*>& itemsMataDataArray, Log::StackLogErrorHandle errHandle = nullptr);
     };
 }
+
+#include "engine/ECS/Component/component_register.h"
+#include "engine/ECS/System/SceneTree/scene_tree.h"

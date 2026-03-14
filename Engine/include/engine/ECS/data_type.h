@@ -6,6 +6,8 @@ namespace ECS{
 
     typedef uint32_t EntityID;
 
+    typedef uint32_t ReservationID;
+
     // struct EntityID{
     //     uint32_t index;
     //     uint32_t generation = 1;

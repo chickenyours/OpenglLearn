@@ -1,7 +1,7 @@
 #pragma once
 
 #include "engine/ECS/data_type.h"
-#include "engine/Scene/scene.h"
+#include "engine/ECS/Scene/scene.h"
 
 #include "engine/ECS/Context/context.h"
 
@@ -23,6 +23,7 @@ namespace ECS{
         private:
             EntityHandle() = default;
             EntityID id_ = 0;
+            uint32_t generation_ = 0;
         };
 
 }

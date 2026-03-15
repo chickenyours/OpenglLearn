@@ -2,14 +2,6 @@ C:/Users/16620/Desktop/projects/OpenglLearn/build/CMakeFiles/edit_cache.dir
 C:/Users/16620/Desktop/projects/OpenglLearn/build/CMakeFiles/rebuild_cache.dir
 C:/Users/16620/Desktop/projects/OpenglLearn/build/Engine/CMakeFiles/edit_cache.dir
 C:/Users/16620/Desktop/projects/OpenglLearn/build/Engine/CMakeFiles/rebuild_cache.dir
-C:/Users/16620/Desktop/projects/OpenglLearn/build/Engine/src/plugin/CMakeFiles/script_program.dir
-C:/Users/16620/Desktop/projects/OpenglLearn/build/Engine/src/plugin/CMakeFiles/edit_cache.dir
-C:/Users/16620/Desktop/projects/OpenglLearn/build/Engine/src/plugin/CMakeFiles/rebuild_cache.dir
-C:/Users/16620/Desktop/projects/OpenglLearn/build/Engine/src/engine/CMakeFiles/engine.dir
-C:/Users/16620/Desktop/projects/OpenglLearn/build/Engine/src/engine/CMakeFiles/edit_cache.dir
-C:/Users/16620/Desktop/projects/OpenglLearn/build/Engine/src/engine/CMakeFiles/rebuild_cache.dir
-C:/Users/16620/Desktop/projects/OpenglLearn/build/Application/CMakeFiles/main_exec.dir
-C:/Users/16620/Desktop/projects/OpenglLearn/build/Application/CMakeFiles/script.dir
-C:/Users/16620/Desktop/projects/OpenglLearn/build/Application/CMakeFiles/gen_script_blueprints.dir
-C:/Users/16620/Desktop/projects/OpenglLearn/build/Application/CMakeFiles/edit_cache.dir
-C:/Users/16620/Desktop/projects/OpenglLearn/build/Application/CMakeFiles/rebuild_cache.dir
+C:/Users/16620/Desktop/projects/OpenglLearn/build/Engine/tests/CMakeFiles/MyApp.dir
+C:/Users/16620/Desktop/projects/OpenglLearn/build/Engine/tests/CMakeFiles/edit_cache.dir
+C:/Users/16620/Desktop/projects/OpenglLearn/build/Engine/tests/CMakeFiles/rebuild_cache.dir

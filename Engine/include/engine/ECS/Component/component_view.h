@@ -36,7 +36,7 @@ public:
     // 你可以按需提供填充接口
     void Clear() { index_.clear(); }
     void Reserve(size_t n) { index_.reserve(n); }
-    void PushHandle(const ComponentHandle& h) { index_.push_back(h); }
+    void PushHandle(const EntityComponentHandle& h) { index_.push_back(h); }
 
     size_t size() const { return index_.size(); }
     bool empty() const { return index_.empty(); }
@@ -254,7 +254,7 @@ public:
     EntityView view() { return EntityView(*this); }
 
 private:
-    std::vector<ComponentHandle> index_;
+    std::vector<EntityComponentHandle> index_;
     ObjectWeakPtr<StorageT> owner_;
 };
 

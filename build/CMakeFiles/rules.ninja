@@ -28,43 +28,7 @@ rule CUSTOM_COMMAND
 #############################################
 # Rule for compiling CXX files.
 
-rule CXX_COMPILER__script_program_unscanned_Debug
-  deps = msvc
-  command = ${LAUNCHER}${CODE_CHECK}C:\Mydata\clang+llvm-20.1.8-x86_64-pc-windows-msvc\clang+llvm-20.1.8-x86_64-pc-windows-msvc\bin\clang-cl.exe  /nologo -TP $DEFINES $INCLUDES $FLAGS /showIncludes /Fo$out /Fd$TARGET_COMPILE_PDB -c -- $in
-  description = Building CXX object $out
-
-
-#############################################
-# Rule for linking CXX static library.
-
-rule CXX_STATIC_LIBRARY_LINKER__script_program_Debug
-  command = C:\WINDOWS\system32\cmd.exe /C "$PRE_LINK && C:\Mydata\clang+llvm-20.1.8-x86_64-pc-windows-msvc\clang+llvm-20.1.8-x86_64-pc-windows-msvc\bin\llvm-lib.exe /nologo $LINK_FLAGS /out:$TARGET_FILE $in && $POST_BUILD"
-  description = Linking CXX static library $TARGET_FILE
-  restat = $RESTAT
-
-
-#############################################
-# Rule for compiling CXX files.
-
-rule CXX_COMPILER__engine_unscanned_Debug
-  deps = msvc
-  command = ${LAUNCHER}${CODE_CHECK}C:\Mydata\clang+llvm-20.1.8-x86_64-pc-windows-msvc\clang+llvm-20.1.8-x86_64-pc-windows-msvc\bin\clang-cl.exe  /nologo -TP $DEFINES $INCLUDES $FLAGS /showIncludes /Fo$out /Fd$TARGET_COMPILE_PDB -c -- $in
-  description = Building CXX object $out
-
-
-#############################################
-# Rule for linking CXX static library.
-
-rule CXX_STATIC_LIBRARY_LINKER__engine_Debug
-  command = C:\WINDOWS\system32\cmd.exe /C "$PRE_LINK && C:\Mydata\clang+llvm-20.1.8-x86_64-pc-windows-msvc\clang+llvm-20.1.8-x86_64-pc-windows-msvc\bin\llvm-lib.exe /nologo $LINK_FLAGS /out:$TARGET_FILE $in && $POST_BUILD"
-  description = Linking CXX static library $TARGET_FILE
-  restat = $RESTAT
-
-
-#############################################
-# Rule for compiling CXX files.
-
-rule CXX_COMPILER__main_exec_unscanned_Debug
+rule CXX_COMPILER__MyApp_unscanned_Debug
   deps = msvc
   command = ${LAUNCHER}${CODE_CHECK}C:\Mydata\clang+llvm-20.1.8-x86_64-pc-windows-msvc\clang+llvm-20.1.8-x86_64-pc-windows-msvc\bin\clang-cl.exe  /nologo -TP $DEFINES $INCLUDES $FLAGS /showIncludes /Fo$out /Fd$TARGET_COMPILE_PDB -c -- $in
   description = Building CXX object $out
@@ -73,27 +37,9 @@ rule CXX_COMPILER__main_exec_unscanned_Debug
 #############################################
 # Rule for linking CXX executable.
 
-rule CXX_EXECUTABLE_LINKER__main_exec_Debug
+rule CXX_EXECUTABLE_LINKER__MyApp_Debug
   command = C:\WINDOWS\system32\cmd.exe /C "$PRE_LINK && "C:\Program Files\CMake\bin\cmake.exe" -E vs_link_exe --msvc-ver=1944 --intdir=$OBJECT_DIR --rc=C:\Mydata\clang+llvm-20.1.8-x86_64-pc-windows-msvc\clang+llvm-20.1.8-x86_64-pc-windows-msvc\bin\llvm-rc.exe --mt=C:\Mydata\clang+llvm-20.1.8-x86_64-pc-windows-msvc\clang+llvm-20.1.8-x86_64-pc-windows-msvc\bin\llvm-mt.exe --manifests $MANIFESTS -- C:\Mydata\clang+llvm-20.1.8-x86_64-pc-windows-msvc\clang+llvm-20.1.8-x86_64-pc-windows-msvc\bin\lld-link.exe /nologo $in  /out:$TARGET_FILE /implib:$TARGET_IMPLIB /pdb:$TARGET_PDB /version:0.0 $LINK_FLAGS $LINK_PATH $LINK_LIBRARIES && $POST_BUILD"
   description = Linking CXX executable $TARGET_FILE
-  restat = $RESTAT
-
-
-#############################################
-# Rule for compiling CXX files.
-
-rule CXX_COMPILER__script_unscanned_Debug
-  deps = msvc
-  command = ${LAUNCHER}${CODE_CHECK}C:\Mydata\clang+llvm-20.1.8-x86_64-pc-windows-msvc\clang+llvm-20.1.8-x86_64-pc-windows-msvc\bin\clang-cl.exe  /nologo -TP $DEFINES $INCLUDES $FLAGS /showIncludes /Fo$out /Fd$TARGET_COMPILE_PDB -c -- $in
-  description = Building CXX object $out
-
-
-#############################################
-# Rule for linking CXX shared module.
-
-rule CXX_MODULE_LIBRARY_LINKER__script_Debug
-  command = C:\WINDOWS\system32\cmd.exe /C "$PRE_LINK && "C:\Program Files\CMake\bin\cmake.exe" -E vs_link_dll --msvc-ver=1944 --intdir=$OBJECT_DIR --rc=C:\Mydata\clang+llvm-20.1.8-x86_64-pc-windows-msvc\clang+llvm-20.1.8-x86_64-pc-windows-msvc\bin\llvm-rc.exe --mt=C:\Mydata\clang+llvm-20.1.8-x86_64-pc-windows-msvc\clang+llvm-20.1.8-x86_64-pc-windows-msvc\bin\llvm-mt.exe --manifests $MANIFESTS -- C:\Mydata\clang+llvm-20.1.8-x86_64-pc-windows-msvc\clang+llvm-20.1.8-x86_64-pc-windows-msvc\bin\lld-link.exe /nologo $in  /out:$TARGET_FILE /implib:$TARGET_IMPLIB /pdb:$TARGET_PDB /dll /version:0.0 $LINK_FLAGS $LINK_PATH $LINK_LIBRARIES && $POST_BUILD"
-  description = Linking CXX shared module $TARGET_FILE
   restat = $RESTAT
 
 

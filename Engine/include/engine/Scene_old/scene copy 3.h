@@ -30,7 +30,7 @@ namespace ECS{
 namespace ECS::Core{
 
     struct EntitySceneInfo{
-        ArchType* ownArchtype = nullptr;
+        ObjectWeakPtr<ArchType> ownArchtype;
     };
 
     class Scene{
@@ -109,13 +109,16 @@ namespace ECS::Core{
             }
 
             template <typename ComponentT>
-            ComponentHandle<ComponentT> GetComponent(EntityID entity){
+            EntityComponentHandle<ComponentT> GetActiveComponent(EntityID entity){
+                EntityComponentHandle<ComponentT> handle;
                 if(entity < entity2entityInfo_.size()){
                     const EntitySceneInfo& info = entity2entityInfo_[entity];
-                    
-                    auto it = info.ownArchtype.
-                    ComponentT* comPtr = info.ownArchtype->description_->GetActiveComponent(info.ownArchtype, index);
+                    handle = info.ownArchtype->description_->GetActiveComponent(info.ownArchtype, entity);
                 }
+                else{
+                    LOG_ERROR("Scene::EntityComponentHandle", "error entity");
+                }
+                return handle;
             }
             
     };

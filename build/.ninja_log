@@ -16,7 +16,7 @@
 15	1178	7888812239824685	Engine/src/engine/CMakeFiles/engine.dir/Resource/Shader/shader_program_factory.cpp.obj	5a87aea7f1bd2342
 571	2804	7888799463350800	Engine/src/engine/CMakeFiles/engine.dir/ECS/System/Script/script_system.cpp.obj	14ea8b792d146e70
 462	2940	7888799462265446	Engine/src/engine/CMakeFiles/engine.dir/Scene/scene.cpp.obj	e9cd60ae4b548309
-16	2934	7888927331757115	Application/CMakeFiles/main_exec.dir/application.cpp.obj	20dc58ebe01d8a41
+15	2697	7888942720248219	Application/CMakeFiles/main_exec.dir/application.cpp.obj	20dc58ebe01d8a41
 608	6531	7888799522756751	C:/Users/16620/Desktop/projects/OpenglLearn/bin/Scripts/BluePrint/XianShi.json	af48cae81bfb5840
 617	6559	7888799523022393	C:/Users/16620/Desktop/projects/OpenglLearn/bin/Scripts/BluePrint/XuanZhuan.json	9e084ca480bf07d4
 6596	7516	7888799523602762	Application/CMakeFiles/script.dir/__/Asset/Scripts/XianShi.cpp.obj	dfb5a633bb4f5486
@@ -24,6 +24,7 @@
 7541	8073	7888799533053325	C:/Users/16620/Desktop/projects/OpenglLearn/bin/script.dll	957087092d0e3da0
 2474	8540	7888799482383931	C:/Users/16620/Desktop/projects/OpenglLearn/lib/debug/engine_script_manager.lib	8951069dc87387c
 1088	1171	7888815375584507	C:/Users/16620/Desktop/projects/OpenglLearn/lib/debug/engine.lib	a15f9a3603bc8fc3
-2936	4156	7888927360948618	C:/Users/16620/Desktop/projects/OpenglLearn/bin/main_exec.exe	b41b5d522e297b4a
-15	2697	7888942720248219	Application/CMakeFiles/main_exec.dir/application.cpp.obj	20dc58ebe01d8a41
 2700	3109	7888942747097282	C:/Users/16620/Desktop/projects/OpenglLearn/bin/main_exec.exe	b41b5d522e297b4a
+36	1169	7952840907811705	Engine/tests/CMakeFiles/MyApp.dir/archtype_description.cpp.obj	f579f038c8fc97bf
+68	1273	7952840908134826	Engine/tests/CMakeFiles/MyApp.dir/archtype_instance.cpp.obj	da1d43fdcf4fe144
+134	1237	7952840908791671	Engine/tests/CMakeFiles/MyApp.dir/scene.cpp.obj	a6b3cec7e29c3bb

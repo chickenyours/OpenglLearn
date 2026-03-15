@@ -34,12 +34,7 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
-  include("C:/Users/16620/Desktop/projects/OpenglLearn/build/Engine/src/plugin/cmake_install.cmake")
-endif()
-
-if(NOT CMAKE_INSTALL_LOCAL_ONLY)
-  # Include the install script for the subdirectory.
-  include("C:/Users/16620/Desktop/projects/OpenglLearn/build/Engine/src/engine/cmake_install.cmake")
+  include("C:/Users/16620/Desktop/projects/OpenglLearn/build/Engine/tests/cmake_install.cmake")
 endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT

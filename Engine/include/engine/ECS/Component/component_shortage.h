@@ -102,9 +102,9 @@ public:
 
     ComponentHandle GetHandle(EntityID id){
         auto it = sparseMap.find(id);
-        if (it == sparseMap.end()) return ComponentHandle();
+        if (it == sparseMap.end()) return EntityComponentHandle();
         size_t idx = it->second;
-        return ComponentHandle{
+        return EntityComponentHandle{
             denseVersion[idx].version,
             idx,
             id
@@ -127,7 +127,7 @@ public:
         sparseMap.erase(id);
     }
 
-    ComponentT* Get(EntityID entity, ComponentHandle* outHandle = nullptr) const{
+    ComponentT* Get(EntityID entity, EntityComponentHandle* outHandle = nullptr) const{
         auto it = sparseMap.find(entity);
         if (it != sparseMap.end()) {
             if(outHandle){
@@ -138,7 +138,7 @@ public:
         return nullptr;
     }
 
-    ComponentT* GetComponent(const ComponentHandle& handle) const{
+    ComponentT* GetComponent(const EntityComponentHandle& handle) const{
         // 句柄合法性检测
         if(handle.index >= denseComponents.size() || denseVersion[handle.index].version != handle.currentVersion){
             // 不合法,执行更新措施
@@ -149,7 +149,7 @@ public:
         return &denseComponents[handle.index];
     }
 
-    EntityID GetEntityID(const ComponentHandle& handle) const{
+    EntityID GetEntityID(const EntityComponentHandle& handle) const{
 
         return denseEntities[handle.index];
     }

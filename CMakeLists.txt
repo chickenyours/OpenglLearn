@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 project(MyProject LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 
@@ -26,4 +26,4 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib/debug)
 # add_subdirectory(scripts)
 add_subdirectory(${CMAKE_SOURCE_DIR}/Engine)
 # add_subdirectory(${CMAKE_SOURCE_DIR}/Application)
-add_subdirectory(${CMAKE_SOURCE_DIR}/2D/Application)
+# add_subdirectory(${CMAKE_SOURCE_DIR}/2D/Application)

@@ -1,12 +1,21 @@
 #include "engine/ECS/ArchType/archtype_manager.h"
 
+#include "engine/ECS/data_type.h"
+#include "engine/ToolAndAlgorithm/object.h"
+#include "engine/ECS/Component/component_loader_registry.h"
+#include "engine/DebugTool/ConsoleHelp/color_log.h"
+#include "engine/ECS/ArchType/archtype_description.h"
+#include "engine/ECS/ArchType/archtype_instance.h"
+
 namespace ECS::Core{
     ArchTypeManager::ArchTypeManager(uint32_t sortKey)
-        : description_(this), sortKey_(sortKey) {}
+        : description_(this), sortKey_(sortKey){
+
+        }
 
     ArchTypeManager::~ArchTypeManager(){
         destroying_ = true;
-        description_.OnManagerDestroying();
+        description_->OnManagerDestroying();
 
         std::vector<ArchType*> victims;
         victims.reserve(registeredArchTypeArray_.size());
@@ -21,12 +30,12 @@ namespace ECS::Core{
         registeredArchTypeArray_.clear();
     }
 
-    ArchTypeDescription& ArchTypeManager::GetDescription(){
-        return description_;
+    ObjectWeakPtr<ArchTypeDescription> ArchTypeManager::GetDescription(){
+        return description_.GenWeakPtr();
     }
 
     ObjectWeakPtr<ArchType> ArchTypeManager::CreateArchType(size_t sizePerChuck){
-        ObjectPtr<ArchType> archtype(&description_, this, sizePerChuck);
+        ObjectPtr<ArchType> archtype(description_.Get(), this, sizePerChuck);
         if(!InitArchType(archtype.Get(), sizePerChuck)){
             LOG_ERROR("ArchTypeManager::CreateArchType", "init archtype failed");
             return {};
@@ -54,10 +63,10 @@ namespace ECS::Core{
 
         archtype->activeAddr2ComponentDenseArray_.clear();
         archtype->preloadAddr2ComponentDenseArray_.clear();
-        archtype->activeAddr2ComponentDenseArray_.reserve(description_.index2ComponentArrayType.size());
-        archtype->preloadAddr2ComponentDenseArray_.reserve(description_.index2ComponentArrayType.size());
+        archtype->activeAddr2ComponentDenseArray_.reserve(description_->index2ComponentArrayType.size());
+        archtype->preloadAddr2ComponentDenseArray_.reserve(description_->index2ComponentArrayType.size());
 
-        for(const auto& typeIndex : description_.index2ComponentArrayType){
+        for(const auto& typeIndex : description_->index2ComponentArrayType){
             void* activeStorage = nullptr;
             void* preloadStorage = nullptr;
             if(!ConstructComponentStorage(typeIndex, chunkScale, activeStorage) ||
@@ -84,7 +93,7 @@ namespace ECS::Core{
         appendedPreload.reserve(registeredArchTypeArray_.size());
 
         auto appendDefaultN = [&](void* storage, size_t n)->bool{
-            auto addIt = description_.addFunctions_.back();
+            auto addIt = description_->addFunctions_.back();
             if(addIt == nullptr){
                 return false;
             }
@@ -119,6 +128,7 @@ namespace ECS::Core{
                     }
                     DestroyComponentStorage(typeIndex, storage);
                 }
+                LOG_ERROR("ArchTypeManager","ResponseAdd");
                 return false;
             }
 
@@ -126,6 +136,7 @@ namespace ECS::Core{
                !appendDefaultN(preloadStorage, ptr->preloadCount_)){
                 DestroyComponentStorage(typeIndex, activeStorage);
                 DestroyComponentStorage(typeIndex, preloadStorage);
+                LOG_ERROR("ArchTypeManager","ResponseAdd");
                 return false;
             }
 
@@ -140,20 +151,20 @@ namespace ECS::Core{
     }
 
     void ArchTypeManager::ReleaseArchTypeStorage(ArchType* archtype){
-        if(archtype == nullptr || archtype->description_ != &description_){
+        if(archtype == nullptr || archtype->description_ != description_.Get()){
             return;
         }
         if(archtype->storageReleased_){
             return;
         }
 
-        const size_t kinds = description_.index2ComponentArrayType.size();
+        const size_t kinds = description_->index2ComponentArrayType.size();
         const size_t activeCount = archtype->activeAddr2ComponentDenseArray_.size();
         const size_t preloadCount = archtype->preloadAddr2ComponentDenseArray_.size();
         const size_t maxCount = activeCount > preloadCount ? activeCount : preloadCount;
 
         for(size_t index = 0; index < maxCount; ++index){
-            const std::type_index* typeIndex = (index < kinds) ? &description_.index2ComponentArrayType[index] : nullptr;
+            const std::type_index* typeIndex = (index < kinds) ? &description_->index2ComponentArrayType[index] : nullptr;
             if(typeIndex == nullptr){
                 LOG_ERROR("ArchTypeManager::ReleaseArchTypeStorage", "component type metadata missing during release");
                 continue;

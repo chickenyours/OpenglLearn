@@ -42,7 +42,9 @@ namespace ECS::Core{
         using SwapBetweenFunction = void(*)(void*, size_t, void*, size_t);
 
         explicit ArchTypeDescription(ArchTypeManager* manager = nullptr);
-
+        ~ArchTypeDescription(){
+            LOG_INFO("ArchTypeDescription","~ArchTypeDescription");
+        }
         void OnManagerDestroying();
 
         template <typename ComponentT>
@@ -80,8 +82,10 @@ namespace ECS::Core{
         std::vector<SwapBetweenFunction> swapBetweenFunctions_;
 
         ArchTypeManager* responseManager_ = nullptr;
+
+        private:
+            bool NotifyManagerResponseAdd(std::type_index typeIndex);
     };
 }
 
-#include "engine/ECS/ArchType/archtype_manager.h"
 #include "engine/ECS/ArchType/archtype_description_impl.h"

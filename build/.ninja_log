@@ -25,6 +25,11 @@
 2474	8540	7888799482383931	C:/Users/16620/Desktop/projects/OpenglLearn/lib/debug/engine_script_manager.lib	8951069dc87387c
 1088	1171	7888815375584507	C:/Users/16620/Desktop/projects/OpenglLearn/lib/debug/engine.lib	a15f9a3603bc8fc3
 2700	3109	7888942747097282	C:/Users/16620/Desktop/projects/OpenglLearn/bin/main_exec.exe	b41b5d522e297b4a
-36	1169	7952840907811705	Engine/tests/CMakeFiles/MyApp.dir/archtype_description.cpp.obj	f579f038c8fc97bf
-68	1273	7952840908134826	Engine/tests/CMakeFiles/MyApp.dir/archtype_instance.cpp.obj	da1d43fdcf4fe144
-134	1237	7952840908791671	Engine/tests/CMakeFiles/MyApp.dir/scene.cpp.obj	a6b3cec7e29c3bb
+249	1917	7953427326801184	Engine/tests/CMakeFiles/MyApp.dir/archtype_description.cpp.obj	e5b1b87d17535cf7
+309	2009	7953427327386717	Engine/tests/CMakeFiles/MyApp.dir/archtype_instance.cpp.obj	3de443a87756db9f
+160	1974	7953378892329177	Engine/tests/CMakeFiles/MyApp.dir/scene.cpp.obj	394d6c1c5e5c1fe4
+12	2353	7953427324430573	Engine/tests/CMakeFiles/MyApp.dir/test.cpp.obj	80de027a71a25bab
+347	2103	7953427327775790	Engine/tests/CMakeFiles/MyApp.dir/archtype_manager.cpp.obj	538c71b6afec60f0
+2351	2806	7953378914246465	C:/Users/16620/Desktop/projects/OpenglLearn/bin/MyApp.exe	fe3ef022de682dc3
+7	1318	7953427707740938	Engine/tests/CMakeFiles/MyApp.dir/scene.cpp.obj	394d6c1c5e5c1fe4
+1319	2261	7953427720856128	C:/Users/16620/Desktop/projects/OpenglLearn/bin/MyApp.exe	fe3ef022de682dc3

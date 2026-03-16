@@ -37,7 +37,7 @@ namespace ECS::System{
                     if(Input::KeyboardInput::Instance().GetKeyState('A') == Input::KeyboardInput::KeyState::HELD){
                         mainCameraTransform->position.x += deltaTime;
                     }
-                    mainCamera->Update(*mainCameraTransform.get());
+                    mainCamera->Update(*mainCameraTransform.Get());
                 }
             }
             ObjectWeakPtr<ECS::Component::Camera> mainCamera;

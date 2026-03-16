@@ -26,7 +26,11 @@ namespace ECS::Core{
         friend class ArchTypeManager;
         friend class Scene;
 
+        template <typename ComponentT>
+        friend struct EntityComponentHandle;
+
     public:
+        ArchType(ArchTypeDescription* description, ArchTypeManager* manager, size_t sizePerChuck);
         ArchType(const ArchType&) = delete;
         ArchType& operator=(const ArchType&) = delete;
         ArchType(ArchType&&) = delete;
@@ -79,7 +83,7 @@ namespace ECS::Core{
         bool isDestroyed_ = false;
         bool storageReleased_ = false;
 
-        ArchType(ArchTypeDescription* description, ArchTypeManager* manager, size_t sizePerChuck);
+        
 
         void ReleaseOwnedResources();
         void DetachFromManager();
@@ -97,5 +101,4 @@ namespace ECS::Core{
     };
 }
 
-#include "engine/ECS/ArchType/archtype_manager.h"
 #include "engine/ECS/ArchType/archtype_instance_impl.h"

@@ -9,4 +9,4 @@ add_executable(MyApp
 )
 
 # 链接引擎库
-# target_link_libraries(MyApp engine)
+target_link_libraries(MyApp jsonloader)

@@ -7,12 +7,13 @@
 #include <utility>
 #include <vector>
 
-#include "engine/ECS/data_type.h"
 #include "engine/ToolAndAlgorithm/object.h"
-#include "engine/ECS/Component/component_loader_registry.h"
-#include "engine/DebugTool/ConsoleHelp/color_log.h"
 #include "engine/ECS/ArchType/archtype_description.h"
-#include "engine/ECS/ArchType/archtype_instance.h"
+
+namespace ECS::Core{
+    class ArchType;
+    class ArchTypeDescription;
+}
 
 namespace ECS::Core{
     class Scene;
@@ -24,14 +25,14 @@ namespace ECS::Core{
 
     private:
         std::unordered_map<ArchType*, ObjectPtr<ArchType>> registeredArchTypeArray_;
-        ArchTypeDescription description_;
+        ObjectPtr<ArchTypeDescription> description_;
         uint32_t sortKey_ = 0;
         bool destroying_ = false;
     public:
         explicit ArchTypeManager(uint32_t sortKey);
         ~ArchTypeManager();
     
-        ArchTypeDescription& GetDescription();
+        ObjectWeakPtr<ArchTypeDescription> GetDescription();
         ObjectWeakPtr<ArchType> CreateArchType(size_t sizePerChuck);
         void DestroyArchType(ArchType* archType);
 

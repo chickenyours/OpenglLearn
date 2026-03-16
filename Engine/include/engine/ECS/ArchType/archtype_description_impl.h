@@ -2,13 +2,13 @@
 
 #include <utility> // std::swap
 #include "engine/ECS/ArchType/archtype_instance.h"
-#include "engine/ECS/ArchType/archtype_manager.h"
 
 namespace ECS::Core{
     template <typename ComponentT>
     ComponentT* EntityComponentHandle<ComponentT>::Get(){
         ArchType* arch = ownerArchType.Get();
         if(arch == nullptr || chunkAddr == nullptr){
+            LOG_WARNING("EntityComponentHandle::Get","incomplete");
             return nullptr;
         }
 
@@ -87,7 +87,7 @@ namespace ECS::Core{
     template <typename ComponentT>
     EntityComponentHandle<ComponentT> ArchTypeDescription::GetActiveComponent(ObjectWeakPtr<ArchType> archtype, EntityID entity){
         EntityComponentHandle<ComponentT> handle;
-        ArchType* arch = archtype.get();
+        ArchType* arch = archtype.Get();
         if(arch == nullptr){
             return handle;
         }
@@ -142,7 +142,7 @@ namespace ECS::Core{
         swapBetweenFunctions_.push_back(&SwapBetween<ComponentT>);
         ++componentKinds_;
 
-        if(responseManager_ && !responseManager_->ResponseAdd(index)){
+        if(!NotifyManagerResponseAdd(index)){
             LOG_ERROR("ArchTypeDescription::AddComponentArray", "failed to append component array");
         }
     }

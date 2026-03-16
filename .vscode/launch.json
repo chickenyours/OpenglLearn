@@ -51,7 +51,7 @@
             "name": "LLDB Native Debugging",
             "type": "lldb",
             "request": "launch",
-            "program": "${workspaceFolder}/bin/main_exec.exe",   // ✅ 用 program，不是 target
+            "program": "${workspaceFolder}/bin/MyApp.exe",   // ✅ 用 program，不是 target
             "cwd": "${workspaceFolder}/bin",
             "args": [],                                          // ✅ 用 args，不是 arguments
             "stopOnEntry": false,

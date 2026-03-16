@@ -26,7 +26,7 @@ namespace ECS{
 namespace ECS::Core{
 
     struct EntitySceneInfo{
-        ArchType* ownArchtype = nullptr;
+        ObjectWeakPtr<ArchType> ownArchtype;
         uint32_t generation = 1;
         bool alive = false;
     };
@@ -43,11 +43,11 @@ namespace ECS::Core{
     public:
         Scene();
 
-        ArchTypeDescription* CreateArchTypeDescription();
-        ObjectWeakPtr<ArchType> CreateArchType(ArchTypeDescription* description, size_t sizePerChuck);
-        void DeleteArchType(ArchType* archtype);
+        ObjectWeakPtr<ArchTypeDescription> CreateArchTypeDescription();
+        ObjectWeakPtr<ArchType> CreateArchType(ObjectWeakPtr<ArchTypeDescription> description, size_t sizePerChuck);
+        void DeleteArchType(ObjectWeakPtr<ArchType>& archtype);
 
-        EntityHandle CreateEntity(ArchType* archtype);
+        EntityHandle CreateEntity(ObjectWeakPtr<ArchType>& archtype);
         void DeleteEntity(EntityHandle entity);
 
         template <typename ComponentT>

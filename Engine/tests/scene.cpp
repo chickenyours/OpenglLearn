@@ -19,14 +19,14 @@ namespace ECS::Core{
         return archtypeManagers_[key].Get() == archtype->manager_;
     }
 
-    ArchTypeDescription* Scene::CreateArchTypeDescription(){
+    ObjectWeakPtr<ArchTypeDescription> Scene::CreateArchTypeDescription(){
         const uint32_t nowIndex = static_cast<uint32_t>(archtypeManagers_.size());
         archtypeManagers_.push_back(ObjectPtr<ArchTypeManager>(nowIndex));
-        return &archtypeManagers_[nowIndex]->description_;
+        return archtypeManagers_[nowIndex]->description_.GenWeakPtr();
     }
 
-    ObjectWeakPtr<ArchType> Scene::CreateArchType(ArchTypeDescription* description, size_t sizePerChuck){
-        if(description == nullptr || description->responseManager_ == nullptr){
+    ObjectWeakPtr<ArchType> Scene::CreateArchType(ObjectWeakPtr<ArchTypeDescription> description, size_t sizePerChuck){
+        if(!description.lock() || description->responseManager_ == nullptr){
             LOG_ERROR("Scene::CreateArchType", "description or response manager is null");
             return {};
         }
@@ -38,7 +38,7 @@ namespace ECS::Core{
         }
 
         ArchTypeManager* manager = archtypeManagers_[key].Get();
-        if(manager == nullptr || &manager->description_ != description){
+        if(manager == nullptr || manager->description_ != description){
             LOG_ERROR("Scene::CreateArchType", "description and manager not match");
             return {};
         }
@@ -46,17 +46,17 @@ namespace ECS::Core{
         return manager->CreateArchType(sizePerChuck);
     }
 
-    void Scene::DeleteArchType(ArchType* archtype){
-        if(!Check(archtype)){
+    void Scene::DeleteArchType(ObjectWeakPtr<ArchType>& archtype){
+        if(!Check(archtype.Get())){
             LOG_ERROR("Scene::DeleteArchType", "archtype manager not match");
             return;
         }
-        archtypeManagers_[archtype->manager_->sortKey_]->DestroyArchType(archtype);
+        archtypeManagers_[archtype->manager_->sortKey_]->DestroyArchType(archtype.Get());
     }
 
-    EntityHandle Scene::CreateEntity(ArchType* archtype){
+    EntityHandle Scene::CreateEntity(ObjectWeakPtr<ArchType>& archtype){
         EntityHandle result;
-        if(!Check(archtype)){
+        if(!Check(archtype.Get())){
             LOG_ERROR("Scene::CreateEntity", "invalid archtype");
             return result;
         }
@@ -82,7 +82,7 @@ namespace ECS::Core{
 
         const size_t index = archtype->CreateEntity(newID);
         if(index == ARCHTYPE_INVALID_INDEX){
-            entity2entityInfo_[newID].ownArchtype = nullptr;
+            entity2entityInfo_[newID].ownArchtype.SetNull();
             entity2entityInfo_[newID].alive = false;
             if(newID == entityCount_){
                 entity2entityInfo_.pop_back();
@@ -114,7 +114,7 @@ namespace ECS::Core{
             return;
         }
 
-        ArchType* archtype = info.ownArchtype;
+        ArchType* archtype = info.ownArchtype.Get();
         if(archtype == nullptr){
             info.alive = false;
             ++info.generation;
@@ -123,7 +123,7 @@ namespace ECS::Core{
         }
 
         archtype->DeleteEntity(entity.id_);
-        info.ownArchtype = nullptr;
+        info.ownArchtype.SetNull();
         info.alive = false;
         ++info.generation;
         recycleEntityID_.push(entity.id_);

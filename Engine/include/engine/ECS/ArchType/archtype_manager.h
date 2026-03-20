@@ -12,6 +12,7 @@
 
 namespace ECS::Core{
     class ArchType;
+    class ArchTypePreloadInstance;
     class ArchTypeDescription;
 }
 
@@ -21,13 +22,16 @@ namespace ECS::Core{
     class ArchTypeManager{
         friend class Scene;
         friend class ArchType;
+        friend class ArchTypePreloadInstance;
         friend class ArchTypeDescription;
 
     private:
         std::unordered_map<ArchType*, ObjectPtr<ArchType>> registeredArchTypeArray_;
+        std::unordered_map<ArchTypePreloadInstance*, ObjectPtr<ArchTypePreloadInstance>> registeredPreloadArray_;
         ObjectPtr<ArchTypeDescription> description_;
         uint32_t sortKey_ = 0;
         bool destroying_ = false;
+
     public:
         explicit ArchTypeManager(uint32_t sortKey);
         ~ArchTypeManager();
@@ -43,5 +47,12 @@ namespace ECS::Core{
         bool ConstructComponentStorage(std::type_index typeIndex, size_t chunkScale, void*& outStorage);
         bool DestroyComponentStorage(std::type_index typeIndex, void* storage);
         void PrepareArchTypeForDestruction(ArchType* archtype);
+
+        ObjectWeakPtr<ArchTypePreloadInstance> CreatePreload(size_t sizePerChunk);
+        void DestroyPreloadInstance(ArchTypePreloadInstance* preload);
+
+        bool InitPreloadInstance(ArchTypePreloadInstance* preload, size_t chunkScale);
+        void ReleaseArchTypePreloadStorage(ArchTypePreloadInstance* preload);
+        void PreparePreloadForDestruction(ArchTypePreloadInstance* preload);
     };
 }

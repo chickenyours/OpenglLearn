@@ -1,6 +1,7 @@
 #pragma once
 
 #include "engine/ECS/ArchType/archtype_instance.h"
+#include "engine/ECS/ArchType/archtype_preload_instance.h"
 
 namespace ECS::Core{
     template <typename ComponentT>

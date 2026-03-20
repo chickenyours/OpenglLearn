@@ -17,6 +17,7 @@ namespace ECS{
         class ArchType;
         class ArchTypeManager;
         class ArchTypeDescription;
+        class ArchTypePreloadInstance;
     }
     namespace System{
         class SceneTreeSystem;
@@ -39,6 +40,7 @@ namespace ECS::Core{
         uint32_t entityCount_ = 0;
 
         bool Check(ArchType* archtype) const;
+        bool Check(ArchTypePreloadInstance* preload) const;
 
     public:
         Scene();
@@ -47,8 +49,23 @@ namespace ECS::Core{
         ObjectWeakPtr<ArchType> CreateArchType(ObjectWeakPtr<ArchTypeDescription> description, size_t sizePerChuck);
         void DeleteArchType(ObjectWeakPtr<ArchType>& archtype);
 
+        ObjectWeakPtr<ArchTypePreloadInstance> CreateArchTypePreloadInstance(ObjectWeakPtr<ArchTypeDescription> description, size_t sizePerChuck);
+        void DeleteArchTypePreloadInstance(ObjectWeakPtr<ArchTypePreloadInstance>& preload);
+
         EntityHandle CreateEntity(ObjectWeakPtr<ArchType>& archtype);
+        std::vector<EntityHandle> CreateEntities(ObjectWeakPtr<ArchType>& archtype, size_t count);
+
+        size_t RegisterPreloadToArchType(ObjectWeakPtr<ArchTypePreloadInstance>& preload,
+                                         ObjectWeakPtr<ArchType>& archtype,
+                                         std::vector<EntityHandle>& outEntities);
+        size_t RegisterPreloadToArchTypeByMask(ObjectWeakPtr<ArchTypePreloadInstance>& preload,
+                                               ObjectWeakPtr<ArchType>& archtype,
+                                               const uint8_t* passMask,
+                                               size_t maskCount,
+                                               std::vector<EntityHandle>& outEntities);
+
         void DeleteEntity(EntityHandle entity);
+        void DeleteEntities(const std::vector<EntityHandle>& entities);
 
         template <typename ComponentT>
         EntityComponentHandle<ComponentT> GetActiveComponent(EntityID entity);

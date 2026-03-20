@@ -19,9 +19,9 @@ private:
     static T& at_chunks(std::vector<T*>& chunks, size_t sizePerChunk, size_t index) {
         return chunks[index / sizePerChunk][index % sizePerChunk];
     }
-    static const T& at_chunks(const std::vector<T*>& chunks, size_t sizePerChunk, size_t index) {
-        return chunks[index / sizePerChunk][index % sizePerChunk];
-    }
+    // static T& at_chunks(const std::vector<T*>& chunks, size_t sizePerChunk, size_t index) const {
+    //     return chunks[index / sizePerChunk][index % sizePerChunk];
+    // }
 
     static T* alloc_chunk(size_t count) {
         // raw storage，按 T 的对齐分配
@@ -116,7 +116,8 @@ public:
     T& operator[](size_t index) {
         return at_chunks(chunkHeads_, sizePerChuck_, index);
     }
-    const T& operator[](size_t index) const {
+
+    T& operator[](size_t index) const {
         return at_chunks(chunkHeads_, sizePerChuck_, index);
     }
 

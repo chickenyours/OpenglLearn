@@ -28,25 +28,4 @@ namespace ECS::Core{
 
         return reinterpret_cast<const FixedChunkArray<ComponentT>*>(activeAddr2ComponentDenseArray_[index]);
     }
-
-    template <typename ComponentT>
-    const FixedChunkArray<ComponentT>* ArchType::TryCastPreloadComponentArray() const {
-        if(!description_ || isDestroyed_){
-            return nullptr;
-        }
-
-        auto it = description_->componentArrayDescription_.find(std::type_index(typeid(ComponentT)));
-        if(it == description_->componentArrayDescription_.end()){
-            LOG_ERROR("ArchType::TryCastPreloadComponentArray", "no component type in this archtype");
-            return nullptr;
-        }
-
-        const size_t index = it->second;
-        if(index >= preloadAddr2ComponentDenseArray_.size()){
-            LOG_ERROR("ArchType::TryCastPreloadComponentArray", "index is over size " + std::to_string(index));
-            return nullptr;
-        }
-
-        return reinterpret_cast<const FixedChunkArray<ComponentT>*>(preloadAddr2ComponentDenseArray_[index]);
-    }
 }

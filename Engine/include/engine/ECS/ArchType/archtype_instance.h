@@ -38,10 +38,10 @@ namespace ECS::Core{
         bool IsAlive() const { return !isDestroyed_; }
 
         template <typename ComponentT>
-        const FixedChunkArray<ComponentT>* TryCastComponentArray() const;
+        FixedChunkArray<ComponentT>* TryCastComponentArray();
 
         template <typename ComponentT>
-        const FixedChunkArray<ComponentT>* TryCastActiveComponentArray() const;
+        FixedChunkArray<ComponentT>* TryCastActiveComponentArray();
 
         size_t ActiveCount() const { return activeCount_; }
 
@@ -49,6 +49,8 @@ namespace ECS::Core{
         size_t CreateEntities(const EntityID* entityIDs, size_t count);
         void DeleteEntity(EntityID entity);
         void DeleteEntities(const EntityID* entityIDs, size_t count);
+
+        const std::vector<EntityID>& GetIndexEntities(){ return index2EntityID_; }
 
     private:
         size_t activeCount_ = 0;

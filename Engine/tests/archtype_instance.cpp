@@ -105,14 +105,38 @@ namespace ECS::Core{
         activeGenerationPerUnit_.clear();
     }
 
+    // void ArchType::AppendUnits(size_t num){
+    //     if(num == 0){
+    //         return;
+    //     }
+
+    //     for(size_t i = 0; i < description_->defaultAppendNFunctions_.size(); ++i){
+    //         description_->defaultAppendNFunctions_[i](activeAddr2ComponentDenseArray_[i], num);
+    //     }
+    // }
+
     void ArchType::AppendUnits(size_t num){
         if(num == 0){
             return;
         }
 
         for(size_t i = 0; i < description_->defaultAppendNFunctions_.size(); ++i){
-            description_->defaultAppendNFunctions_[i](activeAddr2ComponentDenseArray_[i], num);
+            description_->defaultAppendNFunctions_[i](
+                activeAddr2ComponentDenseArray_[i],
+                num
+            );
         }
+
+        const size_t newCount = activeCount_ + num;
+
+        if(index2EntityID_.size() < newCount){
+            index2EntityID_.resize(newCount, 0);
+        }
+
+        if(activeGenerationPerUnit_.size() < newCount){
+            activeGenerationPerUnit_.resize(newCount, 0);
+        }
+
     }
 
     void ArchType::DeleteUnitInArrays(size_t index){

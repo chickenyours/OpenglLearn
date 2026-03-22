@@ -4,12 +4,12 @@
 
 namespace ECS::Core{
     template <typename ComponentT>
-    const FixedChunkArray<ComponentT>* ArchType::TryCastComponentArray() const {
+    FixedChunkArray<ComponentT>* ArchType::TryCastComponentArray(){
         return TryCastActiveComponentArray<ComponentT>();
     }
 
     template <typename ComponentT>
-    const FixedChunkArray<ComponentT>* ArchType::TryCastActiveComponentArray() const {
+    FixedChunkArray<ComponentT>* ArchType::TryCastActiveComponentArray(){
         if(!description_ || isDestroyed_){
             return nullptr;
         }
@@ -26,6 +26,6 @@ namespace ECS::Core{
             return nullptr;
         }
 
-        return reinterpret_cast<const FixedChunkArray<ComponentT>*>(activeAddr2ComponentDenseArray_[index]);
+        return reinterpret_cast<FixedChunkArray<ComponentT>*>(activeAddr2ComponentDenseArray_[index]);
     }
 }

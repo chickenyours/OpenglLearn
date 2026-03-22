@@ -66,18 +66,29 @@ namespace ECS::Core{
     }
 
     template <typename ComponentT>
-    void ArchTypeDescription::CopyAppendBetween(void* src, size_t srcIndex, void* dst){
+    void ArchTypeDescription::CopyAssignBetween(void* src,
+                                                size_t srcIndex,
+                                                void* dst,
+                                                size_t dstIndex){
         auto* srcArray = reinterpret_cast<FixedChunkArray<ComponentT>*>(src);
         auto* dstArray = reinterpret_cast<FixedChunkArray<ComponentT>*>(dst);
+
         if(srcArray == nullptr || dstArray == nullptr){
-            LOG_ERROR("ArchTypeDescription::CopyAppendBetween", "null storage");
+            LOG_ERROR("ArchTypeDescription::CopyAssignBetween", "null storage");
             return;
         }
+
         if(srcIndex >= srcArray->size()){
-            LOG_ERROR("ArchTypeDescription::CopyAppendBetween", "srcIndex oversize");
+            LOG_ERROR("ArchTypeDescription::CopyAssignBetween", "srcIndex oversize");
             return;
         }
-        dstArray->push_back((*srcArray)[srcIndex]);
+
+        if(dstIndex >= dstArray->size()){
+            LOG_ERROR("ArchTypeDescription::CopyAssignBetween", "dstIndex oversize");
+            return;
+        }
+
+        (*dstArray)[dstIndex] = (*srcArray)[srcIndex];
     }
 
     template <typename ComponentT>
@@ -168,7 +179,7 @@ namespace ECS::Core{
         deleteFunctions_.push_back(&Delete<ComponentT>);
         swapFunctions_.push_back(&Swap<ComponentT>);
         swapBetweenFunctions_.push_back(&SwapBetween<ComponentT>);
-        copyAppendBetweenFunctions_.push_back(&CopyAppendBetween<ComponentT>);
+        copyAssignBetweenFunctions_.push_back(&CopyAssignBetween<ComponentT>);
         defaultAppendNFunctions_.push_back(&DefaultAppendN<ComponentT>);
         ++componentKinds_;
 

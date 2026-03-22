@@ -193,92 +193,91 @@ namespace ECS::Core{
     {
         outEntities.clear();
 
-        if(!Check(preload.Get()) || !Check(archtype.Get())){
+        ArchTypePreloadInstance* preloadPtr = preload.Get();
+        ArchType* archPtr = archtype.Get();
+
+        if(!Check(preloadPtr) || !Check(archPtr)){
             LOG_ERROR("Scene::RegisterPreloadToArchTypeByMask", "invalid preload or archtype");
             return 0;
         }
-        if(preload->description_ != archtype->description_){
+
+        if(preloadPtr->description_ != archPtr->description_){
             LOG_ERROR("Scene::RegisterPreloadToArchTypeByMask", "description mismatch");
             return 0;
         }
-        if(maskCount != preload->Count()){
+
+        if(maskCount != preloadPtr->Count()){
             LOG_ERROR("Scene::RegisterPreloadToArchTypeByMask", "maskCount mismatch");
             return 0;
         }
 
-        size_t passedCount = 0;
-        for(size_t i = 0; i < maskCount; ++i){
-            if(passMask == nullptr || passMask[i] != 0){
-                ++passedCount;
-            }
-        }
-
-        if(passedCount == 0){
+        if(maskCount == 0){
             return 0;
         }
 
-        outEntities.reserve(passedCount);
-        std::vector<EntityID> registerEntityIDs(maskCount, 0);
-        std::vector<EntityHandle> reservedEntities;
-        reservedEntities.reserve(passedCount);
+        // 先写组件数据，真正成功写入多少，以 writtenCount 为准
+        size_t targetBegin = ARCHTYPE_INVALID_INDEX;
+        const size_t writtenCount = preloadPtr->RegisterAllToArchTypeByMask(
+            *archPtr,
+            passMask,
+            maskCount,
+            targetBegin
+        );
 
-        for(size_t i = 0; i < maskCount; ++i){
-            if(passMask != nullptr && passMask[i] == 0){
-                continue;
-            }
+        if(writtenCount == 0 || targetBegin == ARCHTYPE_INVALID_INDEX){
+            LOG_ERROR("Scene::RegisterPreloadToArchTypeByMask", "register preload failed");
+            return 0;
+        }
 
+        if(targetBegin + writtenCount > archPtr->index2EntityID_.size() ||
+        targetBegin + writtenCount > archPtr->activeGenerationPerUnit_.size()){
+            LOG_ERROR("Scene::RegisterPreloadToArchTypeByMask", "archtype metadata oversize");
+            return 0;
+        }
+
+        outEntities.reserve(writtenCount);
+
+        for(size_t i = 0; i < writtenCount; ++i){
             EntityID newID = 0;
             uint32_t generation = 1;
 
             if(!recycleEntityID_.empty()){
                 newID = recycleEntityID_.front();
                 recycleEntityID_.pop();
+#ifdef ENGINE_DEVELOP
+                if(newID >= entity2entityInfo_.size()){
+                    LOG_ERROR("Scene::RegisterPreloadToArchTypeByMask", "recycled entity id oversize");
+                    return 0;
+                }
+#endif
 
-                entity2entityInfo_[newID].ownArchtype = archtype;
-                entity2entityInfo_[newID].alive = true;
                 generation = entity2entityInfo_[newID].generation;
             }else{
                 newID = ++entityCount_;
                 entity2entityInfo_.push_back(EntitySceneInfo{});
-                entity2entityInfo_[newID].ownArchtype = archtype;
-                entity2entityInfo_[newID].alive = true;
                 entity2entityInfo_[newID].generation = 1;
                 generation = 1;
             }
 
-            registerEntityIDs[i] = newID;
+            const size_t dstIndex = targetBegin + i;
+
+            archPtr->index2EntityID_[dstIndex] = newID;
+            archPtr->entityID2Unit_[newID] = dstIndex;
+            archPtr->activeGenerationPerUnit_[dstIndex] = generation;
+
+            EntitySceneInfo& info = entity2entityInfo_[newID];
+            info.ownArchtype = archtype;
+            info.alive = true;
+            info.generation = generation;
+
             EntityHandle handle;
             handle.id_ = newID;
             handle.generation_ = generation;
-            reservedEntities.push_back(handle);
+            outEntities.push_back(handle);
         }
 
-        const size_t registeredCount = preload->RegisterAllToArchTypeByMask(
-            *archtype.Get(),
-            registerEntityIDs.data(),
-            passMask,
-            maskCount
-        );
-
-        if(registeredCount != passedCount){
-            for(const auto& handle : reservedEntities){
-                EntitySceneInfo& info = entity2entityInfo_[handle.id_];
-                info.ownArchtype.SetNull();
-                info.alive = false;
-
-                if(handle.id_ == entityCount_){
-                    entity2entityInfo_.pop_back();
-                    --entityCount_;
-                }else{
-                    recycleEntityID_.push(handle.id_);
-                }
-            }
-            LOG_ERROR("Scene::RegisterPreloadToArchTypeByMask", "register preload failed");
-            return 0;
-        }
-
-        outEntities = std::move(reservedEntities);
-        return registeredCount;
+        archPtr->activeCount_ += writtenCount;
+        return writtenCount;
     }
 
     void Scene::DeleteEntity(EntityHandle entity){

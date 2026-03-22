@@ -37,11 +37,11 @@ namespace ECS::Core{
         friend class Scene;
 
     public:
-        using AddFunction = void(*)(void*);
-        using DeleteFunction = void(*)(void*, size_t);
-        using SwapFunction = void(*)(void*, size_t, size_t);
-        using SwapBetweenFunction = void(*)(void*, size_t, void*, size_t);
-        using CopyAppendBetweenFunction = void(*)(void* src, size_t srcIndex, void* dst);
+        using AddFunction               = void(*)(void*);
+        using DeleteFunction            = void(*)(void*, size_t);
+        using SwapFunction              = void(*)(void*, size_t, size_t);
+        using SwapBetweenFunction       = void(*)(void*, size_t, void*, size_t);
+        using CopyAssignBetweenFunction = void(*)(void* src, size_t srcIndex, void* dst, size_t dstIndex);
         using DefaultAppendNFunction    = void(*)(void* dst, size_t n);
 
         explicit ArchTypeDescription(ArchTypeManager* manager = nullptr);
@@ -63,7 +63,7 @@ namespace ECS::Core{
         static void SwapBetween(void* chunkAddrA, size_t indexA, void* chunkAddrB, size_t indexB);
 
         template <typename ComponentT>
-        static void CopyAppendBetween(void* src, size_t srcIndex, void* dst);
+        static void CopyAssignBetween(void* src, size_t srcIndex, void* dst, size_t dstIndex);
 
         template <typename ComponentT>
         static ComponentT* GetActiveComponentRaw(ArchType* archtype, size_t index);
@@ -89,7 +89,7 @@ namespace ECS::Core{
         std::vector<DeleteFunction> deleteFunctions_;
         std::vector<SwapFunction> swapFunctions_;
         std::vector<SwapBetweenFunction> swapBetweenFunctions_;
-        std::vector<CopyAppendBetweenFunction> copyAppendBetweenFunctions_;
+        std::vector<CopyAssignBetweenFunction> copyAssignBetweenFunctions_;
         std::vector<DefaultAppendNFunction> defaultAppendNFunctions_;
 
         ArchTypeManager* responseManager_ = nullptr;

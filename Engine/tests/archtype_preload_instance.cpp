@@ -24,7 +24,7 @@ bool ArchTypePreloadInstance::Check() const{
     return kinds == description_->addFunctions_.size()
         && kinds == description_->deleteFunctions_.size()
         && kinds == description_->swapFunctions_.size()
-        && kinds == description_->copyAppendBetweenFunctions_.size()
+        && kinds == description_->copyAssignBetweenFunctions_.size()
         && kinds == description_->defaultAppendNFunctions_.size()
         && kinds == addr2ComponentDenseArray_.size();
 }
@@ -183,13 +183,13 @@ void ArchTypePreloadInstance::SwapUnitInArrays(size_t indexA, size_t indexB){
 }
 
 void ArchTypePreloadInstance::CopyAppendUnitFrom(const ArchTypePreloadInstance& other, size_t otherIndex){
-    for(size_t i = 0; i < description_->copyAppendBetweenFunctions_.size(); ++i){
-        description_->copyAppendBetweenFunctions_[i](
-            other.addr2ComponentDenseArray_[i],
-            otherIndex,
-            addr2ComponentDenseArray_[i]
-        );
-    }
+    // for(size_t i = 0; i < description_->copyAssignBetweenFunctions_.size(); ++i){
+    //     description_->copyAssignBetweenFunctions_[i](
+    //         other.addr2ComponentDenseArray_[i],
+    //         otherIndex,
+    //         addr2ComponentDenseArray_[i]
+    //     );
+    // }
 }
 
 size_t ArchTypePreloadInstance::RegisterRangeToArchType(
@@ -198,29 +198,26 @@ size_t ArchTypePreloadInstance::RegisterRangeToArchType(
     size_t preloadBegin,
     size_t count)
 {
-    return RegisterRangeToArchTypeByMask(
-        target,
-        entityIDs,
-        nullptr,
-        preloadBegin,
-        count
-    );
+    // return RegisterRangeToArchTypeByMask(
+    //     target,
+    //     entityIDs,
+    //     nullptr,
+    //     preloadBegin,
+    //     count
+    // );
+    return 0;
 }
 
 size_t ArchTypePreloadInstance::RegisterRangeToArchTypeByMask(
     ArchType& target,
-    const EntityID* entityIDs,
     const uint8_t* passMask,
     size_t preloadBegin,
-    size_t count)
+    size_t count,
+    size_t& outTargetBegin)
 {
-    if(count == 0){
-        return 0;
-    }
+    outTargetBegin = ARCHTYPE_INVALID_INDEX;
 
-    if(entityIDs == nullptr){
-        LOG_ERROR("ArchTypePreloadInstance::RegisterRangeToArchTypeByMask",
-                  "entityIDs is null");
+    if(count == 0){
         return 0;
     }
 
@@ -242,57 +239,57 @@ size_t ArchTypePreloadInstance::RegisterRangeToArchTypeByMask(
         return 0;
     }
 
-    size_t passedCount = 0;
-    for(size_t i = 0; i < count; ++i){
-        if(passMask == nullptr || passMask[i] != 0){
-            ++passedCount;
+    std::vector<size_t> passed;
+    if(passMask != nullptr){
+        passed.reserve(count);
+        for(size_t i = 0; i < count; ++i){
+            if(passMask[i] != 0){
+                passed.push_back(i);
+            }
         }
     }
 
-    if(passedCount == 0){
+    const size_t appendUnitNum = (passMask == nullptr) ? count : passed.size();
+    if(appendUnitNum == 0){
         return 0;
     }
 
-    for(size_t i = 0; i < count; ++i){
-        if(passMask != nullptr && passMask[i] == 0){
-            continue;
-        }
-
-        if(target.entityID2Unit_.count(entityIDs[i]) != 0){
-            LOG_ERROR("ArchTypePreloadInstance::RegisterRangeToArchTypeByMask",
-                      "entity already exists");
-            return 0;
-        }
-    }
-
     const size_t newBegin = target.activeCount_;
-    target.AppendUnits(passedCount);
+    target.AppendUnits(appendUnitNum);
+    outTargetBegin = newBegin;
 
-    size_t writeOffset = 0;
-    for(size_t i = 0; i < count; ++i){
-        if(passMask != nullptr && passMask[i] == 0){
-            continue;
+    // 按数组批量填充
+    if(passMask != nullptr){
+        for(size_t k = 0; k < description_->copyAssignBetweenFunctions_.size(); ++k){
+            for(size_t i = 0; i < appendUnitNum; ++i){
+                const size_t srcIndex = preloadBegin + passed[i];
+                const size_t dstIndex = newBegin + i;
+
+                description_->copyAssignBetweenFunctions_[k](
+                    addr2ComponentDenseArray_[k],
+                    srcIndex,
+                    target.activeAddr2ComponentDenseArray_[k],
+                    dstIndex
+                );
+            }
         }
+    }else{
+        for(size_t k = 0; k < description_->copyAssignBetweenFunctions_.size(); ++k){
+            for(size_t i = 0; i < appendUnitNum; ++i){
+                const size_t srcIndex = preloadBegin + i;
+                const size_t dstIndex = newBegin + i;
 
-        const size_t srcIndex = preloadBegin + i;
-        const size_t dstIndex = newBegin + writeOffset;
-
-        for(size_t k = 0; k < description_->copyAppendBetweenFunctions_.size(); ++k){
-            description_->copyAppendBetweenFunctions_[k](
-                addr2ComponentDenseArray_[k],
-                srcIndex,
-                target.activeAddr2ComponentDenseArray_[k]
-            );
+                description_->copyAssignBetweenFunctions_[k](
+                    addr2ComponentDenseArray_[k],
+                    srcIndex,
+                    target.activeAddr2ComponentDenseArray_[k],
+                    dstIndex
+                );
+            }
         }
-
-        target.index2EntityID_.push_back(entityIDs[i]);
-        target.entityID2Unit_[entityIDs[i]] = dstIndex;
-        target.activeGenerationPerUnit_.push_back(1u);
-        ++writeOffset;
     }
 
-    target.activeCount_ += passedCount;
-    return passedCount;
+    return appendUnitNum;
 }
 
 size_t ArchTypePreloadInstance::RegisterAllToArchType(
@@ -311,22 +308,23 @@ size_t ArchTypePreloadInstance::RegisterAllToArchType(
 
 size_t ArchTypePreloadInstance::RegisterAllToArchTypeByMask(
     ArchType& target,
-    const EntityID* entityIDs,
     const uint8_t* passMask,
-    size_t entityCount)
+    size_t maskCount,
+    size_t& outTargetBegin)
 {
-    if(entityCount != count_){
+    if(maskCount != count_){
         LOG_ERROR("ArchTypePreloadInstance::RegisterAllToArchTypeByMask",
-                  "entityCount mismatch");
+                  "maskCount mismatch");
+        outTargetBegin = ARCHTYPE_INVALID_INDEX;
         return 0;
     }
 
     return RegisterRangeToArchTypeByMask(
         target,
-        entityIDs,
         passMask,
         0,
-        count_
+        count_,
+        outTargetBegin
     );
 }
 

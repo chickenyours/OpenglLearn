@@ -9,5 +9,8 @@ add_executable(MyApp
     ${CMAKE_CURRENT_SOURCE_DIR}/scene.cpp
 )
 
+# 为 MyApp 添加编译宏
+target_compile_definitions(MyApp PRIVATE ENGINE_DEVELOP)
+
 # 链接引擎库
 target_link_libraries(MyApp jsonloader)

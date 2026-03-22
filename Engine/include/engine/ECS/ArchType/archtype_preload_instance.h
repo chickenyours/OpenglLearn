@@ -81,10 +81,10 @@ namespace ECS::Core{
 
         size_t RegisterRangeToArchTypeByMask(
             ArchType& target,
-            const EntityID* entityIDs,
             const uint8_t* passMask,
             size_t preloadBegin,
-            size_t count
+            size_t count,
+            size_t& outTargetBegin
         );
 
         size_t RegisterAllToArchType(
@@ -95,10 +95,9 @@ namespace ECS::Core{
 
         size_t RegisterAllToArchTypeByMask(
             ArchType& target,
-            const EntityID* entityIDs,
             const uint8_t* passMask,
-            size_t entityCount
-        );
+            size_t maskCount,
+            size_t& outTargetBegin);
     };
 }
 

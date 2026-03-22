@@ -49,7 +49,7 @@ namespace ECS::Core{
             const size_t kinds = description_->addFunctions_.size();
             return kinds == description_->deleteFunctions_.size()
                 && kinds == description_->swapFunctions_.size()
-                && kinds == description_->copyAppendBetweenFunctions_.size()
+                && kinds == description_->copyAssignBetweenFunctions_.size()
                 && kinds == addr2ComponentDenseArray_.size();
         }
 
@@ -377,8 +377,8 @@ namespace ECS::Core{
         }
 
         void CopyAppendUnitFrom(const ArchTypePreloadInstance& other, size_t otherIndex){
-            for(size_t i = 0; i < description_->copyAppendBetweenFunctions_.size(); ++i){
-                description_->copyAppendBetweenFunctions_[i](
+            for(size_t i = 0; i < description_->copyAssignBetweenFunctions_.size(); ++i){
+                description_->copyAssignBetweenFunctions_[i](
                     other.addr2ComponentDenseArray_[i],
                     otherIndex,
                     addr2ComponentDenseArray_[i]

@@ -11,6 +11,8 @@
 #include "engine/ECS/Component/Transform/transform.h"
 #include "engine/ECS/Component/Collision/aabb_3D.h"
 
+#include "engine/ECS/Query/query.h"
+
 #define G 10
 #define B 10
 
@@ -57,8 +59,10 @@ void common_create_test(){
     description->AddComponentArray<ECS::Component::Transform>();
     description->AddComponentArray<ECS::Component::AABB_3D>();
     auto archtype = scene.CreateArchType(description,1024);
+    std::vector<ECS::EntityHandle> handle;
     for(int i = 0; i < B * G; i++){
         auto entityhandle = scene.CreateEntity(archtype);
+        handle.push_back(entityhandle);
         auto transform = scene.GetActiveComponent<ECS::Component::Transform>(entityhandle.GetID());
         auto aabb = scene.GetActiveComponent<ECS::Component::AABB_3D>(entityhandle.GetID());
         transform.Get()->position = glm::vec3(i);
@@ -67,13 +71,18 @@ void common_create_test(){
         aabb.Get()->length = (i % G) * 3;
     }
 
+    
+
     LOG_INFO("archtype", "Active entity count: " + std::to_string(archtype->ActiveCount()));
+
+    for(int i = 0; i < B * G; i+=2){
+        scene.DeleteEntity(handle[i]);
+    }
 
     auto arrayTransform = archtype->TryCastComponentArray<ECS::Component::Transform>();
     auto arrayAABB = archtype->TryCastComponentArray<ECS::Component::AABB_3D>();
-    
-    for(int i = 0; i < B * G; i++){
-        LOG_INFO("entity_" + std::to_string(i), 
+    for(int i = 0; i < B * G / 2; i++){
+        LOG_INFO("entity_" + std::to_string(archtype->GetIndexEntities()[i]), 
             "position: (" + std::to_string((*arrayTransform)[i].position.x) + "), "
             "width: " + std::to_string((*arrayAABB)[i].width));
     }
@@ -81,20 +90,39 @@ void common_create_test(){
     LOG_INFO("archtype", "All components initialized successfully!");
 
     
-    for(int i = 0; i < B * G; i++){
-        if(std::fmod((*arrayAABB)[i].width,10.0f) < 5.0f){
-            ECS::EntityID targetID = archtype->GetIndexEntities()[i];
-            scene.DeleteEntity();
-        }
+    // for(int i = 0; i < B * G; i++){
+    //     if(std::fmod((*arrayAABB)[i].width,10.0f) < 5.0f){
+    //         ECS::EntityID targetID = archtype->GetIndexEntities()[i];
+    //         scene.DeleteEntity();
+    //     }
             
-    }
+    // }
 
     
+}
+
+void query_check_test(){
+    ECS::Core::Scene scene;
+    auto description = scene.CreateArchTypeDescription();
+    description->AddComponentArray<ECS::Component::Transform>();
+    description->AddComponentArray<ECS::Component::AABB_3D>();
+    auto archtype = scene.CreateArchType(description,2);
+    ECS::Core::Query<
+        ECS::Core::Require<ECS::Component::Transform>,
+        ECS::Core::Optional<>,
+        ECS::Core::Exclude<ECS::Component::AABB_3D>
+        > query;
+    if(query.CheckArchType(archtype.Get())){
+        LOG_INFO("query_check_test","yes");
+    }
+    else{
+        LOG_INFO("query_check_test","no");
+    }
 }
 
 
 int main() {
     RegisterAllComponents();
-
+    query_check_test();
 
 }

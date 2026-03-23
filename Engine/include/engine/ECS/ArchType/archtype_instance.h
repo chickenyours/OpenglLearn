@@ -50,6 +50,8 @@ namespace ECS::Core{
         void DeleteEntity(EntityID entity);
         void DeleteEntities(const EntityID* entityIDs, size_t count);
 
+        ArchTypeDescription* GetDescription(){ return description_;}
+
         const std::vector<EntityID>& GetIndexEntities(){ return index2EntityID_; }
 
     private:

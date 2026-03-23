@@ -45,9 +45,7 @@ namespace ECS::Core{
         using DefaultAppendNFunction    = void(*)(void* dst, size_t n);
 
         explicit ArchTypeDescription(ArchTypeManager* manager = nullptr);
-        ~ArchTypeDescription(){
-            LOG_INFO("ArchTypeDescription","~ArchTypeDescription");
-        }
+        ~ArchTypeDescription(){}
         void OnManagerDestroying();
 
         template <typename ComponentT>

@@ -8,13 +8,27 @@
 #include <algorithm>  // std::min
 #include "engine/DebugTool/ConsoleHelp/color_log.h"
 
+// enum class ChunkHeadState{
+//     READ,
+//     WRITE,
+//     CHANGE
+// };
+
+struct ChunkHead{
+    void* data;
+    bool isOccupied;
+};
+
+
 template <typename T>
 class FixedChunkArray {
+    friend class ChunkSchedule;
 private:
     size_t size_ = 0;          // 已构造元素个数
     size_t capacity_ = 0;      // 可容纳元素总数（chunk * sizePerChuck）
     size_t sizePerChuck_ = 0;
-    std::vector<T*> chunkHeads_; // 指向 raw storage（未必构造）
+    size_t lastChunkCount_ = 0;
+    std::vector<ChunkHead> chunkHeads_; // 指向 raw storage（未必构造）
 
     static T& at_chunks(std::vector<T*>& chunks, size_t sizePerChunk, size_t index) {
         return chunks[index / sizePerChunk][index % sizePerChunk];

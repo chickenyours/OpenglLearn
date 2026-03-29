@@ -35,6 +35,7 @@ namespace ECS::Core{
         friend class ArchTypePreloadInstance;
         friend class ArchTypeManager;
         friend class Scene;
+        friend class ChunkSchedule;
 
     public:
         using AddFunction               = void(*)(void*);

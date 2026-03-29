@@ -26,6 +26,7 @@ namespace ECS::Core{
         friend class ArchTypeDescription;
         friend class ArchTypeManager;
         friend class Scene;
+        friend class ChunkSchedule;
 
         template <typename ComponentT>
         friend struct EntityComponentHandle;

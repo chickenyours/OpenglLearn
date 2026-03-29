@@ -1,9 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"C:/Users/16620/Desktop/projects/OpenglLearn/build/cmake_install.cmake",
-		"C:/Users/16620/Desktop/projects/OpenglLearn/build/Engine/cmake_install.cmake",
-		"C:/Users/16620/Desktop/projects/OpenglLearn/build/Engine/tests/cmake_install.cmake"
-	],
-	"Parallel" : false
-}

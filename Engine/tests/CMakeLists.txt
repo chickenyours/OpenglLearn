@@ -1,12 +1,12 @@
 
 # 可执行文件
 add_executable(MyApp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/archtype_description.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/archtype_instance.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/archtype_manager.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/archtype_preload_instance.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/scene.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test2.cpp
+    # ${CMAKE_CURRENT_SOURCE_DIR}/archtype_description.cpp
+    # ${CMAKE_CURRENT_SOURCE_DIR}/archtype_instance.cpp
+    # ${CMAKE_CURRENT_SOURCE_DIR}/archtype_manager.cpp
+    # ${CMAKE_CURRENT_SOURCE_DIR}/archtype_preload_instance.cpp
+    # ${CMAKE_CURRENT_SOURCE_DIR}/scene.cpp
 )
 
 # 为 MyApp 添加编译宏

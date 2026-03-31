@@ -6,17 +6,23 @@
 #include <memory>     // std::construct_at, std::destroy_at
 #include <type_traits>
 #include <algorithm>  // std::min
+#include <atomic>
+#include <mutex>
 #include "engine/DebugTool/ConsoleHelp/color_log.h"
 
-// enum class ChunkHeadState{
-//     READ,
-//     WRITE,
-//     CHANGE
-// };
+enum class ChunkHeadState{
+    READ,
+    WRITE,
+    CHANGE,
+    IDLE
+};
 
 struct ChunkHead{
     void* data;
     bool isOccupied;
+    bool isWaited;
+    std::mutex requestMutex;
+    ChunkHeadState state = ChunkHeadState::IDLE;
 };
 
 

@@ -6,12 +6,9 @@
 namespace ECS::Core
 {
     class Scene;
-    class ChunkSchedule;
 
     struct ECSCoreContext{
         Scene* scene;
-        ChunkSchedule* chunkSchedule;
-
     };
 
     extern ECSCoreContext globalECSCoreContext;

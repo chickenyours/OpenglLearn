@@ -10,6 +10,8 @@
 #include "engine/ToolAndAlgorithm/object.h"
 #include "engine/ECS/ArchType/archtype_manager.h"
 #include "engine/ECS/ArchType/archtype_description.h"
+#include "engine/ECS/JobSystem/job_system.h"
+#include "engine/ECS/Schedule/chunk_schedule.h"
 
 namespace ECS{
     namespace Core{
@@ -29,11 +31,16 @@ namespace ECS::Core{
     struct EntitySceneInfo{
         ObjectWeakPtr<ArchType> ownArchtype;
         uint32_t generation = 1;
-        bool alive = false;
+        bool alive =  false;
+       
+        
     };
 
     class Scene{
     private:
+        JobSystem jobSystem_;
+        ChunkSchedule chunkSchedule_;
+
         std::vector<ObjectPtr<ArchTypeManager>> archtypeManagers_;
         std::vector<EntitySceneInfo> entity2entityInfo_;
         std::queue<EntityID> recycleEntityID_;

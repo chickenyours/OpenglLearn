@@ -1,16 +1,15 @@
 #pragma once
 
-// #include "engine/ECS/Scene/scene.h"
-// #include "engine/ECS/Schedule/chunk_schedule.h"
-
 namespace ECS::Core
 {
     class Scene;
 
-    struct ECSCoreContext{
-        Scene* scene;
+    struct ECSCoreContext
+    {
+        Scene* scene = nullptr;
     };
 
-    extern ECSCoreContext globalECSCoreContext;
-    
+    // 每个工作线程各自持有自己的 ECS 上下文
+    extern thread_local ECSCoreContext globalECSCoreContext;
+
 } // namespace ECS::Core

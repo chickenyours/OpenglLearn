@@ -71,7 +71,7 @@ namespace ECS::Core{
 
 
     template <typename RequireT, typename OptionalT, typename ExcludeT>
-    class Query{
+    class ChunkQuery{
     public:
         static bool CheckArchType(ArchType* archType){
             if(archType == nullptr || !archType->Check()){

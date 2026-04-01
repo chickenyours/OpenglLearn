@@ -107,7 +107,7 @@ void query_check_test(){
     description->AddComponentArray<ECS::Component::Transform>();
     description->AddComponentArray<ECS::Component::AABB_3D>();
     auto archtype = scene.CreateArchType(description,2);
-    ECS::Core::Query<
+    ECS::Core::ChunkQuery<
         ECS::Core::Require<ECS::Component::Transform>,
         ECS::Core::Optional<>,
         ECS::Core::Exclude<ECS::Component::AABB_3D>

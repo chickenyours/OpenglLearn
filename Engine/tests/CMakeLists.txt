@@ -1,7 +1,10 @@
 
 # 可执行文件
 add_executable(MyApp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test2.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/job_system_common_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/job_system.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/job_system_schedule.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/context.cpp
     # ${CMAKE_CURRENT_SOURCE_DIR}/archtype_description.cpp
     # ${CMAKE_CURRENT_SOURCE_DIR}/archtype_instance.cpp
     # ${CMAKE_CURRENT_SOURCE_DIR}/archtype_manager.cpp

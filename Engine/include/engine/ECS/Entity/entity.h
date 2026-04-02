@@ -15,7 +15,7 @@ namespace ECS{
             // explicit EntityHandle(EntityID id, Scene* scene) : id_(id), scene_(scene) {}
             // EntityHandle(const EntityHandle& other){ id_ = other.id_; scene_ = other.scene_; }
             inline EntityID GetID() const { return id_; }
-            ECS::Core::Scene* GetScene() const { return ECS::Core::globalECSCoreContext.scene; }
+            ECS::Core::Scene* GetScene() const { return ECS::Core::localECSCoreContext.scene; }
             // Scene* GetScene() const { return scene_; }
             explicit operator EntityID() const{ return GetID(); }
             // explicit operator bool() const { return scene_ != nullptr && id_ != 0; }

@@ -12,6 +12,7 @@
 #include "engine/ECS/Component/Collision/aabb_3D.h"
 
 #include "engine/ECS/Query/query.h"
+#include "engine/ECS/Core/Kernel/kernel.h"
 
 #define G 10
 #define B 10
@@ -44,13 +45,13 @@ void preload_test1(){
 
     LOG_INFO("archtype","size" + std::to_string(archtype->ActiveCount()));
 
-    // for(auto group : entities){
-    //     for(auto& handle : group){
-    //         ECS::Core::EntityComponentHandle<ECS::Component::Transform> transform = scene.GetActiveComponent<ECS::Component::Transform>(handle.GetID());
-    //         auto aabb = scene.GetActiveComponent<ECS::Component::AABB_3D>(handle.GetID());
-    //         std::cout << "entityID: " << std::to_string(handle.GetID()) << ", position.x :" << transform.Get()->position.x << " aabb.width: " << aabb.Get()->width << "\n";
-    //     }
-    // }
+    for(auto group : entities){
+        for(auto& handle : group){
+            ECS::Core::EntityComponentHandle<ECS::Component::Transform> transform = scene.GetActiveComponent<ECS::Component::Transform>(handle.GetID());
+            auto aabb = scene.GetActiveComponent<ECS::Component::AABB_3D>(handle.GetID());
+            std::cout << "entityID: " << std::to_string(handle.GetID()) << ", position.x :" << transform.Get()->position.x << " aabb.width: " << aabb.Get()->width << "\n";
+        }
+    }
 }
 
 void common_create_test(){
@@ -120,9 +121,86 @@ void query_check_test(){
     }
 }
 
+void chunk_schedule_test(){
+    ECS::Core::Scene scene;
+    auto description = scene.CreateArchTypeDescription();
+    description->AddComponentArray<ECS::Component::Transform>();
+    description->AddComponentArray<ECS::Component::AABB_3D>();
+    auto preload = scene.CreateArchTypePreloadInstance(description,1024);
+    auto archtype = scene.CreateArchType(description,1024);
+    size_t startIndex = preload->CreateUnit(G);
+
+    auto arrayTransform = preload->TryCastComponentArray<ECS::Component::Transform>();
+    auto array = preload->TryCastComponentArray<ECS::Component::AABB_3D>();
+    for(int i = 0; i < G; i++){
+        (*arrayTransform)[i].position = glm::vec3(i);
+        (*array)[i].height = i;
+        (*array)[i].width = i * 2;
+        (*array)[i].length = i * 3;
+    }
+
+    std::vector<std::vector<ECS::EntityHandle>> entities;
+    for(int i = 0; i < B; i++){
+        std::vector<ECS::EntityHandle> group;
+        scene.RegisterPreloadToArchType(preload,archtype,group);
+        entities.push_back(group);
+    }
+
+    auto task1 = [&]()->void {
+        LOG_INFO("task1","666");
+        ECS::Core::ChunkExecuteHandle<ECS::Component::Transform> handle;
+        scene.GetChunkSchedule()->GetChunk<ECS::Component::Transform>(
+            ECS::Core::FailOption::WAIT,
+            archtype.Get(),
+            0,
+            ChunkHeadState::READ,
+            handle
+        );
+        LOG_INFO("task1","start work");
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+        LOG_INFO("task1","finish work");
+    };
+
+    auto task2 = [&]()->void {
+        LOG_INFO("task1","777");
+        ECS::Core::ChunkExecuteHandle<ECS::Component::Transform> handle;
+        scene.GetChunkSchedule()->GetChunk<ECS::Component::Transform>(
+            ECS::Core::FailOption::WAIT,
+            archtype.Get(),
+            0,
+            ChunkHeadState::READ,
+            handle
+        );
+        LOG_INFO("task2","start work");
+        std::this_thread::sleep_for(std::chrono::milliseconds(800));
+        LOG_INFO("task2","finish work");
+    };
+
+    ECS::Core::JobSystem* jobSystem = scene.GetJobSystem();
+
+    jobSystem->Submit(ECS::Core::Task(task1));
+    jobSystem->Submit(ECS::Core::Task(task2));
+
+    jobSystem->DispatchAll();
+
+    jobSystem->WaitIdle();
+
+    
+    
+
+    // handle.ref
+    
+
+}
+
 
 int main() {
     RegisterAllComponents();
-    query_check_test();
+    ECS::Core::ECSKernel kernel;
+    kernel.Init();
+    // preload_test1();
+    // common_create_test();
+    // query_check_test();
+    chunk_schedule_test();
 
 }

@@ -6,6 +6,9 @@
 #include <typeindex>
 #include <unordered_map>
 #include <vector>
+#include <deque>
+#include <mutex>
+#include <condition_variable>
 
 #include "engine/ECS/data_type.h"
 #include "engine/ToolAndAlgorithm/DateType/chunk_array.h"
@@ -15,11 +18,29 @@ namespace ECS::Core{
     class ArchTypeManager;
     class ArchTypeDescription;
     class Scene;
+    class ChunkSchedule;
 
     constexpr size_t ARCHTYPE_SMALL  = 32;
     constexpr size_t ARCHTYPE_MEDIUM = 128;
     constexpr size_t ARCHTYPE_LARGE  = 512;
     constexpr size_t ARCHTYPE_INVALID_INDEX = static_cast<size_t>(-1);
+
+    struct ArchChunkMeta {
+        mutable std::mutex requestMutex;
+        std::condition_variable readerCv;
+        std::condition_variable writerCv;
+
+        ChunkHeadState state = ChunkHeadState::IDLE;
+        size_t activeReaders = 0;
+        size_t waitingReaders = 0;
+        size_t waitingWriters = 0;
+
+        ArchChunkMeta() = default;
+        ArchChunkMeta(const ArchChunkMeta&) = delete;
+        ArchChunkMeta& operator=(const ArchChunkMeta&) = delete;
+        ArchChunkMeta(ArchChunkMeta&&) = delete;
+        ArchChunkMeta& operator=(ArchChunkMeta&&) = delete;
+    };
 
     class ArchType{
         friend class ArchTypePreloadInstance;
@@ -45,6 +66,8 @@ namespace ECS::Core{
         FixedChunkArray<ComponentT>* TryCastActiveComponentArray();
 
         size_t ActiveCount() const { return activeCount_; }
+        size_t ChunkCount() const { return chunkMetas_.size(); }
+        size_t SizePerChunk() const { return sizePerChunk_; }
 
         size_t CreateEntity(EntityID entity);
         size_t CreateEntities(const EntityID* entityIDs, size_t count);
@@ -63,6 +86,7 @@ namespace ECS::Core{
         std::vector<EntityID> index2EntityID_;
         std::unordered_map<EntityID, size_t> entityID2Unit_;
         std::vector<uint32_t> activeGenerationPerUnit_;
+        std::deque<ArchChunkMeta> chunkMetas_;
 
         ArchTypeDescription* description_ = nullptr;
         ArchTypeManager* manager_ = nullptr;
@@ -78,6 +102,7 @@ namespace ECS::Core{
         void AppendUnits(size_t num);
         void DeleteUnitInArrays(size_t index);
         void SwapUnitInArrays(size_t indexA, size_t indexB);
+        void SyncChunkMetaCount();
 
         size_t AllocateEntitySlots(const EntityID* entityIDs, size_t count);
         void DeleteActiveUnit(size_t index);

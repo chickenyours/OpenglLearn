@@ -9,13 +9,14 @@
 #include <condition_variable>
 #include <atomic>
 #include <cstddef>
+#include <functional>
 
 namespace ECS::Core
 {
     class Scene;
     class JobSystem;
 
-    using ExecuteTask = void(*)();
+    using ExecuteTask = std::function<void()>;
 
     class Task
     {

@@ -78,6 +78,14 @@ namespace ECS::Core{
         EntityComponentHandle<ComponentT> GetActiveComponent(EntityID entity);
 
         bool IsAlive(EntityHandle entity) const;
+
+        ChunkSchedule* GetChunkSchedule(){
+            return &chunkSchedule_;
+        }
+
+        JobSystem* GetJobSystem(){
+            return &jobSystem_;
+        }
     };
 }
 

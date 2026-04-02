@@ -2,12 +2,13 @@
 
 #include <utility>
 
+#include "engine/ECS/Context/context.h"
 #include "engine/ECS/ArchType/archtype_instance.h"
 #include "engine/ECS/ArchType/archtype_preload_instance.h"
 
 namespace ECS::Core{
 
-    Scene::Scene(){
+    Scene::Scene():jobSystem_(this,globalECSCoreContext.jobSystemSchedule) {
         entity2entityInfo_.push_back(EntitySceneInfo{});
     }
 
@@ -277,6 +278,7 @@ namespace ECS::Core{
         }
 
         archPtr->activeCount_ += writtenCount;
+        archPtr->SyncChunkMetaCount();
         return writtenCount;
     }
 

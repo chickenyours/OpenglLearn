@@ -183,9 +183,9 @@ namespace ECS::Core
                 ++activeWorkers_;
             }
 
-            globalECSCoreContext.scene = scheduledTask.scene;
+            localECSCoreContext.scene = scheduledTask.scene;
             scheduledTask.task.Execute();
-            globalECSCoreContext.scene = nullptr;
+            localECSCoreContext.scene = nullptr;
 
             if (scheduledTask.ownerJobSystem != nullptr)
             {

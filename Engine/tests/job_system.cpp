@@ -1,4 +1,5 @@
 #include "engine/ECS/JobSystem/job_system.h"
+#include "engine/DebugTool/ConsoleHelp/color_log.h"
 
 namespace ECS::Core
 {
@@ -57,6 +58,7 @@ namespace ECS::Core
     {
         if (schedule_ == nullptr || ownerScene_ == nullptr)
         {
+            LOG_ERROR("JobSystem","if (schedule_ == nullptr || ownerScene_ == nullptr)");
             return 0;
         }
 

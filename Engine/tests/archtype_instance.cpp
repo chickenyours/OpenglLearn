@@ -103,17 +103,23 @@ namespace ECS::Core{
         index2EntityID_.clear();
         entityID2Unit_.clear();
         activeGenerationPerUnit_.clear();
+        chunkMetas_.clear();
     }
 
-    // void ArchType::AppendUnits(size_t num){
-    //     if(num == 0){
-    //         return;
-    //     }
+    void ArchType::SyncChunkMetaCount(){
+        const size_t targetChunkCount = (sizePerChunk_ == 0)
+            ? 0
+            : ((activeCount_ + sizePerChunk_ - 1) / sizePerChunk_);
 
-    //     for(size_t i = 0; i < description_->defaultAppendNFunctions_.size(); ++i){
-    //         description_->defaultAppendNFunctions_[i](activeAddr2ComponentDenseArray_[i], num);
-    //     }
-    // }
+        const size_t oldSize = chunkMetas_.size();
+        if(targetChunkCount > oldSize){
+            for(size_t i = oldSize; i < targetChunkCount; ++i){
+                chunkMetas_.emplace_back();
+            }
+        }else if(targetChunkCount < oldSize){
+            chunkMetas_.resize(targetChunkCount);
+        }
+    }
 
     void ArchType::AppendUnits(size_t num){
         if(num == 0){
@@ -136,7 +142,6 @@ namespace ECS::Core{
         if(activeGenerationPerUnit_.size() < newCount){
             activeGenerationPerUnit_.resize(newCount, 0);
         }
-
     }
 
     void ArchType::DeleteUnitInArrays(size_t index){
@@ -161,12 +166,13 @@ namespace ECS::Core{
         for(size_t i = 0; i < count; ++i){
             const size_t index = begin + i;
             const EntityID entity = entityIDs[i];
-            index2EntityID_.push_back(entity);
+            index2EntityID_[index] = entity;
             entityID2Unit_[entity] = index;
-            activeGenerationPerUnit_.push_back(1u);
+            activeGenerationPerUnit_[index] = 1u;
         }
 
         activeCount_ += count;
+        SyncChunkMetaCount();
         return begin;
     }
 
@@ -194,5 +200,6 @@ namespace ECS::Core{
         index2EntityID_.pop_back();
         activeGenerationPerUnit_.pop_back();
         --activeCount_;
+        SyncChunkMetaCount();
     }
 }

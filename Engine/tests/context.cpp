@@ -2,5 +2,6 @@
 
 namespace ECS::Core
 {
-    thread_local ECSCoreContext globalECSCoreContext{};
+    thread_local LocalECSCoreContext localECSCoreContext{};
+    GlobalECSCoreContext globalECSCoreContext{};
 }

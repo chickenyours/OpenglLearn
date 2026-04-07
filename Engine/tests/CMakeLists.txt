@@ -11,7 +11,7 @@ add_executable(MyApp
     ${CMAKE_CURRENT_SOURCE_DIR}/archtype_preload_instance.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/scene.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/chunk_schedule.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/query_test.cpp
 )
 
 # 为 MyApp 添加编译宏

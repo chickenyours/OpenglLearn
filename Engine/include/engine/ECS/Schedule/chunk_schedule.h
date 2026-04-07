@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cassert>
 
 #include "engine/ECS/ArchType/archtype_instance.h"
 #include "engine/ToolAndAlgorithm/DateType/chunk_array.h"
@@ -32,14 +33,37 @@ namespace ECS::Core {
         void Reset() noexcept;
 
         const ChunkRef<ComponentT>& GetRef() const noexcept { return ref_; }
+
         ArchType* GetArchType() const noexcept { return ref_.archtype; }
+        FixedChunkArray<ComponentT>* GetChunkArray() const noexcept { return ref_.chunkArray; }
         size_t GetChunkIndex() const noexcept { return ref_.chunkIndex; }
         ChunkHeadState GetOccupyState() const noexcept { return occupyState_; }
+
+        ComponentT* GetChunk() noexcept { return ref_.GetChunk(); }
+        const ComponentT* GetChunk() const noexcept { return ref_.GetChunk(); }
+
+        ComponentT* operator->() noexcept { return GetChunk(); }
+        const ComponentT* operator->() const noexcept { return GetChunk(); }
+
+        ComponentT& operator*() noexcept {
+            assert(GetChunk() != nullptr);
+            return *GetChunk();
+        }
+
+        const ComponentT& operator*() const noexcept {
+            assert(GetChunk() != nullptr);
+            return *GetChunk();
+        }
 
     private:
         friend class ChunkSchedule;
 
-        void Bind(ChunkSchedule* owner, ArchType* archtype, size_t chunkIndex, ChunkHeadState state) noexcept;
+        void Bind(ChunkSchedule* owner,
+                  ArchType* archtype,
+                  FixedChunkArray<ComponentT>* chunkArray,
+                  size_t chunkIndex,
+                  ChunkHeadState state) noexcept;
+
         void MoveFrom(ChunkExecuteHandle&& other) noexcept;
 
     private:
@@ -53,14 +77,38 @@ namespace ECS::Core {
     class ChunkRef {
     public:
         ChunkRef() = default;
-        ChunkRef(ArchType* arch, size_t index) : archtype(arch), chunkIndex(index) {}
 
-        bool Valid() const noexcept { return archtype != nullptr; }
+        ChunkRef(ArchType* arch,
+                 FixedChunkArray<ComponentT>* array,
+                 size_t index)
+            : archtype(arch), chunkArray(array), chunkIndex(index) {}
+
+        bool Valid() const noexcept {
+            return archtype != nullptr && chunkArray != nullptr;
+        }
+
+        ArchType* GetArchType() const noexcept { return archtype; }
+        FixedChunkArray<ComponentT>* GetChunkArray() const noexcept { return chunkArray; }
+        size_t GetChunkIndex() const noexcept { return chunkIndex; }
+
+        ComponentT* GetChunk() noexcept {
+            return chunkArray ? chunkArray->GetChunkData(chunkIndex) : nullptr;
+        }
+
+        const ComponentT* GetChunk() const noexcept {
+            return chunkArray ? chunkArray->GetChunkData(chunkIndex) : nullptr;
+        }
+
+        explicit operator bool() const noexcept {
+            return Valid();
+        }
 
     private:
         friend class ChunkSchedule;
         friend class ChunkExecuteHandle<ComponentT>;
+
         ArchType* archtype = nullptr;
+        FixedChunkArray<ComponentT>* chunkArray = nullptr;
         size_t chunkIndex = 0;
     };
 
@@ -112,6 +160,7 @@ namespace ECS::Core {
 
         template <typename ComponentT>
         bool ProcessRequest(ArchType* archtype,
+                            FixedChunkArray<ComponentT>* chunkArray,
                             size_t chunkIndex,
                             ChunkHeadState requestType,
                             FailOption option,

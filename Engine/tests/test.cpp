@@ -294,27 +294,33 @@ void chunk_schedule_preform_test2(){
         entities.push_back(group);
     }
 
-    const int testTime = 1000000;
-    const int workers = 8;
+    const int testTime = 100;
+    const int workers = 4;
     const int timesPerWorker = testTime / workers;
 
     volatile std::size_t guard = 0;
 
     auto task1 = [&]()->void {
+        float sum = 0.0f;
         for(int i = 0; i < timesPerWorker; i++){
             ECS::Core::ChunkExecuteHandle<ECS::Component::Transform> handle;
             scene.GetChunkSchedule()->GetChunk<ECS::Component::Transform>(
                 ECS::Core::FailOption::WAIT,
                 archtype.Get(),
                 0,
-                ChunkHeadState::WRITE,
+                ChunkHeadState::READ,
                 handle
             );
 
-            handle.GetChunk()[0].position.x += 1.0f;
+            sum += handle.GetChunk()[0].position.x;
 
-            guard += static_cast<std::size_t>(i & 1);
+            // handle.GetChunk()[0].position.x += 1.0f;
+
+            // guard += static_cast<std::size_t>(i & 1);
         }
+
+        LOG_INFO("task",std::to_string(sum));
+
     };
 
     ECS::Core::JobSystem* jobSystem = scene.GetJobSystem();

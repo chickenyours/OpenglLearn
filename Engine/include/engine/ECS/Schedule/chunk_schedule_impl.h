@@ -28,7 +28,10 @@ namespace ECS::Core {
 
     template <typename ComponentT>
     bool ChunkExecuteHandle<ComponentT>::Valid() const noexcept {
-        return owner_ != nullptr && ref_.archtype != nullptr && owns_occupied_;
+        return owner_ != nullptr
+            && ref_.archtype != nullptr
+            && ref_.chunkArray != nullptr
+            && owns_occupied_;
     }
 
     template <typename ComponentT>
@@ -44,6 +47,7 @@ namespace ECS::Core {
 
         owner_ = nullptr;
         ref_.archtype = nullptr;
+        ref_.chunkArray = nullptr;
         ref_.chunkIndex = 0;
         occupyState_ = ChunkHeadState::IDLE;
         owns_occupied_ = false;
@@ -52,10 +56,12 @@ namespace ECS::Core {
     template <typename ComponentT>
     void ChunkExecuteHandle<ComponentT>::Bind(ChunkSchedule* owner,
                                               ArchType* archtype,
+                                              FixedChunkArray<ComponentT>* chunkArray,
                                               size_t chunkIndex,
                                               ChunkHeadState state) noexcept {
         owner_ = owner;
         ref_.archtype = archtype;
+        ref_.chunkArray = chunkArray;
         ref_.chunkIndex = chunkIndex;
         occupyState_ = state;
         owns_occupied_ = true;
@@ -69,6 +75,7 @@ namespace ECS::Core {
         owns_occupied_ = other.owns_occupied_;
 
         other.ref_.archtype = nullptr;
+        other.ref_.chunkArray = nullptr;
         other.ref_.chunkIndex = 0;
         other.owner_ = nullptr;
         other.occupyState_ = ChunkHeadState::IDLE;
@@ -97,7 +104,7 @@ namespace ECS::Core {
             return false;
         }
 
-        return ProcessRequest(archtype, chunkIndex, requestType, option, handle);
+        return ProcessRequest(archtype, chunkArray, chunkIndex, requestType, option, handle);
     }
 
     template <typename ComponentT>
@@ -110,11 +117,17 @@ namespace ECS::Core {
             return false;
         }
 
-        return GetChunk<ComponentT>(option, ref.archtype, ref.chunkIndex, requestType, handle);
+        if (ref.chunkIndex >= ref.chunkArray->ChunkCount() || ref.chunkIndex >= ref.archtype->chunkMetas_.size()) {
+            LOG_ERROR("ChunkSchedule", "ChunkRef chunkIndex out of range");
+            return false;
+        }
+
+        return ProcessRequest(ref.archtype, ref.chunkArray, ref.chunkIndex, requestType, option, handle);
     }
 
     template <typename ComponentT>
     bool ChunkSchedule::ProcessRequest(ArchType* archtype,
+                                       FixedChunkArray<ComponentT>* chunkArray,
                                        size_t chunkIndex,
                                        ChunkHeadState requestType,
                                        FailOption option,
@@ -125,8 +138,18 @@ namespace ECS::Core {
             return false;
         }
 
+        if (!chunkArray) {
+            LOG_ERROR("ChunkSchedule", "chunkArray is nullptr");
+            return false;
+        }
+
         if (!IsSupportedRequest(requestType)) {
             LOG_ERROR("ChunkSchedule", "invalid request type");
+            return false;
+        }
+
+        if (chunkArray->GetChunkData(chunkIndex) == nullptr) {
+            LOG_ERROR("ChunkSchedule", "chunk data is nullptr");
             return false;
         }
 
@@ -136,7 +159,7 @@ namespace ECS::Core {
 
         if (CanAcquireNoLock(*meta, requestType)) {
             AcquireNoLock(*meta, requestType);
-            handle.Bind(this, archtype, chunkIndex, requestType);
+            handle.Bind(this, archtype, chunkArray, chunkIndex, requestType);
             return true;
         }
 
@@ -157,7 +180,7 @@ namespace ECS::Core {
         }
 
         AcquireNoLock(*meta, requestType);
-        handle.Bind(this, archtype, chunkIndex, requestType);
+        handle.Bind(this, archtype, chunkArray, chunkIndex, requestType);
         return true;
     }
 

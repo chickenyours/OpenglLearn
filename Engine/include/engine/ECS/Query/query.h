@@ -11,6 +11,9 @@
 
 namespace ECS::Core{
 
+    template<typename... Ts>
+    struct AnyOf{};
+
     namespace Detail{
 
         template<typename T>
@@ -67,12 +70,159 @@ namespace ECS::Core{
             using Type = TypeList<A..., B...>;
         };
 
+        template<typename T, typename... Ts>
+        struct IndexOfType;
+
+        template<typename T, typename First, typename... Rest>
+        struct IndexOfType<T, First, Rest...>{
+            static constexpr size_t value =
+                std::is_same_v<T, First> ? 0 : 1 + IndexOfType<T, Rest...>::value;
+        };
+
+        template<typename T>
+        struct IndexOfType<T>{
+            static_assert(!std::is_same_v<T, T>, "Type not found in AnyOf.");
+        };
+
+        template<size_t I, typename... Ts>
+        struct TypeAtIndex;
+
+        template<typename First, typename... Rest>
+        struct TypeAtIndex<0, First, Rest...>{
+            using Type = First;
+        };
+
+        template<size_t I, typename First, typename... Rest>
+        struct TypeAtIndex<I, First, Rest...>{
+            using Type = typename TypeAtIndex<I - 1, Rest...>::Type;
+        };
+
+        template<typename T>
+        struct IsAnyOf : std::false_type{};
+
+        template<typename... Ts>
+        struct IsAnyOf<AnyOf<Ts...>> : std::true_type{};
+
+        template<typename T>
+        inline constexpr bool IsAnyOfV = IsAnyOf<T>::value;
+
+    } // namespace Detail
+
+
+    template<typename... Ts>
+    class AnyOfView{
+    public:
+        static constexpr size_t npos = static_cast<size_t>(-1);
+
+        enum class Match : size_t{
+            None = npos
+        };
+
+        AnyOfView() = default;
+
+        template<typename T>
+        void Set(T* ptr){
+            ptr_ = static_cast<void*>(ptr);
+            selectedIndex_ = TypeIndex<T>();
+        }
+
+        void Reset(){
+            ptr_ = nullptr;
+            selectedIndex_ = npos;
+        }
+
+        bool Valid() const{
+            return ptr_ != nullptr && selectedIndex_ != npos;
+        }
+
+        explicit operator bool() const{
+            return Valid();
+        }
+
+        size_t Index() const{
+            return selectedIndex_;
+        }
+
+        Match Selected() const{
+            return Valid() ? static_cast<Match>(selectedIndex_) : Match::None;
+        }
+
+        template<typename T>
+        bool Is() const{
+            return selectedIndex_ == TypeIndex<T>();
+        }
+
+        template<typename T>
+        T* Get() const{
+            if(!Is<T>()){
+                return nullptr;
+            }
+            return static_cast<T*>(ptr_);
+        }
+
+        template<typename T>
+        static constexpr size_t TypeIndex(){
+            return Detail::IndexOfType<T, Ts...>::value;
+        }
+
+        template<size_t I>
+        using TypeAt = typename Detail::TypeAtIndex<I, Ts...>::Type;
+
+    private:
+        void* ptr_ = nullptr;
+        size_t selectedIndex_ = npos;
+    };
+
+
+    namespace Detail{
+
+        template<typename T>
+        struct QueryItemTraits{
+            using StorageType = T*;
+
+            static bool Check(ArchType* archType){
+                return HasComponent<T>(archType);
+            }
+
+            static StorageType Build(ArchType* archType, size_t beginIndex){
+                return GetComponentPtrAt<T>(archType, beginIndex);
+            }
+        };
+
+        template<typename... Ts>
+        struct QueryItemTraits<AnyOf<Ts...>>{
+            using StorageType = AnyOfView<Ts...>;
+
+            static bool Check(ArchType* archType){
+                return HasAny<Ts...>(archType);
+            }
+
+            static StorageType Build(ArchType* archType, size_t beginIndex){
+                StorageType view;
+                BuildImpl<0, Ts...>(view, archType, beginIndex);
+                return view;
+            }
+
+        private:
+            template<size_t I, typename First, typename... Rest>
+            static void BuildImpl(StorageType& view, ArchType* archType, size_t beginIndex){
+                if(auto* ptr = GetComponentPtrAt<First>(archType, beginIndex); ptr != nullptr){
+                    view.template Set<First>(ptr);
+                    return;
+                }
+
+                if constexpr(sizeof...(Rest) > 0){
+                    BuildImpl<I + 1, Rest...>(view, archType, beginIndex);
+                }
+            }
+        };
+
         template<typename TList>
         struct ChunkPointerTuple;
 
         template<typename... Ts>
         struct ChunkPointerTuple<TypeList<Ts...>>{
-            using Type = std::tuple<Ts*...>;
+            using Type = std::tuple<typename QueryItemTraits<Ts>::StorageType...>;
         };
 
     } // namespace Detail
@@ -84,7 +234,7 @@ namespace ECS::Core{
         using Types = Detail::TypeList<Args...>;
 
         static bool Check(ArchType* archType){
-            return Detail::HasAll<Args...>(archType);
+            return (... && Detail::QueryItemTraits<Args>::Check(archType));
         }
     };
 
@@ -104,7 +254,7 @@ namespace ECS::Core{
         using Types = Detail::TypeList<Args...>;
 
         static bool Check(ArchType* archType){
-            return Detail::HasNone<Args...>(archType);
+            return (... && (!Detail::QueryItemTraits<Args>::Check(archType)));
         }
     };
 
@@ -134,13 +284,13 @@ namespace ECS::Core{
             PointerTuple components{};
 
             template<typename T>
-            T* Get() const{
-                return std::get<T*>(components);
+            auto Get() const -> decltype(std::get<typename Detail::QueryItemTraits<T>::StorageType>(components)){
+                return std::get<typename Detail::QueryItemTraits<T>::StorageType>(components);
             }
 
             template<typename T>
-            T* Data() const{
-                return std::get<T*>(components);
+            auto Data() const -> decltype(std::get<typename Detail::QueryItemTraits<T>::StorageType>(components)){
+                return std::get<typename Detail::QueryItemTraits<T>::StorageType>(components);
             }
 
             bool Empty() const{
@@ -326,13 +476,13 @@ namespace ECS::Core{
         }
 
         template<typename... Ts>
-        static std::tuple<Ts*...> BuildPointerTupleImpl(
+        static std::tuple<typename Detail::QueryItemTraits<Ts>::StorageType...> BuildPointerTupleImpl(
             ArchType* archType,
             size_t beginIndex,
             Detail::TypeList<Ts...>
         ){
-            return std::tuple<Ts*...>{
-                Detail::GetComponentPtrAt<Ts>(archType, beginIndex)...
+            return std::tuple<typename Detail::QueryItemTraits<Ts>::StorageType...>{
+                Detail::QueryItemTraits<Ts>::Build(archType, beginIndex)...
             };
         }
     };

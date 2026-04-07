@@ -6,6 +6,8 @@
 
 *.obj
 
+build.md
+
 # 仅忽略根目录下的 devel 目录
 /devel/
 

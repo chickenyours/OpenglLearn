@@ -4,8 +4,10 @@
             "name": "Win32",
             "includePath": [
                 "${workspaceFolder}/**",
-                "${workspaceFolder}/code",
                 "${workspaceFolder}/Engine/include",
+                "${workspaceFolder}/Module/**",
+                "${workspaceFolder}/Module/Render/Public/**",
+                "${workspaceFolder}/Module/Application/Public/**",
                 "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include",
                 "C:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/um",
                 "C:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/shared",

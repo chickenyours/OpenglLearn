@@ -96,6 +96,9 @@ set(MODULE_MANAGER_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/module_manager.h
     ${CMAKE_CURRENT_SOURCE_DIR}/module_manager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/module_include_gen.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/module_context.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/module_context.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/module_context_gen.h
 )
 
 add_library(module_manager STATIC ${MODULE_MANAGER_SRC})
@@ -130,6 +133,30 @@ target_link_libraries(module_test PRIVATE
 )
 
 target_compile_options(module_test PRIVATE
+    -Wno-nonportable-include-path
+    -Wno-pragma-pack
+    -Wno-ignored-pragma-intrinsic
+    -Wno-ignored-attributes
+)
+
+# ModuleContext 测试程序
+add_executable(module_context_test ${CMAKE_CURRENT_SOURCE_DIR}/Test/module_context_test.cpp)
+
+target_include_directories(module_context_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/Application/public
+    ${CMAKE_CURRENT_SOURCE_DIR}/Render/Public
+)
+
+target_link_libraries(module_context_test PRIVATE
+    module_manager
+    application_module
+    render_module
+    glfw3
+    glad
+)
+
+target_compile_options(module_context_test PRIVATE
     -Wno-nonportable-include-path
     -Wno-pragma-pack
     -Wno-ignored-pragma-intrinsic

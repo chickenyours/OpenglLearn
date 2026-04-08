@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ModuleContext 使用文档</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #444;
+            margin-top: 30px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 8px;
+        }
+        h3 {
+            color: #555;
+        }
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: "Consolas", "Monaco", "Courier New", monospace;
+        }
+        pre {
+            background-color: #282c34;
+            color: #abb2bf;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        pre code {
+            background-color: transparent;
+            padding: 0;
+            color: inherit;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #007bff;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        ul, ol {
+            margin-left: 20px;
+        }
+        li {
+            margin: 8px 0;
+        }
+        .note {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .tip {
+            background-color: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ModuleContext 使用文档</h1>
+
+        <h2>1. 模块作用</h2>
+        <p><code>ModuleContext</code> 是模块系统的统一访问层，它提供了：</p>
+        <ul>
+            <li><strong>ModuleContext</strong>：非模板基类，提供统一的模块上下文访问接口，内部保存按全局槽位编号存储的指针数组</li>
+            <li><strong>ModuleContextManager&lt;Modules...&gt;</strong>：模板化的模块上下文管理器，负责按模板参数初始化模块指针</li>
+            <li><strong>GeneratedModuleContext</strong>：自动生成的模块上下文类型，使用预定义的模块列表</li>
+        </ul>
+        <p>它是主程序和插件之间共享模块上下文的桥梁，既保留了模板类型安全，又保留了跨插件共享时最重要的固定槽位 ABI 语义。</p>
+
+        <h2>2. 核心概念</h2>
+
+        <h3>2.1 全局槽位 (Fixed Slots)</h3>
+        <p>每个模块类型在编译期都有固定的槽位索引，由 <code>module_include_gen.h</code> 定义：</p>
+        <pre><code>Application::ApplicationModule  -&gt; 槽位 0
+Render::RenderModule            -&gt; 槽位 1
+Resource::ResourceManagerModule -&gt; 槽位 2</code></pre>
+
+        <h3>2.2 ModuleManager</h3>
+        <p>模块系统的唯一真实模块拥有者，负责：</p>
+        <ul>
+            <li>真正拥有模块实例</li>
+            <li>启动、关闭模块</li>
+            <li>建立槽位表</li>
+            <li>给主程序和插件提供查询能力</li>
+        </ul>
+
+        <h3>2.3 ModuleContext</h3>
+        <p>统一的模块访问容器，负责：</p>
+        <ul>
+            <li>缓存模块指针（不拥有对象）</li>
+            <li>封装按类型获取模块的逻辑</li>
+            <li>支持从 <code>ModuleManager</code> 和 <code>ModuleHostAPI</code> 初始化</li>
+        </ul>
+
+        <h2>3. 基本用法</h2>
+
+        <h3>3.1 在主程序中使用</h3>
+        <pre><code>#include "module_context.h"
+#include "module_manager.h"
+
+int main() {
+    // 1. 启动 ModuleManager
+    auto&amp; manager = ModuleManager::Instance();
+    if (!manager.Startup()) {
+        return -1;
+    }
+
+    // 2. 创建并初始化 ModuleContext
+    GeneratedModuleContext context;
+    if (!context.Initialize(manager)) {
+        return -1;
+    }
+
+    // 3. 通过上下文访问模块
+    auto* app = context.Get&lt;Application::ApplicationModule&gt;();
+    auto* render = context.Get&lt;Render::RenderModule&gt;();
+    auto* resource = context.Get&lt;Resource::ResourceManagerModule&gt;();
+
+    // 4. 使用模块...
+
+    // 5. 清理
+    manager.Shutdown();
+    return 0;
+}</code></pre>
+
+        <h3>3.2 在插件中使用</h3>
+        <pre><code>#include "module_context.h"
+
+extern "C" bool PluginStartup(const ModuleHostAPI* host_api) {
+    if (host_api == nullptr) {
+        return false;
+    }
+
+    // 1. 创建并初始化 ModuleContext
+    GeneratedModuleContext context;
+    if (!context.Initialize(*host_api)) {
+        return false;
+    }
+
+    // 2. 通过上下文访问模块
+    auto* render = context.Get&lt;Render::RenderModule&gt;();
+    if (render == nullptr) {
+        return false;
+    }
+
+    // 3. 使用模块...
+
+    return true;
+}</code></pre>
+
+        <h2>4. API 详细说明</h2>
+
+        <h3>4.1 ModuleContext 基类</h3>
+        <table>
+            <tr>
+                <th>方法</th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td><code>Reset()</code></td>
+                <td>重置所有槽位为空指针</td>
+            </tr>
+            <tr>
+                <td><code>IsBound(index)</code></td>
+                <td>检查指定槽位是否已绑定</td>
+            </tr>
+            <tr>
+                <td><code>Get&lt;T&gt;()</code></td>
+                <td>按类型获取模块指针，如果未绑定则返回 nullptr</td>
+            </tr>
+            <tr>
+                <td><code>GetRaw(index)</code></td>
+                <td>获取指定槽位的原始指针</td>
+            </tr>
+            <tr>
+                <td><code>SetSlot(index, ptr)</code></td>
+                <td>设置指定槽位的指针（protected）</td>
+            </tr>
+        </table>
+
+        <h3>4.2 ModuleContextManager 模板类</h3>
+        <table>
+            <tr>
+                <th>方法</th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td><code>Initialize(manager)</code></td>
+                <td>从 ModuleManager 初始化上下文</td>
+            </tr>
+            <tr>
+                <td><code>Initialize(api)</code></td>
+                <td>从 ModuleHostAPI 初始化上下文</td>
+            </tr>
+        </table>
+
+        <h2>5. 完整示例</h2>
+
+        <h3>5.1 最小可用示例</h3>
+        <pre><code>#include "module_context.h"
+#include "module_manager.h"
+#include "application_module.h"
+#include "render_module.h"
+
+int main() {
+    // 启动模块管理器
+    auto&amp; manager = ModuleManager::Instance();
+    if (!manager.Startup()) {
+        return -1;
+    }
+
+    // 创建上下文
+    GeneratedModuleContext context;
+    if (!context.Initialize(manager)) {
+        manager.Shutdown();
+        return -1;
+    }
+
+    // 获取模块
+    auto* app = context.Get&lt;Application::ApplicationModule&gt;();
+    auto* render = context.Get&lt;Render::RenderModule&gt;();
+
+    if (!app || !render) {
+        manager.Shutdown();
+        return -1;
+    }
+
+    // 使用模块...
+    // ...
+
+    // 清理
+    manager.Shutdown();
+    return 0;
+}</code></pre>
+
+        <h3>5.2 验证指针一致性</h3>
+        <pre><code>// 通过 ModuleContext 获取
+auto* context_app = context.Get&lt;Application::ApplicationModule&gt;();
+
+// 直接从 ModuleManager 获取
+auto* direct_app = manager.GetModule&lt;Application::ApplicationModule&gt;();
+
+// 验证两者是相同的指针
+assert(context_app == direct_app);</code></pre>
+
+        <h3>5.3 检查模块绑定状态</h3>
+        <pre><code>ModuleContext context;
+context.Reset();
+
+// 检查槽位是否已绑定
+bool appBound = context.IsBound(0);  // false
+bool renderBound = context.IsBound(1); // false
+
+// 初始化后
+context.Initialize(manager);
+
+// 再次检查
+appBound = context.IsBound(0);  // true
+renderBound = context.IsBound(1); // true</code></pre>
+
+        <h2>6. ModuleHostAPI 初始化</h2>
+        <p><code>ModuleHostAPI</code> 是跨 DLL / 跨 CRT 边界时共享模块的 C ABI 风格接口：</p>
+
+        <h3>6.1 ModuleHostAPI 结构</h3>
+        <pre><code>struct ModuleHostAPI {
+    void* context = nullptr;
+    void* (*query_by_index)(void* context, std::size_t index) noexcept = nullptr;
+};</code></pre>
+
+        <h3>6.2 从 ModuleManager 获取 HostAPI</h3>
+        <pre><code>const ModuleHostAPI&amp; hostAPI = manager.GetHostAPI();</code></pre>
+
+        <h3>6.3 使用 HostAPI 初始化上下文</h3>
+        <pre><code>GeneratedModuleContext context;
+if (!context.Initialize(hostAPI)) {
+    return false;
+}
+
+// 现在可以像平常一样使用
+auto* render = context.Get&lt;Render::RenderModule&gt;();</code></pre>
+
+        <h2>7. 自定义模块上下文</h2>
+        <p>除了使用 <code>GeneratedModuleContext</code>，你还可以创建自定义的模块上下文：</p>
+
+        <h3>7.1 定义自定义上下文类型</h3>
+        <pre><code>using MyModuleContext = ModuleContextManager&lt;
+    Application::ApplicationModule,
+    Render::RenderModule
+&gt;;</code></pre>
+
+        <h3>7.2 使用自定义上下文</h3>
+        <pre><code>MyModuleContext context;
+if (!context.Initialize(manager)) {
+    return false;
+}
+
+// 只包含声明的模块类型
+auto* app = context.Get&lt;Application::ApplicationModule&gt;();
+auto* render = context.Get&lt;Render::RenderModule&gt;();
+// auto* resource = context.Get&lt;Resource::ResourceManagerModule&gt;(); // 编译错误</code></pre>
+
+        <h2>8. 模块上下文生成</h2>
+        <p><code>module_context_gen.h</code> 负责生成当前上下文所需模块类型列表：</p>
+
+        <h3>8.1 默认生成列表</h3>
+        <pre><code>#define MODULE_CONTEXT_GEN_TYPES \
+    Application::ApplicationModule, \
+    Render::RenderModule, \
+    Resource::ResourceManagerModule
+
+using GeneratedModuleContext = ModuleContextManager&lt;MODULE_CONTEXT_GEN_TYPES&gt;;</code></pre>
+
+        <h3>8.2 修改生成列表</h3>
+        <p>如需修改生成的模块列表，编辑 <code>module_context_gen.h</code> 中的 <code>MODULE_CONTEXT_GEN_TYPES</code> 宏定义。</p>
+
+        <div class="note">
+            <strong>注意：</strong>修改 <code>module_context_gen.h</code> 后，所有使用 <code>GeneratedModuleContext</code> 的地方将自动同步。
+        </div>
+
+        <h2>9. 测试程序</h2>
+        <p>项目包含完整的测试程序 <code>module_context_test.cpp</code>，演示了所有功能：</p>
+
+        <h3>9.1 运行测试</h3>
+        <pre><code># 编译项目
+build.bat
+
+# 运行测试
+.\bin\module_context_test.exe</code></pre>
+
+        <h3>9.2 测试内容</h3>
+        <ul>
+            <li><strong>Test 1</strong>: ModuleContext 基类功能（Reset, IsBound）</li>
+            <li><strong>Test 2</strong>: ModuleContextManager 从 ModuleManager 初始化</li>
+            <li><strong>Test 3</strong>: 从 ModuleHostAPI 初始化</li>
+            <li><strong>Test 4</strong>: 资源加载功能测试</li>
+            <li><strong>Test 5</strong>: 集成测试（包含 OpenGL 渲染）</li>
+        </ul>
+
+        <h2>10. 注意事项</h2>
+
+        <div class="note">
+            <strong>1. 生命周期管理：</strong> <code>ModuleContext</code> 不拥有模块对象，只缓存模块指针。模块的生命周期由 <code>ModuleManager</code> 管理。
+        </div>
+
+        <div class="note">
+            <strong>2. 线程安全：</strong> 当前实现不提供线程安全保证。如需在多线程环境中使用，请自行添加同步机制。
+        </div>
+
+        <div class="note">
+            <strong>3. 初始化顺序：</strong> 确保在使用 <code>ModuleContext</code> 之前，<code>ModuleManager</code> 已经启动。
+        </div>
+
+        <div class="tip">
+            <strong>提示：</strong> 推荐始终使用 <code>GeneratedModuleContext</code>，这样可以确保主程序和插件使用相同的模块列表。
+        </div>
+
+        <h2>11. 常见问题</h2>
+
+        <h3>Q1: 为什么 Get&lt;T&gt;() 返回 nullptr？</h3>
+        <p>可能原因：</p>
+        <ul>
+            <li>ModuleManager 未正确启动</li>
+            <li>ModuleContext 未正确初始化</li>
+            <li>模块类型 T 未在 module_include_gen.h 中注册</li>
+        </ul>
+
+        <h3>Q2: 可以在插件中直接使用 ModuleManager 吗？</h3>
+        <p>不推荐。插件应该通过 <code>ModuleHostAPI</code> 和 <code>ModuleContext</code> 访问模块，这样可以确保跨 DLL / 跨 CRT 兼容性。</p>
+
+        <h3>Q3: 如何添加新的模块类型？</h3>
+        <ol>
+            <li>在 <code>module_include_gen.h</code> 中注册新模块类型和槽位</li>
+            <li>在 <code>module_context_gen.h</code> 中添加到 <code>MODULE_CONTEXT_GEN_TYPES</code> 宏</li>
+            <li>更新 <code>ModuleManager::BuildModuleTable()</code> 以包含新模块</li>
+        </ol>
+
+        <h2>12. 总结</h2>
+        <p><code>ModuleContext</code> 提供了统一的模块访问层，使得主程序和插件能够以相同的方式访问模块。通过固定槽位和类型安全的模板接口，它既保证了跨 DLL / 跨 CRT 兼容性，又提供了编译期类型检查。</p>
+    </div>
+</body>
+</html>

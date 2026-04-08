@@ -16,20 +16,23 @@
 
 #include "application_module.h"
 #include "render_module.h"
+#include "resource_manager_module.h"
 
 // 正序：用于构造 / 启动 / 建表
 #define MODULE_INCLUDE_GEN_MODULES(X) \
     X(0, Application::ApplicationModule, applicationModule_); \
-    X(1, Render::RenderModule,          renderModule_);
+    X(1, Render::RenderModule,          renderModule_); \
+    X(2, Resource::ResourceManagerModule, resourceManagerModule_);
 
 // 逆序：用于关闭 / 回滚
 #define MODULE_INCLUDE_GEN_MODULES_REVERSE(X) \
+    X(2, Resource::ResourceManagerModule, resourceManagerModule_); \
     X(1, Render::RenderModule,          renderModule_); \
     X(0, Application::ApplicationModule, applicationModule_);
 
 namespace ModuleIncludeGen {
 
-inline constexpr std::size_t kModuleCount = 2;
+inline constexpr std::size_t kModuleCount = 3;
 
 template<typename T>
 struct HasModuleSlot : std::false_type {};

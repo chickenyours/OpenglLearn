@@ -63,6 +63,33 @@ target_compile_options(render_module PRIVATE
     -Wno-ignored-attributes
 )
 
+# ResourceManager 模块
+set(RESOURCE_MANAGER_MODULE_PUBLIC_HDR
+    ${CMAKE_CURRENT_SOURCE_DIR}/ResourceManager/Public/resource_manager_module.h
+)
+
+set(RESOURCE_MANAGER_MODULE_PRIVATE_SRC
+    ${CMAKE_CURRENT_SOURCE_DIR}/ResourceManager/Private/resource_manager_module.cpp
+)
+
+add_library(resource_manager_module STATIC ${RESOURCE_MANAGER_MODULE_PUBLIC_HDR} ${RESOURCE_MANAGER_MODULE_PRIVATE_SRC})
+
+target_include_directories(resource_manager_module PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/ResourceManager/Public
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_link_libraries(resource_manager_module PUBLIC
+    module_manager
+)
+
+target_compile_options(resource_manager_module PRIVATE
+    -Wno-nonportable-include-path
+    -Wno-pragma-pack
+    -Wno-ignored-pragma-intrinsic
+    -Wno-ignored-attributes
+)
+
 # 主模块系统库
 set(MODULE_MANAGER_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/module.h
@@ -82,6 +109,7 @@ target_include_directories(module_manager PUBLIC
 target_link_libraries(module_manager PUBLIC
     application_module
     render_module
+    resource_manager_module
 )
 
 # 测试程序

@@ -5,6 +5,7 @@
 #include "module_manager.h"
 #include "application_module.h"
 #include "render_module.h"
+#include "resource_manager_module.h"
 
 // OpenGL 渲染三角形的主程序代码
 void RenderTriangle(GLFWwindow* window) {
@@ -168,10 +169,53 @@ int main() {
 
     std::cout << "RenderModule acquired: " << renderModule->GetName() << std::endl;
     std::cout << "RenderModule started: " << (renderModule->IsStarted() ? "yes" : "no") << std::endl;
-    std::cout << "RenderModule platform state: " 
+    std::cout << "RenderModule platform state: "
               << static_cast<int>(renderModule->GetPlatformState()) << std::endl;
 
-    // 5. 获取窗口并渲染三角形
+    // 5. 获取 ResourceManager 模块
+    auto* resourceManager = manager.GetModule<Resource::ResourceManagerModule>();
+    if (resourceManager == nullptr) {
+        std::cerr << "Failed to get ResourceManagerModule!" << std::endl;
+        return -5;
+    }
+
+    std::cout << "ResourceManagerModule acquired: " << resourceManager->GetName() << std::endl;
+    std::cout << "ResourceManagerModule started: " << (resourceManager->IsStarted() ? "yes" : "no") << std::endl;
+
+    // 测试资源加载功能 - 使用 FromGenerator 加载一个简单资源
+    struct TestResource : Resource::ILoadable {
+        int value = 0;
+        
+        void Release() override {
+            std::cout << "TestResource released, value=" << value << std::endl;
+            isLoad_ = false;
+        }
+        
+        void SetLoaded(bool loaded) {
+            isLoad_ = loaded;
+        }
+    };
+
+    auto testResourceHandle = resourceManager->Get<Resource::ILoadable>(
+        Resource::FromGenerator<Resource::ILoadable>(
+            "test_resource",
+            []() -> std::unique_ptr<Resource::ILoadable> {
+                std::cout << "Creating TestResource..." << std::endl;
+                auto ptr = new TestResource();
+                ptr->value = 42;
+                ptr->SetLoaded(true);
+                return std::unique_ptr<Resource::ILoadable>(ptr);
+            }
+        )
+    );
+
+    if (testResourceHandle) {
+        std::cout << "TestResource loaded successfully, IsLoad=" << testResourceHandle->IsLoad() << std::endl;
+    } else {
+        std::cerr << "Failed to load TestResource!" << std::endl;
+    }
+
+    // 6. 获取窗口并渲染三角形
     GLFWwindow* window = appModule->GetWindow();
     if (window == nullptr) {
         std::cerr << "Failed to get window from ApplicationModule!" << std::endl;
@@ -180,10 +224,10 @@ int main() {
 
     std::cout << "Window acquired successfully!" << std::endl;
 
-    // 6. 调用渲染函数绘制三角形
+    // 7. 调用渲染函数绘制三角形
     RenderTriangle(window);
 
-    // 7. 关闭模块系统
+    // 8. 关闭模块系统
     std::cout << "Shutting down ModuleManager..." << std::endl;
     manager.Shutdown();
     std::cout << "ModuleManager shutdown complete." << std::endl;

@@ -1,0 +1,4 @@
+行动须知:
+ 1:编译程序请运行C:\Users\16620\Desktop\projects\OpenglLearn\build.bat一键编译即可
+ 2:每次改进都在功能的根目录上创建使用文档,并包含测试程序样例,格式为.html,页面样式参考模块里的docs目录下的使用文档
+任务:请阅读module_context_improvement_steps.md

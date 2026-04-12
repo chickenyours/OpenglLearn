@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RHI Buffer 使用文档</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #444;
+            margin-top: 30px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 8px;
+        }
+        h3 {
+            color: #555;
+        }
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: "Consolas", "Monaco", "Courier New", monospace;
+        }
+        pre {
+            background-color: #282c34;
+            color: #abb2bf;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        pre code {
+            background-color: transparent;
+            padding: 0;
+            color: inherit;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #007bff;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        ul, ol {
+            margin-left: 20px;
+        }
+        li {
+            margin: 8px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>RHI Buffer &amp; InputLayout 使用文档</h1>
+
+        <h2>1. 模块概述</h2>
+        <p>RHI Buffer 子系统提供了跨图形 API 的缓冲区抽象层，支持：</p>
+        <ul>
+            <li><strong>顶点缓冲 (Vertex Buffer)</strong>：存储顶点数据</li>
+            <li><strong>索引缓冲 (Index Buffer)</strong>：存储索引数据</li>
+            <li><strong>常量缓冲 (Constant Buffer)</strong>：存储 Uniform 数据</li>
+            <li><strong>结构化缓冲 (Structured Buffer)</strong>：存储结构化数据</li>
+            <li><strong>存储缓冲 (Storage Buffer)</strong>：Shader 读写数据</li>
+            <li><strong>间接缓冲 (Indirect Buffer)</strong>：间接绘制命令</li>
+            <li><strong>传输缓冲 (Transfer Buffer)</strong>：数据拷贝中转</li>
+            <li><strong>回读缓冲 (Readback Buffer)</strong>：GPU 到 CPU 数据回读</li>
+        </ul>
+
+        <p>RHI InputLayout 提供了顶点输入布局抽象，管理 VAO（顶点数组对象）。</p>
+
+        <h2>2. 核心类型</h2>
+
+        <h3>2.1 BufferUsage 枚举</h3>
+        <table>
+            <tr>
+                <th>枚举值</th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td><code>None</code></td>
+                <td>无用途</td>
+            </tr>
+            <tr>
+                <td><code>Vertex</code></td>
+                <td>顶点缓冲</td>
+            </tr>
+            <tr>
+                <td><code>Index</code></td>
+                <td>索引缓冲</td>
+            </tr>
+            <tr>
+                <td><code>Constant</code></td>
+                <td>常量缓冲</td>
+            </tr>
+            <tr>
+                <td><code>Structured</code></td>
+                <td>结构化缓冲</td>
+            </tr>
+            <tr>
+                <td><code>Storage</code></td>
+                <td>存储缓冲</td>
+            </tr>
+            <tr>
+                <td><code>Indirect</code></td>
+                <td>间接缓冲</td>
+            </tr>
+            <tr>
+                <td><code>TransferSrc</code></td>
+                <td>拷贝源</td>
+            </tr>
+            <tr>
+                <td><code>TransferDst</code></td>
+                <td>拷贝目标</td>
+            </tr>
+            <tr>
+                <td><code>Readback</code></td>
+                <td>回读缓冲</td>
+            </tr>
+        </table>
+
+        <h3>2.2 MemoryUsage 枚举</h3>
+        <table>
+            <tr>
+                <th>枚举值</th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td><code>GpuOnly</code></td>
+                <td>仅 GPU 访问，适合静态资源</td>
+            </tr>
+            <tr>
+                <td><code>CpuToGpu</code></td>
+                <td>CPU 写入，GPU 读取，适合动态顶点/索引数据</td>
+            </tr>
+            <tr>
+                <td><code>GpuToCpu</code></td>
+                <td>GPU 写入，CPU 读取，适合回读操作</td>
+            </tr>
+            <tr>
+                <td><code>CpuOnly</code></td>
+                <td>仅 CPU 访问，适合临时中转</td>
+            </tr>
+        </table>
+
+        <h3>2.3 MapMode 枚举</h3>
+        <table>
+            <tr>
+                <th>枚举值</th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td><code>Read</code></td>
+                <td>只读映射</td>
+            </tr>
+            <tr>
+                <td><code>Write</code></td>
+                <td>只写映射</td>
+            </tr>
+            <tr>
+                <td><code>ReadWrite</code></td>
+                <td>读写映射</td>
+            </tr>
+            <tr>
+                <td><code>WriteDiscard</code></td>
+                <td>丢弃原有内容，写入新数据</td>
+            </tr>
+            <tr>
+                <td><code>WriteNoOverwrite</code></td>
+                <td>不覆盖未使用区域</td>
+            </tr>
+        </table>
+
+        <h3>2.4 IndexFormat 枚举</h3>
+        <table>
+            <tr>
+                <th>枚举值</th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td><code>UInt16</code></td>
+                <td>16 位无符号整数</td>
+            </tr>
+            <tr>
+                <td><code>UInt32</code></td>
+                <td>32 位无符号整数</td>
+            </tr>
+        </table>
+
+        <h3>2.5 BufferDesc 结构</h3>
+        <pre><code>struct BufferDesc {
+    uint64_t size = 0;                              // 缓冲区大小（字节）
+    uint32_t stride = 0;                            // 元素步长（字节）
+    uint32_t usage = static_cast&lt;uint32_t&gt;(BufferUsage::None);
+
+    MemoryUsage memoryUsage = MemoryUsage::GpuOnly;
+    uint32_t cpuAccess = static_cast&lt;uint32_t&gt;(CpuAccessMode::None);
+
+    bool createMapped = false;
+};</code></pre>
+
+        <h3>2.6 VertexElementFormat 枚举</h3>
+        <table>
+            <tr>
+                <th>枚举值</th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td><code>Float1/2/3/4</code></td>
+                <td>1/2/3/4 分量浮点数</td>
+            </tr>
+            <tr>
+                <td><code>UInt1/2/3/4</code></td>
+                <td>1/2/3/4 分量无符号整数</td>
+            </tr>
+            <tr>
+                <td><code>UByte4_Norm</code></td>
+                <td>4 分量无符号字节，归一化</td>
+            </tr>
+        </table>
+
+        <h2>3. 基本用法</h2>
+
+        <h3>3.1 创建 RHI 设备</h3>
+        <pre><code>#include "Render/Public/RHI/RHI_device.h"
+
+auto device = Render::RHI::CreateOpenGLDevice();</code></pre>
+
+        <h3>3.2 创建顶点缓冲</h3>
+        <pre><code>using namespace Render::RHI;
+
+// 定义顶点结构
+struct Vertex {
+    float position[3];
+    float color[3];
+};
+
+// 顶点数据
+Vertex vertices[] = {
+    {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}},
+    {{ 0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}},
+    {{ 0.0f,  0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}}
+};
+
+// 创建缓冲描述
+BufferDesc desc;
+desc.size = sizeof(vertices);
+desc.stride = sizeof(Vertex);
+desc.usage = static_cast&lt;uint32_t&gt;(BufferUsage::Vertex);
+desc.memoryUsage = MemoryUsage::CpuToGpu;
+desc.cpuAccess = static_cast&lt;uint32_t&gt;(CpuAccessMode::Write);
+
+// 创建缓冲
+Buffer* vertexBuffer = device-&gt;CreateBuffer(desc, vertices);
+if (!vertexBuffer) {
+    // 创建失败处理
+}</code></pre>
+
+        <h3>3.3 创建索引缓冲</h3>
+        <pre><code>uint16_t indices[] = {0, 1, 2};
+
+BufferDesc indexDesc;
+indexDesc.size = sizeof(indices);
+indexDesc.stride = sizeof(uint16_t);
+indexDesc.usage = static_cast&lt;uint32_t&gt;(BufferUsage::Index);
+indexDesc.memoryUsage = MemoryUsage::CpuToGpu;
+indexDesc.cpuAccess = static_cast&lt;uint32_t&gt;(CpuAccessMode::Write);
+
+Buffer* indexBuffer = device-&gt;CreateBuffer(indexDesc, indices);</code></pre>
+
+        <h3>3.4 创建常量缓冲</h3>
+        <pre><code>struct UniformData {
+    float modelMatrix[16];
+    float viewMatrix[16];
+    float projectionMatrix[16];
+};
+
+BufferDesc constantDesc;
+constantDesc.size = sizeof(UniformData);
+constantDesc.usage = static_cast&lt;uint32_t&gt;(BufferUsage::Constant);
+constantDesc.memoryUsage = MemoryUsage::CpuToGpu;
+constantDesc.cpuAccess = static_cast&lt;uint32_t&gt;(CpuAccessMode::Write);
+
+Buffer* constantBuffer = device-&gt;CreateBuffer(constantDesc);
+
+// 更新数据
+UniformData uniforms = {/* 初始化数据 */};
+constantBuffer-&gt;Update(&amp;uniforms, sizeof(uniforms));</code></pre>
+
+        <h3>3.5 创建 InputLayout</h3>
+        <pre><code>InputLayoutDesc layoutDesc;
+
+// 定义顶点属性
+layoutDesc.attributes = {
+    {0, 0, VertexElementFormat::Float3, 0},  // location 0, binding 0, position
+    {1, 0, VertexElementFormat::Float3, 12}  // location 1, binding 0, color
+};
+
+// 定义顶点缓冲绑定
+layoutDesc.bindings = {
+    {0, sizeof(Vertex), VertexInputRate::PerVertex}
+};
+
+InputLayout* inputLayout = device-&gt;CreateInputLayout(layoutDesc);</code></pre>
+
+        <h3>3.6 绑定缓冲和布局</h3>
+        <pre><code>// 绑定顶点缓冲
+device-&gt;BindVertexBuffer(vertexBuffer, 0);
+
+// 绑定索引缓冲
+device-&gt;BindIndexBuffer(indexBuffer, IndexFormat::UInt16);
+
+// 绑定常量缓冲
+device-&gt;BindConstantBuffer(constantBuffer, 0);
+
+// 绑定输入布局（VAO）
+device-&gt;BindInputLayout(inputLayout);</code></pre>
+
+        <h3>3.7 缓冲拷贝</h3>
+        <pre><code>// 创建源缓冲和目标缓冲
+BufferDesc srcDesc;
+srcDesc.size = 1024;
+srcDesc.usage = static_cast&lt;uint32_t&gt;(BufferUsage::TransferSrc);
+Buffer* srcBuffer = device-&gt;CreateBuffer(srcDesc, srcData);
+
+BufferDesc dstDesc;
+dstDesc.size = 1024;
+dstDesc.usage = static_cast&lt;uint32_t&gt;(BufferUsage::TransferDst);
+Buffer* dstBuffer = device-&gt;CreateBuffer(dstDesc);
+
+// 执行拷贝
+device-&gt;CopyBuffer(srcBuffer, dstBuffer, 1024, 0, 0);</code></pre>
+
+        <h3>3.8 Map/Unmap 用法</h3>
+        <pre><code>// 映射缓冲进行写入
+void* mappedData = vertexBuffer-&gt;Map(MapMode::Write);
+if (mappedData) {
+    memcpy(mappedData, newData, dataSize);
+    vertexBuffer-&gt;Unmap();
+}</code></pre>
+
+        <h3>3.9 销毁资源</h3>
+        <pre><code>device-&gt;DestroyBuffer(vertexBuffer);
+device-&gt;DestroyBuffer(indexBuffer);
+device-&gt;DestroyBuffer(constantBuffer);
+device-&gt;DestroyInputLayout(inputLayout);</code></pre>
+
+        <h2>4. 完整测试程序示例</h2>
+        <pre><code>#include &lt;glad/glad.h&gt;
+#include &lt;GLFW/glfw3.h&gt;
+#include "Render/Public/RHI/RHI_device.h"
+#include "Render/Public/RHI/RHI_buffer.h"
+#include "Render/Public/RHI/RHI_input_layout.h"
+#include &lt;iostream&gt;
+
+using namespace Render::RHI;
+
+struct Vertex {
+    float position[2];
+    float color[3];
+};
+
+int main() {
+    // 初始化 GLFW
+    if (!glfwInit()) {
+        return -1;
+    }
+
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+    GLFWwindow* window = glfwCreateWindow(800, 600, "RHI Buffer Test", nullptr, nullptr);
+    if (!window) {
+        glfwTerminate();
+        return -1;
+    }
+
+    glfwMakeContextCurrent(window);
+
+    if (!gladLoadGLLoader(reinterpret_cast&lt;GLADloadproc&gt;(glfwGetProcAddress))) {
+        std::cerr &lt;&lt; "Failed to initialize GLAD" &lt;&lt; std::endl;
+        return -1;
+    }
+
+    // 创建 RHI 设备
+    auto device = CreateOpenGLDevice();
+
+    // 顶点数据
+    Vertex vertices[] = {
+        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+        {{ 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+        {{ 0.0f,  0.5f}, {0.0f, 0.0f, 1.0f}}
+    };
+
+    // 创建顶点缓冲
+    BufferDesc vertexDesc;
+    vertexDesc.size = sizeof(vertices);
+    vertexDesc.stride = sizeof(Vertex);
+    vertexDesc.usage = static_cast&lt;uint32_t&gt;(BufferUsage::Vertex);
+    vertexDesc.memoryUsage = MemoryUsage::CpuToGpu;
+    vertexDesc.cpuAccess = static_cast&lt;uint32_t&gt;(CpuAccessMode::Write);
+
+    Buffer* vertexBuffer = device-&gt;CreateBuffer(vertexDesc, vertices);
+    if (!vertexBuffer) {
+        std::cerr &lt;&lt; "Failed to create vertex buffer" &lt;&lt; std::endl;
+        return -1;
+    }
+    std::cout &lt;&lt; "Vertex buffer created successfully" &lt;&lt; std::endl;
+
+    // 创建索引缓冲
+    uint16_t indices[] = {0, 1, 2};
+
+    BufferDesc indexDesc;
+    indexDesc.size = sizeof(indices);
+    indexDesc.stride = sizeof(uint16_t);
+    indexDesc.usage = static_cast&lt;uint32_t&gt;(BufferUsage::Index);
+    indexDesc.memoryUsage = MemoryUsage::CpuToGpu;
+    indexDesc.cpuAccess = static_cast&lt;uint32_t&gt;(CpuAccessMode::Write);
+
+    Buffer* indexBuffer = device-&gt;CreateBuffer(indexDesc, indices);
+    if (!indexBuffer) {
+        std::cerr &lt;&lt; "Failed to create index buffer" &lt;&lt; std::endl;
+        return -1;
+    }
+    std::cout &lt;&lt; "Index buffer created successfully" &lt;&lt; std::endl;
+
+    // 创建 InputLayout
+    InputLayoutDesc layoutDesc;
+    layoutDesc.attributes = {
+        {0, 0, VertexElementFormat::Float2, 0},   // position
+        {1, 0, VertexElementFormat::Float3, 8}    // color
+    };
+    layoutDesc.bindings = {
+        {0, sizeof(Vertex), VertexInputRate::PerVertex}
+    };
+
+    InputLayout* inputLayout = device-&gt;CreateInputLayout(layoutDesc);
+    if (!inputLayout) {
+        std::cerr &lt;&lt; "Failed to create input layout" &lt;&lt; std::endl;
+        return -1;
+    }
+    std::cout &lt;&lt; "Input layout created successfully" &lt;&lt; std::endl;
+
+    // 测试缓冲更新
+    Vertex newVertex = {{0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}};
+    if (vertexBuffer-&gt;Update(&amp;newVertex, sizeof(newVertex), 0)) {
+        std::cout &lt;&lt; "Buffer update test passed" &lt;&lt; std::endl;
+    }
+
+    // 测试缓冲拷贝
+    BufferDesc copySrcDesc;
+    copySrcDesc.size = sizeof(vertices);
+    copySrcDesc.usage = static_cast&lt;uint32_t&gt;(BufferUsage::TransferSrc);
+    Buffer* copySrc = device-&gt;CreateBuffer(copySrcDesc, vertices);
+
+    BufferDesc copyDstDesc;
+    copyDstDesc.size = sizeof(vertices);
+    copyDstDesc.usage = static_cast&lt;uint32_t&gt;(BufferUsage::TransferDst);
+    Buffer* copyDst = device-&gt;CreateBuffer(copyDstDesc);
+
+    if (device-&gt;CopyBuffer(copySrc, copyDst, sizeof(vertices), 0, 0)) {
+        std::cout &lt;&lt; "Buffer copy test passed" &lt;&lt; std::endl;
+    }
+
+    // 测试绑定
+    if (device-&gt;BindVertexBuffer(vertexBuffer, 0)) {
+        std::cout &lt;&lt; "Vertex buffer bind test passed" &lt;&lt; std::endl;
+    }
+    if (device-&gt;BindIndexBuffer(indexBuffer, IndexFormat::UInt16)) {
+        std::cout &lt;&lt; "Index buffer bind test passed" &lt;&lt; std::endl;
+    }
+    if (device-&gt;BindInputLayout(inputLayout)) {
+        std::cout &lt;&lt; "Input layout bind test passed" &lt;&lt; std::endl;
+    }
+
+    // 测试 Map/Unmap
+    void* mapped = vertexBuffer-&gt;Map(MapMode::Write);
+    if (mapped) {
+        std::cout &lt;&lt; "Buffer map test passed" &lt;&lt; std::endl;
+        vertexBuffer-&gt;Unmap();
+        std::cout &lt;&lt; "Buffer unmap test passed" &lt;&lt; std::endl;
+    }
+
+    // 清理资源
+    device-&gt;DestroyBuffer(vertexBuffer);
+    device-&gt;DestroyBuffer(indexBuffer);
+    device-&gt;DestroyBuffer(copySrc);
+    device-&gt;DestroyBuffer(copyDst);
+    device-&gt;DestroyInputLayout(inputLayout);
+
+    glfwDestroyWindow(window);
+    glfwTerminate();
+
+    std::cout &lt;&lt; "\n=== All RHI Buffer Tests Passed ===" &lt;&lt; std::endl;
+    return 0;
+}</code></pre>
+
+        <h2>5. 编译方法</h2>
+        <p>在项目根目录运行：</p>
+        <pre><code>build.bat</code></pre>
+        <p>或在 build 目录运行：</p>
+        <pre><code>cmake --build .</code></pre>
+
+        <h2>6. 注意事项</h2>
+        <ol>
+            <li><strong>OpenGL 上下文</strong>：创建 Buffer 和 InputLayout 前必须确保 OpenGL 上下文已激活</li>
+            <li><strong>线程安全</strong>：当前实现不是线程安全的，需要在渲染线程中操作</li>
+            <li><strong>资源生命周期</strong>：确保在设备销毁前销毁所有 Buffer 和 InputLayout</li>
+            <li><strong>越界检查</strong>：Update 和 Copy 操作会自动进行越界检查</li>
+            <li><strong>Map/Unmap 配对</strong>：每次 Map 后必须调用 Unmap</li>
+            <li><strong>VAO 绑定</strong>：InputLayout 绑定会改变 VAO 状态，影响顶点属性指针</li>
+        </ol>
+
+        <h2>7. 扩展说明</h2>
+        <p>当前实现支持 OpenGL 4.5+ 后端，未来可扩展：</p>
+        <ul>
+            <li><strong>D3D11/D3D12 后端</strong>：实现相同的 RHI 接口</li>
+            <li><strong>Vulkan 后端</strong>：使用 VkBuffer 和 VkDescriptorSet</li>
+            <li><strong>Metal 后端</strong>：使用 MTLBuffer</li>
+            <li><strong>持久映射</strong>：支持 persistent mapped buffers</li>
+            <li><strong>Ring Buffer</strong>：实现环形缓冲区分配器</li>
+        </ul>
+    </div>
+</body>
+</html>

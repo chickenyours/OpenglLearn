@@ -74,11 +74,32 @@
         li {
             margin: 8px 0;
         }
+        .note {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .tip {
+            background-color: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            margin: 20px 0;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Render 模块使用文档</h1>
+
+        <div class="tip">
+            <strong>相关文档：</strong>
+            <ul>
+                <li><a href="render_architecture.html">Render 模块架构文档</a> - 架构分层和处理机制</li>
+                <li><a href="rhi_buffer_usage.html">RHI Buffer 使用文档</a></li>
+                <li><a href="rhi_texture_usage.html">RHI Texture 使用文档</a></li>
+            </ul>
+        </div>
 
         <h2>1. 模块作用</h2>
         <p><code>RenderModule</code> 是 <code>Module/Render</code> 模块的核心入口类，它：</p>
@@ -90,7 +111,17 @@
             <li>提供 RHI 设备创建入口</li>
         </ul>
 
-        <h2>2. 启动前置条件</h2>
+        <h2>2. 架构概述</h2>
+        <p>Render 模块采用<strong>前端命令代理 + 专职渲染线程 + 委托后门</strong>的架构：</p>
+        <ul>
+            <li><strong>RHI 前端层</strong>：给上层提供统一接口，负责分配句柄、组装命令、投递到队列</li>
+            <li><strong>命令层</strong>：统一表示所有 RHI 操作，保证顺序执行</li>
+            <li><strong>后端执行层</strong>：在渲染线程中将命令翻译成 OpenGL API 调用</li>
+            <li><strong>渲染线程</strong>：专职渲染线程，持有图形上下文，批量执行命令</li>
+        </ul>
+        <p>详细架构说明请参阅 <a href="render_architecture.html">Render 模块架构文档</a>。</p>
+
+        <h2>3. 启动前置条件</h2>
         <p>在调用 <code>RenderModule::Startup()</code> 之前，应用程序必须确保：</p>
         <ol>
             <li><strong>窗口系统已初始化</strong>（如 GLFW、SDL 等）</li>
@@ -98,13 +129,13 @@
             <li><strong>已准备好 OpenGL 函数地址获取函数</strong>（如 <code>glfwGetProcAddress</code>）</li>
         </ol>
 
-        <h2>3. OpenGL Loader 设置方法</h2>
+        <h2>4. OpenGL Loader 设置方法</h2>
         <p>模块使用 <code>glad</code> 作为 OpenGL 函数加载器。应用程序需要通过 <code>SetGLProcAddressLoader()</code> 传入一个函数指针获取器。</p>
 
-        <h3>函数签名</h3>
+        <h3>4.1 函数签名</h3>
         <pre><code>using GLProcAddressLoader = void* (*)(const char* name);</code></pre>
 
-        <h3>常见平台的 Loader</h3>
+        <h3>4.2 常见平台的 Loader</h3>
         <table>
             <tr>
                 <th>平台</th>
@@ -124,12 +155,12 @@
             </tr>
         </table>
 
-        <h2>4. Startup / Shutdown 用法</h2>
+        <h2>5. Startup / Shutdown 用法</h2>
 
-        <h3>基本用法</h3>
-        <pre><code>#include "Render/render_module.h"
+        <h3>5.1 基本用法</h3>
+        <pre><code>#include "Render/Public/render_module.h"
 
-Module::Render::RenderModule renderModule;
+Render::RenderModule renderModule;
 
 // 1. 设置平台状态
 renderModule.SetPlatformReady(true);
@@ -151,7 +182,7 @@ if (!renderModule.Startup()) {
 // 5. 关闭模块
 renderModule.Shutdown();</code></pre>
 
-        <h3>状态检查</h3>
+        <h3>5.2 状态检查</h3>
         <pre><code>// 检查是否已启动
 if (renderModule.IsStarted()) {
     // 模块已就绪
@@ -160,75 +191,164 @@ if (renderModule.IsStarted()) {
 // 获取当前平台状态
 auto state = renderModule.GetPlatformState();
 switch (state) {
-    case Module::Render::GraphicsLibraryPlatformState::Ready:
+    case Render::GraphicsLibraryPlatformState::Ready:
         // 完全就绪
         break;
-    case Module::Render::GraphicsLibraryPlatformState::Error:
+    case Render::GraphicsLibraryPlatformState::Error:
         // 发生错误
         break;
     // ... 其他状态
 }</code></pre>
 
-        <h2>5. 与应用程序配合方式</h2>
+        <h2>6. 与应用程序配合方式</h2>
         <p>应用程序负责创建窗口和 OpenGL 上下文，然后将其传递给 <code>RenderModule</code>。</p>
 
-        <h3>完整示例（使用 GLFW）</h3>
-        <pre><code>#include &lt;GLFW/glfw3.h&gt;
-#include &lt;glad/glad.h&gt;
-#include "Render/render_module.h"
+        <h3>6.1 完整示例（使用 ApplicationModule）</h3>
+        <pre><code>#include "Application/public/application_module.h"
+#include "Render/Public/render_module.h"
 
 int main() {
-    // 1. 初始化 GLFW
-    if (!glfwInit()) {
+    // 1. 创建并启动 Application 模块
+    Application::ApplicationModule appModule;
+    Application::ApplicationConfig config;
+    config.width = 800;
+    config.height = 600;
+    config.title = "OpenGL Window";
+    config.majorVersion = 4;
+    config.minorVersion = 6;
+    appModule.SetConfig(config);
+
+    if (!appModule.Startup()) {
         return -1;
     }
 
-    // 2. 创建窗口
-    GLFWwindow* window = glfwCreateWindow(800, 600, "OpenGL Window", nullptr, nullptr);
-    if (!window) {
-        glfwTerminate();
+    // 2. 创建并初始化 Render 模块
+    Render::RenderModule renderModule;
+    if (!renderModule.InitializeFromApplication(appModule)) {
         return -1;
     }
 
-    // 3. 设置当前上下文
-    glfwMakeContextCurrent(window);
+    // 3. 获取 RHI 设备进行渲染
+    auto* device = renderModule.GetDevice();
+    // ... 渲染逻辑 ...
 
-    // 4. 创建并配置 RenderModule
-    Module::Render::RenderModule renderModule;
-    renderModule.SetPlatformReady(true);
-    renderModule.SetContextReady(true);
-    renderModule.SetGLProcAddressLoader(reinterpret_cast&lt;Module::Render::GLProcAddressLoader&gt;(&glfwGetProcAddress));
-
-    // 5. 启动模块
-    if (!renderModule.Startup()) {
-        glfwDestroyWindow(window);
-        glfwTerminate();
-        return -1;
-    }
-
-    // 6. 主循环
-    while (!glfwWindowShouldClose(window)) {
-        glClear(GL_COLOR_BUFFER_BIT);
-        // ... 渲染逻辑 ...
-        glfwSwapBuffers(window);
-        glfwPollEvents();
-    }
-
-    // 7. 清理
+    // 4. 清理
     renderModule.Shutdown();
-    glfwDestroyWindow(window);
-    glfwTerminate();
+    appModule.Shutdown();
     return 0;
 }</code></pre>
 
-        <h2>6. 与 ECS 配合方式</h2>
+        <h2>7. RHI 前端接口使用</h2>
+        <p><code>RHI::RHIFrontend</code> 是渲染模块的前端接口，提供<strong>CPU 端资源加载</strong>和命令代理模式的资源操作。</p>
+
+        <div class="note">
+            <strong>RHI 架构职责划分：</strong>
+            <ul>
+                <li><strong>RHIFrontend（前端）</strong>：负责 CPU 端操作（加载纹理资产、命令投递）</li>
+                <li><strong>Device（后端）</strong>：负责 GPU 端操作（创建 GPU 资源、上传数据）</li>
+            </ul>
+        </div>
+
+        <h3>7.1 获取 RHIFrontend 和 Device</h3>
+        <pre><code>#include "Render/Public/RHI/rhi_frontend.h"
+#include "Render/Public/RHI/RHI_device.h"
+
+// 从 RenderModule 获取后端设备
+auto* device = renderModule.GetDevice();
+
+// 创建前端接口
+Render::RHI::RHIFrontend frontend;
+
+// 设置前端使用的后端设备
+frontend.SetDevice(device);
+
+// 启动渲染线程
+if (!frontend.Start()) {
+    // 处理启动失败
+}</code></pre>
+
+        <h3>7.2 加载纹理资产（CPU 端操作）</h3>
+        <pre><code>#include "Render/Public/RHI/RHI_texture.h"
+
+// 使用 RHI 前端加载纹理资产（CPU 端操作）
+// 此方法从文件加载图像数据到 CPU 内存，不创建 GPU 资源
+auto asset = frontend.LoadTextureFromFile("path/to/texture.png", false, true);
+if (!asset) {
+    std::cerr << "Failed to load texture asset!" << std::endl;
+    return;
+}
+
+// 获取纹理描述
+const auto& desc = asset->GetDesc();
+std::cout << "Width: " << desc.width << std::endl;
+std::cout << "Height: " << desc.height << std::endl;</code></pre>
+
+        <h3>7.3 创建 GPU 纹理资源（GPU 端操作）</h3>
+        <pre><code>// 使用后端设备创建 GPU 纹理资源
+// 此方法从 TextureAsset 创建 GPU 纹理对象
+auto gpuTexture = device->CreateTextureFromAsset(*asset);
+if (!gpuTexture) {
+    std::cerr << "Failed to create GPU texture!" << std::endl;
+    return;
+}
+
+// 使用后端设备上传纹理数据到 GPU
+// 此方法将像素数据从 CPU 内存上传到显存
+device->UploadTexture(gpuTexture.get(), *asset);</code></pre>
+
+        <h3>7.4 创建 Buffer（命令投递模式）</h3>
+        <pre><code>#include "Render/Public/RHI/RHI_buffer.h"
+
+using namespace Render::RHI;
+
+// 定义顶点结构
+struct Vertex {
+    float position[2];
+    float color[3];
+};
+
+// 顶点数据
+Vertex vertices[] = {
+    {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+    {{ 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+    {{ 0.0f,  0.5f}, {0.0f, 0.0f, 1.0f}}
+};
+
+// 创建 Buffer 描述
+BufferDesc desc;
+desc.size = sizeof(vertices);
+desc.stride = sizeof(Vertex);
+desc.usage = static_cast<uint32_t>(BufferUsage::Vertex);
+desc.memoryUsage = MemoryUsage::CpuToGpu;
+desc.cpuAccess = static_cast<uint32_t>(CpuAccessMode::Write);
+
+// 创建 Buffer（返回句柄，命令投递到渲染线程）
+BufferHandle handle = frontend.CreateBuffer(desc, vertices, sizeof(vertices));</code></pre>
+
+        <h3>7.5 委托后门</h3>
+        <pre><code>#include <glad/glad.h>
+
+// 使用委托后门执行 OpenGL 调用（在渲染线程执行）
+frontend.EnqueueDelegate([](Render::RHI::BackendDelegateContext& ctx) {
+    glClearColor(0.2f, 0.3f, 0.4f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+});</code></pre>
+
+        <div class="note">
+            <strong>注意：</strong>委托后门仅作为调试/验证/过渡机制，新增正式 RHI 能力后应逐步替换。
+        </div>
+
+        <h3>7.6 停止渲染线程</h3>
+        <pre><code>frontend.Stop();</code></pre>
+
+        <h2>8. 与 ECS 配合方式</h2>
         <p>ECS 系统不应直接依赖 OpenGL 具体类型，而应通过 <code>RenderModule</code> 或 <code>RHI::Device</code> 进行交互。</p>
 
-        <h3>推荐模式</h3>
+        <h3>8.1 推荐模式</h3>
         <pre><code>// ECS 系统持有 RenderModule 的引用或指针
 class RenderSystem {
 public:
-    RenderSystem(Module::Render::RenderModule& renderModule)
+    RenderSystem(Render::RenderModule& renderModule)
         : renderModule_(renderModule) {}
 
     void Update() {
@@ -240,26 +360,27 @@ public:
     }
 
 private:
-    Module::Render::RenderModule& renderModule_;
+    Render::RenderModule& renderModule_;
 };</code></pre>
 
-        <h3>ECS 集成步骤</h3>
+        <h3>8.2 ECS 集成步骤</h3>
         <ol>
-            <li>应用程序创建并启动 <code>RenderModule</code></li>
+            <li>应用程序创建并启动 <code>ApplicationModule</code></li>
+            <li>应用程序创建并启动 <code>RenderModule</code>（通过 <code>InitializeFromApplication</code>）</li>
             <li>ECS 调度系统通过模块对象获取 <code>Device</code></li>
             <li>ECS 系统只调用抽象接口，不依赖具体 OpenGL 类型</li>
         </ol>
 
-        <h2>7. 示例代码</h2>
+        <h2>9. 示例代码</h2>
 
-        <h3>最小可用示例</h3>
-        <pre><code>#include "Render/render_module.h"
+        <h3>9.1 最小可用示例</h3>
+        <pre><code>#include "Render/Public/render_module.h"
 
 // 假设已有 OpenGL 上下文和 loader
 extern void* MyGLLoader(const char* name);
 
 int main() {
-    Module::Render::RenderModule module;
+    Render::RenderModule module;
 
     module.SetPlatformReady(true);
     module.SetContextReady(true);
@@ -275,24 +396,24 @@ int main() {
     return 0;
 }</code></pre>
 
-        <h3>状态机示例</h3>
-        <pre><code>Module::Render::RenderModule module;
+        <h3>9.2 状态机示例</h3>
+        <pre><code>Render::RenderModule module;
 
 // 逐步设置状态
 module.SetPlatformReady(true);
-assert(module.GetPlatformState() == Module::Render::GraphicsLibraryPlatformState::PlatformReady);
+assert(module.GetPlatformState() == Render::GraphicsLibraryPlatformState::PlatformReady);
 
 module.SetContextReady(true);
-assert(module.GetPlatformState() == Module::Render::GraphicsLibraryPlatformState::ContextReady);
+assert(module.GetPlatformState() == Render::GraphicsLibraryPlatformState::ContextReady);
 
 module.SetGLProcAddressLoader(&glfwGetProcAddress);
 
 // 启动后进入 Ready 状态
 if (module.Startup()) {
-    assert(module.GetPlatformState() == Module::Render::GraphicsLibraryPlatformState::Ready);
+    assert(module.GetPlatformState() == Render::GraphicsLibraryPlatformState::Ready);
 }</code></pre>
 
-        <h2>8. 平台状态说明</h2>
+        <h2>10. 平台状态说明</h2>
         <table>
             <tr>
                 <th>状态</th>
@@ -324,13 +445,34 @@ if (module.Startup()) {
             </tr>
         </table>
 
-        <h2>9. 注意事项</h2>
-        <ol>
-            <li><strong>不要重复调用 <code>Startup()</code></strong>：模块会检测 <code>started_</code> 状态，重复调用会直接返回 <code>true</code></li>
-            <li><strong><code>Shutdown()</code> 可安全重复调用</strong>：内部有状态检查</li>
-            <li><strong>确保 Context 存在</strong>：<code>glad</code> 加载必须在有效的 OpenGL 上下文中进行</li>
-            <li><strong>错误处理</strong>：<code>Startup()</code> 失败时返回 <code>false</code>，不会抛出异常</li>
-        </ol>
+        <h2>11. 注意事项</h2>
+        <div class="note">
+            <strong>重要提示：</strong>
+            <ol>
+                <li><strong>不要重复调用 <code>Startup()</code></strong>：模块会检测 <code>started_</code> 状态，重复调用会直接返回 <code>true</code></li>
+                <li><strong><code>Shutdown()</code> 可安全重复调用</strong>：内部有状态检查</li>
+                <li><strong>确保 Context 存在</strong>：<code>glad</code> 加载必须在有效的 OpenGL 上下文中进行</li>
+                <li><strong>错误处理</strong>：<code>Startup()</code> 失败时返回 <code>false</code>，不会抛出异常</li>
+                <li><strong>推荐依赖 ApplicationModule</strong>：使用 <code>InitializeFromApplication()</code> 方法可以自动处理所有前置条件</li>
+                <li><strong>线程安全</strong>：RHI 前端接口是线程安全的，但 OpenGL 调用只在渲染线程执行</li>
+            </ol>
+        </div>
+
+        <h2>12. 常见问题</h2>
+
+        <h3>Q1: 为什么 GetDevice() 返回 nullptr？</h3>
+        <p>可能原因：</p>
+        <ul>
+            <li>RenderModule 未正确启动</li>
+            <li>OpenGL 函数加载失败（gladLoadGLLoader 返回 false）</li>
+            <li>平台状态未设置正确（需要先设置 PlatformReady 和 ContextReady）</li>
+        </ul>
+
+        <h3>Q2: 可以在主线程直接调用 OpenGL 吗？</h3>
+        <p>可以，但需要确保 OpenGL 上下文在当前线程激活。推荐使用 RHI 前端接口或委托后门，这样可以确保在渲染线程执行。</p>
+
+        <h3>Q3: 如何添加新的图形 API 后端？</h3>
+        <p>实现 <code>IRHIBackendExecutor</code> 接口，并在渲染线程中使用新的执行器。详细架构请参阅 <a href="render_architecture.html">Render 模块架构文档</a>。</p>
     </div>
 </body>
 </html>

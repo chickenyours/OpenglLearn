@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RHI Texture 使用文档</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #444;
+            margin-top: 30px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 8px;
+        }
+        h3 {
+            color: #555;
+        }
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: "Consolas", "Monaco", "Courier New", monospace;
+        }
+        pre {
+            background-color: #282c34;
+            color: #abb2bf;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        pre code {
+            background-color: transparent;
+            padding: 0;
+            color: inherit;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #007bff;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        ul, ol {
+            margin-left: 20px;
+        }
+        li {
+            margin: 8px 0;
+        }
+        .note {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .success {
+            background-color: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>RHI Texture 使用文档</h1>
+
+        <h2>1. 模块概述</h2>
+        <p>RHI Texture 子系统提供了跨图形 API 的 2D 纹理抽象层，支持：</p>
+        <ul>
+            <li><strong>多种纹理格式</strong>：UNorm、Float 等多种格式</li>
+            <li><strong>自动 Mipmap 生成</strong>：支持运行时生成 mipmap 链</li>
+            <li><strong>HDR 支持</strong>：支持浮点纹理数据</li>
+            <li><strong>灵活的采样器状态</strong>：Wrap 模式和 Filter 模式可配置</li>
+            <li><strong>多种纹理类型</strong>：1D、2D、3D、CubeMap</li>
+        </ul>
+
+        <h2>2. 核心类型</h2>
+
+        <h3>2.1 TextureDimension 枚举</h3>
+        <table>
+            <tr>
+                <th>枚举值</th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td><code>Tex1D</code></td>
+                <td>一维纹理</td>
+            </tr>
+            <tr>
+                <td><code>Tex2D</code></td>
+                <td>二维纹理</td>
+            </tr>
+            <tr>
+                <td><code>Tex3D</code></td>
+                <td>三维纹理</td>
+            </tr>
+            <tr>
+                <td><code>Cube</code></td>
+                <td>立方体贴图</td>
+            </tr>
+        </table>
+
+        <h3>2.2 Format 枚举（常用）</h3>
+        <table>
+            <tr>
+                <th>枚举值</th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td><code>R8_UNorm</code></td>
+                <td>单通道 8 位无符号归一化</td>
+            </tr>
+            <tr>
+                <td><code>RG8_UNorm</code></td>
+                <td>双通道 8 位无符号归一化</td>
+            </tr>
+            <tr>
+                <td><code>RGB8_UNorm</code></td>
+                <td>三通道 8 位无符号归一化</td>
+            </tr>
+            <tr>
+                <td><code>RGBA8_UNorm</code></td>
+                <td>四通道 8 位无符号归一化</td>
+            </tr>
+            <tr>
+                <td><code>RGBA8_SRGB</code></td>
+                <td>四通道 sRGB 色彩空间</td>
+            </tr>
+            <tr>
+                <td><code>R16_Float</code></td>
+                <td>单通道 16 位浮点</td>
+            </tr>
+            <tr>
+                <td><code>RGBA16_Float</code></td>
+                <td>四通道 16 位浮点（HDR）</td>
+            </tr>
+            <tr>
+                <td><code>RGBA32_Float</code></td>
+                <td>四通道 32 位浮点</td>
+            </tr>
+        </table>
+
+        <h3>2.3 TextureUsage 枚举</h3>
+        <table>
+            <tr>
+                <th>枚举值</th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td><code>None</code></td>
+                <td>无用途</td>
+            </tr>
+            <tr>
+                <td><code>ShaderResource</code></td>
+                <td>着色器资源（采样）</td>
+            </tr>
+            <tr>
+                <td><code>RenderTarget</code></td>
+                <td>渲染目标</td>
+            </tr>
+            <tr>
+                <td><code>DepthStencil</code></td>
+                <td>深度模板</td>
+            </tr>
+            <tr>
+                <td><code>Storage</code></td>
+                <td>存储纹理（Shader 读写）</td>
+            </tr>
+            <tr>
+                <td><code>TransferSrc</code></td>
+                <td>拷贝源</td>
+            </tr>
+            <tr>
+                <td><code>TransferDst</code></td>
+                <td>拷贝目标</td>
+            </tr>
+        </table>
+
+        <h3>2.4 WrapMode 枚举</h3>
+        <table>
+            <tr>
+                <th>枚举值</th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td><code>Repeat</code></td>
+                <td>重复模式</td>
+            </tr>
+            <tr>
+                <td><code>ClampToEdge</code></td>
+                <td>夹紧到边缘</td>
+            </tr>
+            <tr>
+                <td><code>MirroredRepeat</code></td>
+                <td>镜像重复</td>
+            </tr>
+            <tr>
+                <td><code>ClampToBorder</code></td>
+                <td>夹紧到边框</td>
+            </tr>
+        </table>
+
+        <h3>2.5 FilterMode 枚举</h3>
+        <table>
+            <tr>
+                <th>枚举值</th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td><code>Nearest</code></td>
+                <td>最近邻采样</td>
+            </tr>
+            <tr>
+                <td><code>Linear</code></td>
+                <td>线性过滤</td>
+            </tr>
+            <tr>
+                <td><code>NearestMipmapNearest</code></td>
+                <td>最近邻 + 最近 mipmap</td>
+            </tr>
+            <tr>
+                <td><code>LinearMipmapNearest</code></td>
+                <td>线性 + 最近 mipmap</td>
+            </tr>
+            <tr>
+                <td><code>NearestMipmapLinear</code></td>
+                <td>最近邻 + 线性 mipmap</td>
+            </tr>
+            <tr>
+                <td><code>LinearMipmapLinear</code></td>
+                <td>三线性过滤</td>
+            </tr>
+        </table>
+
+        <h3>2.6 TextureDesc 结构</h3>
+        <pre><code>struct TextureDesc {
+    TextureDimension dimension = TextureDimension::Tex2D;
+    Format format = Format::RGBA8_UNorm;
+
+    uint32_t width = 1;
+    uint32_t height = 1;
+    uint32_t depth = 1;
+
+    uint32_t mipLevels = 1;
+    uint32_t arrayLayers = 1;
+    uint32_t sampleCount = 1;
+
+    TextureUsage usage = TextureUsage::ShaderResource;
+
+    bool generateMips = false;
+    bool flipVerticalOnLoad = true;
+
+    WrapMode wrapS = WrapMode::Repeat;
+    WrapMode wrapT = WrapMode::Repeat;
+    WrapMode wrapR = WrapMode::Repeat;
+
+    FilterMode minFilter = FilterMode::Linear;
+    FilterMode magFilter = FilterMode::Linear;
+};</code></pre>
+
+        <h2>3. 基本用法</h2>
+
+        <h3>3.1 创建 RHI 设备</h3>
+        <pre><code>#include "Render/Public/RHI/RHI_device.h"
+
+auto device = Render::RHI::CreateOpenGLDevice();</code></pre>
+
+        <h3>3.2 从文件加载 2D 纹理（推荐）</h3>
+        <pre><code>#include "Render/Public/RHI/RHI_device.h"
+#include "Render/Public/RHI/RHI_texture.h"
+
+using namespace Render::RHI;
+
+// 使用 RHI 设备加载纹理
+auto texture = device->LoadTexture2D("path/to/texture.png", true);
+if (!texture) {
+    std::cerr << "Failed to load texture!" << std::endl;
+    return;
+}
+
+// 获取纹理参数
+const auto& desc = texture->GetDesc();
+std::cout << "Width: " << desc.width << std::endl;
+std::cout << "Height: " << desc.height << std::endl;
+std::cout << "Mip Levels: " << desc.mipLevels << std::endl;
+std::cout << "Format: " << static_cast<int>(desc.format) << std::endl;</code></pre>
+
+        <h3>3.3 手动创建纹理</h3>
+        <pre><code>// 创建纹理描述
+TextureDesc desc;
+desc.dimension = TextureDimension::Tex2D;
+desc.format = Format::RGBA8_UNorm;
+desc.width = 1024;
+desc.height = 1024;
+desc.mipLevels = 1;
+desc.usage = TextureUsage::ShaderResource;
+
+// 创建纹理资产
+auto textureAsset = device->CreateTexture(desc);
+if (!textureAsset) {
+    std::cerr << "Failed to create texture!" << std::endl;
+    return;
+}
+
+// 准备纹理数据
+std::vector<uint8_t> pixelData(1024 * 1024 * 4, 255); // 白色纹理
+
+// 上传数据
+auto* glTexture = dynamic_cast<Render::Backend::OpenGL::GLTexture*>(textureAsset.get());
+if (glTexture && glTexture->Check()) {
+    glTexture->SetData(pixelData.data());
+}</code></pre>
+
+        <h3>3.4 绑定纹理到着色器</h3>
+        <pre><code>// 绑定纹理到指定单元
+auto* glTexture = dynamic_cast<Render::Backend::OpenGL::GLTexture*>(textureAsset.get());
+if (glTexture) {
+    glTexture->Bind(0); // 绑定到纹理单元 0
+}
+
+// 在着色器中使用
+// uniform sampler2D u_Texture;
+// glActiveTexture(GL_TEXTURE0);
+// glBindTexture(GL_TEXTURE_2D, textureHandle);</code></pre>
+
+        <h3>3.5 生成 Mipmaps</h3>
+        <pre><code>auto* glTexture = dynamic_cast<Render::Backend::OpenGL::GLTexture*>(textureAsset.get());
+if (glTexture) {
+    glTexture->GenerateMips();
+}</code></pre>
+
+        <h2>4. 完整测试程序示例</h2>
+        <pre><code>#include &lt;iostream&gt;
+#include &lt;glad/glad.h&gt;
+#include &lt;GLFW/glfw3.h&gt;
+#include "Render/Public/RHI/RHI_device.h"
+#include "Render/Public/RHI/RHI_texture.h"
+#include "Render/Private/Backend/Opengl/gl_texture.h"
+
+using namespace Render::RHI;
+
+int main() {
+    // 初始化 GLFW
+    if (!glfwInit()) {
+        return -1;
+    }
+
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+    GLFWwindow* window = glfwCreateWindow(800, 600, "RHI Texture Test", nullptr, nullptr);
+    if (!window) {
+        glfwTerminate();
+        return -1;
+    }
+
+    glfwMakeContextCurrent(window);
+
+    if (!gladLoadGLLoader(reinterpret_cast&lt;GLADloadproc&gt;(glfwGetProcAddress))) {
+        std::cerr &lt;&lt; "Failed to initialize GLAD" &lt;&lt; std::endl;
+        return -1;
+    }
+
+    // 创建 RHI 设备
+    auto device = CreateOpenGLDevice();
+    if (!device) {
+        std::cerr &lt;&lt; "Failed to create OpenGL device" &lt;&lt; std::endl;
+        return -1;
+    }
+
+    // 加载纹理
+    std::string texturePath = "path/to/texture.png";
+    auto texture = device->LoadTexture2D(texturePath, true);
+    if (!texture) {
+        std::cerr &lt;&lt; "Failed to load texture from: " &lt;&lt; texturePath &lt;&lt; std::endl;
+        return -1;
+    }
+
+    // 输出纹理参数
+    const auto& desc = texture->GetDesc();
+    std::cout &lt;&lt; "\n=== Texture Parameters ===" &lt;&lt; std::endl;
+    std::cout &lt;&lt; "Width: " &lt;&lt; desc.width &lt;&lt; " pixels" &lt;&lt; std::endl;
+    std::cout &lt;&lt; "Height: " &lt;&lt; desc.height &lt;&lt; " pixels" &lt;&lt; std::endl;
+    std::cout &lt;&lt; "Depth: " &lt;&lt; desc.depth &lt;&lt; std::endl;
+    std::cout &lt;&lt; "Mip Levels: " &lt;&lt; desc.mipLevels &lt;&lt; std::endl;
+    std::cout &lt;&lt; "Dimension: 2D" &lt;&lt; std::endl;
+    std::cout &lt;&lt; "Format: RGBA8_UNorm" &lt;&lt; std::endl;
+    std::cout &lt;&lt; "Usage: ShaderResource" &lt;&lt; std::endl;
+    std::cout &lt;&lt; "Generate Mips: " &lt;&lt; (desc.generateMips ? "yes" : "no") &lt;&lt; std::endl;
+
+    // 验证 OpenGL 纹理
+    auto* glTexture = dynamic_cast&lt;Render::Backend::OpenGL::GLTexture*&gt;(texture.get());
+    if (glTexture) {
+        GLuint handle = glTexture->GetHandle();
+        std::cout &lt;&lt; "\nOpenGL Verification:" &lt;&lt; std::endl;
+        std::cout &lt;&lt; "  Texture Handle: " &lt;&lt; handle &lt;&lt; std::endl;
+        std::cout &lt;&lt; "  glIsTexture: " &lt;&lt; (glIsTexture(handle) ? "true" : "false") &lt;&lt; std::endl;
+    }
+
+    std::cout &lt;&lt; "\n[SUCCESS] RHI Texture Loading Test PASSED!" &lt;&lt; std::endl;
+
+    // 清理
+    glfwDestroyWindow(window);
+    glfwTerminate();
+
+    return 0;
+}</code></pre>
+
+        <h2>5. 编译方法</h2>
+        <p>在项目根目录运行：</p>
+        <pre><code>build.bat</code></pre>
+        <p>或在 build 目录运行：</p>
+        <pre><code>cmake --build .</code></pre>
+
+        <h2>6. 测试程序运行</h2>
+        <p>运行 module_context_test 测试程序：</p>
+        <pre><code>bin\module_context_test.exe</code></pre>
+        <p>测试程序会加载 <code>Module/Test/tex.png</code> 并在窗口中渲染显示纹理。</p>
+
+        <div class="success">
+            <strong>测试输出示例：</strong>
+            <pre>Loading texture from: Module/Test/tex.png
+Texture loaded successfully!
+Texture Size: 447x291
+OpenGL Texture Handle: 1
+
+Starting render loop...
+Press ESC to exit.
+FPS: 3400
+
+[SUCCESS] RHI Texture Rendering Test PASSED!</pre>
+        </div>
+
+        <h3>6.1 渲染测试说明</h3>
+        <p>测试程序会创建一个窗口并显示加载的纹理：</p>
+        <ul>
+            <li>纹理会显示在一个四边形上</li>
+            <li>按 <strong>ESC</strong> 键退出测试</li>
+            <li>FPS 计数器会实时显示渲染帧率</li>
+        </ul>
+
+        <h2>7. 注意事项</h2>
+        <div class="note">
+            <strong>重要提示：</strong>
+            <ol>
+                <li><strong>OpenGL 上下文</strong>：加载纹理前必须确保 OpenGL 上下文已激活</li>
+                <li><strong>文件路径</strong>：纹理文件路径相对于可执行文件所在目录</li>
+                <li><strong>线程安全</strong>：当前实现不是线程安全的，需要在渲染线程中操作</li>
+                <li><strong>资源生命周期</strong>：确保在设备销毁前销毁所有纹理</li>
+                <li><strong>Mipmap 生成</strong>：生成 mipmap 会增加显存使用，但能改善远距离渲染质量</li>
+                <li><strong>垂直翻转</strong>：默认情况下图像会在加载时垂直翻转（符合 OpenGL 惯例）</li>
+            </ol>
+        </div>
+
+        <h2>8. 支持的图像格式</h2>
+        <p>基于 stb_image 库，支持以下常见格式：</p>
+        <ul>
+            <li><strong>PNG</strong> - 便携式网络图形（支持透明度）</li>
+            <li><strong>JPEG</strong> - 有损压缩照片格式</li>
+            <li><strong>BMP</strong> - 位图格式</li>
+            <li><strong>PSD</strong> - Photoshop 文档</li>
+            <li><strong>GIF</strong> - 图形交换格式</li>
+            <li><strong>HDR</strong> - 高动态范围图像</li>
+            <li><strong>TGA</strong> - Truevision TGA</li>
+        </ul>
+
+        <h2>9. 扩展说明</h2>
+        <p>当前实现支持 OpenGL 4.5+ 后端，未来可扩展：</p>
+        <ul>
+            <li><strong>D3D11/D3D12 后端</strong>：实现相同的 RHI 接口</li>
+            <li><strong>Vulkan 后端</strong>：使用 VkImage 和 VkImageView</li>
+            <li><strong>Metal 后端</strong>：使用 MTLTexture</li>
+            <li><strong>纹理数组</strong>：支持 TextureArray</li>
+            <li><strong>压缩纹理</strong>：支持 BC/DXT/ETC 压缩格式</li>
+            <li><strong>纹理流送</strong>：支持大规模纹理的渐进式加载</li>
+        </ul>
+    </div>
+</body>
+</html>

@@ -7,6 +7,9 @@
 #include "application_module.h"
 #include "render_module.h"
 #include "resource_manager_module.h"
+#include "Render/Public/RHI/RHI_device.h"
+#include "Render/Public/RHI/RHI_texture.h"
+#include "Render/Private/Backend/Opengl/gl_texture.h"
 
 /**
  * @brief 测试 ModuleContext 基类的基本功能
@@ -152,6 +155,452 @@ void TestModuleContextManagerFromModuleManager() {
 
     // 关闭模块系统
     std::cout << "\nShutting down ModuleManager..." << std::endl;
+    manager.Shutdown();
+    std::cout << "ModuleManager shutdown complete." << std::endl;
+}
+
+/**
+ * @brief 测试 RHI 纹理加载功能
+ */
+void TestRHITextureLoading() {
+    std::cout << "\n=== Test: RHI Texture Loading ===" << std::endl;
+
+    // 启动 ModuleManager
+    auto& manager = ModuleManager::Instance();
+    if (!manager.Startup()) {
+        std::cerr << "Failed to startup ModuleManager!" << std::endl;
+        return;
+    }
+    std::cout << "ModuleManager started." << std::endl;
+
+    // 创建上下文
+    GeneratedModuleContext context;
+    if (!context.Initialize(manager)) {
+        std::cerr << "Failed to initialize ModuleContext!" << std::endl;
+        manager.Shutdown();
+        return;
+    }
+    std::cout << "ModuleContext initialized." << std::endl;
+
+    // 通过上下文获取 Render 模块
+    auto* renderModule = context.Get<Render::RenderModule>();
+    if (!renderModule) {
+        std::cerr << "Failed to get RenderModule!" << std::endl;
+        manager.Shutdown();
+        return;
+    }
+
+    // 获取 RHI 设备
+    auto* device = renderModule->GetDevice();
+    if (!device) {
+        std::cerr << "Failed to get RHI device!" << std::endl;
+        manager.Shutdown();
+        return;
+    }
+    std::cout << "RHI device acquired." << std::endl;
+
+    // 使用 RHI 接口加载纹理
+    // 流程：1. 创建 TextureAsset 并加载图像文件（CPU 内存）
+    //      2. 从 Asset 创建 GPU 纹理资源
+    //      3. 上传纹理数据到 GPU
+    std::string texturePath = "Module/Test/tex.png";
+    std::cout << "\nLoading texture from: " << texturePath << std::endl;
+
+    // 步骤 1: 创建 TextureAsset 并加载图像文件
+    auto asset = std::make_unique<Render::RHI::TextureAsset>();
+    if (!asset->LoadFromImageFile2D(texturePath)) {
+        std::cerr << "Failed to load image file!" << std::endl;
+        manager.Shutdown();
+        return;
+    }
+    std::cout << "Image loaded to CPU memory." << std::endl;
+
+    // 步骤 2: 从 Asset 创建 GPU 纹理资源
+    auto gpuTexture = device->CreateTextureFromAsset(*asset);
+    if (!gpuTexture) {
+        std::cerr << "Failed to create GPU texture!" << std::endl;
+        manager.Shutdown();
+        return;
+    }
+    std::cout << "GPU texture resource created." << std::endl;
+
+    // 步骤 3: 上传纹理数据到 GPU
+    device->UploadTexture(gpuTexture.get(), *asset);
+    std::cout << "Texture data uploaded to GPU." << std::endl;
+
+    // 获取并输出纹理参数
+    const auto& desc = gpuTexture->GetDesc();
+
+    std::cout << "\n=== Texture Parameters ===" << std::endl;
+    std::cout << "Width: " << desc.width << " pixels" << std::endl;
+    std::cout << "Height: " << desc.height << " pixels" << std::endl;
+    std::cout << "Depth: " << desc.depth << " pixels" << std::endl;
+    std::cout << "Mip Levels: " << desc.mipLevels << std::endl;
+    std::cout << "Array Layers: " << desc.arrayLayers << std::endl;
+    std::cout << "Sample Count: " << desc.sampleCount << std::endl;
+    std::cout << "Dimension: ";
+    switch (desc.dimension) {
+        case Render::RHI::TextureDimension::Tex1D: std::cout << "1D"; break;
+        case Render::RHI::TextureDimension::Tex2D: std::cout << "2D"; break;
+        case Render::RHI::TextureDimension::Tex3D: std::cout << "3D"; break;
+        case Render::RHI::TextureDimension::Cube: std::cout << "Cube"; break;
+        default: std::cout << "Unknown"; break;
+    }
+    std::cout << std::endl;
+
+    std::cout << "Format: ";
+    switch (desc.format) {
+        case Render::RHI::Format::R8_UNorm: std::cout << "R8_UNorm"; break;
+        case Render::RHI::Format::RG8_UNorm: std::cout << "RG8_UNorm"; break;
+        case Render::RHI::Format::RGB8_UNorm: std::cout << "RGB8_UNorm"; break;
+        case Render::RHI::Format::RGBA8_UNorm: std::cout << "RGBA8_UNorm"; break;
+        case Render::RHI::Format::RGBA8_SRGB: std::cout << "RGBA8_SRGB"; break;
+        case Render::RHI::Format::R16_Float: std::cout << "R16_Float"; break;
+        case Render::RHI::Format::RG16_Float: std::cout << "RG16_Float"; break;
+        case Render::RHI::Format::RGBA16_Float: std::cout << "RGBA16_Float"; break;
+        case Render::RHI::Format::R32_Float: std::cout << "R32_Float"; break;
+        case Render::RHI::Format::RG32_Float: std::cout << "RG32_Float"; break;
+        case Render::RHI::Format::RGBA32_Float: std::cout << "RGBA32_Float"; break;
+        default: std::cout << "Unknown (" << static_cast<int>(desc.format) << ")"; break;
+    }
+    std::cout << std::endl;
+
+    std::cout << "Usage: ";
+    std::vector<std::string> usages;
+    if (HasTextureUsage(desc.usage, Render::RHI::TextureUsage::ShaderResource)) usages.push_back("ShaderResource");
+    if (HasTextureUsage(desc.usage, Render::RHI::TextureUsage::RenderTarget)) usages.push_back("RenderTarget");
+    if (HasTextureUsage(desc.usage, Render::RHI::TextureUsage::DepthStencil)) usages.push_back("DepthStencil");
+    if (HasTextureUsage(desc.usage, Render::RHI::TextureUsage::Storage)) usages.push_back("Storage");
+    if (HasTextureUsage(desc.usage, Render::RHI::TextureUsage::TransferSrc)) usages.push_back("TransferSrc");
+    if (HasTextureUsage(desc.usage, Render::RHI::TextureUsage::TransferDst)) usages.push_back("TransferDst");
+    if (usages.empty()) usages.push_back("None");
+    for (size_t i = 0; i < usages.size(); ++i) {
+        if (i > 0) std::cout << " | ";
+        std::cout << usages[i];
+    }
+    std::cout << std::endl;
+
+    std::cout << "Generate Mips: " << (desc.generateMips ? "yes" : "no") << std::endl;
+    std::cout << "Flip Vertical On Load: " << (desc.flipVerticalOnLoad ? "yes" : "no") << std::endl;
+
+    std::cout << "\nWrap Modes:" << std::endl;
+    std::cout << "  Wrap S: " << (desc.wrapS == Render::RHI::WrapMode::Repeat ? "REPEAT" :
+                                   desc.wrapS == Render::RHI::WrapMode::ClampToEdge ? "CLAMP_TO_EDGE" :
+                                   desc.wrapS == Render::RHI::WrapMode::MirroredRepeat ? "MIRRORED_REPEAT" : "CLAMP_TO_BORDER")
+              << std::endl;
+    std::cout << "  Wrap T: " << (desc.wrapT == Render::RHI::WrapMode::Repeat ? "REPEAT" :
+                                   desc.wrapT == Render::RHI::WrapMode::ClampToEdge ? "CLAMP_TO_EDGE" :
+                                   desc.wrapT == Render::RHI::WrapMode::MirroredRepeat ? "MIRRORED_REPEAT" : "CLAMP_TO_BORDER")
+              << std::endl;
+
+    std::cout << "\nFilter Modes:" << std::endl;
+    std::cout << "  Min Filter: " << (desc.minFilter == Render::RHI::FilterMode::Nearest ? "NEAREST" :
+                                       desc.minFilter == Render::RHI::FilterMode::Linear ? "LINEAR" :
+                                       desc.minFilter == Render::RHI::FilterMode::NearestMipmapNearest ? "NEAREST_MIPMAP_NEAREST" :
+                                       desc.minFilter == Render::RHI::FilterMode::LinearMipmapNearest ? "LINEAR_MIPMAP_NEAREST" :
+                                       desc.minFilter == Render::RHI::FilterMode::NearestMipmapLinear ? "NEAREST_MIPMAP_LINEAR" : "LINEAR_MIPMAP_LINEAR")
+              << std::endl;
+    std::cout << "  Mag Filter: " << (desc.magFilter == Render::RHI::FilterMode::Nearest ? "NEAREST" :
+                                       desc.magFilter == Render::RHI::FilterMode::Linear ? "LINEAR" :
+                                       desc.magFilter == Render::RHI::FilterMode::NearestMipmapNearest ? "NEAREST_MIPMAP_NEAREST" :
+                                       desc.magFilter == Render::RHI::FilterMode::LinearMipmapNearest ? "LINEAR_MIPMAP_NEAREST" :
+                                       desc.magFilter == Render::RHI::FilterMode::NearestMipmapLinear ? "NEAREST_MIPMAP_LINEAR" : "LINEAR_MIPMAP_LINEAR")
+              << std::endl;
+
+    std::cout << "\nSource Data (from Asset):" << std::endl;
+    std::cout << "  Channel Count: " << asset->GetSource().channelCount << std::endl;
+    std::cout << "  Bytes Per Channel: " << asset->GetSource().bytesPerChannel << std::endl;
+    std::cout << "  Data Type: " << (asset->GetSource().dataType == Render::RHI::TextureDataType::UInt8 ? "UInt8" : "Float32") << std::endl;
+    std::cout << "  Valid: " << (asset->GetSource().valid ? "yes" : "no") << std::endl;
+    std::cout << "  Source Path: " << asset->GetSourcePath() << std::endl;
+
+    // 验证纹理是否有效（通过 OpenGL 句柄）
+    auto* glTexture = dynamic_cast<Render::Backend::OpenGL::GLTexture*>(gpuTexture.get());
+    if (glTexture) {
+        GLuint handle = glTexture->GetHandle();
+        std::cout << "\nOpenGL Verification:" << std::endl;
+        std::cout << "  Texture Handle: " << handle << std::endl;
+        std::cout << "  Texture Target: 0x" << std::hex << handle << std::dec << std::endl;
+
+        if (handle != 0 && glIsTexture(handle)) {
+            std::cout << "  glIsTexture: true" << std::endl;
+
+            // 获取 OpenGL 纹理参数
+            GLint glWidth = 0, glHeight = 0;
+            glGetTextureParameteriv(handle, GL_TEXTURE_WIDTH, &glWidth);
+            glGetTextureParameteriv(handle, GL_TEXTURE_HEIGHT, &glHeight);
+            std::cout << "  GL Texture Width: " << glWidth << std::endl;
+            std::cout << "  GL Texture Height: " << glHeight << std::endl;
+
+            std::cout << "\n[SUCCESS] RHI Texture Loading Test PASSED!" << std::endl;
+        } else {
+            std::cerr << "  glIsTexture: false - Invalid OpenGL texture!" << std::endl;
+            std::cerr << "\n[FAILED] RHI Texture Loading Test FAILED!" << std::endl;
+        }
+    } else {
+        std::cerr << "Failed to cast to GLTexture!" << std::endl;
+        std::cerr << "\n[FAILED] RHI Texture Loading Test FAILED!" << std::endl;
+    }
+
+    // 清理
+    manager.Shutdown();
+    std::cout << "\nModuleManager shutdown complete." << std::endl;
+}
+
+/**
+ * @brief 使用 RHI 加载纹理并渲染到窗口
+ */
+void TestRHITextureRendering() {
+    std::cout << "\n=== Test: RHI Texture Rendering ===" << std::endl;
+
+    // 启动 ModuleManager
+    auto& manager = ModuleManager::Instance();
+    if (!manager.Startup()) {
+        std::cerr << "Failed to startup ModuleManager!" << std::endl;
+        return;
+    }
+    std::cout << "ModuleManager started." << std::endl;
+
+    // 创建上下文
+    GeneratedModuleContext context;
+    if (!context.Initialize(manager)) {
+        std::cerr << "Failed to initialize ModuleContext!" << std::endl;
+        manager.Shutdown();
+        return;
+    }
+    std::cout << "ModuleContext initialized." << std::endl;
+
+    // 通过上下文获取模块
+    auto* appModule = context.Get<Application::ApplicationModule>();
+    auto* renderModule = context.Get<Render::RenderModule>();
+
+    if (!appModule || !renderModule) {
+        std::cerr << "Failed to get required modules!" << std::endl;
+        manager.Shutdown();
+        return;
+    }
+
+    GLFWwindow* window = appModule->GetWindow();
+    if (!window) {
+        std::cerr << "Failed to get window!" << std::endl;
+        manager.Shutdown();
+        return;
+    }
+    std::cout << "Window acquired." << std::endl;
+
+    // 获取 RHI 设备
+    auto* device = renderModule->GetDevice();
+    if (!device) {
+        std::cerr << "Failed to get RHI device!" << std::endl;
+        manager.Shutdown();
+        return;
+    }
+    std::cout << "RHI device acquired." << std::endl;
+
+    // 使用 RHI 接口加载纹理
+    // 流程：1. 创建 TextureAsset 并加载图像文件（CPU 内存）
+    //      2. 从 Asset 创建 GPU 纹理资源
+    //      3. 上传纹理数据到 GPU
+    std::string texturePath = "Module/Test/tex.png";
+    std::cout << "\nLoading texture from: " << texturePath << std::endl;
+
+    // 步骤 1: 创建 TextureAsset 并加载图像文件
+    auto asset = std::make_unique<Render::RHI::TextureAsset>();
+    if (!asset->LoadFromImageFile2D(texturePath)) {
+        std::cerr << "Failed to load image file!" << std::endl;
+        manager.Shutdown();
+        return;
+    }
+    std::cout << "Image loaded to CPU memory." << std::endl;
+
+    // 步骤 2: 从 Asset 创建 GPU 纹理资源
+    auto gpuTexture = device->CreateTextureFromAsset(*asset);
+    if (!gpuTexture) {
+        std::cerr << "Failed to create GPU texture!" << std::endl;
+        manager.Shutdown();
+        return;
+    }
+    std::cout << "GPU texture resource created." << std::endl;
+
+    // 步骤 3: 上传纹理数据到 GPU
+    device->UploadTexture(gpuTexture.get(), *asset);
+    std::cout << "Texture data uploaded to GPU." << std::endl;
+
+    // 获取纹理参数
+    const auto& desc = gpuTexture->GetDesc();
+    std::cout << "Texture Size: " << desc.width << "x" << desc.height << std::endl;
+
+    // 获取 OpenGL 纹理句柄
+    auto* glTexture = dynamic_cast<Render::Backend::OpenGL::GLTexture*>(gpuTexture.get());
+    if (!glTexture) {
+        std::cerr << "Failed to cast to GLTexture!" << std::endl;
+        manager.Shutdown();
+        return;
+    }
+
+    GLuint textureHandle = glTexture->GetHandle();
+    std::cout << "OpenGL Texture Handle: " << textureHandle << std::endl;
+
+    // 创建着色器程序
+    const char* vertexShaderSource = R"(
+        #version 460 core
+        layout (location = 0) in vec2 aPos;
+        layout (location = 1) in vec2 aTexCoord;
+        out vec2 TexCoord;
+        void main() {
+            gl_Position = vec4(aPos, 0.0, 1.0);
+            TexCoord = aTexCoord;
+        }
+    )";
+
+    const char* fragmentShaderSource = R"(
+        #version 460 core
+        in vec2 TexCoord;
+        out vec4 FragColor;
+        uniform sampler2D u_Texture;
+        void main() {
+            FragColor = texture(u_Texture, TexCoord);
+        }
+    )";
+
+    GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(vertexShader, 1, &vertexShaderSource, nullptr);
+    glCompileShader(vertexShader);
+
+    GLint success;
+    GLchar infoLog[512];
+    glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        glGetShaderInfoLog(vertexShader, 512, nullptr, infoLog);
+        std::cerr << "Vertex Shader Compilation Error: " << infoLog << std::endl;
+        manager.Shutdown();
+        return;
+    }
+
+    GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(fragmentShader, 1, &fragmentShaderSource, nullptr);
+    glCompileShader(fragmentShader);
+
+    glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        glGetShaderInfoLog(fragmentShader, 512, nullptr, infoLog);
+        std::cerr << "Fragment Shader Compilation Error: " << infoLog << std::endl;
+        manager.Shutdown();
+        return;
+    }
+
+    GLuint shaderProgram = glCreateProgram();
+    glAttachShader(shaderProgram, vertexShader);
+    glAttachShader(shaderProgram, fragmentShader);
+    glLinkProgram(shaderProgram);
+
+    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
+    if (!success) {
+        glGetProgramInfoLog(shaderProgram, 512, nullptr, infoLog);
+        std::cerr << "Shader Program Link Error: " << infoLog << std::endl;
+        manager.Shutdown();
+        return;
+    }
+
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
+
+    // 创建顶点数据（带纹理坐标的四边形）
+    // 顶点格式：x, y, z, u, v (5 个 float)
+    float vertices[] = {
+        // 位置               // 纹理坐标
+        -0.8f,  0.8f,  0.0f,  0.0f, 0.0f,  // 左上
+        -0.8f, -0.8f,  0.0f,  0.0f, 1.0f,  // 左下
+         0.8f, -0.8f,  0.0f,  1.0f, 1.0f,  // 右下
+         0.8f,  0.8f,  0.0f,  1.0f, 0.0f   // 右上
+    };
+
+    unsigned int indices[] = {
+        0, 1, 2,
+        2, 3, 0
+    };
+
+    GLuint VAO, VBO, EBO;
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+    glGenBuffers(1, &EBO);
+
+    glBindVertexArray(VAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+
+    // 位置属性 (location = 0)
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    // 纹理坐标属性 (location = 1)
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+    glBindVertexArray(0);
+
+    std::cout << "\nStarting render loop..." << std::endl;
+    std::cout << "Press ESC to exit." << std::endl;
+
+    int frameCount = 0;
+    auto startTime = glfwGetTime();
+    bool showTexture = true;
+
+    while (!glfwWindowShouldClose(window)) {
+        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+            glfwSetWindowShouldClose(window, true);
+        }
+
+        // 按 T 键切换纹理显示
+        if (glfwGetKey(window, GLFW_KEY_T) == GLFW_PRESS) {
+            showTexture = !showTexture;
+            glfwSetKeyCallback(window, nullptr); // 简单处理，避免重复触发
+        }
+
+        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        if (showTexture) {
+            glUseProgram(shaderProgram);
+
+            // 绑定纹理
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, textureHandle);
+
+            GLint texLocation = glGetUniformLocation(shaderProgram, "u_Texture");
+            glUniform1i(texLocation, 0);
+
+            glBindVertexArray(VAO);
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+            glBindVertexArray(0);
+        }
+
+        glfwSwapBuffers(window);
+        glfwPollEvents();
+
+        frameCount++;
+        double currentTime = glfwGetTime();
+        if (currentTime - startTime >= 1.0) {
+            std::cout << "FPS: " << frameCount << std::endl;
+            frameCount = 0;
+            startTime = currentTime;
+        }
+    }
+
+    // 清理 OpenGL 资源
+    glDeleteVertexArrays(1, &VAO);
+    glDeleteBuffers(1, &VBO);
+    glDeleteBuffers(1, &EBO);
+    glDeleteProgram(shaderProgram);
+
+    std::cout << "\nRender loop ended." << std::endl;
+    std::cout << "[SUCCESS] RHI Texture Rendering Test PASSED!" << std::endl;
+
+    // 清理
     manager.Shutdown();
     std::cout << "ModuleManager shutdown complete." << std::endl;
 }
@@ -337,7 +786,10 @@ int main() {
     // 测试 2: ModuleContextManager 从 ModuleManager 初始化
     TestModuleContextManagerFromModuleManager();
 
-    // 测试 3: 集成测试（包含渲染）
+    // 测试 3: RHI 纹理加载并渲染测试
+    TestRHITextureRendering();
+
+    // 测试 4: 集成测试（包含渲染）
     TestModuleContextIntegration();
 
     std::cout << "\n=== All Tests Complete ===" << std::endl;

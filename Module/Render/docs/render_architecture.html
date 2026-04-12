@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Render 模块架构文档</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #444;
+            margin-top: 30px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 8px;
+        }
+        h3 {
+            color: #555;
+        }
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: "Consolas", "Monaco", "Courier New", monospace;
+        }
+        pre {
+            background-color: #282c34;
+            color: #abb2bf;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        pre code {
+            background-color: transparent;
+            padding: 0;
+            color: inherit;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #007bff;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        ul, ol {
+            margin-left: 20px;
+        }
+        li {
+            margin: 8px 0;
+        }
+        .note {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .tip {
+            background-color: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .diagram {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+            font-family: "Consolas", "Monaco", "Courier New", monospace;
+            white-space: pre;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Render 模块架构文档</h1>
+
+        <h2>1. 模块概述</h2>
+        <p>Render 模块是图形渲染的核心模块，提供了跨图形 API 的 RHI（Render Hardware Interface）抽象层。它采用<strong>前端命令代理 + 专职渲染线程 + 委托后门</strong>的架构设计，实现了渲染操作与图形 API 的解耦。</p>
+
+        <div class="tip">
+            <strong>设计目标：</strong>
+            <ul>
+                <li>跨图形 API 抽象（当前支持 OpenGL 4.6+）</li>
+                <li>命令代理执行，支持未来扩展多后端</li>
+                <li>专职渲染线程，保证图形 API 调用的线程安全性</li>
+                <li>委托后门，支持快速验证和过渡功能</li>
+            </ul>
+        </div>
+
+        <h2>2. 架构分层</h2>
+
+        <div class="diagram">+------------------+     +------------------+     +------------------+
+|   上层模块/应用   | --> |   RHI 前端层      | --> |   命令层          |
+| (Application/ECS)|     | (RHIFrontend)     |     | (RHICommand)      |
++------------------+     | - CPU 资源加载     |     | - 命令投递        |
+                         | - 命令组装        |     +------------------+
+                         +------------------+          |
+                                                       v
++------------------+     +------------------+     +------------------+
+|   OpenGL/D3D/VK | &lt;-- |   后端设备层      | &lt;-- |   命令队列        |
+|   图形 API        |     | (Device)          |     | (CommandQueue)    |
++------------------+     | - GPU 资源创建     |     +------------------+
+                         | - GPU 数据上传     |              |
+                         | - 图形 API 调用     |              v
+                         +------------------+     +------------------+
+                                                  |   渲染线程        |
+                                                  | (RenderThread)   |
+                                                  +------------------+</div>
+
+        <h3>2.1 RHI 前端层（RHIFrontend）</h3>
+        <p>给上层模块调用的统一接口，负责<strong>CPU 端操作</strong>：</p>
+        <ul>
+            <li><strong>资源加载</strong>：从文件/内存加载纹理资产（TextureAsset）到 CPU 内存</li>
+            <li><strong>接收资源请求</strong>：创建/更新/销毁缓冲、输入布局等</li>
+            <li><strong>分配逻辑句柄（Handle）</strong></li>
+            <li><strong>组装 RHI 命令</strong></li>
+            <li><strong>投递命令到命令队列</strong></li>
+            <li><strong>不直接执行图形 API</strong></li>
+        </ul>
+
+        <h3>2.2 命令层（RHICommand）</h3>
+        <p>统一表示所有 RHI 操作，负责：</p>
+        <ul>
+            <li>定义命令类型（枚举）</li>
+            <li>定义命令负载（Payload）</li>
+            <li>进入统一队列</li>
+            <li>保证提交顺序 = 执行顺序</li>
+        </ul>
+
+        <h3>2.3 后端设备层（Device）</h3>
+        <p>后端设备抽象接口，负责<strong>GPU 端操作</strong>：</p>
+        <ul>
+            <li><strong>创建 GPU 纹理资源</strong>：从 TextureAsset 创建 RHITexture</li>
+            <li><strong>上传纹理数据到 GPU</strong>：将像素数据从 CPU 内存上传到显存</li>
+            <li><strong>创建/销毁 GPU 缓冲区</strong></li>
+            <li><strong>绑定缓冲区到渲染管线</strong></li>
+            <li><strong>创建/销毁输入布局</strong></li>
+            <li><strong>直接调用图形 API（OpenGL/D3D/VK）</strong></li>
+        </ul>
+
+        <h3>2.4 渲染线程（RenderThread）</h3>
+        <p>专职渲染线程，负责：</p>
+        <ul>
+            <li>创建和管理线程生命周期</li>
+            <li>持有图形上下文</li>
+            <li>维护运行循环（等待 - 批量执行）</li>
+            <li>调用后端执行器执行命令</li>
+        </ul>
+
+        <h2>3. 核心组件</h2>
+
+        <h3>3.1 RenderModule</h3>
+        <p>模块入口类，继承自 <code>IModule</code> 接口。</p>
+        <table>
+            <tr>
+                <th>职责</th>
+                <td>管理图形库平台状态、OpenGL 函数加载、RHI 设备创建</td>
+            </tr>
+            <tr>
+                <th>关键方法</th>
+                <td><code>Startup()</code>, <code>Shutdown()</code>, <code>GetDevice()</code>, <code>InitializeFromApplication()</code></td>
+            </tr>
+            <tr>
+                <th>状态机</th>
+                <td>Uninitialized → PlatformReady → ContextReady → FunctionLoaderReady → Ready</td>
+            </tr>
+        </table>
+
+        <h3>3.2 RHI::Device（后端设备）</h3>
+        <p>RHI 后端设备抽象，<strong>只负责 GPU 端操作</strong>。</p>
+        <table>
+            <tr>
+                <th>职责</th>
+                <td>创建 GPU 纹理资源、上传纹理数据、创建/销毁 GPU 缓冲区、绑定操作</td>
+            </tr>
+            <tr>
+                <th>关键方法</th>
+                <td>
+                    <code>CreateTextureFromAsset()</code>, <code>UploadTexture()</code>, 
+                    <code>CreateBuffer()</code>, <code>BindVertexBuffer()</code>
+                </td>
+            </tr>
+            <tr>
+                <th>实现</th>
+                <td>OpenGL 后端通过 <code>CreateOpenGLDevice()</code> 创建</td>
+            </tr>
+            <tr>
+                <th>注意</th>
+                <td>不负责 CPU 端资源加载（如 TextureAsset 加载），那是 RHIFrontend 的职责</td>
+            </tr>
+        </table>
+
+        <h3>3.3 RHI::RHIFrontend（前端接口）</h3>
+        <p>RHI 前端接口，<strong>负责 CPU 端操作和命令投递</strong>。</p>
+        <table>
+            <tr>
+                <th>职责</th>
+                <td>CPU 端资源加载、分配句柄、组装命令、投递到队列</td>
+            </tr>
+            <tr>
+                <th>关键方法</th>
+                <td>
+                    <code>LoadTextureFromFile()</code> (CPU 加载),
+                    <code>CreateBuffer()</code>, <code>CreateTextureFromAsset()</code>, 
+                    <code>UploadTexture()</code>, <code>EnqueueDelegate()</code>
+                </td>
+            </tr>
+            <tr>
+                <th>线程模型</th>
+                <td>可在任意线程调用，命令入队后唤醒渲染线程</td>
+            </tr>
+        </table>
+
+        <h3>3.4 RHI::RenderThread</h3>
+        <p>专职渲染线程。</p>
+        <table>
+            <tr>
+                <th>职责</th>
+                <td>持有图形上下文、维护运行循环、批量执行命令</td>
+            </tr>
+            <tr>
+                <th>关键方法</th>
+                <td><code>Start()</code>, <code>Stop()</code>, <code>Enqueue()</code>, <code>DrainOnce()</code></td>
+            </tr>
+            <tr>
+                <th>内部组件</th>
+                <td><code>RHICommandQueue</code>, <code>IRHIBackendExecutor</code></td>
+            </tr>
+        </table>
+
+        <h3>3.5 RHI::RHICommandQueue</h3>
+        <p>统一命令队列。</p>
+        <table>
+            <tr>
+                <th>职责</th>
+                <td>线程安全的 FIFO 队列，批量出队</td>
+            </tr>
+            <tr>
+                <th>关键方法</th>
+                <td><code>Push()</code>, <code>PopAll()</code>, <code>Empty()</code></td>
+            </tr>
+            <tr>
+                <th>线程安全</th>
+                <td>使用互斥锁保证多线程入队安全</td>
+            </tr>
+        </table>
+
+        <h3>3.6 IRHIBackendExecutor</h3>
+        <p>后端命令执行器接口。</p>
+        <table>
+            <tr>
+                <th>职责</th>
+                <td>接收命令、操作资源表、调用图形 API、执行委托</td>
+            </tr>
+            <tr>
+                <th>关键方法</th>
+                <td><code>Initialize()</code>, <code>Shutdown()</code>, <code>Execute()</code>, <code>GetDelegateContext()</code></td>
+            </tr>
+            <tr>
+                <th>OpenGL 实现</th>
+                <td><code>GLBackendExecutor</code></td>
+            </tr>
+        </table>
+
+        <h3>3.7 RHIBackendResourceTable</h3>
+        <p>后端资源表（仅渲染线程内部使用）。</p>
+        <table>
+            <tr>
+                <th>职责</th>
+                <td>逻辑句柄到真实后端对象的映射</td>
+            </tr>
+            <tr>
+                <th>关键方法</th>
+                <td><code>RegisterBuffer()</code>, <code>FindBuffer()</code>, <code>RemoveBuffer()</code></td>
+            </tr>
+            <tr>
+                <th>线程模型</th>
+                <td>仅渲染线程访问，无需同步</td>
+            </tr>
+        </table>
+
+        <h2>4. 资源类型系统</h2>
+
+        <h3>4.1 纹理系统（职责分离）</h3>
+        <div class="diagram">TextureAsset (CPU 端资源)          RHITexture (GPU 端资源)
++----------------------+          +---------------------+
+| - 文件加载 (CPU)      |          | - GPU 纹理描述       |
+| - 原始像素数据 (CPU)  | -------> | - ResourceState     |
+| - TextureDesc        |  创建时   | - GetNativeHandle() |
+|                      |          | - 后端具体实现      |
++----------------------+          +---------------------+
+        ^                                ^
+        |                                |
+  RHIFrontend                       Device
+  负责加载                        负责创建和上传</div>
+
+        <ul>
+            <li><strong>TextureAsset（CPU 端）</strong>：
+                <ul>
+                    <li>通过 <code>RHIFrontend::LoadTextureFromFile()</code> 加载</li>
+                    <li>存储图像文件加载后的原始像素数据（CPU 内存）</li>
+                    <li>包含纹理描述（TextureDesc）</li>
+                    <li><strong>不表示 GPU 资源</strong></li>
+                </ul>
+            </li>
+            <li><strong>RHITexture（GPU 端）</strong>：
+                <ul>
+                    <li>通过 <code>Device::CreateTextureFromAsset()</code> 创建</li>
+                    <li>代表 GPU 纹理资源（OpenGL Texture Object）</li>
+                    <li>包含资源状态管理和原生句柄接口</li>
+                    <li>通过 <code>Device::UploadTexture()</code> 接收数据</li>
+                </ul>
+            </li>
+        </ul>
+
+        <div class="note">
+            <strong>职责划分：</strong>
+            <ul>
+                <li><strong>RHIFrontend</strong>：负责 CPU 端加载（<code>LoadTextureFromFile</code> 返回 <code>TextureAsset</code>）</li>
+                <li><strong>Device</strong>：负责 GPU 端操作（创建 GPU 纹理、上传数据）</li>
+            </ul>
+        </div>
+
+        <h3>4.2 缓冲系统</h3>
+        <table>
+            <tr>
+                <th>类型</th>
+                <th>用途</th>
+                <th>Usage 标志</th>
+            </tr>
+            <tr>
+                <td>Vertex Buffer</td>
+                <td>存储顶点数据</td>
+                <td><code>BufferUsage::Vertex</code></td>
+            </tr>
+            <tr>
+                <td>Index Buffer</td>
+                <td>存储索引数据</td>
+                <td><code>BufferUsage::Index</code></td>
+            </tr>
+            <tr>
+                <td>Constant Buffer</td>
+                <td>存储 Uniform 数据</td>
+                <td><code>BufferUsage::Constant</code></td>
+            </tr>
+            <tr>
+                <td>Storage Buffer</td>
+                <td>Shader 读写数据</td>
+                <td><code>BufferUsage::Storage</code></td>
+            </tr>
+            <tr>
+                <td>Transfer Buffer</td>
+                <td>数据拷贝中转</td>
+                <td><code>BufferUsage::TransferSrc/TransferDst</code></td>
+            </tr>
+        </table>
+
+        <h3>4.3 输入布局系统</h3>
+        <p>管理顶点输入布局（VAO），定义顶点属性格式和绑定。</p>
+        <ul>
+            <li><code>VertexAttributeDesc</code>：顶点属性描述（location、binding、format、offset）</li>
+            <li><code>VertexBufferBindingDesc</code>：顶点缓冲绑定描述（binding、stride、inputRate）</li>
+            <li><code>InputLayoutDesc</code>：完整的输入布局描述</li>
+        </ul>
+
+        <h2>5. 命令系统</h2>
+
+        <h3>5.1 命令分类</h3>
+        <table>
+            <tr>
+                <th>类别</th>
+                <th>命令类型</th>
+            </tr>
+            <tr>
+                <td>资源命令</td>
+                <td>CreateBuffer, UpdateBuffer, DestroyBuffer, CopyBuffer</td>
+            </tr>
+            <tr>
+                <td></td>
+                <td>CreateTexture, UploadTexture, DestroyTexture</td>
+            </tr>
+            <tr>
+                <td></td>
+                <td>CreateInputLayout, DestroyInputLayout</td>
+            </tr>
+            <tr>
+                <td>帧命令</td>
+                <td>BeginFrame, EndFrame</td>
+            </tr>
+            <tr>
+                <td>委托命令</td>
+                <td>ExecuteDelegate</td>
+            </tr>
+        </table>
+
+        <h3>5.2 命令结构</h3>
+        <pre><code>enum class RHICommandType {
+    CreateBuffer, UpdateBuffer, DestroyBuffer, CopyBuffer,
+    CreateTexture, UploadTexture, DestroyTexture,
+    CreateInputLayout, DestroyInputLayout,
+    BeginFrame, EndFrame,
+    ExecuteDelegate
+};
+
+// 命令负载示例
+struct CreateBufferCmd {
+    BufferHandle handle;
+    BufferDesc desc;
+    std::vector&lt;std::byte&gt; initialData;
+};
+
+struct ExecuteDelegateCmd {
+    BackendDelegate delegate;  // std::function&lt;void(BackendDelegateContext&amp;)&gt;
+};
+
+// 统一封装
+using RHICommandPayload = std::variant&lt;...&gt;;
+struct RHICommand {
+    RHICommandType type;
+    RHICommandPayload payload;
+};</code></pre>
+
+        <h3>5.3 委托后门</h3>
+        <p>委托后门是过渡验证通道，允许在渲染线程直接执行图形 API 调用。</p>
+        <pre><code>// 定义委托函数类型
+using BackendDelegate = std::function&lt;void(BackendDelegateContext&amp;)&gt;;
+
+// 委托上下文
+struct BackendDelegateContext {
+    void* backendExecutor = nullptr;  // 后端执行器指针
+    void* nativeDevice = nullptr;      // 原生设备指针
+    void* nativeContext = nullptr;     // 原生上下文指针
+};
+
+// 使用示例
+frontend.EnqueueDelegate([](BackendDelegateContext&amp; ctx) {
+    glClearColor(0.2f, 0.3f, 0.4f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+});</code></pre>
+
+        <div class="note">
+            <strong>委托后门限制：</strong>
+            <ol>
+                <li>只能在渲染线程执行</li>
+                <li>仅作为调试/验证/过渡机制</li>
+                <li>不能让上层长期依赖</li>
+                <li>新增正式 RHI 能力后应逐步替换</li>
+            </ol>
+        </div>
+
+        <h2>6. 处理机制</h2>
+
+        <h3>6.1 纹理加载流程（CPU/GPU 职责分离）</h3>
+        <div class="diagram">步骤 1: CPU 端加载 (RHIFrontend)
+业务线程 --LoadTextureFromFile()&gt; RHIFrontend
+    --读取文件&gt; --加载像素数据到 CPU 内存&gt;
+    --创建 TextureAsset&gt; 返回 asset
+
+步骤 2: GPU 端创建 (Device)
+业务线程 --CreateTextureFromAsset(asset)&gt; Device
+    --创建 OpenGL Texture 对象&gt; --分配 GPU 显存&gt;
+    --返回 RHITexture*&gt; 完成
+
+步骤 3: GPU 端上传 (Device)
+业务线程 --UploadTexture(texture, asset)&gt; Device
+    --从 asset 读取像素数据&gt; --glTextureSubImage2D&gt;
+    --数据上传到 GPU&gt; 完成</div>
+
+        <h3>6.2 命令提交流程</h3>
+        <div class="diagram">业务线程                          渲染线程
+    |                                |
+    | 1. RHIFrontend::CreateBuffer() |
+    |                                |
+    | 2. 分配 BufferHandle           |
+    |                                |
+    | 3. 创建 CreateBufferCmd        |
+    |    - 复制 desc 数据             |
+    |    - 复制 initialData          |
+    |                                |
+    | 4. RHICommandQueue::Push()     |
+    |    (互斥锁保护)                 |
+    |                                |
+    | 5. 唤醒渲染线程 (条件变量)      |
+    |                                |----------&gt;
+    |                    | 6. 等待条件变量
+    |                    |
+    |                    | 7. RHICommandQueue::PopAll()
+    |                    |    (批量取命令)
+    |                    |
+    |                    | 8. GLBackendExecutor::Execute()
+    |                    |    - 查资源表
+    |                    |    - 调用 glCreateBuffers()
+    |                    |    - 调用 glNamedBufferData()
+    |                    |
+    |                    | 9. 登记到 RHIBackendResourceTable</div>
+
+        <h3>6.2 渲染线程循环</h3>
+        <pre><code>void RenderThread::ThreadMain() {
+    while (!stopRequested_) {
+        // 1. 等待命令（条件变量）
+        std::unique_lock&lt;std::mutex&gt; lock(mutex_);
+        cv_.wait(lock, [this] {
+            return stopRequested_ || !queue_.Empty();
+        });
+
+        if (stopRequested_) {
+            break;
+        }
+
+        // 2. 批量取命令
+        queue_.PopAll(commandBuffer_);
+
+        // 3. 顺序执行命令
+        for (const auto& cmd : commandBuffer_) {
+            executor_-&gt;Execute(cmd);
+        }
+
+        commandBuffer_.clear();
+    }
+}</code></pre>
+
+        <h3>6.3 资源生命周期</h3>
+        <div class="diagram">创建流程:
+业务线程 --CreateBuffer()--&gt; RHIFrontend --分配 Handle&gt;
+    --创建命令&gt; --入队&gt; --唤醒&gt; 渲染线程 --执行&gt;
+    --glCreateBuffers&gt; --登记资源表&gt; 完成
+
+销毁流程:
+业务线程 --DestroyBuffer(handle)&gt; RHIFrontend
+    --创建 Destroy 命令&gt; --入队&gt; --唤醒&gt; 渲染线程
+    --查资源表&gt; --glDeleteBuffers&gt; --移除资源表&gt; 完成</div>
+
+        <h2>7. 线程模型</h2>
+
+        <h3>7.1 线程职责</h3>
+        <table>
+            <tr>
+                <th>线程</th>
+                <th>职责</th>
+                <th>可调用接口</th>
+            </tr>
+            <tr>
+                <td>主线程/业务线程</td>
+                <td>逻辑处理、命令提交</td>
+                <td>RHIFrontend 所有接口</td>
+            </tr>
+            <tr>
+                <td>渲染线程</td>
+                <td>图形 API 调用、资源管理</td>
+                <td>IRHIBackendExecutor、OpenGL API</td>
+            </tr>
+        </table>
+
+        <h3>7.2 同步机制</h3>
+        <ul>
+            <li><strong>命令队列</strong>：使用互斥锁保证多线程入队安全</li>
+            <li><strong>唤醒机制</strong>：条件变量，队列从空变非空时唤醒</li>
+            <li><strong>资源表</strong>：仅渲染线程访问，无需同步</li>
+            <li><strong>停止机制</strong>：标志位 + 条件变量唤醒</li>
+        </ul>
+
+        <h3>7.3 线程安全保证</h3>
+        <table>
+            <tr>
+                <th>组件</th>
+                <th>线程安全</th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td>RHIFrontend</td>
+                <td>是（命令入队）</td>
+                <td>内部使用互斥锁</td>
+            </tr>
+            <tr>
+                <td>RHICommandQueue</td>
+                <td>是</td>
+                <td>FIFO 队列，互斥锁保护</td>
+            </tr>
+            <tr>
+                <td>RenderThread</td>
+                <td>是（启动/停止）</td>
+                <td>条件变量同步</td>
+            </tr>
+            <tr>
+                <td>RHIBackendResourceTable</td>
+                <td>否</td>
+                <td>仅渲染线程访问</td>
+            </tr>
+        </table>
+
+        <h2>8. 目录结构</h2>
+        <pre><code>Render/
+├── Public/
+│   ├── render_module.h              # Render 模块入口
+│   └── RHI/
+│       ├── RHI_device.h             # RHI 设备接口
+│       ├── RHI_texture.h            # 纹理资源定义
+│       ├── RHI_buffer.h             # 缓冲资源定义
+│       ├── RHI_input_layout.h       # 输入布局定义
+│       ├── rhi_frontend.h           # RHI 前端接口
+│       ├── rhi_command.h            # 命令定义
+│       ├── rhi_handles.h            # 句柄类型
+│       ├── rhi_handle_allocator.h   # 句柄分配器
+│       └── rhi_texture_validator.h  # 纹理验证器
+│
+├── Private/
+│   ├── render_module.cpp            # Render 模块实现
+│   ├── Runtime/
+│   │   ├── render_thread.cpp/.h     # 渲染线程
+│   │   ├── rhi_command_queue.cpp/.h # 命令队列
+│   │   ├── rhi_backend_executor.h   # 后端执行器接口
+│   │   └── rhi_backend_resource_table.cpp/.h  # 资源表
+│   ├── Backend/Opengl/
+│   │   ├── gl_device.cpp/.h         # OpenGL 设备
+│   │   ├── gl_texture.cpp/.h        # OpenGL 纹理
+│   │   ├── gl_buffer.cpp/.h         # OpenGL 缓冲
+│   │   ├── gl_input_layout.cpp/.h   # OpenGL 输入布局
+│   │   ├── gl_backend_executor.cpp/.h  # OpenGL 后端执行器
+│   │   └── gl_texture_validator.cpp/.h  # OpenGL 纹理验证器
+│   └── RHI/
+│       ├── RHI_texture.cpp          # RHI 纹理实现
+│       └── rhi_texture_validator.cpp # 纹理验证器实现
+│
+└── Test/
+    ├── rhi_buffer_test.cpp          # 缓冲测试
+    ├── rhi_command_proxy_test.cpp   # 命令代理测试
+    └── rhi_texture_validator_test.cpp # 纹理验证器测试</code></pre>
+
+        <h2>9. 与 Application 模块的协作</h2>
+        <div class="diagram">ApplicationModule                    RenderModule
++------------------+              +------------------+
+| - GLFW 窗口      |              | - OpenGL 上下文  |
+| - OpenGL Context |              | - GLAD 加载器    |
+| - 事件循环       |              | - RHI::Device    |
++------------------+              +------------------+
+        |                                 ^
+        | InitializeFromApplication()     |
+        +---------------------------------+</div>
+
+        <p>Render 模块依赖 Application 模块提供的 OpenGL 上下文，通过 <code>InitializeFromApplication()</code> 方法自动获取所有前置条件。</p>
+
+        <h2>10. 扩展方向</h2>
+
+        <h3>10.1 多后端支持</h3>
+        <p>当前架构支持未来扩展多图形 API 后端：</p>
+        <ul>
+            <li><strong>D3D11/D3D12 后端</strong>：实现 <code>IRHIBackendExecutor</code> 接口</li>
+            <li><strong>Vulkan 后端</strong>：使用 VkImage、VkBuffer、VkDescriptorSet</li>
+            <li><strong>Metal 后端</strong>：使用 MTLTexture、MTLBuffer</li>
+        </ul>
+
+        <h3>10.2 未来优化方向</h3>
+        <ul>
+            <li><strong>多队列调度</strong>：分离渲染管线队列和资源上传队列</li>
+            <li><strong>命令重排</strong>：优化状态切换，减少冗余调用</li>
+            <li><strong>并行翻译</strong>：多线程命令翻译，单线程提交</li>
+            <li><strong>Frame Graph</strong>：显式管理渲染依赖和资源生命周期</li>
+            <li><strong>持久映射</strong>：支持 persistent mapped buffers</li>
+        </ul>
+
+        <div class="tip">
+            <strong>第一阶段目标：</strong>
+            <blockquote>把 RHI 从"直接执行"改成"前端发命令，渲染线程顺序代理执行"，并保留一个能直接写图形库 API 的委托后门。</blockquote>
+        </div>
+
+        <h2>11. 相关文件</h2>
+        <table>
+            <tr>
+                <th>文档</th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td><a href="render_module_usage.html">Render 模块使用文档</a></td>
+                <td>RenderModule 的 API 使用说明</td>
+            </tr>
+            <tr>
+                <td><a href="rhi_buffer_usage.html">RHI Buffer 使用文档</a></td>
+                <td>缓冲和输入布局的使用说明</td>
+            </tr>
+            <tr>
+                <td><a href="rhi_texture_usage.html">RHI Texture 使用文档</a></td>
+                <td>纹理加载和使用的说明</td>
+            </tr>
+            <tr>
+                <td><a href="rhi_texture_validator_usage.html">RHI 纹理验证器使用文档</a></td>
+                <td>委托验证器的使用说明</td>
+            </tr>
+        </table>
+
+        <h2>12. 总结</h2>
+        <p>Render 模块采用<strong>前端命令代理 + 专职渲染线程 + 委托后门</strong>的架构，实现了：</p>
+        <ul>
+            <li><strong>跨图形 API 抽象</strong>：上层不直接依赖 OpenGL 具体类型</li>
+            <li><strong>命令代理执行</strong>：所有渲染操作通过命令队列提交</li>
+            <li><strong>线程安全</strong>：图形 API 调用只在渲染线程执行</li>
+            <li><strong>灵活扩展</strong>：支持未来多后端、多队列、并行翻译</li>
+            <li><strong>快速验证</strong>：委托后门支持最短路径功能验证</li>
+        </ul>
+    </div>
+</body>
+</html>

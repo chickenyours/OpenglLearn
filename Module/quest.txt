@@ -1,4 +1,8 @@
 行动须知:
- 1:编译程序请运行C:\Users\16620\Desktop\projects\OpenglLearn\build.bat一键编译即可
- 2:每次改进都在功能的根目录上创建使用文档,并包含测试程序样例,格式为.html,页面样式参考模块里的docs目录下的使用文档
-任务:请阅读module_context_improvement_steps.md
+ 1:写代码之前请阅读相关文档(参考C:\Users\16620\Desktop\projects\OpenglLearn\Module\docs;C:\Users\16620\Desktop\projects\OpenglLearn\Module\Render\docs),确定接口关系,不能裸用代码
+ 2:编译程序请运行C:\Users\16620\Desktop\projects\OpenglLearn\build.bat一键编译即可
+ 3:每次改进后需要编写测试程序,并运行检验是否成功
+ 4:测试程序成功后请在模块(或者功能)的根目录上创建使用文档,并包含测试程序样例,格式为.html,页面样式参考模块里的docs目录下的使用文档
+ 5:日志输出采用C:\Users\16620\Desktop\projects\OpenglLearn\Engine\include\engine\DebugTool\ConsoleHelp\color_log.h
+ 6:参考其他程序,程序进入测试代码需要启动模块
+任务: 

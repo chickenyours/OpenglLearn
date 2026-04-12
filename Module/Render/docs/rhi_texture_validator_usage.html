@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RHI 纹理验证器使用文档</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #444;
+            margin-top: 30px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 8px;
+        }
+        h3 {
+            color: #555;
+        }
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: "Consolas", "Monaco", "Courier New", monospace;
+        }
+        pre {
+            background-color: #282c34;
+            color: #abb2bf;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        pre code {
+            background-color: transparent;
+            padding: 0;
+            color: inherit;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #007bff;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        ul, ol {
+            margin-left: 20px;
+        }
+        li {
+            margin: 8px 0;
+        }
+        .note {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .success {
+            background-color: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .warning {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .info {
+            background-color: #e7f3ff;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>RHI 纹理验证器使用文档</h1>
+
+        <div class="info">
+            <strong>文档版本：</strong>1.0<br>
+            <strong>最后更新：</strong>2026 年 4 月 11 日<br>
+            <strong>适用模块：</strong>Render Module (OpenGL 4.6+)
+        </div>
+
+        <h2>1. 模块概述</h2>
+        <p>RHI 纹理验证器子系统提供了一种<strong>解耦的、可扩展的</strong>纹理验证机制，允许用户通过<strong>委托函数</strong>验证纹理加载是否成功，而无需直接依赖后端具体类型。</p>
+
+        <div class="success">
+            <strong>主要优势：</strong>
+            <ul>
+                <li><strong>解耦设计</strong>：测试代码不需要包含后端头文件（如 <code>gl_texture.h</code>），也不需要直接使用 <code>dynamic_cast</code> 转换为具体后端类型</li>
+                <li><strong>可扩展</strong>：支持注册多个验证器，同时验证多个后端</li>
+                <li><strong>委托模式</strong>：使用 <code>std::function</code> 实现灵活的验证逻辑，支持 Lambda 表达式</li>
+                <li><strong>跨平台</strong>：不同图形 API 后端可以注册各自的验证器</li>
+                <li><strong>统一接口</strong>：所有验证器使用相同的接口，便于切换和比较</li>
+            </ul>
+        </div>
+
+        <h2>2. 核心类型</h2>
+
+        <h3>2.1 TextureValidationResult 结构</h3>
+        <pre><code>struct TextureValidationResult {
+    bool isValid = false;           // 验证是否通过
+    uint32_t width = 0;             // 纹理宽度
+    uint32_t height = 0;            // 纹理高度
+    uint32_t mipLevels = 0;         // Mipmap 层级数
+    std::size_t nativeHandle = 0;   // 后端原生句柄（如 OpenGL Texture ID）
+    std::string errorMessage;       // 错误信息（验证失败时）
+};</code></pre>
+
+        <table>
+            <tr>
+                <th>成员</th>
+                <th>类型</th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td><code>isValid</code></td>
+                <td><code>bool</code></td>
+                <td>验证是否通过，<code>true</code> 表示验证成功</td>
+            </tr>
+            <tr>
+                <td><code>width</code></td>
+                <td><code>uint32_t</code></td>
+                <td>纹理宽度（从后端查询的实际值）</td>
+            </tr>
+            <tr>
+                <td><code>height</code></td>
+                <td><code>uint32_t</code></td>
+                <td>纹理高度（从后端查询的实际值）</td>
+            </tr>
+            <tr>
+                <td><code>mipLevels</code></td>
+                <td><code>uint32_t</code></td>
+                <td>Mipmap 层级数</td>
+            </tr>
+            <tr>
+                <td><code>nativeHandle</code></td>
+                <td><code>std::size_t</code></td>
+                <td>后端原生句柄，如 OpenGL 的 Texture ID</td>
+            </tr>
+            <tr>
+                <td><code>errorMessage</code></td>
+                <td><code>std::string</code></td>
+                <td>验证失败时的错误描述</td>
+            </tr>
+        </table>
+
+        <h3>2.2 TextureValidator 委托类型</h3>
+        <pre><code>using TextureValidator =
+    std::function&lt;TextureValidationResult(const TextureAsset&amp;)&gt;;</code></pre>
+        <p>验证器是一个接受 <code>TextureAsset</code> 常量引用并返回 <code>TextureValidationResult</code> 的可调用对象。</p>
+
+        <h2>3. 基本用法</h2>
+
+        <h3>3.1 注册验证器</h3>
+        <pre><code>#include "Render/Public/RHI/rhi_texture_validator.h"
+#include "Render/Private/Backend/Opengl/gl_texture_validator.h"
+
+int main() {
+    // 注册 OpenGL 纹理验证器
+    Render::Backend::OpenGL::RegisterOpenGLTextureValidator();
+
+    // ... 后续使用
+    return 0;
+}</code></pre>
+
+        <h3>3.2 使用指定验证器验证纹理</h3>
+        <pre><code>#include "Render/Public/RHI/rhi_texture_validator.h"
+
+using namespace Render::RHI;
+
+// 加载纹理
+auto texture = device->LoadTexture2D("path/to/texture.png", true);
+if (!texture) {
+    std::cerr << "Failed to load texture!" << std::endl;
+    return;
+}
+
+// 使用 OpenGL 验证器验证
+auto result = ValidateTexture(*texture, "OpenGL");
+
+if (result.isValid) {
+    std::cout << "Validation passed!" << std::endl;
+    std::cout << "Width: " << result.width << std::endl;
+    std::cout << "Height: " << result.height << std::endl;
+    std::cout << "Native Handle: 0x"
+              << std::hex << result.nativeHandle << std::dec << std::endl;
+} else {
+    std::cerr << "Validation failed: " << result.errorMessage << std::endl;
+}</code></pre>
+
+        <h3>3.3 使用所有已注册验证器</h3>
+        <pre><code>// 运行所有已注册的验证器
+auto allResults = ValidateTexture(*texture);
+
+for (const auto& [name, validatorResult] : allResults) {
+    std::cout << "[" << name << "] "
+              << (validatorResult.isValid ? "PASSED" : "FAILED") << std::endl;
+    if (!validatorResult.isValid) {
+        std::cout << "    Error: " << validatorResult.errorMessage << std::endl;
+    }
+}</code></pre>
+
+        <h3>3.4 自定义委托验证器</h3>
+        <pre><code>#include "Render/Public/RHI/rhi_texture_validator.h"
+
+using namespace Render::RHI;
+
+// 定义自定义验证逻辑（使用 Lambda 表达式）
+TextureValidator customValidator =
+    [](const TextureAsset& tex) -> TextureValidationResult {
+    TextureValidationResult result;
+
+    // 检查纹理资产是否有效
+    if (!tex.Check()) {
+        result.errorMessage = "Texture asset check failed";
+        return result;
+    }
+
+    // 检查是否有有效的格式
+    const auto& desc = tex.GetDesc();
+    if (desc.format == Format::Unknown) {
+        result.errorMessage = "Texture format is Unknown";
+        return result;
+    }
+
+    // 检查尺寸是否大于 0
+    if (desc.width == 0 || desc.height == 0) {
+        result.errorMessage = "Texture dimensions are zero";
+        return result;
+    }
+
+    result.isValid = true;
+    result.width = desc.width;
+    result.height = desc.height;
+    result.mipLevels = desc.mipLevels;
+    return result;
+};
+
+// 使用自定义验证器
+auto customResult = customValidator(*texture);
+std::cout << "Custom validator: "
+          << (customResult.isValid ? "PASSED" : "FAILED") << std::endl;</code></pre>
+
+        <h2>4. 完整测试程序示例</h2>
+        <p>以下示例展示如何在主线程中使用 RHI 加载纹理，并使用委托函数验证：</p>
+
+        <pre><code>// RHI 纹理验证器测试程序
+#include &lt;iostream&gt;
+#include &lt;functional&gt;
+
+#include "application_module.h"
+#include "render_module.h"
+#include "Render/Public/RHI/RHI_device.h"
+#include "Render/Public/RHI/RHI_texture.h"
+#include "Render/Public/RHI/rhi_texture_validator.h"
+#include "Render/Private/Backend/Opengl/gl_texture_validator.h"
+
+using namespace Render::RHI;
+
+int main() {
+    std::cout << "=== RHI Texture Validator Test ===" &lt;&lt; std::endl;
+
+    // ========== 1. 创建并启动 Application 模块 ==========
+    Application::ApplicationModule appModule;
+    Application::ApplicationConfig config;
+    config.width = 800;
+    config.height = 600;
+    config.title = "RHI Texture Validator Test";
+    config.majorVersion = 4;
+    config.minorVersion = 6;
+    appModule.SetConfig(config);
+
+    std::cout << "[AppModule] Creating window and OpenGL context..." &lt;&lt; std::endl;
+    if (!appModule.Startup()) {
+        std::cerr << "[AppModule] Failed to startup ApplicationModule!" &lt;&lt; std::endl;
+        return -1;
+    }
+    std::cout << "[AppModule] ApplicationModule started successfully!" &lt;&lt; std::endl;
+
+    // ========== 2. 创建并初始化 Render 模块 ==========
+    Render::RenderModule renderModule;
+    std::cout << "[RenderModule] Initializing from ApplicationModule..." &lt;&lt; std::endl;
+    if (!renderModule.InitializeFromApplication(appModule)) {
+        std::cerr << "[RenderModule] Failed to initialize RenderModule!" &lt;&lt; std::endl;
+        appModule.Shutdown();
+        return -1;
+    }
+    std::cout << "[RenderModule] RenderModule started successfully!" &lt;&lt; std::endl;
+
+    // ========== 3. 注册 OpenGL 纹理验证器 ==========
+    std::cout &lt;&lt; "[Validator] Registering OpenGL texture validator..." &lt;&lt; std::endl;
+    Render::Backend::OpenGL::RegisterOpenGLTextureValidator();
+
+    // ========== 4. 获取 RHI 设备并加载纹理 ==========
+    auto* device = renderModule.GetDevice();
+    if (!device) {
+        std::cerr << "[RHI] Failed to get RHI device!" &lt;&lt; std::endl;
+        renderModule.Shutdown();
+        appModule.Shutdown();
+        return -1;
+    }
+
+    std::string texturePath = "Module/Test/tex.png";
+    std::cout &lt;&lt; "[RHI] Loading texture from: " &lt;&lt; texturePath &lt;&lt; std::endl;
+    auto texture = device->LoadTexture2D(texturePath, true);
+    if (!texture) {
+        std::cerr &lt;&lt; "[RHI] Failed to load texture!" &lt;&lt; std::endl;
+        renderModule.Shutdown();
+        appModule.Shutdown();
+        return -1;
+    }
+    std::cout &lt;&lt; "[RHI] Texture loaded successfully!" &lt;&lt; std::endl;
+
+    // 输出纹理参数
+    const auto& desc = texture->GetDesc();
+    std::cout &lt;&lt; "\n=== Texture Parameters ===" &lt;&lt; std::endl;
+    std::cout &lt;&lt; "Width: " &lt;&lt; desc.width &lt;&lt; " pixels" &lt;&lt; std::endl;
+    std::cout &lt;&lt; "Height: " &lt;&lt; desc.height &lt;&lt; " pixels" &lt;&lt; std::endl;
+    std::cout &lt;&lt; "Mip Levels: " &lt;&lt; desc.mipLevels &lt;&lt; std::endl;
+
+    // ========== 5. 使用委托函数验证纹理 ==========
+    std::cout &lt;&lt; "\n[Validator] Validating texture..." &lt;&lt; std::endl;
+    auto result = ValidateTexture(*texture, "OpenGL");
+
+    std::cout &lt;&lt; "\n=== Validation Result ===" &lt;&lt; std::endl;
+    std::cout &lt;&lt; "Validator: OpenGL" &lt;&lt; std::endl;
+    std::cout &lt;&lt; "Is Valid: " &lt;&lt; (result.isValid ? "YES" : "NO") &lt;&lt; std::endl;
+
+    if (result.isValid) {
+        std::cout &lt;&lt; "Width: " &lt;&lt; result.width &lt;&lt; std::endl;
+        std::cout &lt;&lt; "Height: " &lt;&lt; result.height &lt;&lt; std::endl;
+        std::cout &lt;&lt; "Native Handle: 0x"
+                  &lt;&lt; std::hex &lt;&lt; result.nativeHandle &lt;&lt; std::dec &lt;&lt; std::endl;
+        std::cout &lt;&lt; "\n[SUCCESS] RHI Texture Loading Test PASSED!" &lt;&lt; std::endl;
+    } else {
+        std::cerr &lt;&lt; "Error: " &lt;&lt; result.errorMessage &lt;&lt; std::endl;
+        std::cerr &lt;&lt; "\n[FAILED] RHI Texture Loading Test FAILED!" &lt;&lt; std::endl;
+    }
+
+    // ========== 6. 清理 ==========
+    renderModule.Shutdown();
+    appModule.Shutdown();
+
+    return result.isValid ? 0 : 1;
+}</code></pre>
+
+        <h2>5. 编译方法</h2>
+        <p>在项目根目录运行：</p>
+        <pre><code>build.bat</code></pre>
+        <p>或在 build 目录运行：</p>
+        <pre><code>cmake --build .</code></pre>
+
+        <div class="note">
+            <strong>注意：</strong>编译前请确保已安装以下依赖：
+            <ul>
+                <li>Ninja 构建系统</li>
+                <li>Clang/MSVC 编译器</li>
+                <li>GLFW、GLAD、stb_image 库</li>
+            </ul>
+        </div>
+
+        <h2>6. 测试程序运行</h2>
+        <p>编译完成后，在 <code>bin</code> 目录下运行测试程序：</p>
+        <pre><code>cd bin
+rhi_texture_validator_test.exe</code></pre>
+
+        <div class="success">
+            <strong>测试输出示例：</strong>
+            <pre>=== RHI Texture Validator Test Suite ===
+Testing RHI texture loading with delegate validators
+
+=== Test: RHI Texture Loading with Delegate Validator ===
+[AppModule] Creating window and OpenGL context...
+OpenGL Version: 4.6.0 - Build 32.0.101.6790
+[AppModule] ApplicationModule started successfully!
+[RenderModule] Initializing RenderModule from ApplicationModule...
+[RenderModule] RenderModule started successfully!
+[RenderModule] Platform state: 4
+
+[Validator] Registering OpenGL texture validator...
+[Validator] OpenGL texture validator registered.
+[RHI] RHI device acquired.
+
+[RHI] Loading texture from: ./images/tex.png
+[RHI] Texture loaded successfully!
+
+=== Texture Parameters ===
+Width: 447 pixels
+Height: 291 pixels
+Mip Levels: 9
+Format: 4
+Channel Count: 0
+Data Type: UInt8
+
+[Validator] Validating texture with delegate validator...
+
+=== Validation Result ===
+Validator: OpenGL
+Is Valid: YES
+Width: 447
+Height: 291
+Mip Levels: 9
+Native Handle: 0x1
+
+[Validator] Running all registered validators...
+  [OpenGL] PASSED
+
+[Validator] Running custom delegate validator...
+  [Custom] PASSED
+
+[SUCCESS] RHI Texture Loading Test PASSED!</pre>
+        </div>
+
+        <h2>7. API 参考</h2>
+
+        <h3>7.1 注册验证器</h3>
+        <pre><code>void RegisterTextureValidator(
+    const std::string& name,
+    TextureValidator validator
+);</code></pre>
+        <table>
+            <tr>
+                <th>参数</th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td><code>name</code></td>
+                <td>验证器名称，用于后续查找（如 "OpenGL"）</td>
+            </tr>
+            <tr>
+                <td><code>validator</code></td>
+                <td>验证函数（可调用对象）</td>
+            </tr>
+        </table>
+
+        <h3>7.2 获取验证器</h3>
+        <pre><code>TextureValidator GetTextureValidator(
+    const std::string& name
+);</code></pre>
+        <table>
+            <tr>
+                <th>参数</th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td><code>name</code></td>
+                <td>验证器名称</td>
+            </tr>
+            <tr>
+                <th>返回值</th>
+                <td>验证器函数，如果不存在则返回空函数</td>
+            </tr>
+        </table>
+
+        <h3>7.3 验证纹理（单个验证器）</h3>
+        <pre><code>TextureValidationResult ValidateTexture(
+    const TextureAsset& texture,
+    const std::string& validatorName
+);</code></pre>
+        <table>
+            <tr>
+                <th>参数</th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td><code>texture</code></td>
+                <td>要验证的纹理对象</td>
+            </tr>
+            <tr>
+                <td><code>validatorName</code></td>
+                <td>验证器名称</td>
+            </tr>
+            <tr>
+                <th>返回值</th>
+                <td>验证结果</td>
+            </tr>
+        </table>
+
+        <h3>7.4 验证纹理（所有验证器）</h3>
+        <pre><code>std::vector&lt;std::pair&lt;std::string, TextureValidationResult&gt;&gt;
+ValidateTexture(const TextureAsset& texture);</code></pre>
+        <table>
+            <tr>
+                <th>参数</th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td><code>texture</code></td>
+                <td>要验证的纹理对象</td>
+            </tr>
+            <tr>
+                <th>返回值</th>
+                <td>所有验证器的结果列表，每项为 (名称，结果) 对</td>
+            </tr>
+        </table>
+
+        <h2>8. 注意事项</h2>
+
+        <div class="warning">
+            <strong>重要提示：</strong>
+            <ol>
+                <li><strong>OpenGL 上下文</strong>：验证 OpenGL 纹理前必须确保 OpenGL 上下文已激活，否则 <code>glGetTextureLevelParameteriv</code> 等调用会失败</li>
+                <li><strong>验证器注册时机</strong>：验证器应在使用前注册，通常在程序启动时或首次使用前</li>
+                <li><strong>线程安全</strong>：验证器注册是线程安全的（内部使用互斥锁），但验证操作本身不是线程安全的</li>
+                <li><strong>验证器生命周期</strong>：注册的验证器会一直存在，直到程序结束</li>
+                <li><strong>工作目录</strong>：运行测试程序时请确保工作目录正确，以便找到纹理文件（通常在 <code>bin</code> 目录下运行）</li>
+            </ol>
+        </div>
+
+        <h2>9. 扩展说明</h2>
+        <p>未来可扩展的验证器类型：</p>
+        <ul>
+            <li><strong>Vulkan 验证器</strong>：使用 <code>vkGetImageSubresourceLayout</code> 验证</li>
+            <li><strong>D3D11/D3D12 验证器</strong>：使用 <code>ID3D11DeviceContext::Map</code> 验证</li>
+            <li><strong>Metal 验证器</strong>：使用 <code>MTLTexture</code> 的 descriptor 验证</li>
+            <li><strong>性能分析验证器</strong>：验证纹理显存占用、带宽等性能指标</li>
+            <li><strong>质量验证器</strong>：分析纹理压缩质量、mipmap 完整性等</li>
+        </ul>
+
+        <h2>10. 解耦设计说明</h2>
+
+        <h3>10.1 原始设计的问题</h3>
+        <p>在原始设计中，测试程序需要：</p>
+        <ul>
+            <li>直接 <code>#include &lt;GLFW/glfw3.h&gt;</code> 和 <code>#include &lt;glad/glad.h&gt;</code></li>
+            <li>直接 <code>#include "Render/Private/Backend/Opengl/gl_texture.h"</code></li>
+            <li>使用 <code>dynamic_cast&lt;GLTexture*&gt;</code> 转换为具体后端类型</li>
+            <li>直接调用 <code>glTexture->GetHandle()</code> 获取 OpenGL 句柄</li>
+        </ul>
+
+        <h3>10.2 委托模式的优势</h3>
+        <p>使用委托模式后：</p>
+        <ul>
+            <li><strong>测试代码只依赖 RHI 公共接口</strong>：不需要包含后端头文件</li>
+            <li><strong>验证逻辑封装在委托函数中</strong>：后端细节对测试代码透明</li>
+            <li><strong>易于切换到其他图形 API 后端</strong>：只需注册不同的验证器</li>
+            <li><strong>支持自定义验证逻辑</strong>：用户可以定义自己的验证器</li>
+        </ul>
+
+        <div class="success">
+            <strong>最佳实践：</strong>
+            <ul>
+                <li>测试代码只包含 RHI 公共头文件（如 <code>rhi_texture_validator.h</code>）</li>
+                <li>验证器实现在后端目录中，由后端模块负责维护</li>
+                <li>使用 <code>RegisterOpenGLTextureValidator()</code> 等函数注册验证器</li>
+                <li>通过 <code>ValidateTexture()</code> 统一接口进行验证</li>
+                <li>使用 Lambda 表达式定义临时的自定义验证逻辑</li>
+            </ul>
+        </div>
+
+        <h2>11. 相关文件</h2>
+        <table>
+            <tr>
+                <th>文件</th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td><code>Render/Public/RHI/rhi_texture_validator.h</code></td>
+                <td>RHI 纹理验证器公共接口</td>
+            </tr>
+            <tr>
+                <td><code>Render/Private/RHI/rhi_texture_validator.cpp</code></td>
+                <td>验证器注册/查找实现</td>
+            </tr>
+            <tr>
+                <td><code>Render/Private/Backend/Opengl/gl_texture_validator.h</code></td>
+                <td>OpenGL 验证器头文件</td>
+            </tr>
+            <tr>
+                <td><code>Render/Private/Backend/Opengl/gl_texture_validator.cpp</code></td>
+                <td>OpenGL 验证器实现</td>
+            </tr>
+            <tr>
+                <td><code>Render/Test/rhi_texture_validator_test.cpp</code></td>
+                <td>测试程序源码</td>
+            </tr>
+        </table>
+
+        <h2>12. 常见问题</h2>
+
+        <h3>Q1: 为什么验证器返回的宽高为 0？</h3>
+        <p>确保在验证前 OpenGL 上下文已激活。如果在没有有效上下文的情况下调用 <code>glGetTextureLevelParameteriv</code>，查询会失败。</p>
+
+        <h3>Q2: 如何注册多个验证器？</h3>
+        <p>多次调用 <code>RegisterTextureValidator()</code> 即可，每个验证器使用不同的名称：</p>
+        <pre><code>RegisterTextureValidator("OpenGL", ValidateOpenGLTexture);
+RegisterTextureValidator("Custom", myCustomValidator);</code></pre>
+
+        <h3>Q3: 验证器会影响性能吗？</h3>
+        <p>验证器主要用于调试和测试，不建议在生产环境的渲染循环中频繁调用。OpenGL 验证器会调用 <code>glGetTextureLevelParameteriv</code>，这是一个相对昂贵的操作。</p>
+    </div>
+</body>
+</html>

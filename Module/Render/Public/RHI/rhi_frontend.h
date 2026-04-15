@@ -24,11 +24,23 @@ namespace Render::RHI {
      * - 组装 RHI 命令
      * - 投递命令到渲染线程队列
      * 
-     * 注意：不直接执行 GPU 操作，GPU 操作由后端 Device 在渲染线程执行
+     * 注意：
+     * - 不直接执行 GPU 操作，GPU 操作由后端 Device 在渲染线程执行
+     * - 可以使用外部提供的 RenderThread（如 RenderModule 的），也可以自己创建
      */
     class RHIFrontend {
     public:
+        /**
+         * @brief 构造函数（使用外部提供的 RenderThread）
+         * @param renderThread 外部渲染线程（不拥有）
+         */
+        explicit RHIFrontend(RenderThread* renderThread);
+
+        /**
+         * @brief 构造函数（自己创建 RenderThread）
+         */
         RHIFrontend();
+
         ~RHIFrontend();
 
         RHIFrontend(const RHIFrontend&) = delete;
@@ -46,12 +58,12 @@ namespace Render::RHI {
         Device* GetDevice() const;
 
         /**
-         * @brief 启动渲染线程
+         * @brief 启动渲染线程（仅在自己创建 RenderThread 时有效）
          */
         bool Start();
 
         /**
-         * @brief 停止渲染线程
+         * @brief 停止渲染线程（仅在自己创建 RenderThread 时有效）
          */
         void Stop();
 
@@ -59,6 +71,16 @@ namespace Render::RHI {
          * @brief 判断是否已启动
          */
         bool IsRunning() const;
+
+        /**
+         * @brief 获取渲染线程（非 const 版本，用于唤醒）
+         */
+        RenderThread* GetRenderThread() { return renderThread_; }
+
+        /**
+         * @brief 获取渲染线程（const 版本）
+         */
+        const RenderThread* GetRenderThread() const { return renderThread_; }
 
         // ==================== CPU 端资源加载（前端职责） ====================
 
@@ -220,14 +242,10 @@ namespace Render::RHI {
          */
         void EnqueueDelegate(BackendDelegate delegate);
 
-        /**
-         * @brief 获取渲染线程
-         */
-        RenderThread* GetRenderThread() { return renderThread_.get(); }
-
     private:
-        std::unique_ptr<RenderThread> renderThread_;
-        Device* device_ = nullptr;  // 后端设备指针（不拥有）
+        RenderThread* renderThread_ = nullptr;  // 渲染线程指针
+        bool ownsRenderThread_ = false;         // 是否拥有 renderThread_
+        Device* device_ = nullptr;              // 后端设备指针（不拥有）
     };
 
 } // namespace Render::RHI

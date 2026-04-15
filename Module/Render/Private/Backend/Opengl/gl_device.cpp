@@ -1,19 +1,30 @@
 #include "gl_device.h"
+#include "Render/Private/Runtime/render_thread.h"
 #include "gl_texture.h"
 #include "gl_buffer.h"
 #include "gl_input_layout.h"
 
 namespace Render::Backend::OpenGL {
 
+    GLDevice::GLDevice(Render::RHI::RenderThread* renderThread)
+        : renderThread_(renderThread) {
+    }
+
+    void GLDevice::WakeupRenderThread() {
+        if (renderThread_) {
+            renderThread_->Wakeup();
+        }
+    }
+
     // ==================== Texture GPU 操作 ====================
 
     std::unique_ptr<Render::RHI::RHITexture> GLDevice::CreateEmptyTexture(
         const Render::RHI::TextureDesc& desc
     ) {
-        // 创建空的 GLTexture 对象
+        // 创建空的 GLTexture 对象（CPU 端）
         auto texture = std::make_unique<GLTexture>(desc);
         
-        // 创建 OpenGL 纹理资源（分配 GPU 句柄，但不上传数据）
+        // 第一阶段简化处理：直接创建 GPU 资源
         if (!texture->Create()) {
             return nullptr;
         }
@@ -249,8 +260,8 @@ namespace Render::Backend::OpenGL {
 
 namespace Render::RHI {
 
-    std::unique_ptr<Device> CreateOpenGLDevice() {
-        return std::make_unique<Render::Backend::OpenGL::GLDevice>();
+    std::unique_ptr<Device> CreateOpenGLDevice(Render::RHI::RenderThread* renderThread) {
+        return std::make_unique<Render::Backend::OpenGL::GLDevice>(renderThread);
     }
 
 }

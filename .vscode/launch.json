@@ -51,7 +51,7 @@
             "name": "LLDB Native Debugging",
             "type": "lldb",
             "request": "launch",
-            "program": "${workspaceFolder}/bin/rhi_texture_validator_test.exe",   // ✅ 用 program，不是 target
+            "program": "${workspaceFolder}/bin/rhi_empty_texture_test.exe",   // ✅ 用 program，不是 target
             "cwd": "${workspaceFolder}/bin",
             "args": [],                                          // ✅ 用 args，不是 arguments
             "stopOnEntry": false,

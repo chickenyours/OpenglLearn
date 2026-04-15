@@ -5,12 +5,22 @@
 
 namespace Render::RHI {
 
+    // 使用外部提供的 RenderThread
+    RHIFrontend::RHIFrontend(RenderThread* renderThread)
+        : renderThread_(renderThread), ownsRenderThread_(false) {
+    }
+
+    // 自己创建 RenderThread
     RHIFrontend::RHIFrontend()
-        : renderThread_(std::make_unique<RenderThread>()) {
+        : renderThread_(nullptr), ownsRenderThread_(true) {
+        renderThread_ = new RenderThread();
     }
 
     RHIFrontend::~RHIFrontend() {
-        Stop();
+        if (ownsRenderThread_ && renderThread_) {
+            delete renderThread_;
+            renderThread_ = nullptr;
+        }
     }
 
     void RHIFrontend::SetDevice(Device* device) {
@@ -22,15 +32,20 @@ namespace Render::RHI {
     }
 
     bool RHIFrontend::Start() {
+        if (!renderThread_) {
+            return false;
+        }
         return renderThread_->Start();
     }
 
     void RHIFrontend::Stop() {
-        renderThread_->Stop();
+        if (renderThread_) {
+            renderThread_->Stop();
+        }
     }
 
     bool RHIFrontend::IsRunning() const {
-        return renderThread_->IsRunning();
+        return renderThread_ && renderThread_->IsRunning();
     }
 
     // ==================== CPU 端资源加载（前端职责） ====================
@@ -40,20 +55,17 @@ namespace Render::RHI {
         bool generateMips,
         bool flipVertical
     ) {
-        // CPU 端操作：直接从文件加载图像数据到内存
         auto asset = std::make_unique<TextureAsset>();
         if (!asset->LoadFromImageFile2D(imagePath)) {
             return nullptr;
         }
 
-        // 设置 mipmap 生成选项
         if (generateMips) {
             TextureDesc& desc = asset->GetDesc();
             desc.generateMips = true;
             desc.mipLevels = TextureAsset::CalculateMipLevels(desc.width, desc.height, desc.depth);
         }
 
-        // 设置垂直翻转选项
         TextureDesc& desc = asset->GetDesc();
         desc.flipVerticalOnLoad = flipVertical;
 
@@ -70,9 +82,6 @@ namespace Render::RHI {
         bool generateMips,
         bool flipVertical
     ) {
-        // CPU 端操作：从内存数据加载图像
-        // 注意：当前 TextureAsset 没有直接从内存加载的接口
-        // 这里预留接口，后续可扩展
         std::cerr << "[RHIFrontend] LoadTextureFromMemory not yet implemented" << std::endl;
         return nullptr;
     }
@@ -80,42 +89,36 @@ namespace Render::RHI {
     // ==================== GPU 资源命令（通过命令队列投递） ====================
 
     TextureHandle RHIFrontend::CreateEmptyTexture(const TextureDesc& desc) {
-        // 分配纹理句柄
         TextureHandle handle = RHIHandleAllocator::Instance().AllocateTextureHandle();
 
-        // 投递创建空纹理命令到渲染线程
         CreateEmptyTextureCmd cmd;
         cmd.handle = handle;
         cmd.desc = desc;
 
-        renderThread_->Enqueue(RHICommand(RHICommandType::CreateEmptyTexture, std::move(cmd)));
+        if (renderThread_) {
+            renderThread_->EnqueueCreateCommand(RHICommand(RHICommandType::CreateEmptyTexture, std::move(cmd)));
+        }
 
         std::cout << "[RHIFrontend] CreateEmptyTexture enqueued, handle id=" << handle.id << std::endl;
         return handle;
     }
 
     TextureHandle RHIFrontend::CreateTextureFromAsset(const TextureAsset& asset) {
-        // 注意：此方法用于命令代理模式
-        // 第一阶段简化处理：返回一个句柄，实际创建由后端在渲染线程执行
-        // 完整实现需要在后端资源表中建立句柄到 GPU 纹理的映射
-
         TextureHandle handle = RHIHandleAllocator::Instance().AllocateTextureHandle();
 
-        // 投递创建命令到渲染线程
         CreateTextureCmd cmd;
         cmd.handle = handle;
         cmd.desc = asset.GetDesc();
 
-        // 注意：这里不复制 asset 数据，因为实际创建需要从资源表查找
-        // 完整实现需要传递 asset 数据或者引用
-        renderThread_->Enqueue(RHICommand(RHICommandType::CreateTexture, std::move(cmd)));
+        if (renderThread_) {
+            renderThread_->EnqueueCreateCommand(RHICommand(RHICommandType::CreateTexture, std::move(cmd)));
+        }
 
         std::cout << "[RHIFrontend] CreateTextureFromAsset enqueued, handle id=" << handle.id << std::endl;
         return handle;
     }
 
     void RHIFrontend::UploadTexture(TextureHandle handle, const TextureAsset& asset) {
-        // 投递上传命令到渲染线程
         if (!asset.Check()) {
             std::cerr << "[RHIFrontend] Cannot upload invalid texture asset" << std::endl;
             return;
@@ -131,14 +134,15 @@ namespace Render::RHI {
         cmd.height = asset.GetDesc().height;
         cmd.depth = asset.GetDesc().depth;
 
-        // 复制像素数据到命令
         const auto& source = asset.GetSource();
         if (source.valid) {
             cmd.data.resize(source.GetSize());
             std::memcpy(cmd.data.data(), source.GetData(), source.GetSize());
         }
 
-        renderThread_->Enqueue(RHICommand(RHICommandType::UploadTexture, std::move(cmd)));
+        if (renderThread_) {
+            renderThread_->EnqueueCreateCommand(RHICommand(RHICommandType::UploadTexture, std::move(cmd)));
+        }
 
         std::cout << "[RHIFrontend] UploadTexture enqueued, handle id=" << handle.id << std::endl;
     }
@@ -155,7 +159,6 @@ namespace Render::RHI {
         uint32_t height,
         uint32_t depth
     ) {
-        // 投递局部更新命令到渲染线程
         if (!data || size == 0) {
             std::cerr << "[RHIFrontend] Cannot update texture with null data" << std::endl;
             return;
@@ -173,7 +176,9 @@ namespace Render::RHI {
         cmd.data.resize(size);
         std::memcpy(cmd.data.data(), data, size);
 
-        renderThread_->Enqueue(RHICommand(RHICommandType::UpdateTexture, std::move(cmd)));
+        if (renderThread_) {
+            renderThread_->EnqueueCreateCommand(RHICommand(RHICommandType::UpdateTexture, std::move(cmd)));
+        }
 
         std::cout << "[RHIFrontend] UpdateTexture enqueued, handle id=" << handle.id << std::endl;
     }
@@ -181,7 +186,10 @@ namespace Render::RHI {
     void RHIFrontend::DestroyTexture(TextureHandle handle) {
         DestroyTextureCmd cmd;
         cmd.handle = handle;
-        renderThread_->Enqueue(RHICommand(RHICommandType::DestroyTexture, std::move(cmd)));
+
+        if (renderThread_) {
+            renderThread_->EnqueueDestroyCommand(RHICommand(RHICommandType::DestroyTexture, std::move(cmd)));
+        }
     }
 
     // ==================== Buffer 操作 ====================
@@ -198,7 +206,9 @@ namespace Render::RHI {
             std::memcpy(cmd.initialData.data(), initialData, initialDataSize);
         }
 
-        renderThread_->Enqueue(RHICommand(RHICommandType::CreateBuffer, std::move(cmd)));
+        if (renderThread_) {
+            renderThread_->EnqueueCreateCommand(RHICommand(RHICommandType::CreateBuffer, std::move(cmd)));
+        }
 
         std::cout << "[RHIFrontend] CreateBuffer enqueued, handle id=" << handle.id << std::endl;
         return handle;
@@ -211,13 +221,18 @@ namespace Render::RHI {
         cmd.data.resize(size);
         std::memcpy(cmd.data.data(), data, size);
 
-        renderThread_->Enqueue(RHICommand(RHICommandType::UpdateBuffer, std::move(cmd)));
+        if (renderThread_) {
+            renderThread_->EnqueueCreateCommand(RHICommand(RHICommandType::UpdateBuffer, std::move(cmd)));
+        }
     }
 
     void RHIFrontend::DestroyBuffer(BufferHandle handle) {
         DestroyBufferCmd cmd;
         cmd.handle = handle;
-        renderThread_->Enqueue(RHICommand(RHICommandType::DestroyBuffer, std::move(cmd)));
+
+        if (renderThread_) {
+            renderThread_->EnqueueDestroyCommand(RHICommand(RHICommandType::DestroyBuffer, std::move(cmd)));
+        }
     }
 
     void RHIFrontend::CopyBuffer(BufferHandle src, BufferHandle dst, uint64_t size, uint64_t srcOffset, uint64_t dstOffset) {
@@ -227,7 +242,10 @@ namespace Render::RHI {
         cmd.size = size;
         cmd.srcOffset = srcOffset;
         cmd.dstOffset = dstOffset;
-        renderThread_->Enqueue(RHICommand(RHICommandType::CopyBuffer, std::move(cmd)));
+
+        if (renderThread_) {
+            renderThread_->EnqueueCreateCommand(RHICommand(RHICommandType::CopyBuffer, std::move(cmd)));
+        }
     }
 
     // ==================== InputLayout 操作 ====================
@@ -239,7 +257,9 @@ namespace Render::RHI {
         cmd.handle = handle;
         cmd.desc = desc;
 
-        renderThread_->Enqueue(RHICommand(RHICommandType::CreateInputLayout, std::move(cmd)));
+        if (renderThread_) {
+            renderThread_->EnqueueCreateCommand(RHICommand(RHICommandType::CreateInputLayout, std::move(cmd)));
+        }
 
         std::cout << "[RHIFrontend] CreateInputLayout enqueued, handle id=" << handle.id << std::endl;
         return handle;
@@ -248,17 +268,24 @@ namespace Render::RHI {
     void RHIFrontend::DestroyInputLayout(InputLayoutHandle handle) {
         DestroyInputLayoutCmd cmd;
         cmd.handle = handle;
-        renderThread_->Enqueue(RHICommand(RHICommandType::DestroyInputLayout, std::move(cmd)));
+
+        if (renderThread_) {
+            renderThread_->EnqueueDestroyCommand(RHICommand(RHICommandType::DestroyInputLayout, std::move(cmd)));
+        }
     }
 
     // ==================== 帧操作 ====================
 
     void RHIFrontend::BeginFrame() {
-        renderThread_->Enqueue(RHICommand(RHICommandType::BeginFrame, BeginFrameCmd{}));
+        if (renderThread_) {
+            renderThread_->EnqueueCreateCommand(RHICommand(RHICommandType::BeginFrame, BeginFrameCmd{}));
+        }
     }
 
     void RHIFrontend::EndFrame() {
-        renderThread_->Enqueue(RHICommand(RHICommandType::EndFrame, EndFrameCmd{}));
+        if (renderThread_) {
+            renderThread_->EnqueueCreateCommand(RHICommand(RHICommandType::EndFrame, EndFrameCmd{}));
+        }
     }
 
     // ==================== 委托后门 ====================
@@ -266,7 +293,10 @@ namespace Render::RHI {
     void RHIFrontend::EnqueueDelegate(BackendDelegate delegate) {
         ExecuteDelegateCmd cmd;
         cmd.delegate = std::move(delegate);
-        renderThread_->Enqueue(RHICommand(RHICommandType::ExecuteDelegate, std::move(cmd)));
+
+        if (renderThread_) {
+            renderThread_->EnqueueCreateCommand(RHICommand(RHICommandType::ExecuteDelegate, std::move(cmd)));
+        }
     }
 
 } // namespace Render::RHI

@@ -5,6 +5,10 @@
 #include "Render/Private/Backend/Opengl/gl_input_layout.h"
 #include "Render/Private/Backend/Opengl/gl_texture.h"
 
+namespace Render::RHI {
+    class RenderThread;
+}
+
 namespace Render::Backend::OpenGL {
 
     /**
@@ -16,37 +20,38 @@ namespace Render::Backend::OpenGL {
      * - 创建/销毁 GPU 缓冲区
      * - 绑定缓冲区和输入布局
      *
-     * 注意：不负责 CPU 端资源加载（如 TextureAsset 加载）
+     * 注意：
+     * - 所有资源创建/删除操作会投递命令到渲染线程
+     * - 调用创建/删除接口后，需要调用 WakeupRenderThread() 唤醒渲染线程执行
+     * - 不负责 CPU 端资源加载（如 TextureAsset 加载）
      */
     class GLDevice final : public Render::RHI::Device {
     public:
+        /**
+         * @brief 构造函数
+         * @param renderThread 渲染线程（由调用者管理生命周期）
+         */
+        explicit GLDevice(Render::RHI::RenderThread* renderThread);
+
+        // ==================== 渲染线程控制 ====================
+
+        void WakeupRenderThread() override;
+
         // ==================== Texture GPU 操作 ====================
 
-        /**
-         * @brief 创建空的 GPU 纹理资源
-         */
         std::unique_ptr<Render::RHI::RHITexture> CreateEmptyTexture(
             const Render::RHI::TextureDesc& desc
         ) override;
 
-        /**
-         * @brief 从 TextureAsset 创建 GPU 纹理资源
-         */
         std::unique_ptr<Render::RHI::RHITexture> CreateTextureFromAsset(
             const Render::RHI::TextureAsset& asset
         ) override;
 
-        /**
-         * @brief 将纹理数据上传到 GPU
-         */
         void UploadTexture(
             Render::RHI::RHITexture* texture,
             const Render::RHI::TextureAsset& asset
         ) override;
 
-        /**
-         * @brief 局部更新纹理数据
-         */
         void UpdateTexture(
             Render::RHI::RHITexture* texture,
             const void* data,
@@ -59,9 +64,6 @@ namespace Render::Backend::OpenGL {
             uint32_t depth
         ) override;
 
-        /**
-         * @brief 销毁 GPU 纹理资源
-         */
         void DestroyTexture(Render::RHI::RHITexture* texture) override;
 
         // ==================== Buffer GPU 操作 ====================
@@ -91,6 +93,9 @@ namespace Render::Backend::OpenGL {
         Render::RHI::InputLayout* CreateInputLayout(const Render::RHI::InputLayoutDesc& desc) override;
         void DestroyInputLayout(Render::RHI::InputLayout* layout) override;
         bool BindInputLayout(Render::RHI::InputLayout* layout) override;
+
+    private:
+        Render::RHI::RenderThread* renderThread_;  // 不拥有，由调用者管理生命周期
     };
 
 }

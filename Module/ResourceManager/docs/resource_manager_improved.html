@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ResourceManager 模块改进版使用文档</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #444;
+            margin-top: 30px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 8px;
+        }
+        h3 {
+            color: #555;
+        }
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: "Consolas", "Monaco", "Courier New", monospace;
+        }
+        pre {
+            background-color: #282c34;
+            color: #abb2bf;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        pre code {
+            background-color: transparent;
+            padding: 0;
+            color: inherit;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #007bff;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        ul, ol {
+            margin-left: 20px;
+        }
+        li {
+            margin: 8px 0;
+        }
+        .note {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .tip {
+            background-color: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .warning {
+            background-color: #f8d7da;
+            border-left: 4px solid #dc3545;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .success {
+            background-color: #d1ecf1;
+            border-left: 4px solid #17a2b8;
+            padding: 15px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ResourceManager 模块改进版使用文档</h1>
+
+        <div class="success">
+            <strong>改进完成！</strong> ResourceManager 现已支持任意类型的资源管理，不再要求资源类型继承特定接口。
+        </div>
+
+        <h2>1. 改进概述</h2>
+        <p>本次改进的核心目标是<strong>取消"资源必须继承 ILoadable"的要求</strong>，使 ResourceManager 能够管理任意类型的资源。</p>
+        
+        <h3>1.1 改进前的问题</h3>
+        <ul>
+            <li>资源对象被迫继承框架接口（ILoadable / ILoadFromConfig）</li>
+            <li>纯数据对象、第三方对象、已有对象无法自然接入资源系统</li>
+            <li>资源对象本身与资源池管理策略耦合过深</li>
+        </ul>
+
+        <h3>1.2 改进后的优势</h3>
+        <ul>
+            <li><strong>资源对象保持纯对象</strong> - 无需继承任何接口</li>
+            <li><strong>资源管理器负责生命周期</strong> - 引用计数、销毁策略由管理器控制</li>
+            <li><strong>支持多来源资源接入</strong> - 工厂创建、外部模块创建、RHI 层创建等</li>
+        </ul>
+
+        <h2>2. 核心设计</h2>
+
+        <h3>2.1 ControlBlock - 资源控制块</h3>
+        <p>ControlBlock 是新设计的核心，负责管理资源的生命周期：</p>
+        <ul>
+            <li>持有资源的唯一所有权（通过 std::unique_ptr）</li>
+            <li>管理引用计数（std::atomic）</li>
+            <li>执行销毁函数和零引用回调</li>
+        </ul>
+
+        <pre><code>template&lt;typename T&gt;
+class ControlBlock {
+    std::unique_ptr&lt;T&gt; resource_;      // 资源所有权
+    DestroyFunc destroyFunc_;            // 销毁函数
+    ZeroRefCallback zeroRefCallback_;    // 零引用回调
+    std::atomic&lt;size_t&gt; refCount_;      // 引用计数
+};</code></pre>
+
+        <h3>2.2 ResourceHandle - 资源句柄</h3>
+        <p>ResourceHandle 是用户访问资源的句柄，通过共享 ControlBlock 实现引用计数：</p>
+        <ul>
+            <li>拷贝构造/拷贝赋值时增加引用计数</li>
+            <li>析构时减少引用计数</li>
+            <li>提供 operator-> 和 operator* 访问资源</li>
+        </ul>
+
+        <pre><code>template&lt;typename T&gt;
+class ResourceHandle {
+    std::string name_;
+    std::shared_ptr&lt;ControlBlock&lt;T&gt;&gt; controlBlock_;  // 共享控制块
+};</code></pre>
+
+        <h2>3. 文件结构</h2>
+        <table>
+            <tr>
+                <th>文件</th>
+                <th>职责</th>
+            </tr>
+            <tr>
+                <td><code>resource_control_block.h/.inl</code></td>
+                <td>资源控制块 - 管理引用计数和销毁策略</td>
+            </tr>
+            <tr>
+                <td><code>resource_handle.h/.inl</code></td>
+                <td>资源句柄 - 用户访问资源的接口</td>
+            </tr>
+            <tr>
+                <td><code>resource_load_options.h/.inl</code></td>
+                <td>加载选项和工厂函数</td>
+            </tr>
+            <tr>
+                <td><code>resource_manager_module.h/.inl</code></td>
+                <td>资源管理器模块</td>
+            </tr>
+            <tr>
+                <td><code>resource_loadable.h</code></td>
+                <td>向后兼容的旧接口（已弃用）</td>
+            </tr>
+        </table>
+
+        <h2>4. 基本用法</h2>
+
+        <h3>4.1 简单资源类型（无需继承）</h3>
+        <pre><code>// 定义一个普通结构体，无需继承任何接口
+struct DataResource {
+    int id;
+    std::string name;
+    float value;
+    
+    DataResource(int i, const std::string& n, float v)
+        : id(i), name(n), value(v) {}
+};
+
+// 使用 ResourceManager 管理
+auto& resourceManager = Resource::ResourceManagerModule::GetInstance();
+resourceManager.Startup();
+
+auto handle = resourceManager.Get&lt;DataResource&gt;(
+    Resource::FromGenerator&lt;DataResource&gt;(
+        "my_data",
+        []() -&gt; std::unique_ptr&lt;DataResource&gt; {
+            return std::make_unique&lt;DataResource&gt;(1, "Resource1", 100.0f);
+        }
+    )
+);
+
+if (handle) {
+    std::cout &lt;&lt; "ID: " &lt;&lt; handle-&gt;id &lt;&lt; std::endl;
+}</code></pre>
+
+        <h3>4.2 使用 FromPointer 接收外部对象</h3>
+        <pre><code>// 外部创建的对象
+auto externalPtr = std::make_unique&lt;ComplexResource&gt;("data");
+
+// 交给 ResourceManager 管理
+auto handle = resourceManager.Get&lt;ComplexResource&gt;(
+    Resource::FromPointer&lt;ComplexResource&gt;(
+        "external_resource",
+        std::move(externalPtr)
+    )
+);</code></pre>
+
+        <h3>4.3 自定义销毁函数</h3>
+        <pre><code>auto handle = resourceManager.Get&lt;MyResource&gt;(
+    Resource::FromGenerator&lt;MyResource&gt;(
+        "custom_resource",
+        []() { return std::make_unique&lt;MyResource&gt;(); },
+        [](MyResource* p) {
+            // 自定义销毁逻辑
+            std::cout &lt;&lt; "Custom destroy" &lt;&lt; std::endl;
+            delete p;
+        }
+    )
+);</code></pre>
+
+        <h3>4.4 零引用回调</h3>
+        <pre><code>auto handle = resourceManager.Get&lt;MyResource&gt;(
+    Resource::FromGenerator&lt;MyResource&gt;(
+        "callback_resource",
+        []() { return std::make_unique&lt;MyResource&gt;(); },
+        nullptr,  // 默认 delete
+        [](const std::string&amp; key, MyResource* res) {
+            // 零引用时的回调
+            std::cout &lt;&lt; "Resource " &lt;&lt; key &lt;&lt; " released" &lt;&lt; std::endl;
+        }
+    )
+);</code></pre>
+
+        <h3>4.5 引用计数和句柄拷贝</h3>
+        <pre><code>auto handle1 = resourceManager.Get&lt;MyResource&gt;(...);
+std::cout &lt;&lt; "RefCount: " &lt;&lt; handle1.GetRefCount() &lt;&lt; std::endl;  // 输出：1
+
+// 拷贝句柄 - 引用计数增加
+auto handle2 = handle1;
+std::cout &lt;&lt; "RefCount: " &lt;&lt; handle1.GetRefCount() &lt;&lt; std::endl;  // 输出：2
+
+// 再次获取同一资源
+auto handle3 = resourceManager.Get&lt;MyResource&gt;(
+    Resource::FromKey&lt;MyResource&gt;("my_key")
+);
+std::cout &lt;&lt; "RefCount: " &lt;&lt; handle1.GetRefCount() &lt;&lt; std::endl;  // 输出：3</code></pre>
+
+        <h2>5. 工厂函数</h2>
+        <table>
+            <tr>
+                <th>工厂函数</th>
+                <th>用途</th>
+                <th>参数</th>
+            </tr>
+            <tr>
+                <td><code>FromGenerator&lt;T&gt;</code></td>
+                <td>从生成器函数创建资源</td>
+                <td>key, generator, destroyFunc, onZero, onRestore</td>
+            </tr>
+            <tr>
+                <td><code>FromPointer&lt;T&gt;</code></td>
+                <td>从已有指针创建资源</td>
+                <td>key, unique_ptr, destroyFunc, onZero, onRestore</td>
+            </tr>
+            <tr>
+                <td><code>FromConfig&lt;T&gt;</code></td>
+                <td>从配置文件创建资源</td>
+                <td>fileConfig, loader, onZero, onRestore</td>
+            </tr>
+            <tr>
+                <td><code>FromKey&lt;T&gt;</code></td>
+                <td>从已有资源恢复句柄</td>
+                <td>key</td>
+            </tr>
+        </table>
+
+        <h2>6. 完整测试示例</h2>
+        <pre><code>#include &lt;iostream&gt;
+#include "resource_manager_module.h"
+
+// 1. 定义简单资源类（无需继承）
+struct DataResource {
+    int id;
+    std::string name;
+    float value;
+    
+    DataResource(int i, const std::string& n, float v)
+        : id(i), name(n), value(v) {}
+    
+    ~DataResource() {
+        std::cout &lt;&lt; "~DataResource" &lt;&lt; std::endl;
+    }
+};
+
+int main() {
+    auto& rm = Resource::ResourceManagerModule::GetInstance();
+    rm.Startup();
+    
+    // 2. 加载资源
+    auto h1 = rm.Get&lt;DataResource&gt;(
+        Resource::FromGenerator&lt;DataResource&gt;(
+            "data1",
+            []() { return std::make_unique&lt;DataResource&gt;(1, "Res1", 100.0f); }
+        )
+    );
+    
+    // 3. 使用资源
+    if (h1) {
+        std::cout &lt;&lt; "id=" &lt;&lt; h1-&gt;id 
+                  &lt;&lt; ", name=" &lt;&lt; h1-&gt;name
+                  &lt;&lt; ", value=" &lt;&lt; h1-&gt;value &lt;&lt; std::endl;
+    }
+    
+    // 4. 拷贝句柄
+    auto h2 = h1;
+    std::cout &lt;&lt; "RefCount: " &lt;&lt; h1.GetRefCount() &lt;&lt; std::endl;
+    
+    // 5. 关闭模块
+    rm.Shutdown();
+    
+    return 0;
+}</code></pre>
+
+        <h2>7. 与旧版本的对比</h2>
+        <table>
+            <tr>
+                <th>特性</th>
+                <th>旧版本</th>
+                <th>新版本</th>
+            </tr>
+            <tr>
+                <td>资源类型要求</td>
+                <td>必须继承 ILoadable</td>
+                <td>任意类型</td>
+            </tr>
+            <tr>
+                <td>生命周期管理</td>
+                <td>通过 Release() 接口</td>
+                <td>通过 ControlBlock</td>
+            </tr>
+            <tr>
+                <td>销毁策略</td>
+                <td>固定的 Release() 调用</td>
+                <td>可自定义销毁函数</td>
+            </tr>
+            <tr>
+                <td>外部资源接入</td>
+                <td>需要包装为 ILoadable</td>
+                <td>直接通过 FromPointer</td>
+            </tr>
+        </table>
+
+        <h2>8. 注意事项</h2>
+
+        <div class="warning">
+            <strong>句柄拷贝语义：</strong>ResourceHandle 的拷贝构造和拷贝赋值会共享 ControlBlock，增加引用计数。这不是普通的值语义复制。
+        </div>
+
+        <div class="tip">
+            <strong>销毁函数：</strong>如果不指定销毁函数，默认使用 <code>delete</code>。对于特殊分配方式的资源（如内存池分配），请提供自定义销毁函数。
+        </div>
+
+        <div class="note">
+            <strong>向后兼容：</strong>旧的 ILoadable 接口仍然保留，但已标记为弃用。现有代码无需修改即可继续使用。
+        </div>
+
+        <h2>9. 测试验证</h2>
+        <p>改进后的 ResourceManager 已通过以下测试：</p>
+        <ul>
+            <li>FromGenerator - 无需继承 ILoadable 的资源创建</li>
+            <li>FromPointer - 接收外部 unique_ptr</li>
+            <li>自定义销毁函数</li>
+            <li>多种资源类型管理（int, std::string, 自定义类型）</li>
+            <li>引用计数正确性</li>
+        </ul>
+
+        <pre><code># 编译并运行测试
+build.bat
+.\bin\module_context_test.exe</code></pre>
+
+        <h2>10. 总结</h2>
+        <p>改进后的 ResourceManager 模块提供了更加灵活和通用的资源管理机制：</p>
+        <ul>
+            <li>✅ 资源类型无需继承任何接口</li>
+            <li>✅ 通过 ControlBlock 管理生命周期</li>
+            <li>✅ 支持自定义销毁策略</li>
+            <li>✅ 支持多来源资源接入</li>
+            <li>✅ 保持向后兼容性</li>
+        </ul>
+    </div>
+</body>
+</html>

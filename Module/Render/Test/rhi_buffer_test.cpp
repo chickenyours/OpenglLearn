@@ -8,6 +8,7 @@
 #include "Render/Public/RHI/RHI_input_layout.h"
 #include "Render/Private/Backend/Opengl/gl_buffer.h"
 #include "Render/Private/Backend/Opengl/gl_input_layout.h"
+#include "Render/Private/Runtime/render_thread.h"
 #include <iostream>
 
 using namespace Render::RHI;
@@ -702,8 +703,18 @@ int main() {
 
     std::cout << "OpenGL Version: " << glGetString(GL_VERSION) << std::endl;
 
+    // 创建渲染线程
+    auto renderThread = std::make_unique<Render::RHI::RenderThread>();
+    if (!renderThread->Start()) {
+        std::cerr << "Failed to start render thread" << std::endl;
+        glfwDestroyWindow(window);
+        glfwTerminate();
+        return -1;
+    }
+    std::cout << "Render thread started" << std::endl;
+
     // 创建 RHI 设备
-    auto device = CreateOpenGLDevice();
+    auto device = CreateOpenGLDevice(renderThread.get());
     if (!device) {
         std::cerr << "Failed to create OpenGL device" << std::endl;
         glfwDestroyWindow(window);
@@ -773,6 +784,10 @@ int main() {
     std::cout << "=== Test Summary ===" << std::endl;
     std::cout << "Passed: " << passedTests << "/" << totalTests << std::endl;
     std::cout << "========================================" << std::endl;
+
+    // 停止渲染线程
+    renderThread->Stop();
+    std::cout << "Render thread stopped" << std::endl;
 
     // 清理
     glfwDestroyWindow(window);

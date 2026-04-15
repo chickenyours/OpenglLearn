@@ -1,15 +1,22 @@
 #include "Render/Private/Runtime/render_thread.h"
 #include "Render/Private/Backend/Opengl/gl_backend_executor.h"
-#include <iostream>
+#include "engine/DebugTool/ConsoleHelp/color_log.h"
+
+#include <GLFW/glfw3.h>
 
 namespace Render::RHI {
 
-    RenderThread::RenderThread() 
+    RenderThread::RenderThread()
         : executor_(std::make_unique<GLBackendExecutor>()) {
     }
 
     RenderThread::~RenderThread() {
         Stop();
+    }
+
+    void RenderThread::SetGLContext(GLFWwindow* window, void* context) {
+        glWindow_ = window;
+        glContext_ = context;
     }
 
     bool RenderThread::Start() {
@@ -18,17 +25,17 @@ namespace Render::RHI {
         }
 
         stopRequested_ = false;
-        
+
         // 启动线程
         thread_ = std::thread(&RenderThread::ThreadMain, this);
-        
+
         // 等待线程真正启动
         {
             std::unique_lock<std::mutex> lock(mutex_);
-            cv_.wait(lock, [this] { return running_; });
+            cv_.wait(lock, [this] { return running_.load(); });
         }
 
-        std::cout << "[RenderThread] Started successfully." << std::endl;
+        LOG_INFO("RenderThread", "Started successfully.");
         return true;
     }
 
@@ -42,7 +49,7 @@ namespace Render::RHI {
             stopRequested_ = true;
         }
 
-        WakeUp();
+        Wakeup();
 
         if (thread_.joinable()) {
             thread_.join();
@@ -53,26 +60,28 @@ namespace Render::RHI {
         }
 
         running_ = false;
-        std::cout << "[RenderThread] Stopped." << std::endl;
+        LOG_INFO("RenderThread", "Stopped.");
     }
 
-    void RenderThread::WakeUp() {
+    void RenderThread::Wakeup() {
         cv_.notify_one();
     }
 
-    void RenderThread::Enqueue(RHICommand&& cmd) {
-        bool wasEmpty = queue_.Empty();
-        queue_.Push(std::move(cmd));
-        
-        // 当队列从空变非空时唤醒线程
-        if (wasEmpty) {
-            WakeUp();
-        }
+    void RenderThread::EnqueueCreateCommand(RHICommand&& cmd) {
+        queue_.PushCreateCommand(std::move(cmd));
+    }
+
+    void RenderThread::EnqueueDestroyCommand(RHICommand&& cmd) {
+        queue_.PushDestroyCommand(std::move(cmd));
     }
 
     void RenderThread::DrainOnce() {
         commandBuffer_.clear();
-        queue_.PopAll(commandBuffer_);
+        
+        // 先处理删除命令，再处理创建命令
+        // 这样可以确保先释放资源，再创建新资源
+        queue_.PopAllDestroyCommands(commandBuffer_);
+        queue_.PopAllCreateCommands(commandBuffer_);
 
         if (commandBuffer_.empty()) {
             return;
@@ -84,9 +93,16 @@ namespace Render::RHI {
     }
 
     void RenderThread::ThreadMain() {
+        // 使 OpenGL 上下文成为当前线程上下文
+        // GLFW 的上下文与窗口绑定，通过 glfwMakeContextCurrent 切换
+        if (glWindow_) {
+            glfwMakeContextCurrent(glWindow_);
+            LOG_INFO("RenderThread", "OpenGL context acquired in render thread");
+        }
+
         // 初始化执行器
         if (!executor_->Initialize()) {
-            std::cerr << "[RenderThread] Failed to initialize executor!" << std::endl;
+            LOG_ERROR("RenderThread", "Failed to initialize executor!");
             return;
         }
 
@@ -97,14 +113,14 @@ namespace Render::RHI {
         }
         cv_.notify_one();
 
-        std::cout << "[RenderThread] Thread main loop started." << std::endl;
+        LOG_INFO("RenderThread", "Thread main loop started.");
 
         while (true) {
             // 等待命令或停止请求
             {
                 std::unique_lock<std::mutex> lock(mutex_);
-                cv_.wait(lock, [this] { 
-                    return stopRequested_ || !queue_.Empty(); 
+                cv_.wait(lock, [this] {
+                    return stopRequested_.load() || queue_.AnyQueueNonEmpty();
                 });
             }
 
@@ -117,7 +133,7 @@ namespace Render::RHI {
             DrainOnce();
         }
 
-        std::cout << "[RenderThread] Thread main loop ended." << std::endl;
+        LOG_INFO("RenderThread", "Thread main loop ended.");
     }
 
 } // namespace Render::RHI

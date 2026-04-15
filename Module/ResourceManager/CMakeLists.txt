@@ -2,6 +2,14 @@
 
 set(RESOURCE_MANAGER_MODULE_PUBLIC_HDR
     ${CMAKE_CURRENT_SOURCE_DIR}/Public/resource_manager_module.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/Public/resource_loadable.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/Public/resource_handle.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/Public/resource_load_options.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/Public/resource_control_block.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/Public/resource_manager_module.inl
+    ${CMAKE_CURRENT_SOURCE_DIR}/Public/resource_handle.inl
+    ${CMAKE_CURRENT_SOURCE_DIR}/Public/resource_load_options.inl
+    ${CMAKE_CURRENT_SOURCE_DIR}/Public/resource_control_block.inl
 )
 
 set(RESOURCE_MANAGER_MODULE_PRIVATE_SRC

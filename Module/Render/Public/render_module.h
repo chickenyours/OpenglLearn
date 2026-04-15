@@ -8,6 +8,10 @@ namespace Application {
     class ApplicationModule;
 }
 
+namespace Render::RHI {
+    class RenderThread;
+}
+
 namespace Render {
 
     enum class GraphicsLibraryPlatformState {
@@ -47,6 +51,12 @@ namespace Render {
         Render::RHI::Device* GetDevice() noexcept;
         const Render::RHI::Device* GetDevice() const noexcept;
 
+        /**
+         * @brief 获取渲染线程指针
+         */
+        Render::RHI::RenderThread* GetRenderThread() noexcept;
+        const Render::RHI::RenderThread* GetRenderThread() const noexcept;
+
         bool InitializeFromApplication(const Application::ApplicationModule& app);
 
     private:
@@ -56,6 +66,7 @@ namespace Render {
         bool functionLoaderReady_ = false;
 
         GLProcAddressLoader glProcLoader_ = nullptr;
+        std::unique_ptr<Render::RHI::RenderThread> renderThread_;
         std::unique_ptr<Render::RHI::Device> device_;
         GraphicsLibraryPlatformState state_ = GraphicsLibraryPlatformState::Uninitialized;
     };

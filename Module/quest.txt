@@ -1,8 +1,9 @@
-行动须知:
+常规行动须知(如果任务没有到相应行为可以不用管):
  1:写代码之前请阅读相关文档(参考C:\Users\16620\Desktop\projects\OpenglLearn\Module\docs;C:\Users\16620\Desktop\projects\OpenglLearn\Module\Render\docs),确定接口关系,不能裸用代码
  2:编译程序请运行C:\Users\16620\Desktop\projects\OpenglLearn\build.bat一键编译即可
  3:每次改进后需要编写测试程序,并运行检验是否成功
  4:测试程序成功后请在模块(或者功能)的根目录上创建使用文档,并包含测试程序样例,格式为.html,页面样式参考模块里的docs目录下的使用文档
- 5:日志输出采用C:\Users\16620\Desktop\projects\OpenglLearn\Engine\include\engine\DebugTool\ConsoleHelp\color_log.h
+ 5:日志输出采用C:\Users\16620\Desktop\projects\OpenglLearn\Engine\include\engine\DebugTool\ConsoleHelp\color_log.h,而不是直接用iostream
+    使用LOG_INFO,LOG_WARNING,LOG_ERROR,宏来日志输出,因为这些宏可以追踪代码编写位置,方便DEBUG调试,用法格式: LOG_XXX([部门],[消息]);
  6:参考其他程序,程序进入测试代码需要启动模块
-任务: 
+任务: 改善ResourceManager模块,详细任务阅读该模块目录下的quest.md

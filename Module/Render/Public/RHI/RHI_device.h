@@ -8,6 +8,11 @@
 namespace Render::RHI {
 
     /**
+     * @brief 前向声明
+     */
+    class RenderThread;
+
+    /**
      * @brief RHI 后端设备接口
      *
      * 职责：只负责 GPU 端操作和图形 API 调用
@@ -17,11 +22,24 @@ namespace Render::RHI {
      * - 绑定缓冲区到渲染管线
      * - 创建/销毁输入布局（InputLayout）
      *
-     * 注意：不负责 CPU 端资源加载（如 TextureAsset 加载），那是 RHIFrontend 的职责
+     * 注意：
+     * - 所有资源创建/删除操作会投递命令到渲染线程
+     * - 调用 CreateEmptyTexture/CreateBuffer 等接口后，需要调用 WakeupRenderThread() 唤醒渲染线程执行
+     * - 不负责 CPU 端资源加载（如 TextureAsset 加载），那是 RHIFrontend 的职责
      */
     class Device {
     public:
         virtual ~Device() = default;
+
+        // ==================== 渲染线程控制 ====================
+
+        /**
+         * @brief 唤醒渲染线程执行命令队列
+         *
+         * 注意：所有资源创建/删除操作后必须调用此接口
+         * 渲染线程会在被唤醒后批量处理所有待处理的创建/删除命令
+         */
+        virtual void WakeupRenderThread() = 0;
 
         // ==================== Texture GPU 操作 ====================
 
@@ -30,8 +48,10 @@ namespace Render::RHI {
          * @param desc 纹理描述
          * @return GPU 纹理资源对象，失败返回 nullptr
          *
-         * 注意：此方法创建的纹理未初始化像素数据，需要后续调用 UploadTexture 或手动填充
-         * 适用场景：渲染管线、帧缓冲区、工具层需要预先创建纹理占位
+         * 注意：
+         * - 此方法投递创建命令到渲染线程
+         * - 调用后需调用 WakeupRenderThread() 唤醒渲染线程执行
+         * - 适用场景：渲染管线、帧缓冲区、工具层需要预先创建纹理占位
          */
         virtual std::unique_ptr<RHITexture> CreateEmptyTexture(const TextureDesc& desc) = 0;
 
@@ -40,7 +60,9 @@ namespace Render::RHI {
          * @param asset 纹理资产（包含像素数据和描述）
          * @return GPU 纹理资源对象，失败返回 nullptr
          *
-         * 注意：此方法会同时创建 GPU 资源并上传像素数据
+         * 注意：
+         * - 此方法投递创建命令到渲染线程
+         * - 调用后需调用 WakeupRenderThread() 唤醒渲染线程执行
          */
         virtual std::unique_ptr<RHITexture> CreateTextureFromAsset(const TextureAsset& asset) = 0;
 
@@ -49,7 +71,7 @@ namespace Render::RHI {
          * @param texture GPU 纹理资源
          * @param asset 纹理资产（包含像素数据）
          *
-         * 注意：此方法执行实际的 GPU 上传操作
+         * 注意：此方法执行实际的 GPU 上传操作（同步执行）
          */
         virtual void UploadTexture(RHITexture* texture, const TextureAsset& asset) = 0;
 
@@ -65,7 +87,7 @@ namespace Render::RHI {
          * @param height 更新高度
          * @param depth 更新深度
          *
-         * 注意：此方法用于更新已创建纹理的部分区域
+         * 注意：此方法用于更新已创建纹理的部分区域（同步执行）
          */
         virtual void UpdateTexture(
             RHITexture* texture,
@@ -82,6 +104,10 @@ namespace Render::RHI {
         /**
          * @brief 销毁 GPU 纹理资源
          * @param texture GPU 纹理资源
+         *
+         * 注意：
+         * - 此方法投递删除命令到渲染线程
+         * - 调用后需调用 WakeupRenderThread() 唤醒渲染线程执行
          */
         virtual void DestroyTexture(RHITexture* texture) = 0;
 
@@ -92,12 +118,20 @@ namespace Render::RHI {
          * @param desc 缓冲区描述
          * @param initialData 初始数据（可选）
          * @return 缓冲区对象，失败返回 nullptr
+         *
+         * 注意：
+         * - 此方法投递创建命令到渲染线程
+         * - 调用后需调用 WakeupRenderThread() 唤醒渲染线程执行
          */
         virtual Buffer* CreateBuffer(const BufferDesc& desc, const void* initialData = nullptr) = 0;
 
         /**
          * @brief 销毁 GPU 缓冲区
          * @param buffer 缓冲区对象
+         *
+         * 注意：
+         * - 此方法投递删除命令到渲染线程
+         * - 调用后需调用 WakeupRenderThread() 唤醒渲染线程执行
          */
         virtual void DestroyBuffer(Buffer* buffer) = 0;
 
@@ -109,6 +143,8 @@ namespace Render::RHI {
          * @param srcOffset 源偏移
          * @param dstOffset 目标偏移
          * @return 是否成功
+         *
+         * 注意：此方法同步执行
          */
         virtual bool CopyBuffer(
             Buffer* src,
@@ -160,12 +196,20 @@ namespace Render::RHI {
          * @brief 创建输入布局
          * @param desc 输入布局描述
          * @return 输入布局对象，失败返回 nullptr
+         *
+         * 注意：
+         * - 此方法投递创建命令到渲染线程
+         * - 调用后需调用 WakeupRenderThread() 唤醒渲染线程执行
          */
         virtual InputLayout* CreateInputLayout(const InputLayoutDesc& desc) = 0;
 
         /**
          * @brief 销毁输入布局
          * @param layout 输入布局对象
+         *
+         * 注意：
+         * - 此方法投递删除命令到渲染线程
+         * - 调用后需调用 WakeupRenderThread() 唤醒渲染线程执行
          */
         virtual void DestroyInputLayout(InputLayout* layout) = 0;
 
@@ -179,8 +223,9 @@ namespace Render::RHI {
 
     /**
      * @brief 创建 OpenGL 后端设备
+     * @param renderThread 渲染线程（由调用者创建和管理生命周期）
      * @return OpenGL 设备对象
      */
-    std::unique_ptr<Device> CreateOpenGLDevice();
+    std::unique_ptr<Device> CreateOpenGLDevice(RenderThread* renderThread);
 
 } // namespace Render::RHI

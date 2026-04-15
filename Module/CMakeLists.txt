@@ -55,6 +55,8 @@ set(RENDER_MODULE_PRIVATE_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/Render/Private/RHI/RHI_texture.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Render/Private/RHI/rhi_command_queue.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Render/Private/RHI/rhi_command_queue.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/Render/Private/RHI/rhi_dual_command_queue.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Render/Private/RHI/rhi_dual_command_queue.h
     ${CMAKE_CURRENT_SOURCE_DIR}/Render/Private/RHI/rhi_backend_resource_table.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Render/Private/RHI/rhi_backend_resource_table.h
     ${CMAKE_CURRENT_SOURCE_DIR}/Render/Private/RHI/rhi_backend_executor.h
@@ -79,6 +81,7 @@ target_link_libraries(render_module PUBLIC
     glad
     application_module
     jsonloader
+    OpenGL32
 )
 
 target_compile_options(render_module PRIVATE

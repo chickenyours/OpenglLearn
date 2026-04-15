@@ -23,6 +23,7 @@
 #include "Render/Public/RHI/RHI_texture.h"
 #include "Render/Public/RHI/RHI_device.h"
 #include "Render/Private/Backend/Opengl/gl_texture.h"
+#include "Render/Private/Runtime/render_thread.h"
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -228,27 +229,28 @@ int main() {
         return 1;
     }
 
-    // 创建 RHI 前端
-    RHIFrontend frontend;
+    // 创建渲染线程
+    auto renderThread = std::make_unique<Render::RHI::RenderThread>();
+    if (!renderThread->Start()) {
+        std::cerr << "Failed to start render thread" << std::endl;
+        CleanupGLFW(nullptr);
+        return 1;
+    }
+    std::cout << "Render thread started" << std::endl;
 
     // 创建 OpenGL 后端设备
-    auto device = CreateOpenGLDevice();
+    auto device = CreateOpenGLDevice(renderThread.get());
     if (!device) {
         std::cerr << "Failed to create OpenGL device" << std::endl;
         CleanupGLFW(nullptr);
         return 1;
     }
 
-    // 设置前端使用的后端设备
+    // 创建 RHI 前端（不使用内部的 renderThread，因为我们已经有了一个）
+    // 注意：RHIFrontend 内部有自己的 renderThread，这里我们直接使用外部的 renderThread
+    // 为了简化，我们直接使用 device，不使用 RHIFrontend 的 Start/Stop
+    RHIFrontend frontend;
     frontend.SetDevice(device.get());
-
-    // 启动渲染线程
-    if (!frontend.Start()) {
-        std::cerr << "Failed to start render thread" << std::endl;
-        CleanupGLFW(nullptr);
-        return 1;
-    }
-    std::cout << "Render thread started" << std::endl;
 
     // 运行测试
     bool allPassed = true;
@@ -259,7 +261,7 @@ int main() {
     allPassed &= TestMultiThreadCommandSubmission(frontend);
 
     // 停止渲染线程
-    frontend.Stop();
+    renderThread->Stop();
     std::cout << "\nRender thread stopped" << std::endl;
 
     // 清理

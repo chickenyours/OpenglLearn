@@ -183,34 +183,31 @@ int main() {
     std::cout << "ResourceManagerModule started: " << (resourceManager->IsStarted() ? "yes" : "no") << std::endl;
 
     // 测试资源加载功能 - 使用 FromGenerator 加载一个简单资源
-    struct TestResource : Resource::ILoadable {
+    // 新设计：资源类型无需继承 ILoadable
+    struct TestResource {
         int value = 0;
         
-        void Release() override {
-            std::cout << "TestResource released, value=" << value << std::endl;
-            isLoad_ = false;
+        TestResource() {
+            std::cout << "Creating TestResource..." << std::endl;
+            value = 42;
         }
         
-        void SetLoaded(bool loaded) {
-            isLoad_ = loaded;
+        ~TestResource() {
+            std::cout << "TestResource released, value=" << value << std::endl;
         }
     };
 
-    auto testResourceHandle = resourceManager->Get<Resource::ILoadable>(
-        Resource::FromGenerator<Resource::ILoadable>(
+    auto testResourceHandle = resourceManager->Get<TestResource>(
+        Resource::FromGenerator<TestResource>(
             "test_resource",
-            []() -> std::unique_ptr<Resource::ILoadable> {
-                std::cout << "Creating TestResource..." << std::endl;
-                auto ptr = new TestResource();
-                ptr->value = 42;
-                ptr->SetLoaded(true);
-                return std::unique_ptr<Resource::ILoadable>(ptr);
+            []() -> std::unique_ptr<TestResource> {
+                return std::make_unique<TestResource>();
             }
         )
     );
 
     if (testResourceHandle) {
-        std::cout << "TestResource loaded successfully, IsLoad=" << testResourceHandle->IsLoad() << std::endl;
+        std::cout << "TestResource loaded successfully, value=" << testResourceHandle->value << std::endl;
     } else {
         std::cerr << "Failed to load TestResource!" << std::endl;
     }

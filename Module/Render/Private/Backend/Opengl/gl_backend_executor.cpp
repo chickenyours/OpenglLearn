@@ -20,11 +20,10 @@ namespace Render::RHI {
             return true;
         }
 
-        // 获取当前 OpenGL 上下文
-        
-        
-        if (!nativeContext_) {
-            std::cerr << "[GLBackendExecutor] No OpenGL context available!" << std::endl;
+        // 验证当前线程是否有 OpenGL 上下文
+        // 注意：渲染线程应该已经通过 glfwMakeContextCurrent 设置了上下文
+        if (!glfwGetCurrentContext()) {
+            std::cerr << "[GLBackendExecutor] No OpenGL context available in render thread!" << std::endl;
             return false;
         }
 
@@ -41,7 +40,6 @@ namespace Render::RHI {
         // 清理所有资源
         resources_.~RHIBackendResourceTable();
         new (&resources_) RHIBackendResourceTable();
-        nativeContext_ = nullptr;
         initialized_ = false;
 
         std::cout << "[GLBackendExecutor] Shutdown complete." << std::endl;
@@ -50,6 +48,12 @@ namespace Render::RHI {
     void GLBackendExecutor::Execute(const RHICommand& cmd) {
         if (!initialized_) {
             std::cerr << "[GLBackendExecutor] Not initialized, cannot execute command!" << std::endl;
+            return;
+        }
+
+        // 验证当前线程是否有正确的 OpenGL 上下文
+        if (!glfwGetCurrentContext()) {
+            std::cerr << "[GLBackendExecutor] No OpenGL context in current thread!" << std::endl;
             return;
         }
 
@@ -107,7 +111,7 @@ namespace Render::RHI {
                 break;
 
             default:
-                std::cerr << "[GLBackendExecutor] Unknown command type: " 
+                std::cerr << "[GLBackendExecutor] Unknown command type: "
                           << static_cast<int>(cmd.type) << std::endl;
                 break;
         }
@@ -117,32 +121,28 @@ namespace Render::RHI {
         BackendDelegateContext ctx;
         ctx.backendExecutor = this;
         ctx.nativeDevice = nullptr;
-        ctx.nativeContext = nativeContext_;
+        ctx.nativeContext = glfwGetCurrentContext();
         return ctx;
     }
 
     // Buffer 命令执行
     void GLBackendExecutor::ExecuteCreateBuffer(const CreateBufferCmd& cmd) {
         auto glBuffer = std::make_unique<Backend::OpenGL::GLBuffer>(cmd.desc);
-        if (!glBuffer->Create()) {
-            std::cerr << "[GLBackendExecutor] Failed to create GLBuffer, handle id=" 
+        if (!glBuffer->Initialize(cmd.initialData.empty() ? nullptr : cmd.initialData.data())) {
+            std::cerr << "[GLBackendExecutor] Failed to create GLBuffer, handle id="
                       << cmd.handle.id << std::endl;
             return;
         }
 
-        if (!cmd.initialData.empty()) {
-            glBuffer->Update(cmd.initialData.data(), cmd.initialData.size(), 0);
-        }
-
         resources_.RegisterBuffer(cmd.handle, std::move(glBuffer));
-        std::cout << "[GLBackendExecutor] Created Buffer, handle id=" 
+        std::cout << "[GLBackendExecutor] Created Buffer, handle id="
                   << cmd.handle.id << std::endl;
     }
 
     void GLBackendExecutor::ExecuteUpdateBuffer(const UpdateBufferCmd& cmd) {
         auto* glBuffer = resources_.FindBuffer(cmd.handle);
         if (!glBuffer) {
-            std::cerr << "[GLBackendExecutor] Buffer not found, handle id=" 
+            std::cerr << "[GLBackendExecutor] Buffer not found, handle id="
                       << cmd.handle.id << std::endl;
             return;
         }
@@ -159,7 +159,7 @@ namespace Render::RHI {
         auto* dstBuffer = resources_.FindBuffer(cmd.dst);
 
         if (!srcBuffer || !dstBuffer) {
-            std::cerr << "[GLBackendExecutor] CopyBuffer: source or destination buffer not found" 
+            std::cerr << "[GLBackendExecutor] CopyBuffer: source or destination buffer not found"
                       << std::endl;
             return;
         }
@@ -242,13 +242,13 @@ namespace Render::RHI {
     void GLBackendExecutor::ExecuteCreateInputLayout(const CreateInputLayoutCmd& cmd) {
         auto glLayout = std::make_unique<Backend::OpenGL::GLInputLayout>(cmd.desc);
         if (!glLayout->Create()) {
-            std::cerr << "[GLBackendExecutor] Failed to create GLInputLayout, handle id=" 
+            std::cerr << "[GLBackendExecutor] Failed to create GLInputLayout, handle id="
                       << cmd.handle.id << std::endl;
             return;
         }
 
         resources_.RegisterInputLayout(cmd.handle, std::move(glLayout));
-        std::cout << "[GLBackendExecutor] Created InputLayout, handle id=" 
+        std::cout << "[GLBackendExecutor] Created InputLayout, handle id="
                   << cmd.handle.id << std::endl;
     }
 
@@ -256,19 +256,21 @@ namespace Render::RHI {
         resources_.RemoveInputLayout(cmd.handle);
     }
 
-    // 帧命令执行
     void GLBackendExecutor::ExecuteBeginFrame(const BeginFrameCmd& cmd) {
-        // 第一阶段暂不做复杂逻辑
+        // 帧开始，当前为空操作
     }
 
     void GLBackendExecutor::ExecuteEndFrame(const EndFrameCmd& cmd) {
-        // 第一阶段暂不做复杂逻辑
+        // 帧结束，当前为空操作
     }
 
-    // 委托命令执行
     void GLBackendExecutor::ExecuteDelegate(const ExecuteDelegateCmd& cmd) {
-        BackendDelegateContext ctx = GetDelegateContext();
+        BackendDelegateContext ctx;
+        ctx.backendExecutor = this;
+        ctx.nativeDevice = nullptr;
+        ctx.nativeContext = glfwGetCurrentContext();
+
         cmd.delegate(ctx);
     }
 
-} // namespace Render::RHI
+}

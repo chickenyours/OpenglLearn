@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Application 模块使用文档</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #444;
+            margin-top: 30px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 8px;
+        }
+        h3 {
+            color: #555;
+        }
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: "Consolas", "Monaco", "Courier New", monospace;
+        }
+        pre {
+            background-color: #282c34;
+            color: #abb2bf;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        pre code {
+            background-color: transparent;
+            padding: 0;
+            color: inherit;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #007bff;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        ul, ol {
+            margin-left: 20px;
+        }
+        li {
+            margin: 8px 0;
+        }
+        .note {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .tip {
+            background-color: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .warning {
+            background-color: #f8d7da;
+            border-left: 4px solid #dc3545;
+            padding: 15px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Application 模块使用文档</h1>
+
+        <div class="tip">
+            <strong>相关文档：</strong>
+            <ul>
+                <li><a href="../docs/module_context_usage.html">ModuleContext 使用文档</a></li>
+                <li><a href="../Render/docs/render_architecture.html">Render 模块架构文档</a></li>
+                <li><a href="../Render/docs/render_module_usage.html">Render 模块使用文档</a></li>
+            </ul>
+        </div>
+
+        <h2>1. 模块作用</h2>
+        <p><code>ApplicationModule</code> 是应用程序模块，负责：</p>
+        <ul>
+            <li><strong>窗口管理</strong>：创建和管理 GLFW 窗口</li>
+            <li><strong>OpenGL 上下文管理</strong>：创建 OpenGL 上下文，支持上下文交接给渲染线程</li>
+            <li><strong>GLAD 加载器</strong>：提供 OpenGL 函数加载器</li>
+            <li><strong>事件处理</strong>：处理窗口事件</li>
+        </ul>
+
+        <h2>2. 与 Render 模块的协作</h2>
+        <p>Application 模块与 Render 模块通过<strong>OpenGL 上下文交接</strong>机制协作：</p>
+        <div class="diagram" style="background-color: #f8f9fa; border: 1px solid #dee2e6; padding: 20px; margin: 20px 0; border-radius: 5px; font-family: monospace; white-space: pre; overflow-x: auto;">
+主线程                          渲染线程
+    |                                |
+    | 1. ApplicationModule.Startup() |
+    |    - 创建窗口                  |
+    |    - 创建 OpenGL 上下文         |
+    |                                |
+    | 2. RenderModule.              |
+    |    InitializeFromApplication() |
+    |    - 获取上下文指针            |
+    |    - 传递给 RenderThread       |
+    |                                |
+    | 3. ApplicationModule.         |
+    |    ReleaseGLContext()          |
+    |    - 释放主线程上下文          |
+    |                                |----------&gt;
+    |                    | 4. RenderThread.ThreadMain()
+    |                    |    - glfwMakeContextCurrent()
+    |                    |    - 上下文成为渲染线程当前上下文
+    |                    |    - 执行 OpenGL API
+        </div>
+
+        <h2>3. 基本用法</h2>
+
+        <h3>3.1 创建并启动 Application 模块</h3>
+        <pre><code>#include "Application/public/application_module.h"
+
+Application::ApplicationModule appModule;
+
+// 配置窗口参数
+Application::ApplicationConfig config;
+config.width = 800;
+config.height = 600;
+config.title = "OpenGL Window";
+config.majorVersion = 4;
+config.minorVersion = 6;
+appModule.SetConfig(config);
+
+// 启动模块
+if (!appModule.Startup()) {
+    std::cerr << "Failed to start ApplicationModule!" << std::endl;
+    return -1;
+}</code></pre>
+
+        <h3>3.2 获取窗口和 OpenGL 上下文</h3>
+        <pre><code>// 获取窗口指针
+GLFWwindow* window = appModule.GetWindow();
+
+// 获取 OpenGL 上下文指针（用于交接给渲染线程）
+void* glContext = appModule.GetGLContext();
+
+// 获取 OpenGL 函数加载器
+auto loader = appModule.GetGLProcAddressLoader();</code></pre>
+
+        <h3>3.3 上下文交接（给 Render 模块使用）</h3>
+        <pre><code>#include "Application/public/application_module.h"
+#include "Render/Public/render_module.h"
+
+Application::ApplicationModule appModule;
+// ... 配置并启动 appModule ...
+
+Render::RenderModule renderModule;
+
+// InitializeFromApplication 会自动完成上下文交接
+if (!renderModule.InitializeFromApplication(appModule)) {
+    std::cerr << "Failed to initialize RenderModule!" << std::endl;
+    return -1;
+}
+
+// 此时：
+// 1. RenderModule 已获取 OpenGL 上下文指针
+// 2. 主线程已释放 OpenGL 上下文
+// 3. 渲染线程已获取 OpenGL 上下文</code></pre>
+
+        <h3>3.4 手动上下文交接</h3>
+        <p>如果需要手动控制上下文交接过程：</p>
+        <pre><code>// 1. 获取上下文指针
+void* glContext = appModule.GetGLContext();
+GLFWwindow* window = appModule.GetWindow();
+
+// 2. 将上下文传递给渲染线程
+renderThread->SetGLContext(window, glContext);
+
+// 3. 释放主线程的 OpenGL 上下文
+appModule.ReleaseGLContext();
+
+// 4. 启动渲染线程
+renderThread->Start();
+// 渲染线程会在 ThreadMain 中调用 glfwMakeContextCurrent()</code></pre>
+
+        <h2>4. API 详细说明</h2>
+
+        <h3>4.1 配置接口</h3>
+        <table>
+            <tr>
+                <th>方法</th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td><code>SetConfig(const ApplicationConfig& config)</code></td>
+                <td>设置窗口配置（尺寸、标题、OpenGL 版本等）</td>
+            </tr>
+        </table>
+
+        <h3>4.2 ApplicationConfig 结构</h3>
+        <pre><code>struct ApplicationConfig {
+    int width = 800;              // 窗口宽度
+    int height = 600;             // 窗口高度
+    const char* title = "Window"; // 窗口标题
+    int majorVersion = 4;         // OpenGL 主版本
+    int minorVersion = 6;         // OpenGL 次版本
+};</code></pre>
+
+        <h3>4.3 生命周期接口</h3>
+        <table>
+            <tr>
+                <th>方法</th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td><code>Startup()</code></td>
+                <td>启动模块，创建窗口和 OpenGL 上下文</td>
+            </tr>
+            <tr>
+                <td><code>Shutdown()</code></td>
+                <td>关闭模块，释放窗口和上下文</td>
+            </tr>
+            <tr>
+                <td><code>IsStarted()</code></td>
+                <td>检查模块是否已启动</td>
+            </tr>
+        </table>
+
+        <h3>4.4 上下文交接接口</h3>
+        <table>
+            <tr>
+                <th>方法</th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td><code>GetGLContext()</code></td>
+                <td>获取 OpenGL 上下文指针（返回窗口指针，GLFW 上下文与窗口绑定）</td>
+            </tr>
+            <tr>
+                <td><code>ReleaseGLContext()</code></td>
+                <td>释放当前线程的 OpenGL 上下文，调用后当前线程不能再使用 OpenGL</td>
+            </tr>
+            <tr>
+                <td><code>MakeGLContextCurrent(window, context)</code></td>
+                <td>静态方法，在指定线程使 OpenGL 上下文成为当前上下文</td>
+            </tr>
+        </table>
+
+        <h3>4.5 访问接口</h3>
+        <table>
+            <tr>
+                <th>方法</th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td><code>GetWindow()</code></td>
+                <td>获取 GLFW 窗口指针</td>
+            </tr>
+            <tr>
+                <td><code>GetGLProcAddressLoader()</code></td>
+                <td>获取 OpenGL 函数加载器（用于 GLAD）</td>
+            </tr>
+        </table>
+
+        <h2>5. 完整示例</h2>
+
+        <h3>5.1 与 Render 模块配合使用</h3>
+        <pre><code>#include "Application/public/application_module.h"
+#include "Render/Public/render_module.h"
+
+int main() {
+    // 1. 创建并配置 Application 模块
+    Application::ApplicationModule appModule;
+    Application::ApplicationConfig config;
+    config.width = 800;
+    config.height = 600;
+    config.title = "OpenGL Application";
+    config.majorVersion = 4;
+    config.minorVersion = 6;
+    appModule.SetConfig(config);
+
+    // 2. 启动 Application 模块
+    if (!appModule.Startup()) {
+        return -1;
+    }
+
+    // 3. 创建并初始化 Render 模块（自动完成上下文交接）
+    Render::RenderModule renderModule;
+    if (!renderModule.InitializeFromApplication(appModule)) {
+        appModule.Shutdown();
+        return -1;
+    }
+
+    // 4. 获取 RHI 设备进行渲染操作
+    auto* device = renderModule.GetDevice();
+    // ... 使用 device 进行渲染 ...
+
+    // 5. 清理
+    renderModule.Shutdown();
+    appModule.Shutdown();
+    return 0;
+}</code></pre>
+
+        <h3>5.2 手动上下文交接</h3>
+        <pre><code>#include "Application/public/application_module.h"
+#include "Render/Private/Runtime/render_thread.h"
+
+int main() {
+    Application::ApplicationModule appModule;
+    // ... 配置并启动 ...
+
+    // 1. 创建渲染线程
+    Render::RHI::RenderThread renderThread;
+
+    // 2. 获取上下文和窗口
+    void* glContext = appModule.GetGLContext();
+    GLFWwindow* window = appModule.GetWindow();
+
+    // 3. 传递给渲染线程
+    renderThread.SetGLContext(window, glContext);
+
+    // 4. 释放主线程上下文
+    appModule.ReleaseGLContext();
+
+    // 5. 启动渲染线程
+    renderThread.Start();
+
+    // ... 使用渲染线程 ...
+
+    // 6. 清理
+    renderThread.Stop();
+    appModule.Shutdown();
+    return 0;
+}</code></pre>
+
+        <h2>6. 注意事项</h2>
+
+        <div class="warning">
+            <strong>重要提示：</strong>
+            <ol>
+                <li><strong>上下文交接后主线程不能使用 OpenGL</strong>：调用 <code>ReleaseGLContext()</code> 后，主线程不能再执行任何 OpenGL 调用</li>
+                <li><strong>渲染线程独占 OpenGL 上下文</strong>：所有 OpenGL API 调用必须在渲染线程执行</li>
+                <li><strong>窗口销毁前必须先停止渲染线程</strong>：确保渲染线程已释放上下文</li>
+                <li><strong>GLFW 函数不是线程安全的</strong>：不要在多个线程同时调用 GLFW 函数</li>
+            </ol>
+        </div>
+
+        <div class="note">
+            <strong>推荐做法：</strong>
+            <ul>
+                <li>使用 <code>RenderModule::InitializeFromApplication()</code> 自动完成上下文交接</li>
+                <li>不要手动调用 <code>glfwMakeContextCurrent()</code>，让 RenderThread 管理</li>
+                <li>主线程只负责业务逻辑，渲染操作全部交给渲染线程</li>
+            </ul>
+        </div>
+
+        <h2>7. 常见问题</h2>
+
+        <h3>Q1: 为什么主线程不能直接使用 OpenGL？</h3>
+        <p>OpenGL 上下文是线程绑定的，一个上下文只能在一个线程中使用。为了将渲染操作集中到渲染线程，主线程需要释放上下文，让渲染线程独占。</p>
+
+        <h3>Q2: 如何验证上下文交接成功？</h3>
+        <p>可以在渲染线程中调用 <code>glGetString(GL_VERSION)</code> 验证 OpenGL 上下文是否可用。</p>
+
+        <h3>Q3: ReleaseGLContext() 后还能重新获取上下文吗？</h3>
+        <p>可以，通过 <code>MakeGLContextCurrent(window, context)</code> 可以在任意线程重新使上下文成为当前上下文。</p>
+
+        <h2>8. 相关文件</h2>
+        <table>
+            <tr>
+                <th>文件</th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td><code>Application/public/application_module.h</code></td>
+                <td>Application 模块公共头文件</td>
+            </tr>
+            <tr>
+                <td><code>Application/Private/application_module.cpp</code></td>
+                <td>Application 模块实现</td>
+            </tr>
+            <tr>
+                <td><code>Render/Public/render_module.h</code></td>
+                <td>Render 模块公共头文件</td>
+            </tr>
+            <tr>
+                <td><code>Render/Private/Runtime/render_thread.h</code></td>
+                <td>渲染线程头文件</td>
+            </tr>
+        </table>
+    </div>
+</body>
+</html>

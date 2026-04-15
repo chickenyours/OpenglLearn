@@ -246,6 +246,7 @@ int main() {
             <ul>
                 <li><strong>RHIFrontend（前端）</strong>：负责 CPU 端操作（加载纹理资产、命令投递）</li>
                 <li><strong>Device（后端）</strong>：负责 GPU 端操作（创建 GPU 资源、上传数据）</li>
+                <li><strong>RenderThread（渲染线程）</strong>：专职执行 OpenGL API，所有图形调用在此线程执行</li>
             </ul>
         </div>
 
@@ -253,19 +254,15 @@ int main() {
         <pre><code>#include "Render/Public/RHI/rhi_frontend.h"
 #include "Render/Public/RHI/RHI_device.h"
 
-// 从 RenderModule 获取后端设备
+// 从 RenderModule 获取后端设备和渲染线程
 auto* device = renderModule.GetDevice();
+auto* renderThread = renderModule.GetRenderThread();
 
-// 创建前端接口
-Render::RHI::RHIFrontend frontend;
+// 创建前端接口，使用 RenderModule 的渲染线程
+Render::RHI::RHIFrontend frontend(renderThread);
 
 // 设置前端使用的后端设备
-frontend.SetDevice(device);
-
-// 启动渲染线程
-if (!frontend.Start()) {
-    // 处理启动失败
-}</code></pre>
+frontend.SetDevice(device);</code></pre>
 
         <h3>7.2 加载纹理资产（CPU 端操作）</h3>
         <pre><code>#include "Render/Public/RHI/RHI_texture.h"
@@ -284,17 +281,25 @@ std::cout << "Width: " << desc.width << std::endl;
 std::cout << "Height: " << desc.height << std::endl;</code></pre>
 
         <h3>7.3 创建 GPU 纹理资源（GPU 端操作）</h3>
-        <pre><code>// 使用后端设备创建 GPU 纹理资源
-// 此方法从 TextureAsset 创建 GPU 纹理对象
-auto gpuTexture = device->CreateTextureFromAsset(*asset);
-if (!gpuTexture) {
-    std::cerr << "Failed to create GPU texture!" << std::endl;
-    return;
-}
+        <pre><code>// 使用 RHIFrontend 投递创建命令到渲染线程
+// 此方法投递命令到创建队列，不立即执行
+auto texHandle = frontend.CreateEmptyTexture(desc);
 
-// 使用后端设备上传纹理数据到 GPU
-// 此方法将像素数据从 CPU 内存上传到显存
-device->UploadTexture(gpuTexture.get(), *asset);</code></pre>
+// 手动唤醒渲染线程执行命令
+renderThread->Wakeup();
+
+// 等待渲染线程执行完成
+std::this_thread::sleep_for(std::chrono::milliseconds(100));</code></pre>
+
+        <div class="tip">
+            <strong>命令执行流程：</strong>
+            <ol>
+                <li>主线程调用 <code>CreateEmptyTexture()</code></li>
+                <li>命令进入创建队列</li>
+                <li>主线程调用 <code>Wakeup()</code> 唤醒渲染线程</li>
+                <li>渲染线程批量取出命令并执行</li>
+            </ol>
+        </div>
 
         <h3>7.4 创建 Buffer（命令投递模式）</h3>
         <pre><code>#include "Render/Public/RHI/RHI_buffer.h"

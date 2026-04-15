@@ -691,7 +691,170 @@ frontend.EnqueueDelegate([](BackendDelegateContext&amp; ctx) {
             <blockquote>把 RHI 从"直接执行"改成"前端发命令，渲染线程顺序代理执行"，并保留一个能直接写图形库 API 的委托后门。</blockquote>
         </div>
 
-        <h2>11. 相关文件</h2>
+        <h2>11. 双队列架构</h2>
+
+        <h3>11.1 设计目的</h3>
+        <p>双队列架构将资源创建和资源删除操作分离到两个独立的队列中，主要目的是：</p>
+        <ul>
+            <li><strong>避免资源悬挂引用</strong>：先执行删除命令释放旧资源，再执行创建命令创建新资源</li>
+            <li><strong>提高执行效率</strong>：批量处理相同类型的命令，减少状态切换</li>
+            <li><strong>线程安全</strong>：创建队列和删除队列分别加锁，支持多线程并发投递</li>
+        </ul>
+
+        <h3>11.2 队列结构</h3>
+        <div class="diagram">+-------------------+     +-------------------+
+|   创建队列         |     |   删除队列         |
+| (CreateQueue)     |     | (DestroyQueue)    |
++-------------------+     +-------------------+
+| CreateBuffer       |     | DestroyBuffer     |
+| CreateTexture      |     | DestroyTexture    |
+| CreateInputLayout  |     | DestroyInputLayout|
+| UpdateBuffer       |     |                   |
+| UploadTexture      |     |                   |
+| BeginFrame         |     |                   |
+| EndFrame           |     |                   |
+| ExecuteDelegate    |     |                   |
++-------------------+     +-------------------+
+              |                     |
+              +----------+----------+
+                         |
+                         v
+              +-------------------+
+              |   执行顺序         |
+              | 1. 先执行删除队列  |
+              | 2. 再执行创建队列  |
+              +-------------------+</div>
+
+        <h3>11.3 命令分类</h3>
+        <table>
+            <tr>
+                <th>队列</th>
+                <th>命令类型</th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td rowspan="8">创建队列</td>
+                <td>CreateBuffer</td>
+                <td>创建缓冲区</td>
+            </tr>
+            <tr>
+                <td>CreateTexture</td>
+                <td>创建纹理</td>
+            </tr>
+            <tr>
+                <td>CreateEmptyTexture</td>
+                <td>创建空纹理</td>
+            </tr>
+            <tr>
+                <td>UpdateBuffer</td>
+                <td>更新缓冲区数据</td>
+            </tr>
+            <tr>
+                <td>UploadTexture</td>
+                <td>上传纹理数据</td>
+            </tr>
+            <tr>
+                <td>UpdateTexture</td>
+                <td>局部更新纹理</td>
+            </tr>
+            <tr>
+                <td>CreateInputLayout</td>
+                <td>创建输入布局</td>
+            </tr>
+            <tr>
+                <td>BeginFrame/EndFrame/ExecuteDelegate</td>
+                <td>帧命令/委托命令</td>
+            </tr>
+            <tr>
+                <td rowspan="3">删除队列</td>
+                <td>DestroyBuffer</td>
+                <td>销毁缓冲区</td>
+            </tr>
+            <tr>
+                <td>DestroyTexture</td>
+                <td>销毁纹理</td>
+            </tr>
+            <tr>
+                <td>DestroyInputLayout</td>
+                <td>销毁输入布局</td>
+            </tr>
+        </table>
+
+        <h3>11.4 执行流程</h3>
+        <pre><code>void RenderThread::DrainOnce() {
+    commandBuffer_.clear();
+    
+    // 1. 先取出删除队列的所有命令
+    queue_.PopAllDestroyCommands(commandBuffer_);
+    
+    // 2. 再取出创建队列的所有命令
+    queue_.PopAllCreateCommands(commandBuffer_);
+
+    // 3. 按顺序执行（先删除后创建）
+    for (const auto& cmd : commandBuffer_) {
+        executor_->Execute(cmd);
+    }
+}</code></pre>
+
+        <h2>12. 上下文交接机制</h2>
+
+        <h3>12.1 设计目的</h3>
+        <p>OpenGL 上下文是线程绑定的，一个上下文只能在一个线程中使用。上下文交接机制允许将 OpenGL 上下文从主线程转移到渲染线程。</p>
+
+        <h3>12.2 交接流程</h3>
+        <div class="diagram">主线程 (ApplicationModule)        渲染线程 (RenderThread)
+    |                                |
+    | 1. Startup()                   |
+    |    - 创建窗口                  |
+    |    - glfwCreateWindow()        |
+    |    - 创建 OpenGL 上下文          |
+    |    - glfwMakeContextCurrent()  |
+    |                                |
+    | 2. InitializeFromApplication() |
+    |    - 获取上下文指针            |
+    |    - glContext = GetGLContext()|
+    |                                |
+    | 3. ReleaseGLContext()          |
+    |    - glfwMakeContextCurrent()  |
+    |    - 释放上下文                |
+    |                                |
+    |                    | 4. ThreadMain()
+    |                    |    - glfwMakeContextCurrent()
+    |                    |    - 获取上下文
+    |                    |    - 执行 OpenGL API
+        </div>
+
+        <h3>12.3 关键代码</h3>
+        <pre><code>// ApplicationModule::InitGlfw()
+glfwMakeContextCurrent(window_);
+glContext_ = window_;  // GLFW 的上下文与窗口绑定
+
+// ApplicationModule::ReleaseGLContext()
+glfwMakeContextCurrent(nullptr);  // 释放当前线程的上下文
+
+// RenderThread::ThreadMain()
+if (glWindow_) {
+    glfwMakeContextCurrent(glWindow_);  // 在渲染线程获取上下文
+}
+
+// RenderModule::InitializeFromApplication()
+void* glContext = app.GetGLContext();
+GLFWwindow* window = app.GetWindow();
+renderThread_->SetGLContext(window, glContext);
+app.ReleaseGLContext();  // 主线程释放上下文
+renderThread_->Start();  // 渲染线程获取上下文</code></pre>
+
+        <h3>12.4 注意事项</h3>
+        <div class="note">
+            <strong>重要提示：</strong>
+            <ul>
+                <li>上下文交接后，主线程不能再使用任何 OpenGL 调用</li>
+                <li>渲染线程独占 OpenGL 上下文，所有图形 API 调用必须在渲染线程执行</li>
+                <li>窗口销毁前必须先停止渲染线程，确保上下文已释放</li>
+            </ul>
+        </div>
+
+        <h2>13. 相关文件</h2>
         <table>
             <tr>
                 <th>文档</th>
@@ -715,12 +878,14 @@ frontend.EnqueueDelegate([](BackendDelegateContext&amp; ctx) {
             </tr>
         </table>
 
-        <h2>12. 总结</h2>
-        <p>Render 模块采用<strong>前端命令代理 + 专职渲染线程 + 委托后门</strong>的架构，实现了：</p>
+        <h2>14. 总结</h2>
+        <p>Render 模块采用<strong>前端命令代理 + 专职渲染线程 + 双队列架构 + 上下文交接</strong>的架构，实现了：</p>
         <ul>
             <li><strong>跨图形 API 抽象</strong>：上层不直接依赖 OpenGL 具体类型</li>
             <li><strong>命令代理执行</strong>：所有渲染操作通过命令队列提交</li>
+            <li><strong>双队列设计</strong>：创建队列和删除队列分离，避免资源悬挂引用</li>
             <li><strong>线程安全</strong>：图形 API 调用只在渲染线程执行</li>
+            <li><strong>上下文交接</strong>：支持 OpenGL 上下文从主线程转移到渲染线程</li>
             <li><strong>灵活扩展</strong>：支持未来多后端、多队列、并行翻译</li>
             <li><strong>快速验证</strong>：委托后门支持最短路径功能验证</li>
         </ul>

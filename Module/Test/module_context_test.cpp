@@ -121,34 +121,31 @@ void TestModuleContextManagerFromModuleManager() {
     // 测试资源加载功能
     std::cout << "\n--- Test: Resource Loading via ModuleContext ---" << std::endl;
 
-    struct TestResource : Resource::ILoadable {
+    // 新设计：资源类型无需继承 ILoadable
+    struct TestResource {
         int value = 0;
-
-        void Release() override {
-            std::cout << "TestResource released, value=" << value << std::endl;
-            isLoad_ = false;
+        
+        TestResource() {
+            std::cout << "Creating TestResource..." << std::endl;
+            value = 100;
         }
-
-        void SetLoaded(bool loaded) {
-            isLoad_ = loaded;
+        
+        ~TestResource() {
+            std::cout << "TestResource released, value=" << value << std::endl;
         }
     };
 
-    auto testResourceHandle = resourceManager->Get<Resource::ILoadable>(
-        Resource::FromGenerator<Resource::ILoadable>(
+    auto testResourceHandle = resourceManager->Get<TestResource>(
+        Resource::FromGenerator<TestResource>(
             "test_resource_context",
-            []() -> std::unique_ptr<Resource::ILoadable> {
-                std::cout << "Creating TestResource..." << std::endl;
-                auto ptr = new TestResource();
-                ptr->value = 100;
-                ptr->SetLoaded(true);
-                return std::unique_ptr<Resource::ILoadable>(ptr);
+            []() -> std::unique_ptr<TestResource> {
+                return std::make_unique<TestResource>();
             }
         )
     );
 
     if (testResourceHandle) {
-        std::cout << "TestResource loaded successfully via context, IsLoad=" << testResourceHandle->IsLoad() << std::endl;
+        std::cout << "TestResource loaded successfully via context, value=" << testResourceHandle->value << std::endl;
     } else {
         std::cerr << "Failed to load TestResource!" << std::endl;
     }

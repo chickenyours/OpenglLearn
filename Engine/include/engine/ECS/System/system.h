@@ -1,12 +1,14 @@
 #pragma once
 
-#include "engine/ECS/Query/query.h"
+// #include "engine/ECS/Query/query.h"
 
 
-namespace ECS::System{
+namespace ECS{
     class System{
         public:
-            virtual void Execute() = 0;
+            // 受主线程ECS框架调度
+            virtual void OnStart() = 0;
+            virtual void OnTick() = 0;
             virtual ~System() = default;
     };
 };

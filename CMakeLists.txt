@@ -14,8 +14,8 @@ endforeach()
 # 全局 include / lib
 include_directories(${CMAKE_SOURCE_DIR}/include)
 include_directories(${CMAKE_SOURCE_DIR}/Engine/include)
+include_directories(${CMAKE_SOURCE_DIR}/Engine/include/engine)
 link_directories(${CMAKE_SOURCE_DIR}/lib/debug)
-
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib/debug)

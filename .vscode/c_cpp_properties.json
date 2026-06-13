@@ -23,7 +23,7 @@
             "windowsSdkVersion": "10.0.22621.0",
             "compilerPath": "C:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/bin/clang++.exe",
             "cStandard": "c17",
-            "cppStandard": "c++17",
+            "cppStandard": "c++20",
             "intelliSenseMode": "clang-x64"
         }
     ],

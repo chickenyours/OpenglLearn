@@ -25,5 +25,6 @@ namespace Render{
         VertexLayout layout;
         uint32_t num;
         uint32_t rhi_id;
+        bool isUseElementBuffer;
     };
 }

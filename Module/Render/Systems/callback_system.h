@@ -22,5 +22,8 @@ namespace Render::System{
                     }
                 }
             }
+            virtual void OnEnd() override {
+                
+            }
     };
 }

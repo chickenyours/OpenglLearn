@@ -18,5 +18,12 @@ namespace Render{
         {
             return id != UINT32_MAX;
         }
+
+        bool operator==(const RenderResourceHandle& other) const {
+            return other.id == this->id && other.version == this->version;
+        }
+        bool operator!=(const RenderResourceHandle& other) const {
+            return other.id != this->id || other.version != this->version;
+        }
     };
 }

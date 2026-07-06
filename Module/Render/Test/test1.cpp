@@ -34,7 +34,7 @@
 
 int main() {
     ApplicationWindow::ApplicationWindowModule appWindowMod;
-    Render::RenderModule renderMod;
+    Render::RenderModule renderMod; 
     Render::System::CallBackSystem callbackSystem;
 
     appWindowMod.Startup();
@@ -67,26 +67,64 @@ int main() {
         );
     }
 
+    Render::RHIFrameCommandBufferPool* framebufferpool = device->GetRHIFrameCommandBufferPool();
+
+    
+    std::atomic_bool flag = true;
+
+    float time = 0.f;
+
+    // FPS 统计
+    using Clock = std::chrono::steady_clock;
+    auto fpsLastTime = Clock::now();
+
+    std::atomic<int> completedFrames = 0;
+    int lastCompletedFrames = 0;
+
     while (true) {
-        callbackSystem.OnTick();
+        glfwPollEvents();
 
+        if (flag.exchange(false)) {
+            ObjectWeakPtr<Render::RHIFrameCommandBuffer> buffer =
+                framebufferpool->threadAny_GetBuffer();
 
-        device->async_ExecuteCode([](){
-            glClearColor(0.1f, 0.2f, 0.3f, 1.0f);
-            glClear(GL_COLOR_BUFFER_BIT);
-        });
+            Render::RHICommand::SetBackgroundColor setbackground = {
+                glm::vec4(glm::sin(time) * 0.5f + 0.5f, 0.f, 0.f, 1.0f)
+            };
 
-        if (bufferHandle.IsValid()) {
-            auto spec = device->GetResourcePool().vertexBufferTable.Get(bufferHandle);
+            buffer->PushCommand<Render::RHICommand::SetBackgroundColor>(setbackground);
+            buffer->PushCommand<Render::RHICommand::Flip>({});
 
-            if (spec) {
-                LOG_INFO("bufferHandle", "id : " + std::to_string(bufferHandle.id));
-                LOG_INFO("spec", "num : " + std::to_string(spec->num));
-            }
+            device->async_SubmitFrameCommands(buffer, [&]() {
+                completedFrames.fetch_add(1, std::memory_order_relaxed);
+                flag.store(true, std::memory_order_release);
+            });
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(32));
+        callbackSystem.OnTick();
+
+        // 每 1 秒统计一次真实完成 FPS
+        auto now = Clock::now();
+        float elapsed = std::chrono::duration<float>(now - fpsLastTime).count();
+
+        if (elapsed >= 1.0f) {
+            int currentCompletedFrames = completedFrames.load(std::memory_order_relaxed);
+            int framesThisSecond = currentCompletedFrames - lastCompletedFrames;
+
+            float fps = framesThisSecond / elapsed;
+
+            std::cout << "Real FPS: " << fps << std::endl;
+
+            lastCompletedFrames = currentCompletedFrames;
+            fpsLastTime = now;
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+        time += 0.011f;
     }
+
+    
 
     return 0;
 }

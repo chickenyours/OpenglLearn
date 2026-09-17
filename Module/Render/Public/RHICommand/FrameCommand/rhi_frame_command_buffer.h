@@ -1,11 +1,14 @@
 #pragma once
 
+#include <cstddef>
+#include <cstring>
+#include <mutex>
+#include <type_traits>
 #include <vector>
 #include "object_ptr.h"
 #include "DebugTool/ConsoleHelp/color_log.h"
 #include "Render/Public/RHICommand/FrameCommand/rhi_command_dispatcher.h"
 #include "Render/Public/RHICommand/FrameCommand/rhi_frame_command.h"
-#include "Render/Private/rhi_device.h"
 
 namespace Render{
     class RHIFrameCommandBuffer{
@@ -16,20 +19,38 @@ namespace Render{
             std::vector<std::byte> bytebuffer_;
             size_t memory_p = 0;
             size_t commandCount = 0;
+            bool submitted_ = false;
             void Reset(){
                 memory_p = 0;
                 commandCount = 0;
+                submitted_ = false;
+                if(bytebuffer_.capacity() < 4096){
+                    bytebuffer_.reserve(4096);
+                }
+            }
+            bool Seal(){
+                if(submitted_) return false;
+                submitted_ = true;
+                return true;
             }
         public:
             RHIFrameCommandBuffer(const RHIFrameCommandBuffer&) = delete;
             RHIFrameCommandBuffer(RHIFrameCommandBuffer&& other) = delete;
-            size_t GetCommandCount(){return commandCount;}
+            size_t GetCommandCount() const {return commandCount;}
+            bool IsSubmitted() const {return submitted_;}
             // 放置命令
             template <typename T>
-            void PushCommand(const T& command){
+            bool PushCommand(const T& command){
                 static_assert(RHICommand::FrameCommandsSet::contains<T>);
-                if(memory_p + sizeof(T) + sizeof(CommandId) > bytebuffer_.size()){
-                    bytebuffer_.resize(memory_p + sizeof(T) + (memory_p + sizeof(T) + sizeof(CommandId)) / 2);
+                static_assert(std::is_trivially_copyable_v<T>,
+                    "frame commands must be trivially copyable");
+                if(submitted_){
+                    LOG_ERROR("RHIFrameCommandBuffer", "cannot record after submission");
+                    return false;
+                }
+                const size_t required = memory_p + sizeof(T) + sizeof(CommandId);
+                if(required > bytebuffer_.size()){
+                    bytebuffer_.resize(required);
                 }
                 // push命令编号
                 CommandId id = RHICommand::FrameCommandsSet::id_of<T>();
@@ -39,6 +60,7 @@ namespace Render{
                 std::memcpy(bytebuffer_.data() + memory_p, &command, sizeof(T));
                 memory_p += sizeof(T);
                 commandCount++;
+                return true;
             }
     };
     class RHIFrameCommandBufferPool{
@@ -60,6 +82,7 @@ namespace Render{
                     buffers.back() = new RHIFrameCommandBuffer();
                     result = buffers.back().GenWeakPtr();
                 }
+                result->Reset();
                 return result;
             }
 

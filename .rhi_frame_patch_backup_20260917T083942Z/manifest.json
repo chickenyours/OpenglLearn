@@ -1,0 +1,31 @@
+{
+  "patch_version": "2026-09-17-rhi-frame-v1",
+  "created_utc": "2026-09-17T08:39:42.331837+00:00",
+  "replaced_files": [
+    "Module/ApplicationWindow/module.h",
+    "Module/CMakeLists.txt",
+    "Module/Render/Private/Backend/Opengl/backend.h",
+    "Module/Render/Private/Backend/backend.h",
+    "Module/Render/Private/rhi_device.h",
+    "Module/Render/Private/rhi_resource_pool.h",
+    "Module/Render/Public/RHICommand/FrameCommand/rhi_command_dispatcher.h",
+    "Module/Render/Public/RHICommand/FrameCommand/rhi_frame_command.h",
+    "Module/Render/Public/RHICommand/FrameCommand/rhi_frame_command_buffer.h",
+    "Module/Render/Public/RHICommand/rhi_buffer_command.h",
+    "Module/Render/Public/RHICommand/rhi_command.h",
+    "Module/Render/Public/RHICommand/rhi_shader_command.h",
+    "Module/Render/Public/RHICommand/rhi_texture_command.h",
+    "Module/Render/Public/RHIResourceType/Buffer/vertex_buffer.h",
+    "Module/Render/Public/RHIResourceType/Pipeline/pipeline.h",
+    "Module/Render/Public/RHIResourceType/Texture/texture.h",
+    "Module/Render/Public/RHIResourceType/rhi_resource_type.h",
+    "Module/Render/Test/test2.cpp",
+    "Module/Render/module.h"
+  ],
+  "added_files": [
+    "Module/Render/Public/RHICommand/FrameCommand/rhi_frame_encoder.h",
+    "Module/Render/Public/RHIResourceType/Buffer/uniform_buffer.h",
+    "Module/Render/README_RHI_FRAME.md",
+    "Module/Render/Test/frame_command_buffer_test.cpp"
+  ]
+}

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <string>
 #include "Render/Public/rhi_resource_handle.h"
 #include "Render/Public/RHIResourceType/Shader/shader.h"
 
@@ -15,7 +16,8 @@ namespace Render{
 
     using OnCreateShaderSourceFinish = std::function<void(RenderResourceHandle<ShaderSourceSpec>)>;
     struct CreateShaderSourceCommand{
-        CreateShaderSourceDesc createDesc;
+        ShaderSourceType type = ShaderSourceType::Vertex;
+        std::string source;
         OnCreateShaderSourceFinish OnFinish;
     };
 }

@@ -29,26 +29,36 @@ namespace Render{
         ClampToBorder   // 超出范围使用边框颜色
     };
 
+    inline uint32_t GetTextureFormatByteSize(RHITextureFormat format) {
+        switch (format) {
+        case RHITextureFormat::RGB8: return 3;
+        case RHITextureFormat::RGBA8: return 4;
+        case RHITextureFormat::RGB32F: return 12;
+        case RHITextureFormat::RGBA32F: return 16;
+        }
+        return 0;
+    }
+
     struct RHITextureSpec
     {
-        uint32_t width;
-        uint32_t height;
-        RHITextureFormat textureDataStoreType;
-        RHITextureFormat textureUseType;
-        RHIFilterMode filterMode;
-        RHIMipmapMode mipmapMode;
-        RHIAddressMode addressMode;
-        uint32_t rhi_id;
+        uint32_t width = 0;
+        uint32_t height = 0;
+        RHITextureFormat textureDataStoreType = RHITextureFormat::RGBA8;
+        RHITextureFormat textureUseType = RHITextureFormat::RGBA8;
+        RHIFilterMode filterMode = RHIFilterMode::Nearest;
+        RHIMipmapMode mipmapMode = RHIMipmapMode::Nearest;
+        RHIAddressMode addressMode = RHIAddressMode::Repeat;
+        uint32_t rhi_id = 0;
     };
-    
+
     struct CreateRHITextureSpec{
-        uint32_t width;
-        uint32_t height;
-        RHITextureFormat textureDataStoreType;
-        RHITextureFormat textureUseType;
-        RHIFilterMode filterMode;
-        RHIMipmapMode mipmapMode;
-        RHIAddressMode addressMode;
+        uint32_t width = 0;
+        uint32_t height = 0;
+        RHITextureFormat textureDataStoreType = RHITextureFormat::RGBA8;
+        RHITextureFormat textureUseType = RHITextureFormat::RGBA8;
+        RHIFilterMode filterMode = RHIFilterMode::Nearest;
+        RHIMipmapMode mipmapMode = RHIMipmapMode::Nearest;
+        RHIAddressMode addressMode = RHIAddressMode::Repeat;
         const void* data = nullptr;
     };
 }

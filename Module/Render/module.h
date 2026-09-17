@@ -30,11 +30,15 @@ namespace Render{
                     isStarted = true;
                 }
             }
-            return false;
-          
+            return isStarted;
+
         }
         virtual void Shutdown() override{
-            
+            if(device){
+                device->StopAndRelease();
+                device.Reset();
+            }
+            isStarted = false;
         }
         virtual bool IsStarted() const noexcept override{
             return isStarted;

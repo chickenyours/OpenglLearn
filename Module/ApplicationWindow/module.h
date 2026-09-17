@@ -21,7 +21,11 @@ namespace ApplicationWindow{
                 return isStarted;
             }
             virtual void Shutdown() override {
-                
+                if(window_){
+                    window_->Shutdown();
+                    window_.Reset();
+                }
+                isStarted = false;
             }
             virtual bool IsStarted() const noexcept override {
                 return isStarted;

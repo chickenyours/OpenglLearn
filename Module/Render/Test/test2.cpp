@@ -90,20 +90,31 @@ void main()
         -0.5f, -0.5f, 0.0f,        0.0f, 1.0f, 0.0f,     0.0f, 0.0f, // left, green
         0.5f, -0.5f, 0.0f,        0.0f, 0.0f, 1.0f,     1.0f, 0.0f  // right, blue
     };
+    std::vector<uint32_t> indexData = {0, 1, 2};
     Render::VertexLayout layout;
     layout.typeSlots.push_back(Render::VertexFieldType::Vec3);
     layout.typeSlots.push_back(Render::VertexFieldType::Vec3);
     layout.typeSlots.push_back(Render::VertexFieldType::Vec2);
     Render::RenderResourceHandle<Render::VertexBufferSpec> bufferhandle;
-    device->async_CreateVertexBuffer(layout,3,vertexData.data(),[&](Render::RenderResourceHandle<Render::VertexBufferSpec> handle){
+    Render::CreateMeshBufferDesc meshDesc{};
+    meshDesc.vertexLayout = layout;
+    meshDesc.vertexCount = 3;
+    meshDesc.vertexData = vertexData.data();
+    meshDesc.vertexByteSize = vertexData.size() * sizeof(float);
+    meshDesc.indexCount = static_cast<uint32_t>(indexData.size());
+    meshDesc.indexData = indexData.data();
+    meshDesc.indexByteSize = indexData.size() * sizeof(uint32_t);
+    meshDesc.indexType = Render::IndexType::UInt32;
+    meshDesc.usage = Render::BufferUsage::Static;
+    device->async_CreateMeshBuffer(meshDesc,[&](Render::RenderResourceHandle<Render::VertexBufferSpec> handle){
         bufferhandle = handle;
     });
 
     Render::RenderResourceHandle<Render::PipelineSpec> pipelinehandle;
 
-    auto OnPipelineFinish = 
+    auto OnPipelineFinish =
     [&](Render::RenderResourceHandle<Render::PipelineSpec> handle){
-        std::cout << handle.IsValid(); 
+        std::cout << handle.IsValid();
         if(!handle.IsValid()){
             finished = true;
         }
@@ -189,7 +200,7 @@ void main()
     device->async_CreateShaderSource(vertexShader, OnVertexShaderFinish);
     device->async_CreateShaderSource(fragmentShader, OnFragmentShaderFinish);
 
-    
+
 
     auto CheckReady = [&](){
         return bufferhandle.IsValid() && pipelinehandle.IsValid();
@@ -200,13 +211,16 @@ void main()
         glfwPollEvents();
         callbackSystem.OnTick();
         if(CheckReady()){
-            ObjectWeakPtr<Render::RHIFrameCommandBuffer> buffer = device->GetRHIFrameCommandBufferPool()->threadAny_GetBuffer();
-            buffer->PushCommand(Render::RHICommand::SetBackgroundColor{.color = glm::vec4(1,0,1,1)});
-            buffer->PushCommand(Render::RHICommand::SetVertexBuffer{.buffer=bufferhandle});
-            buffer->PushCommand(Render::RHICommand::SetPipeline{.pipeline=pipelinehandle});
-            buffer->PushCommand(Render::RHICommand::Draw{});
-            buffer->PushCommand(Render::RHICommand::Flip{});
-            device->async_SubmitFrameCommands(buffer);
+            Render::RHICommand::BeginFrame begin{};
+            begin.framebufferWidth = 1280;
+            begin.framebufferHeight = 720;
+            begin.clearColor = glm::vec4(1, 0, 1, 1);
+            auto frame = device->BeginFrame(begin);
+            frame.BindMesh(bufferhandle);
+            frame.BindPipeline(pipelinehandle);
+            frame.DrawIndexed();
+            frame.End();
+            device->async_SubmitFrameCommands(frame.GetCommandBuffer());
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(16));
     }

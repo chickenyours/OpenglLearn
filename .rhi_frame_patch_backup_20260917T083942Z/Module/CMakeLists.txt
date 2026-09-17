@@ -25,17 +25,3 @@ target_link_libraries(test1 PRIVATE
     glfw3
     glad
 )
-
-add_executable(rhi_frame_command_buffer_test
-    ${CMAKE_CURRENT_SOURCE_DIR}/Render/Test/frame_command_buffer_test.cpp
-)
-
-target_include_directories(rhi_frame_command_buffer_test PRIVATE
-    ${CMAKE_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}/Engine/include
-    ${CMAKE_SOURCE_DIR}/Engine/include/engine
-    ${CMAKE_SOURCE_DIR}/Engine/include/engine/ToolAndAlgorithm
-    ${CMAKE_SOURCE_DIR}/Module
-    ${CMAKE_SOURCE_DIR}/Module/Render
-    ${CMAKE_SOURCE_DIR}/Module/Render/Public
-)

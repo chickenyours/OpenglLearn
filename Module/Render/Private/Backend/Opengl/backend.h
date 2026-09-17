@@ -1,8 +1,10 @@
 #pragma once
 
 #include <glad/glad.h>
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <unordered_map>
 
 #include "Render/Private/Backend/backend.h"
 #include "Render/Public/render_backend_context.h"
@@ -10,7 +12,8 @@
 namespace Render {
 
     struct GLVertexBufferSpec{
-        GLuint vbo;
+        GLuint vbo = 0;
+        GLuint ebo = 0;
     };
 
 class OpenglBackend : public IBackend {
@@ -23,12 +26,15 @@ private:
     // 管线状态
     RenderResourceHandle<PipelineSpec> currentPipeline;
     RenderResourceHandle<ShaderProgramSpec> currentShaderProgram;
+    bool pipelineValid = false;
     // 顶点状态
     RenderResourceHandle<VertexBufferSpec> currentVertexBuffer;
     uint32_t vertexNum = 0; // 0 表示顶点缓冲区不合法
-    bool isUseElementIndex;
+    uint32_t indexNum = 0;
+    bool isUseElementIndex = false;
+    IndexType currentIndexType = IndexType::UInt32;
     // 绘制状态
-    uint32_t topology;
+    GLenum topology = GL_TRIANGLES;
 private:
     static size_t GetVertexDataTypeSize(VertexFieldType type) {
         switch (type) {
@@ -39,7 +45,7 @@ private:
         case VertexFieldType::Vec2:  return sizeof(float) * 2;
         case VertexFieldType::Vec3:  return sizeof(float) * 3;
         case VertexFieldType::Vec4:  return sizeof(float) * 4;
-        
+
         case VertexFieldType::Mat2:  return sizeof(float) * 2 * 2;
         case VertexFieldType::Mat3:  return sizeof(float) * 3 * 3;
         case VertexFieldType::Mat4:  return sizeof(float) * 4 * 4;
@@ -145,6 +151,42 @@ private:
         return stride;
     }
 
+    static GLenum ToOpenGLBufferUsage(BufferUsage usage) {
+        switch (usage) {
+        case BufferUsage::Static: return GL_STATIC_DRAW;
+        case BufferUsage::Dynamic: return GL_DYNAMIC_DRAW;
+        case BufferUsage::Stream: return GL_STREAM_DRAW;
+        }
+        return GL_STATIC_DRAW;
+    }
+
+    static GLenum ToOpenGLIndexType(IndexType type) {
+        return type == IndexType::UInt16 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT;
+    }
+
+    static GLenum ToOpenGLTopology(PrimitiveTopology value) {
+        switch (value) {
+        case PrimitiveTopology::TriangleList: return GL_TRIANGLES;
+        case PrimitiveTopology::TriangleStrip: return GL_TRIANGLE_STRIP;
+        case PrimitiveTopology::LineList: return GL_LINES;
+        case PrimitiveTopology::PointList: return GL_POINTS;
+        }
+        return GL_TRIANGLES;
+    }
+
+    static GLenum ToOpenGLCompare(CompareOp value) {
+        switch (value) {
+        case CompareOp::Never: return GL_NEVER;
+        case CompareOp::Less: return GL_LESS;
+        case CompareOp::LessEqual: return GL_LEQUAL;
+        case CompareOp::Equal: return GL_EQUAL;
+        case CompareOp::GreaterEqual: return GL_GEQUAL;
+        case CompareOp::Greater: return GL_GREATER;
+        case CompareOp::Always: return GL_ALWAYS;
+        }
+        return GL_LEQUAL;
+    }
+
     static void SetupVertexAttribute(
         GLuint& location,
         VertexFieldType type,
@@ -213,10 +255,15 @@ public:
         context_.thread_TakeRenderContext();
 
     }
+    virtual void Shutdown() override {
+        glBindVertexArray(0);
+        glUseProgram(0);
+        context_.thread_DetachRenderContext();
+    }
     virtual RenderResourceHandle<VertexBufferSpec> CreateVertexBuffer(
         const CreateVertexBufferCommand& command
     ) override {
-        if (command.numVertex == 0 || command.Data == nullptr) {
+        if (command.numVertex == 0 || command.vertexData.empty()) {
             LOG_ERROR("CreateVertexBuffer", "invalid vertex buffer data");
             return {};
         }
@@ -235,10 +282,19 @@ public:
             return {};
         }
 
-        const size_t bufferSize = command.numVertex * vertexStride;
+        const size_t bufferSize = command.vertexData.size();
 
-        if (bufferSize == 0) {
-            LOG_ERROR("CreateVertexBuffer", "invalid buffer size");
+        if (bufferSize == 0 || bufferSize != vertexStride * command.numVertex) {
+            LOG_ERROR("CreateVertexBuffer", "vertex byte size does not match layout and count");
+            return {};
+        }
+
+        const size_t indexStride = command.indexType == IndexType::UInt16
+            ? sizeof(uint16_t) : sizeof(uint32_t);
+        if ((command.numIndex == 0) != command.indexData.empty() ||
+            (!command.indexData.empty() &&
+             command.indexData.size() != indexStride * command.numIndex)) {
+            LOG_ERROR("CreateVertexBuffer", "index byte size does not match type and count");
             return {};
         }
 
@@ -254,9 +310,21 @@ public:
         glBufferData(
             GL_ARRAY_BUFFER,
             static_cast<GLsizeiptr>(bufferSize),
-            command.Data,
-            GL_STATIC_DRAW
+            command.vertexData.data(),
+            ToOpenGLBufferUsage(command.usage)
         );
+
+        GLuint ebo = 0;
+        if (command.numIndex > 0 && !command.indexData.empty()) {
+            glGenBuffers(1, &ebo);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+            glBufferData(
+                GL_ELEMENT_ARRAY_BUFFER,
+                static_cast<GLsizeiptr>(command.indexData.size()),
+                command.indexData.data(),
+                ToOpenGLBufferUsage(command.usage)
+            );
+        }
 
         GLuint location = 0;
         size_t offset = 0;
@@ -277,32 +345,135 @@ public:
 
         GLVertexBufferSpec glSpec;
         glSpec.vbo = vbo;
+        glSpec.ebo = ebo;
         VAO2VertexBufferSpec[vao] = glSpec;
         VertexBufferSpec rhiSpec;
         rhiSpec.layout = command.vertexLayout;
         rhiSpec.num = command.numVertex;
+        rhiSpec.vertexCount = command.numVertex;
+        rhiSpec.indexCount = command.numIndex;
+        rhiSpec.vertexByteSize = static_cast<uint32_t>(command.vertexData.size());
+        rhiSpec.indexByteSize = static_cast<uint32_t>(command.indexData.size());
         rhiSpec.rhi_id = vao;
-        rhiSpec.isUseElementBuffer = false;
+        rhiSpec.isUseElementBuffer = ebo != 0;
+        rhiSpec.indexType = command.indexType;
+        rhiSpec.usage = command.usage;
         auto handle = rhiContext_.resourcePool->vertexBufferTable.Add(rhiSpec);
         return handle;
+    }
+
+    virtual bool UpdateVertexBuffer(
+        const UpdateVertexBufferCommand& command
+    ) override {
+        VertexBufferSpec* spec =
+            rhiContext_.resourcePool->vertexBufferTable.Get(command.handle);
+        if (!spec || command.numVertex == 0) return false;
+        const auto native = VAO2VertexBufferSpec.find(spec->rhi_id);
+        if (native == VAO2VertexBufferSpec.end()) return false;
+
+        const size_t stride = CalculateVertexStride(spec->layout);
+        const size_t indexStride = command.indexType == IndexType::UInt16
+            ? sizeof(uint16_t) : sizeof(uint32_t);
+        if (stride == 0 || command.vertexData.size() != stride * command.numVertex ||
+            (command.numIndex == 0) != command.indexData.empty() ||
+            (!command.indexData.empty() &&
+             command.indexData.size() != indexStride * command.numIndex)) {
+            LOG_ERROR("UpdateVertexBuffer", "buffer byte size does not match metadata");
+            return false;
+        }
+
+        glBindVertexArray(spec->rhi_id);
+        glBindBuffer(GL_ARRAY_BUFFER, native->second.vbo);
+        glBufferData(GL_ARRAY_BUFFER, command.vertexData.size(),
+            command.vertexData.data(), ToOpenGLBufferUsage(spec->usage));
+
+        if (command.numIndex > 0) {
+            if (native->second.ebo == 0) {
+                glGenBuffers(1, &native->second.ebo);
+            }
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, native->second.ebo);
+            glBufferData(GL_ELEMENT_ARRAY_BUFFER, command.indexData.size(),
+                command.indexData.data(), ToOpenGLBufferUsage(spec->usage));
+        } else if (native->second.ebo != 0) {
+            glDeleteBuffers(1, &native->second.ebo);
+            native->second.ebo = 0;
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        }
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+        if (glGetError() != GL_NO_ERROR) {
+            LOG_ERROR("UpdateVertexBuffer", "OpenGL upload failed");
+            return false;
+        }
+
+        spec->num = command.numVertex;
+        spec->vertexCount = command.numVertex;
+        spec->indexCount = command.numIndex;
+        spec->vertexByteSize = static_cast<uint32_t>(command.vertexData.size());
+        spec->indexByteSize = static_cast<uint32_t>(command.indexData.size());
+        spec->isUseElementBuffer = command.numIndex > 0;
+        spec->indexType = command.indexType;
+        if (currentVertexBuffer == command.handle) currentVertexBuffer = {};
+        return true;
     }
 
     virtual void DeleteVertexBuffer(
         const DeleteVertexBufferCommand& command
     ) override {
-        // TODO:
-        // 从你的资源系统里找到 vao/vbo，然后删除。
-        //
-        // auto it = vertexBuffers_.find(command.handle);
-        // if (it == vertexBuffers_.end()) return;
-        //
-        // GLuint vao = it->second.vao;
-        // GLuint vbo = it->second.vbo;
-        //
-        // glDeleteBuffers(1, &vbo);
-        // glDeleteVertexArrays(1, &vao);
-        //
-        // vertexBuffers_.erase(it);
+        VertexBufferSpec* spec =
+            rhiContext_.resourcePool->vertexBufferTable.Get(command.handle);
+        if (!spec) return;
+        const GLuint vao = spec->rhi_id;
+        const auto native = VAO2VertexBufferSpec.find(vao);
+        if (native != VAO2VertexBufferSpec.end()) {
+            if (native->second.ebo != 0) glDeleteBuffers(1, &native->second.ebo);
+            if (native->second.vbo != 0) glDeleteBuffers(1, &native->second.vbo);
+            VAO2VertexBufferSpec.erase(native);
+        }
+        if (vao != 0) glDeleteVertexArrays(1, &vao);
+        if (currentVertexBuffer == command.handle) {
+            currentVertexBuffer = {};
+            vertexNum = 0;
+            indexNum = 0;
+        }
+        rhiContext_.resourcePool->vertexBufferTable.Remove(command.handle);
+    }
+
+    virtual RenderResourceHandle<UniformBufferSpec> CreateUniformBuffer(
+        const CreateUniformBufferCommand& command
+    ) override {
+        if (command.byteSize == 0 || command.initialData.size() > command.byteSize) {
+            LOG_ERROR("CreateUniformBuffer", "invalid buffer size");
+            return {};
+        }
+        GLuint buffer = 0;
+        glGenBuffers(1, &buffer);
+        glBindBuffer(GL_UNIFORM_BUFFER, buffer);
+        glBufferData(GL_UNIFORM_BUFFER, command.byteSize,
+            command.initialData.empty() ? nullptr : command.initialData.data(),
+            ToOpenGLBufferUsage(command.usage));
+        glBindBuffer(GL_UNIFORM_BUFFER, 0);
+        if (buffer == 0 || glGetError() != GL_NO_ERROR) {
+            if (buffer != 0) glDeleteBuffers(1, &buffer);
+            LOG_ERROR("CreateUniformBuffer", "OpenGL allocation failed");
+            return {};
+        }
+        UniformBufferSpec spec{};
+        spec.byteSize = command.byteSize;
+        spec.rhi_id = buffer;
+        spec.usage = command.usage;
+        return rhiContext_.resourcePool->uniformBufferTable.Add(spec);
+    }
+
+    virtual void DeleteUniformBuffer(
+        const DeleteUniformBufferCommand& command
+    ) override {
+        UniformBufferSpec* spec =
+            rhiContext_.resourcePool->uniformBufferTable.Get(command.handle);
+        if (!spec) return;
+        if (spec->rhi_id != 0) glDeleteBuffers(1, &spec->rhi_id);
+        rhiContext_.resourcePool->uniformBufferTable.Remove(command.handle);
     }
 
     virtual void SetBackgroundColor(const RHICommand::SetBackgroundColor& command) override {
@@ -310,7 +481,7 @@ public:
         glClear(GL_COLOR_BUFFER_BIT);
     }
 
-    virtual void Flip(const RHICommand::Flip& command) override {
+    virtual void Flip(const RHICommand::Flip&) override {
         context_.thread_Swap();
     }
 
@@ -327,18 +498,21 @@ public:
         if (!spec) {
             LOG_ERROR("SetVertexBuffer", "error VertexBuffer");
             vertexNum = 0;
+            indexNum = 0;
             isUseElementIndex = false;
         } else {
             vao = spec->rhi_id;
-            vertexNum = spec->num;
+            vertexNum = spec->vertexCount != 0 ? spec->vertexCount : spec->num;
+            indexNum = spec->indexCount;
             isUseElementIndex = spec->isUseElementBuffer;
+            currentIndexType = spec->indexType;
         }
 
         glBindVertexArray(vao);
         currentVertexBuffer = command.buffer;
     }
     virtual void SetPipeline(const RHICommand::SetPipeline& command)  override {
-        if (currentPipeline == command.pipeline) {
+        if (pipelineValid && currentPipeline == command.pipeline) {
             return;
         }
 
@@ -347,7 +521,10 @@ public:
 
         if (!newPipeline) {
             LOG_ERROR("SetPipeline", "cannot get PipelineSpec");
-            // hasError = true;
+            glUseProgram(0);
+            currentPipeline = {};
+            currentShaderProgram = {};
+            pipelineValid = false;
             return;
         }
 
@@ -356,13 +533,19 @@ public:
 
         if (!shaderProgram) {
             LOG_ERROR("SetPipeline", "cannot get ShaderProgramSpec");
-            // hasError = true;
+            glUseProgram(0);
+            currentPipeline = {};
+            currentShaderProgram = {};
+            pipelineValid = false;
             return;
         }
 
         if (shaderProgram->rhi_id == 0) {
             LOG_ERROR("SetPipeline", "invalid OpenGL shader program id");
-            // hasError = true;
+            glUseProgram(0);
+            currentPipeline = {};
+            currentShaderProgram = {};
+            pipelineValid = false;
             return;
         }
 
@@ -372,30 +555,189 @@ public:
             currentShaderProgram = newPipeline->shaderProgram;
         }
 
-        // 绑定其他 pipeline 状态
-        topology = GL_TRIANGLES;
-        // ApplyRasterizerState(newPipeline->rasterizerState);
-        // ApplyDepthStencilState(newPipeline->depthStencilState);
-        // ApplyBlendState(newPipeline->blendState);
-        // ApplyPrimitiveTopology(newPipeline->primitiveTopology);
+        topology = ToOpenGLTopology(newPipeline->topology);
+        glPolygonMode(GL_FRONT_AND_BACK,
+            newPipeline->polygonMode == PolygonMode::Line ? GL_LINE : GL_FILL);
+        glFrontFace(newPipeline->frontFaceCounterClockwise ? GL_CCW : GL_CW);
+
+        if (newPipeline->cullMode == CullMode::None) {
+            glDisable(GL_CULL_FACE);
+        } else {
+            glEnable(GL_CULL_FACE);
+            glCullFace(newPipeline->cullMode == CullMode::Front ? GL_FRONT : GL_BACK);
+        }
+
+        if (newPipeline->depthTest) glEnable(GL_DEPTH_TEST);
+        else glDisable(GL_DEPTH_TEST);
+        glDepthMask(newPipeline->depthWrite ? GL_TRUE : GL_FALSE);
+        glDepthFunc(ToOpenGLCompare(newPipeline->depthCompare));
+
+        if (newPipeline->blendEnable && newPipeline->blendMode != BlendMode::Opaque) {
+            glEnable(GL_BLEND);
+            if (newPipeline->blendMode == BlendMode::Additive) {
+                glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+            } else {
+                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            }
+        } else {
+            glDisable(GL_BLEND);
+        }
 
         currentPipeline = command.pipeline;
+        pipelineValid = true;
     }
     virtual void Draw(const RHICommand::Draw& command) override {
-        if(vertexNum){
-            if(isUseElementIndex){
-                glDrawElements(topology, vertexNum, GL_UNSIGNED_INT, 0);
-            }
-            else{
-                glDrawArrays(topology, 0, vertexNum);
-            }
+        if (!pipelineValid || !vertexNum || command.instanceCount == 0 ||
+            command.firstVertex >= vertexNum) return;
+        const uint32_t available = vertexNum - command.firstVertex;
+        const uint32_t requested = command.vertexCount == 0
+            ? available : command.vertexCount;
+        if (requested > available) {
+            LOG_ERROR("Draw", "vertex range exceeds bound mesh buffer");
+            return;
+        }
+        const GLsizei count = static_cast<GLsizei>(
+            requested);
+        const GLsizei instances = static_cast<GLsizei>(command.instanceCount);
+        if (instances > 1 || command.firstInstance > 0) {
+            glDrawArraysInstancedBaseInstance(
+                topology,
+                static_cast<GLint>(command.firstVertex),
+                count,
+                instances,
+                command.firstInstance
+            );
+        } else {
+            glDrawArrays(topology, static_cast<GLint>(command.firstVertex), count);
         }
     }
     virtual void DrawInstance(const RHICommand::DrawInstance& command) override {
-        
+        RHICommand::Draw draw{};
+        draw.instanceCount = command.instanceCount;
+        Draw(draw);
     }
-    virtual void DrawRect(const RHICommand::DrawRect& command) override {
-        
+    virtual void DrawRect(const RHICommand::DrawRect&) override {
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+    }
+
+    virtual void BeginFrame(const RHICommand::BeginFrame& command) override {
+        // A new frame is also a state-cache boundary. Resources may be streamed
+        // independently, so stale handles must never leak across it.
+        currentPipeline = {};
+        currentShaderProgram = {};
+        pipelineValid = false;
+        currentVertexBuffer = {};
+        vertexNum = 0;
+        indexNum = 0;
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glViewport(0, 0,
+            static_cast<GLsizei>(command.framebufferWidth),
+            static_cast<GLsizei>(command.framebufferHeight));
+        glDisable(GL_SCISSOR_TEST);
+        glDepthMask(GL_TRUE);
+        GLbitfield mask = 0;
+        if ((command.clearFlags & RHICommand::ClearColor) != 0) {
+            glClearColor(command.clearColor.r, command.clearColor.g,
+                command.clearColor.b, command.clearColor.a);
+            mask |= GL_COLOR_BUFFER_BIT;
+        }
+        if ((command.clearFlags & RHICommand::ClearDepth) != 0) {
+            glClearDepth(command.clearDepth);
+            mask |= GL_DEPTH_BUFFER_BIT;
+        }
+        if ((command.clearFlags & RHICommand::ClearStencil) != 0) {
+            glClearStencil(command.clearStencil);
+            mask |= GL_STENCIL_BUFFER_BIT;
+        }
+        if (mask != 0) glClear(mask);
+    }
+
+    virtual void EndFrame(const RHICommand::EndFrame& command) override {
+        if (command.present) context_.thread_Swap();
+    }
+
+    virtual void SetViewport(const RHICommand::SetViewport& command) override {
+        glViewport(command.x, command.y,
+            static_cast<GLsizei>(command.width),
+            static_cast<GLsizei>(command.height));
+        glDepthRange(command.minDepth, command.maxDepth);
+    }
+
+    virtual void SetScissor(const RHICommand::SetScissor& command) override {
+        if (command.enabled) {
+            glEnable(GL_SCISSOR_TEST);
+            glScissor(command.x, command.y,
+                static_cast<GLsizei>(command.width),
+                static_cast<GLsizei>(command.height));
+        } else {
+            glDisable(GL_SCISSOR_TEST);
+        }
+    }
+
+    virtual void BindTexture(const RHICommand::BindTexture& command) override {
+        const RHITextureSpec* spec =
+            rhiContext_.resourcePool->TextureTable.Get(command.texture);
+        glActiveTexture(GL_TEXTURE0 + command.slot);
+        glBindTexture(GL_TEXTURE_2D, spec ? spec->rhi_id : 0);
+    }
+
+    virtual void BindUniformBuffer(const RHICommand::BindUniformBuffer& command) override {
+        const UniformBufferSpec* spec =
+            rhiContext_.resourcePool->uniformBufferTable.Get(command.buffer);
+        if (!spec) {
+            glBindBufferBase(GL_UNIFORM_BUFFER, command.binding, 0);
+            return;
+        }
+        const uint32_t remaining = command.offset < spec->byteSize
+            ? spec->byteSize - command.offset : 0;
+        const uint32_t size = command.size == 0 ? remaining : command.size;
+        if (command.offset == 0 && size == spec->byteSize) {
+            glBindBufferBase(GL_UNIFORM_BUFFER, command.binding, spec->rhi_id);
+        } else if (size > 0 && command.offset + size <= spec->byteSize) {
+            glBindBufferRange(GL_UNIFORM_BUFFER, command.binding, spec->rhi_id,
+                command.offset, size);
+        }
+    }
+
+    virtual void UpdateUniformBuffer(const RHICommand::UpdateUniformBuffer& command) override {
+        const UniformBufferSpec* spec =
+            rhiContext_.resourcePool->uniformBufferTable.Get(command.buffer);
+        if (!spec || command.size == 0 ||
+            command.size > RHICommand::MaxInlineUniformBytes ||
+            command.offset + command.size > spec->byteSize) {
+            LOG_ERROR("UpdateUniformBuffer", "invalid buffer range");
+            return;
+        }
+        glBindBuffer(GL_UNIFORM_BUFFER, spec->rhi_id);
+        glBufferSubData(GL_UNIFORM_BUFFER, command.offset, command.size,
+            command.data.data());
+        glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    }
+
+    virtual void DrawIndexed(const RHICommand::DrawIndexed& command) override {
+        if (!pipelineValid || !isUseElementIndex || indexNum == 0 ||
+            command.instanceCount == 0 || command.firstIndex >= indexNum) return;
+        const uint32_t available = indexNum - command.firstIndex;
+        const uint32_t count = command.indexCount == 0
+            ? available : command.indexCount;
+        if (count > available) {
+            LOG_ERROR("DrawIndexed", "index range exceeds bound mesh buffer");
+            return;
+        }
+        const GLenum type = ToOpenGLIndexType(currentIndexType);
+        const uintptr_t byteOffset = static_cast<uintptr_t>(command.firstIndex) *
+            (currentIndexType == IndexType::UInt16 ? sizeof(uint16_t) : sizeof(uint32_t));
+        const GLsizei instances = static_cast<GLsizei>(command.instanceCount);
+        if (instances > 1 || command.firstInstance > 0) {
+            glDrawElementsInstancedBaseVertexBaseInstance(
+                topology, static_cast<GLsizei>(count), type,
+                reinterpret_cast<const void*>(byteOffset), instances,
+                command.baseVertex, command.firstInstance);
+        } else {
+            glDrawElementsBaseVertex(
+                topology, static_cast<GLsizei>(count), type,
+                reinterpret_cast<const void*>(byteOffset), command.baseVertex);
+        }
     }
 
     // 之后把帧命令缓冲搬到后端后,需要写重置帧渲染状态
@@ -538,19 +880,18 @@ public:
 
     virtual RenderResourceHandle<ShaderSourceSpec> CreateShaderSource(const CreateShaderSourceCommand& command) override {
         ShaderSourceSpec spec;
-        const CreateShaderSourceDesc& desc = command.createDesc;
-        spec.type = desc.type;
+        spec.type = command.type;
         spec.rhi_id = 0;
 
        // 1. 参数检查
-        if (desc.codeSource == nullptr || desc.size == 0)
+        if (command.source.empty())
         {
             std::cerr << "[OpenGL] CreateShaderSource failed: shader source is empty.\n";
             return {};
         }
 
         // 2. Shader 类型转换
-        GLenum glShaderType = ToOpenGLShaderType(desc.type);
+        GLenum glShaderType = ToOpenGLShaderType(command.type);
         if (glShaderType == 0)
         {
             std::cerr << "[OpenGL] CreateShaderSource failed: invalid shader type.\n";
@@ -566,8 +907,8 @@ public:
         }
 
         // 4. 上传源码
-        const GLchar* source = reinterpret_cast<const GLchar*>(desc.codeSource);
-        GLint sourceLength = static_cast<GLint>(desc.size);
+        const GLchar* source = command.source.data();
+        GLint sourceLength = static_cast<GLint>(command.source.size());
 
         glShaderSource(shader, 1, &source, &sourceLength);
 
@@ -773,7 +1114,7 @@ public:
             0,
             pixelFormat,
             pixelType,
-            createSpec.data
+            command.data.empty() ? nullptr : command.data.data()
         );
 
         glPixelStorei(GL_UNPACK_ALIGNMENT, oldUnpackAlignment);
@@ -834,10 +1175,6 @@ public:
         RenderResourceHandle<RHITextureSpec> handle =
             rhiContext_.resourcePool->TextureTable.Add(rhiSpec);
 
-        if (command.OnFinished) {
-            command.OnFinished(handle);
-        }
-
         return handle;
     }
 
@@ -865,9 +1202,6 @@ public:
 
         rhiContext_.resourcePool->TextureTable.Remove(command.handle);
 
-        if (command.OnFinish) {
-            command.OnFinish();
-        }
     }
 };
 

@@ -620,6 +620,257 @@ public:
         rhiContext_.resourcePool->PipelineTable.Remove(command.handle);
     }
 
+    static GLint ToOpenGLInternalFormat(RHITextureFormat format) {
+    switch (format) {
+    case RHITextureFormat::RGB8:
+        return GL_RGB8;
+    case RHITextureFormat::RGBA8:
+        return GL_RGBA8;
+    case RHITextureFormat::RGB32F:
+        return GL_RGB32F;
+    case RHITextureFormat::RGBA32F:
+        return GL_RGBA32F;
+    default:
+        LOG_ERROR("ToOpenGLInternalFormat", "unknown texture format");
+        return 0;
+    }
+}
+
+    static GLenum ToOpenGLPixelFormat(RHITextureFormat format) {
+        switch (format) {
+        case RHITextureFormat::RGB8:
+        case RHITextureFormat::RGB32F:
+            return GL_RGB;
+
+        case RHITextureFormat::RGBA8:
+        case RHITextureFormat::RGBA32F:
+            return GL_RGBA;
+
+        default:
+            LOG_ERROR("ToOpenGLPixelFormat", "unknown texture format");
+            return 0;
+        }
+    }
+
+    static GLenum ToOpenGLPixelType(RHITextureFormat format) {
+        switch (format) {
+        case RHITextureFormat::RGB8:
+        case RHITextureFormat::RGBA8:
+            return GL_UNSIGNED_BYTE;
+
+        case RHITextureFormat::RGB32F:
+        case RHITextureFormat::RGBA32F:
+            return GL_FLOAT;
+
+        default:
+            LOG_ERROR("ToOpenGLPixelType", "unknown texture format");
+            return 0;
+        }
+    }
+
+    static GLint ToOpenGLMagFilter(RHIFilterMode filterMode) {
+        switch (filterMode) {
+        case RHIFilterMode::Nearest:
+            return GL_NEAREST;
+        case RHIFilterMode::Linear:
+            return GL_LINEAR;
+        default:
+            LOG_ERROR("ToOpenGLMagFilter", "unknown filter mode");
+            return GL_LINEAR;
+        }
+    }
+
+    static GLint ToOpenGLMinFilter(
+        RHIFilterMode filterMode,
+        RHIMipmapMode mipmapMode
+    ) {
+        if (filterMode == RHIFilterMode::Nearest &&
+            mipmapMode == RHIMipmapMode::Nearest) {
+            return GL_NEAREST_MIPMAP_NEAREST;
+        }
+
+        if (filterMode == RHIFilterMode::Nearest &&
+            mipmapMode == RHIMipmapMode::Linear) {
+            return GL_NEAREST_MIPMAP_LINEAR;
+        }
+
+        if (filterMode == RHIFilterMode::Linear &&
+            mipmapMode == RHIMipmapMode::Nearest) {
+            return GL_LINEAR_MIPMAP_NEAREST;
+        }
+
+        if (filterMode == RHIFilterMode::Linear &&
+            mipmapMode == RHIMipmapMode::Linear) {
+            return GL_LINEAR_MIPMAP_LINEAR;
+        }
+
+        LOG_ERROR("ToOpenGLMinFilter", "unknown filter or mipmap mode");
+        return GL_LINEAR_MIPMAP_LINEAR;
+    }
+
+    static GLint ToOpenGLAddressMode(RHIAddressMode addressMode) {
+        switch (addressMode) {
+        case RHIAddressMode::Repeat:
+            return GL_REPEAT;
+        case RHIAddressMode::MirroredRepeat:
+            return GL_MIRRORED_REPEAT;
+        case RHIAddressMode::ClampToEdge:
+            return GL_CLAMP_TO_EDGE;
+        case RHIAddressMode::ClampToBorder:
+            return GL_CLAMP_TO_BORDER;
+        default:
+            LOG_ERROR("ToOpenGLAddressMode", "unknown address mode");
+            return GL_REPEAT;
+        }
+    }
+
+    // texture
+    virtual RenderResourceHandle<RHITextureSpec> CreateTexture(
+        const CreateTextureCommand& command
+    ) override {
+        const CreateRHITextureSpec& createSpec = command.spec;
+
+        if (createSpec.width == 0 || createSpec.height == 0) {
+            LOG_ERROR("CreateTexture", "invalid texture size");
+            return {};
+        }
+
+        const GLint internalFormat =
+            ToOpenGLInternalFormat(createSpec.textureDataStoreType);
+
+        const GLenum pixelFormat =
+            ToOpenGLPixelFormat(createSpec.textureUseType);
+
+        const GLenum pixelType =
+            ToOpenGLPixelType(createSpec.textureUseType);
+
+        if (internalFormat == 0 || pixelFormat == 0 || pixelType == 0) {
+            LOG_ERROR("CreateTexture", "invalid texture format");
+            return {};
+        }
+
+        GLuint texture = 0;
+        glGenTextures(1, &texture);
+
+        if (texture == 0) {
+            LOG_ERROR("CreateTexture", "glGenTextures failed");
+            return {};
+        }
+
+        glBindTexture(GL_TEXTURE_2D, texture);
+
+        // 避免 RGB8 在 width 不是 4 字节对齐时上传错位。
+        GLint oldUnpackAlignment = 4;
+        glGetIntegerv(GL_UNPACK_ALIGNMENT, &oldUnpackAlignment);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+        glTexImage2D(
+            GL_TEXTURE_2D,
+            0,
+            internalFormat,
+            static_cast<GLsizei>(createSpec.width),
+            static_cast<GLsizei>(createSpec.height),
+            0,
+            pixelFormat,
+            pixelType,
+            createSpec.data
+        );
+
+        glPixelStorei(GL_UNPACK_ALIGNMENT, oldUnpackAlignment);
+
+        glTexParameteri(
+            GL_TEXTURE_2D,
+            GL_TEXTURE_MAG_FILTER,
+            ToOpenGLMagFilter(createSpec.filterMode)
+        );
+
+        glTexParameteri(
+            GL_TEXTURE_2D,
+            GL_TEXTURE_MIN_FILTER,
+            ToOpenGLMinFilter(
+                createSpec.filterMode,
+                createSpec.mipmapMode
+            )
+        );
+
+        glTexParameteri(
+            GL_TEXTURE_2D,
+            GL_TEXTURE_WRAP_S,
+            ToOpenGLAddressMode(createSpec.addressMode)
+        );
+
+        glTexParameteri(
+            GL_TEXTURE_2D,
+            GL_TEXTURE_WRAP_T,
+            ToOpenGLAddressMode(createSpec.addressMode)
+        );
+
+        // 当前 RHITextureSpec 有 mipmapMode，但没有 enableMipMap 字段。
+        // 所以这里默认为纹理生成 mipmap，保证 GL_TEXTURE_MIN_FILTER 使用 mipmap 时纹理完整。
+        glGenerateMipmap(GL_TEXTURE_2D);
+
+        GLenum error = glGetError();
+        if (error != GL_NO_ERROR) {
+            LOG_ERROR("CreateTexture", "OpenGL texture creation failed");
+
+            glBindTexture(GL_TEXTURE_2D, 0);
+            glDeleteTextures(1, &texture);
+
+            return {};
+        }
+
+        glBindTexture(GL_TEXTURE_2D, 0);
+
+        RHITextureSpec rhiSpec{};
+        rhiSpec.width = createSpec.width;
+        rhiSpec.height = createSpec.height;
+        rhiSpec.textureDataStoreType = createSpec.textureDataStoreType;
+        rhiSpec.textureUseType = createSpec.textureUseType;
+        rhiSpec.filterMode = createSpec.filterMode;
+        rhiSpec.mipmapMode = createSpec.mipmapMode;
+        rhiSpec.addressMode = createSpec.addressMode;
+        rhiSpec.rhi_id = texture;
+
+        RenderResourceHandle<RHITextureSpec> handle =
+            rhiContext_.resourcePool->TextureTable.Add(rhiSpec);
+
+        if (command.OnFinished) {
+            command.OnFinished(handle);
+        }
+
+        return handle;
+    }
+
+    virtual void DeleteTexture(
+        const DeleteTextureCommand& command
+    ) override {
+        if (!command.handle.IsValid()) {
+            LOG_ERROR("DeleteTexture", "invalid texture handle");
+            return;
+        }
+
+        RHITextureSpec* spec =
+            rhiContext_.resourcePool->TextureTable.Get(command.handle);
+
+        if (!spec) {
+            LOG_ERROR("DeleteTexture", "texture handle not found");
+            return;
+        }
+
+        GLuint texture = static_cast<GLuint>(spec->rhi_id);
+
+        if (texture != 0) {
+            glDeleteTextures(1, &texture);
+        }
+
+        rhiContext_.resourcePool->TextureTable.Remove(command.handle);
+
+        if (command.OnFinish) {
+            command.OnFinish();
+        }
+    }
 };
+
+
 
 } // namespace Render

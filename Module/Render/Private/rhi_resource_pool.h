@@ -1,10 +1,7 @@
 #pragma once
 
 #include "Render/Private/rhi_resource_table.h"
-#include "Render/Public/RHIResourceType/Buffer/vertex_buffer.h"
-#include "Render/Public/RHIResourceType/Shader/shader.h"
-#include "Render/Public/RHIResourceType/Shader/shader_source.h"
-#include "Render/Public/RHIResourceType/Pipeline/pipeline.h"
+#include "Render/Public/RHIResourceType/rhi_resource_type.h"
 
 namespace Render{
   
@@ -14,5 +11,6 @@ namespace Render{
             ResourceTable<ShaderSourceSpec> shaderSourceTable;
             ResourceTable<ShaderProgramSpec> shaderProgramTable;
             ResourceTable<PipelineSpec> PipelineTable;
+            ResourceTable<RHITextureSpec> TextureTable;
     };
 }

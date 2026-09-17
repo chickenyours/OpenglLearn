@@ -24,6 +24,8 @@ namespace Render{
     CreateShaderSourceCommand,
     CreateGraphicShaderProgramCommand,
     CreatePipelineCommand,
+    CreateTextureCommand,
+    DeleteTextureCommand,
     DeletePipelineCommand,
     DeleteVertexBufferCommand,
     BackDoorExecutionCommand,
@@ -44,6 +46,12 @@ namespace Render{
         public:
             RHICommandReturnSystem returnSystem;
         private:
+            template <typename T>
+            void threadAny_PushCommand(T commandPadding){
+                commandSystem_.GetQueue<T>().threadAny_Push(1,&commandPedding);
+                rendercv_.notify_one();
+            }
+
             void thread_run(BackendType type, OpenglBackendContext specData){
                 // if(!specData) return; 
                 std::unique_lock<std::mutex> lock(mtx);
@@ -137,7 +145,7 @@ namespace Render{
             bool thread_ProcessCurrentQueue(){
                 // 处理策略
 
-                // 处理加载命令
+                // 处理缓冲区命令
                 while(!commandSystem_.GetQueue<CreateVertexBufferCommand>().thread_IsConsumeQueueEmpty()){
                     CreateVertexBufferCommand command = commandSystem_.GetQueue<CreateVertexBufferCommand>().thread_Pop();
                     RenderResourceHandle<VertexBufferSpec> specHandle = backend_->CreateVertexBuffer(command);
@@ -149,6 +157,26 @@ namespace Render{
                         };
                         returnSystem.callbacks.push(OnFinishCallback);
                     }
+                }
+
+                // 处理纹理命令
+                while(!commandSystem_.GetQueue<CreateTextureCommand>().thread_IsConsumeQueueEmpty()){
+                    CreateTextureCommand command = commandSystem_.GetQueue<CreateTextureCommand>().thread_Pop();
+                    RenderResourceHandle<RHITextureSpec> specHandle = backend_->CreateTexture(command);
+                    // 返回结果队列
+                    CreateTextureCallback callback = command.OnFinished;
+                    if(callback){
+                        auto OnFinishCallback = [callback = std::move(callback),specHandle](){
+                            callback(specHandle);
+                        };
+                        returnSystem.callbacks.push(OnFinishCallback);
+                    }
+                }
+                while(!commandSystem_.GetQueue<DeleteTextureCommand>().thread_IsConsumeQueueEmpty()){
+                    DeleteTextureCommand command = commandSystem_.GetQueue<DeleteTextureCommand>().thread_Pop();
+                    backend_->DeleteTexture(command);
+                    auto& callback = command.OnFinish;
+                    returnSystem.callbacks.push(command.OnFinish);
                 }
 
                 // 处理着色器命令
@@ -212,7 +240,7 @@ namespace Render{
                     BackDoorExecutionCommand command = commandSystem_.GetQueue<BackDoorExecutionCommand>().thread_Pop();
                     // 直接执行命令
                     command.execution();
-                    OnFinishCallback callback = command.OnFinish;
+                    OnVertexBufferFinishCallback callback = command.OnFinish;
                     if(callback){
                         auto OnFinishCallback = [callback = std::move(callback)](){
                             callback();
@@ -312,6 +340,26 @@ namespace Render{
                 commandPedding.OnFinish = OnFinish;
                 commandSystem_.GetQueue<CreatePipelineCommand>().threadAny_Push(1,&commandPedding);
                 rendercv_.notify_one();
+            }
+
+            void async_CreateTexture(
+                const CreateRHITextureSpec& spec,
+                CreateTextureCallback OnFinish
+            ){
+                CreateTextureCommand commandPedding;
+                commandPedding.spec = spec;
+                commandPedding.OnFinished = OnFinish;
+                threadAny_PushCommand(commandPedding);
+            }
+
+            void async_DeleteTexture(
+               RenderResourceHandle<RHITextureSpec> handle,
+               DeleteTextureCallback OnFinish
+            ){
+                DeleteTextureCommand commandPedding;
+                commandPedding.handle = handle;
+                commandPedding.OnFinish = OnFinish;
+                threadAny_PushCommand(commandPedding);
             }
 
             void async_DeletePipeline(

@@ -24,6 +24,9 @@ namespace Render{
             // pipeline
             virtual RenderResourceHandle<PipelineSpec> CreatePipeline(const CreatePipelineCommand&) = 0;
             virtual void DeletePipeline(const DeletePipelineCommand&) = 0;
+            // texture
+            virtual RenderResourceHandle<RHITextureSpec> CreateTexture(const CreateTextureCommand&) = 0;
+            virtual void DeleteTexture(const DeleteTextureCommand&) = 0;
             // frame 
             virtual void SetBackgroundColor(const RHICommand::SetBackgroundColor& command) = 0;
             virtual void Flip(const RHICommand::Flip& command) = 0;

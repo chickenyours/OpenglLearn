@@ -6,7 +6,7 @@
 #include "Render/Public/RHICommand/FrameCommand/rhi_frame_command_buffer.h"
 
 namespace Render{
-    using OnFinishCallback = std::function<void()>;
+    using OnVertexBufferFinishCallback = std::function<void()>;
     using BackDoorExecution = std::function<void()>;
     using CreateVertexBufferCallback = std::function<void(RenderResourceHandle<VertexBufferSpec>)>;
 
@@ -23,6 +23,6 @@ namespace Render{
     
     struct BackDoorExecutionCommand{
         BackDoorExecution execution;
-        OnFinishCallback OnFinish;
+        OnVertexBufferFinishCallback OnFinish;
     };
 }

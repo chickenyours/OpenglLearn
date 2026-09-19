@@ -9,7 +9,7 @@
             "type": "cppdbg",
             "request": "launch",
             // "program": "${workspaceFolder}\\bin\\${fileBasenameNoExtension}.exe",
-            "program": "${workspaceFolder}\\bin\\apprun.exe",
+            "program": "${workspaceFolder}\\bin\\terrain_pipeline_test.exe",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}\\bin",
@@ -51,7 +51,7 @@
             "name": "LLDB Native Debugging",
             "type": "lldb",
             "request": "launch",
-            "program": "${workspaceFolder}/bin/test1.exe",   // ✅ 用 program，不是 target
+            "program": "${workspaceFolder}/bin/terrain_pipeline_test.exe",   // ✅ 用 program，不是 target
             "cwd": "${workspaceFolder}/bin",
             "args": [],                                          // ✅ 用 args，不是 arguments
             "stopOnEntry": false,

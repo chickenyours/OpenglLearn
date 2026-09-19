@@ -5,12 +5,13 @@
 #include "Render/module.h"
 
 namespace Render::System{
-    class CallBackSystem : public ECS::System{
+    class CallBackSystem : public ECS::System::System{
         private:
             ObjectWeakPtr<RHIDevice> device;
         public:
-            virtual void OnStart() override {
+            virtual bool OnStart() override {
                 device = RenderModule::GetRHIDevice();
+                return true;
             }
             virtual void OnTick() override {
                 if(device){

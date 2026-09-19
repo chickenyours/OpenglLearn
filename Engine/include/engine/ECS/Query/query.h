@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <tuple>
 #include <type_traits>
 #include <vector>
@@ -8,6 +9,7 @@
 
 #include "engine/ECS/ArchType/archtype_description.h"
 #include "engine/ECS/ArchType/archtype_instance.h"
+#include "engine/ECS/Scene/scene.h"
 
 namespace ECS::Core{
 
@@ -388,6 +390,7 @@ namespace ECS::Core{
 
         void Clear(){
             archTypes_.clear();
+            sceneVersion_ = 0;
         }
 
         bool RegisterArchType(ArchType* archType){
@@ -395,7 +398,21 @@ namespace ECS::Core{
                 return false;
             }
 
-            archTypes_.push_back(archType);
+            if(std::find(archTypes_.begin(), archTypes_.end(), archType) == archTypes_.end()){
+                archTypes_.push_back(archType);
+            }
+            return true;
+        }
+
+        void Refresh(const Scene& scene){
+            archTypes_.clear();
+            RegisterArchTypes(scene.GetArchTypes());
+            sceneVersion_ = scene.GetArchTypeVersion();
+        }
+
+        bool RefreshIfNeeded(const Scene& scene){
+            if(sceneVersion_ == scene.GetArchTypeVersion()) return false;
+            Refresh(scene);
             return true;
         }
 
@@ -424,6 +441,7 @@ namespace ECS::Core{
 
     private:
         std::vector<ArchType*> archTypes_;
+        uint64_t sceneVersion_ = 0;
 
         static size_t GetChunkCount(ArchType* archType){
             if(archType == nullptr){

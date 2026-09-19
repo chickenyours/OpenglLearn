@@ -45,6 +45,7 @@ namespace ECS::Core{
         std::vector<EntitySceneInfo> entity2entityInfo_;
         std::queue<EntityID> recycleEntityID_;
         uint32_t entityCount_ = 0;
+        uint64_t archtypeVersion_ = 1;
 
         bool Check(ArchType* archtype) const;
         bool Check(ArchTypePreloadInstance* preload) const;
@@ -78,6 +79,9 @@ namespace ECS::Core{
         EntityComponentHandle<ComponentT> GetActiveComponent(EntityID entity);
 
         bool IsAlive(EntityHandle entity) const;
+
+        std::vector<ArchType*> GetArchTypes() const;
+        uint64_t GetArchTypeVersion() const noexcept { return archtypeVersion_; }
 
         ChunkSchedule* GetChunkSchedule(){
             return &chunkSchedule_;

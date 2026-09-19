@@ -58,7 +58,11 @@ namespace ECS::Core{
             return {};
         }
 
-        return manager->CreateArchType(sizePerChuck);
+        auto archtype = manager->CreateArchType(sizePerChuck);
+        if(archtype){
+            ++archtypeVersion_;
+        }
+        return archtype;
     }
 
     void Scene::DeleteArchType(ObjectWeakPtr<ArchType>& archtype){
@@ -66,8 +70,20 @@ namespace ECS::Core{
             LOG_ERROR("Scene::DeleteArchType", "archtype manager not match");
             return;
         }
-        archtypeManagers_[archtype->manager_->sortKey_]->DestroyArchType(archtype.Get());
+        ArchType* target = archtype.Get();
+        for(const EntityID entity : target->index2EntityID_){
+            if(entity == INVALID_ENTITY || entity >= entity2entityInfo_.size()) continue;
+            EntitySceneInfo& info = entity2entityInfo_[entity];
+            if(info.alive && info.ownArchtype.Get() == target){
+                info.ownArchtype.SetNull();
+                info.alive = false;
+                ++info.generation;
+                recycleEntityID_.push(entity);
+            }
+        }
+        archtypeManagers_[target->manager_->sortKey_]->DestroyArchType(target);
         archtype.SetNull();
+        ++archtypeVersion_;
     }
 
     ObjectWeakPtr<ArchTypePreloadInstance> Scene::CreateArchTypePreloadInstance(
@@ -325,5 +341,18 @@ namespace ECS::Core{
         }
         const auto& info = entity2entityInfo_[entity.id_];
         return info.alive && info.generation == entity.generation_;
+    }
+
+    std::vector<ArchType*> Scene::GetArchTypes() const{
+        std::vector<ArchType*> result;
+        for(const auto& manager : archtypeManagers_){
+            if(!manager) continue;
+            result.reserve(result.size() + manager->registeredArchTypeArray_.size());
+            for(const auto& [archtype, owner] : manager->registeredArchTypeArray_){
+                (void)owner;
+                if(archtype != nullptr && archtype->Check()) result.push_back(archtype);
+            }
+        }
+        return result;
     }
 }

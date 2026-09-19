@@ -119,5 +119,4 @@ namespace ECS::Component {
 
 } // namespace ECS::Component
 
-#define REGISTER_COMPONENT(key, Type) \
-    ECS::Component::RegisterComponentType<Type>(key)
+#define REGISTER_COMPONENT(key, Type) ECS::Component::RegisterComponentType<Type>(key)

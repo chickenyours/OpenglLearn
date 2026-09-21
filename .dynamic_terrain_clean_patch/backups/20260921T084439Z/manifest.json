@@ -1,0 +1,13 @@
+{
+  "patch_id": "dynamic_terrain_clean_patch_v1",
+  "files": [
+    {
+      "path": "Module/Terrain/Test/terrain_render_demo.cpp",
+      "existed": false
+    },
+    {
+      "path": "Module/CMakeLists.txt",
+      "existed": true
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "patch_id": "dynamic_terrain_clean_patch_v2",
+  "files": [
+    {
+      "path": "Module/Terrain/Test/terrain_render_demo.cpp",
+      "existed": true
+    }
+  ]
+}

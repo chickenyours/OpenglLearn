@@ -62,33 +62,3 @@ target_include_directories(terrain_pipeline_test PRIVATE
 if(NOT WIN32)
     target_link_libraries(terrain_pipeline_test PRIVATE pthread)
 endif()
-
-# >>> dynamic_terrain_clean_patch_v1 >>>
-add_executable(terrain_render_demo
-    ${CMAKE_CURRENT_SOURCE_DIR}/Terrain/Test/terrain_render_demo.cpp
-)
-
-target_include_directories(terrain_render_demo PRIVATE
-    ${CMAKE_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}/Engine/include
-    ${CMAKE_SOURCE_DIR}/Engine/include/engine
-    ${CMAKE_SOURCE_DIR}/Engine/include/engine/ToolAndAlgorithm
-    ${CMAKE_SOURCE_DIR}/Module
-    ${CMAKE_SOURCE_DIR}/Module/ApplicationWindow
-    ${CMAKE_SOURCE_DIR}/Module/ApplicationWindow/Public
-    ${CMAKE_SOURCE_DIR}/Module/ApplicationWindow/Private
-    ${CMAKE_SOURCE_DIR}/Module/Render
-    ${CMAKE_SOURCE_DIR}/Module/Render/Public
-    ${CMAKE_SOURCE_DIR}/Module/Render/Private
-)
-
-target_link_directories(terrain_render_demo PRIVATE
-    ${CMAKE_SOURCE_DIR}/lib/debug
-)
-
-target_link_libraries(terrain_render_demo PRIVATE
-    opengl32
-    glfw3
-    glad
-)
-# <<< dynamic_terrain_clean_patch_v1 <<<

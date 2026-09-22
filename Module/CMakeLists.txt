@@ -66,6 +66,15 @@ endif()
 # >>> dynamic_terrain_clean_patch_v1 >>>
 add_executable(terrain_render_demo
     ${CMAKE_CURRENT_SOURCE_DIR}/Terrain/Test/terrain_render_demo.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/job_system.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/job_system_schedule.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/context.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/archtype_description.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/archtype_instance.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/archtype_manager.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/archtype_preload_instance.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/scene.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/chunk_schedule.cpp
 )
 
 target_include_directories(terrain_render_demo PRIVATE
@@ -91,4 +100,7 @@ target_link_libraries(terrain_render_demo PRIVATE
     glfw3
     glad
 )
+if(NOT WIN32)
+    target_link_libraries(terrain_render_demo PRIVATE pthread)
+endif()
 # <<< dynamic_terrain_clean_patch_v1 <<<

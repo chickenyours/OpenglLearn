@@ -10,13 +10,18 @@
 #include <glm/glm.hpp>
 
 #include "engine/ECS/Component/component.h"
+#include "engine/ECS/Component/component_loader_registry.h"
 #include "Render/Public/RHIResourceType/Buffer/vertex_buffer.h"
 #include "Render/Public/rhi_resource_handle.h"
 
 namespace Terrain {
 
 inline constexpr int SectionSize = 16;
-inline constexpr std::size_t SectionVolume = SectionSize * SectionSize * SectionSize;
+// A terrain chunk is a full column: 16x16 footprint, tall enough to hold the
+// tallest hill plus an oak on top of it.
+inline constexpr int SectionHeight = 32;
+inline constexpr std::size_t SectionVolume =
+    static_cast<std::size_t>(SectionSize) * SectionSize * SectionHeight;
 using BlockId = std::uint16_t;
 
 enum class Face : std::uint8_t { NegativeX, PositiveX, NegativeY, PositiveY, NegativeZ, PositiveZ };
@@ -27,6 +32,9 @@ struct BlockRenderInfo {
     bool occludes = false;
     Layer layer = Layer::Opaque;
     std::array<std::uint16_t, 6> tile{};
+    // Per-face vertex colors. Kept alongside the tile index so the same mesh
+    // can feed either a textured or a flat-shaded (color) pipeline.
+    std::array<glm::vec3, 6> color{};
 };
 
 class BlockRenderRegistry {
@@ -52,10 +60,17 @@ struct ChunkLocation : ECS::Component::Component<ChunkLocation> {
 struct ChunkBlocks : ECS::Component::Component<ChunkBlocks> {
     std::array<BlockId, SectionVolume> blocks{};
     std::uint64_t revision = 1;
+    // Terrain generation is a one-shot per chunk; the flag lets the generation
+    // system skip chunks that are already filled in.
+    bool generated = false;
     bool LoadFromMetaDataImpl(const Json::Value&, Log::StackLogErrorHandle) { return true; }
 
     static constexpr std::size_t Index(int x, int y, int z) {
         return static_cast<std::size_t>((y * SectionSize + z) * SectionSize + x);
+    }
+    static constexpr bool InBounds(int x, int y, int z) {
+        return x >= 0 && y >= 0 && z >= 0
+            && x < SectionSize && y < SectionHeight && z < SectionSize;
     }
     BlockId Get(int x, int y, int z) const { return blocks[Index(x, y, z)]; }
     void Set(int x, int y, int z, BlockId id) { blocks[Index(x, y, z)] = id; ++revision; }
@@ -64,9 +79,22 @@ struct ChunkBlocks : ECS::Component::Component<ChunkBlocks> {
 struct Vertex {
     glm::vec3 position{0.0f};
     glm::vec3 normal{0.0f};
+    glm::vec3 color{1.0f};
     glm::vec2 uv{0.0f};
     std::uint32_t tile = 0;
 };
+
+inline Render::VertexLayout TerrainVertexLayout() {
+    Render::VertexLayout layout;
+    layout.typeSlots = {
+        Render::VertexFieldType::Vec3,
+        Render::VertexFieldType::Vec3,
+        Render::VertexFieldType::Vec3,
+        Render::VertexFieldType::Vec2,
+        Render::VertexFieldType::Int
+    };
+    return layout;
+}
 
 struct CpuSubmesh {
     std::vector<Vertex> vertices;
@@ -105,11 +133,18 @@ struct ChunkRender : ECS::Component::Component<ChunkRender> {
     bool LoadFromMetaDataImpl(const Json::Value&, Log::StackLogErrorHandle) { return true; }
 };
 
+// Marks the entity the chunk streamer centers the loaded region on.
+struct TerrainViewer : ECS::Component::Component<TerrainViewer> {
+    glm::vec3 position{0.0f};
+    bool LoadFromMetaDataImpl(const Json::Value&, Log::StackLogErrorHandle) { return true; }
+};
+
 inline void RegisterTerrainComponents() {
     REGISTER_COMPONENT("terrain_chunk_location", ChunkLocation);
     REGISTER_COMPONENT("terrain_chunk_blocks", ChunkBlocks);
     REGISTER_COMPONENT("terrain_chunk_mesh", ChunkMesh);
     REGISTER_COMPONENT("terrain_chunk_render", ChunkRender);
+    REGISTER_COMPONENT("terrain_viewer", TerrainViewer);
 }
 
 } // namespace Terrain

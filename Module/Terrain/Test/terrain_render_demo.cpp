@@ -10,6 +10,7 @@
 #include <cmath>
 #include <condition_variable>
 #include <cstdint>
+#include <cstring>
 #include <deque>
 #include <iostream>
 #include <memory>
@@ -43,6 +44,32 @@ constexpr int kKeepRadius = 8;      // GPU mesh hysteresis.
 constexpr int kMaxUploadsPerFrame = 8;
 constexpr std::size_t kMaxQueuedGeneration = 128;
 
+// Oak generation. Trees are deterministic from world coordinates, so chunks can
+// be meshed independently on worker threads. A margin around each chunk makes
+// sure leaves that cross a chunk border are culled and meshed identically on
+// both sides of the seam.
+constexpr int kTreeMargin = 3;                            // Blocks inspected outside the chunk.
+constexpr int kTreeExtent = kChunkSize + 2 * kTreeMargin; // Local footprint + margin.
+constexpr int kTreeMaxY = 32;                             // Tallest reachable tree block.
+constexpr float kTreeDensity = 0.011f;                    // Chance per suitable column.
+
+// Water and hydrology. There is no flow simulation: every submerged column is
+// simply filled up to one global water level.
+constexpr int kWaterLevel = 6;
+constexpr int kTerrainMinHeight = 2;
+constexpr int kTerrainMaxHeight = 19;
+
+// Rivers follow the 0.5 contour of a low frequency noise field, so they wander
+// across the map in connected channels.
+constexpr float kRiverGrid = 52.0f;
+constexpr float kRiverWidth = 0.055f;   // Contour band half width in noise units.
+constexpr float kRiverDepth = 7.0f;     // Carve depth at the channel centre.
+
+// Ponds are the basins of a second, wider noise field.
+constexpr float kPondGrid = 70.0f;
+constexpr float kPondThreshold = 0.16f; // Fraction of the field that digs a basin.
+constexpr float kPondDepth = 8.0f;
+
 const glm::vec4 kSkyColor{0.44f, 0.68f, 0.90f, 1.0f};
 
 struct Vertex {
@@ -59,6 +86,7 @@ struct CpuMesh {
 struct ChunkData {
     std::array<std::uint8_t, kChunkSize * kChunkSize> heights{};
     CpuMesh mesh;
+    CpuMesh water;
 };
 
 struct ChunkCoord {
@@ -174,10 +202,55 @@ void main() {
 }
 )GLSL";
 
+// Same vertex shader, but the surface is translucent and picks up a little sky
+// reflection at grazing angles.
+constexpr char kWaterFragmentShader[] = R"GLSL(
+#version 450 core
+
+layout(std140, binding = 0) uniform ViewData {
+    mat4 uViewProjection;
+    vec4 uCameraPosition;
+};
+
+in vec3 vWorldPosition;
+in vec3 vNormal;
+in vec3 vColor;
+
+layout(location = 0) out vec4 FragColor;
+
+void main() {
+    const vec3 sky = vec3(0.44, 0.68, 0.90);
+    vec3 n = normalize(vNormal);
+    vec3 lightDirection = normalize(vec3(0.42, 0.86, 0.28));
+    float light = 0.40 + 0.60 * max(dot(n, lightDirection), 0.0);
+
+    vec3 viewDirection = normalize(uCameraPosition.xyz - vWorldPosition);
+    float fresnel = pow(1.0 - max(dot(n, viewDirection), 0.0), 3.0);
+
+    vec3 color = mix(vColor * light, sky, fresnel * 0.6);
+
+    float d = distance(vWorldPosition, uCameraPosition.xyz);
+    float fog = smoothstep(62.0, 88.0, d);
+    color = mix(color, sky, fog);
+
+    float alpha = mix(0.60, 0.92, fresnel);
+    alpha = mix(alpha, 1.0, fog);
+
+    FragColor = vec4(color, alpha);
+}
+)GLSL";
+
 class GpuProgram {
 public:
-    explicit GpuProgram(Render::RHIDevice* device)
-        : device_(device) {}
+    GpuProgram(
+        Render::RHIDevice* device,
+        const char* vertexSource,
+        const char* fragmentSource,
+        bool translucent)
+        : device_(device),
+          vertexSource_(vertexSource),
+          fragmentSource_(fragmentSource),
+          translucent_(translucent) {}
 
     void Start() {
         Render::CreateUniformBufferDesc view{};
@@ -202,8 +275,8 @@ public:
 
         Render::CreateShaderSourceDesc vs{};
         vs.type = Render::ShaderSourceType::Vertex;
-        vs.codeSource = kVertexShader;
-        vs.size = sizeof(kVertexShader) - 1;
+        vs.codeSource = vertexSource_;
+        vs.size = std::strlen(vertexSource_);
         device_->async_CreateShaderSource(
             vs,
             [this](Render::RenderResourceHandle<Render::ShaderSourceSpec> handle) {
@@ -217,8 +290,8 @@ public:
 
         Render::CreateShaderSourceDesc fs{};
         fs.type = Render::ShaderSourceType::Fragment;
-        fs.codeSource = kFragmentShader;
-        fs.size = sizeof(kFragmentShader) - 1;
+        fs.codeSource = fragmentSource_;
+        fs.size = std::strlen(fragmentSource_);
         device_->async_CreateShaderSource(
             fs,
             [this](Render::RenderResourceHandle<Render::ShaderSourceSpec> handle) {
@@ -297,8 +370,12 @@ private:
                 desc.spec.expectVertexLayout = TerrainVertexLayout();
                 desc.spec.cullMode = Render::CullMode::None;
                 desc.spec.depthTest = true;
-                desc.spec.depthWrite = true;
+                desc.spec.depthWrite = !translucent_;
                 desc.spec.depthCompare = Render::CompareOp::LessEqual;
+                desc.spec.blendEnable = translucent_;
+                desc.spec.blendMode = translucent_
+                    ? Render::BlendMode::Alpha
+                    : Render::BlendMode::Opaque;
 
                 device_->async_CreatePipeline(
                     desc,
@@ -310,6 +387,9 @@ private:
     }
 
     Render::RHIDevice* device_ = nullptr;
+    const char* vertexSource_ = nullptr;
+    const char* fragmentSource_ = nullptr;
+    bool translucent_ = false;
     Render::RenderResourceHandle<Render::ShaderSourceSpec> vertexShader_{};
     Render::RenderResourceHandle<Render::ShaderSourceSpec> fragmentShader_{};
     Render::RenderResourceHandle<Render::ShaderProgramSpec> shaderProgram_{};
@@ -417,6 +497,24 @@ float Hash01(int x, int z, std::uint32_t seed) {
         / static_cast<float>(0x01000000u);
 }
 
+std::uint32_t Hash3(int x, int y, int z, std::uint32_t seed) {
+    std::uint32_t h = static_cast<std::uint32_t>(x) * 0x8da6b343u;
+    h ^= static_cast<std::uint32_t>(y) * 0x9e3779b9u;
+    h ^= static_cast<std::uint32_t>(z) * 0xd8163841u;
+    h ^= seed * 0xcb1ab31fu;
+    h ^= h >> 16u;
+    h *= 0x7feb352du;
+    h ^= h >> 15u;
+    h *= 0x846ca68bu;
+    h ^= h >> 16u;
+    return h;
+}
+
+float Hash01_3(int x, int y, int z, std::uint32_t seed) {
+    return static_cast<float>(Hash3(x, y, z, seed) & 0x00ffffffu)
+        / static_cast<float>(0x01000000u);
+}
+
 float Fade(float t) {
     return t * t * (3.0f - 2.0f * t);
 }
@@ -443,7 +541,7 @@ float ValueNoise(float x, float z, float grid, std::uint32_t seed) {
     return ab + (cd - ab) * tz;
 }
 
-int WorldHeight(int worldX, int worldZ) {
+int BaseHeight(int worldX, int worldZ) {
     const float large = ValueNoise(
         static_cast<float>(worldX),
         static_cast<float>(worldZ),
@@ -461,12 +559,55 @@ int WorldHeight(int worldX, int worldZ) {
         0x00c0ffeeu);
 
     const float h = 4.0f + large * 8.0f + medium * 3.5f + small * 1.5f;
-    return std::clamp(static_cast<int>(std::floor(h)), 2, 19);
+    return std::clamp(
+        static_cast<int>(std::floor(h)), kTerrainMinHeight, kTerrainMaxHeight);
+}
+
+// How much a river channel digs into the base terrain at this column. The
+// channel follows the 0.5 contour of a broad noise field, which yields winding
+// connected waterways rather than isolated pits.
+float RiverCarve(int worldX, int worldZ) {
+    const float field = ValueNoise(
+        static_cast<float>(worldX),
+        static_cast<float>(worldZ),
+        kRiverGrid,
+        0x5eed1a2bu);
+
+    const float distance = std::abs(field - 0.5f);
+    if (distance >= kRiverWidth) return 0.0f;
+
+    const float t = 1.0f - distance / kRiverWidth;
+    return Fade(t) * kRiverDepth;
+}
+
+// Ponds are the low basins of a second noise field.
+float PondCarve(int worldX, int worldZ) {
+    const float field = ValueNoise(
+        static_cast<float>(worldX),
+        static_cast<float>(worldZ),
+        kPondGrid,
+        0x0dc0ffeeu);
+
+    if (field >= kPondThreshold) return 0.0f;
+
+    const float t = 1.0f - field / kPondThreshold;
+    return Fade(t) * kPondDepth;
+}
+
+int WorldHeight(int worldX, int worldZ) {
+    const int base = BaseHeight(worldX, worldZ);
+    const float carve = std::max(RiverCarve(worldX, worldZ), PondCarve(worldX, worldZ));
+    const int height = base - static_cast<int>(carve + 0.5f);
+    return std::clamp(height, kTerrainMinHeight, kTerrainMaxHeight);
 }
 
 glm::vec3 SurfaceColor(int y, int topY, glm::ivec3 normal) {
     if (normal.y > 0) {
         const float variation = 0.93f + 0.04f * static_cast<float>((topY * 17) % 3);
+        if (topY <= kWaterLevel + 1) {
+            // Riverbeds, pond floors and the shoreline read as sand.
+            return glm::vec3(0.76f, 0.70f, 0.50f) * variation;
+        }
         return glm::vec3(0.25f, 0.63f, 0.20f) * variation;
     }
 
@@ -497,6 +638,136 @@ void EmitQuad(
     mesh.indices.push_back(first + 3);
 }
 
+std::size_t TreeBlockIndex(int localX, int localZ, int y) {
+    return (static_cast<std::size_t>(localZ) * kTreeExtent
+                + static_cast<std::size_t>(localX))
+            * static_cast<std::size_t>(kTreeMaxY)
+        + static_cast<std::size_t>(y);
+}
+
+// One oak per suitable grass column, with a spacing that avoids the worst
+// clumping while still leaving room for small woods.
+bool IsTreeAt(int worldX, int worldZ) {
+    if (Hash01(worldX, worldZ, 0x5bd1e995u) > kTreeDensity) return false;
+
+    const int h = WorldHeight(worldX, worldZ);
+    if (h < 4) return false;
+    if (h <= kWaterLevel) return false; // Never grow a tree out of the water.
+
+    const int west = WorldHeight(worldX - 1, worldZ);
+    const int east = WorldHeight(worldX + 1, worldZ);
+    const int north = WorldHeight(worldX, worldZ - 1);
+    const int south = WorldHeight(worldX, worldZ + 1);
+
+    // Only plant on fairly level ground so trunks do not float over cliffs.
+    return std::abs(west - h) <= 1
+        && std::abs(east - h) <= 1
+        && std::abs(north - h) <= 1
+        && std::abs(south - h) <= 1;
+}
+
+void MarkTreeBlock(
+    std::vector<std::uint8_t>& occupancy,
+    int extentBaseX,
+    int extentBaseZ,
+    int worldX,
+    int worldY,
+    int worldZ,
+    bool trunk) {
+    const int localX = worldX - extentBaseX;
+    const int localZ = worldZ - extentBaseZ;
+    if (localX < 0 || localX >= kTreeExtent) return;
+    if (localZ < 0 || localZ >= kTreeExtent) return;
+    if (worldY < 0 || worldY >= kTreeMaxY) return;
+    if (worldY < WorldHeight(worldX, worldZ)) return; // Buried in terrain.
+
+    std::uint8_t& cell = occupancy[TreeBlockIndex(localX, localZ, worldY)];
+    if (trunk) {
+        cell = 1; // Trunks always win over leaves from an overlapping tree.
+    } else if (cell == 0) {
+        cell = 2;
+    }
+}
+
+// Classic (pre-fancy) oak: a 4-6 block trunk topped by two wide 5x5 leaf
+// layers and two narrower 3x3 layers, corners trimmed on every layer.
+void AddTree(
+    std::vector<std::uint8_t>& occupancy,
+    int extentBaseX,
+    int extentBaseZ,
+    int trunkX,
+    int trunkZ) {
+    const int ground = WorldHeight(trunkX, trunkZ);
+    const int trunkHeight =
+        4 + static_cast<int>(Hash2(trunkX, trunkZ, 0x51ab3c7du) % 3u);
+
+    for (int y = 0; y < trunkHeight; ++y) {
+        MarkTreeBlock(
+            occupancy, extentBaseX, extentBaseZ, trunkX, ground + y, trunkZ, true);
+    }
+
+    for (int layer = 0; layer < 4; ++layer) {
+        const int y = ground + trunkHeight - 3 + layer;
+        const int radius = layer < 2 ? 2 : 1;
+        for (int dz = -radius; dz <= radius; ++dz) {
+            for (int dx = -radius; dx <= radius; ++dx) {
+                if (std::abs(dx) == radius && std::abs(dz) == radius) continue;
+                MarkTreeBlock(
+                    occupancy,
+                    extentBaseX,
+                    extentBaseZ,
+                    trunkX + dx,
+                    y,
+                    trunkZ + dz,
+                    false);
+            }
+        }
+    }
+}
+
+void BuildTreeOccupancy(ChunkCoord coord, std::vector<std::uint8_t>& occupancy) {
+    occupancy.assign(
+        static_cast<std::size_t>(kTreeExtent) * kTreeExtent * kTreeMaxY,
+        0);
+
+    const int extentBaseX = coord.x * kChunkSize - kTreeMargin;
+    const int extentBaseZ = coord.z * kChunkSize - kTreeMargin;
+
+    for (int localZ = 0; localZ < kTreeExtent; ++localZ) {
+        for (int localX = 0; localX < kTreeExtent; ++localX) {
+            const int worldX = extentBaseX + localX;
+            const int worldZ = extentBaseZ + localZ;
+            if (IsTreeAt(worldX, worldZ)) {
+                AddTree(occupancy, extentBaseX, extentBaseZ, worldX, worldZ);
+            }
+        }
+    }
+}
+
+glm::vec3 TrunkColor(glm::ivec3 normal, int x, int y, int z) {
+    if (normal.y != 0) {
+        const float variation = 0.94f + 0.06f * Hash01_3(x, y, z, 0x1a2b3c4du);
+        return glm::vec3(0.60f, 0.47f, 0.31f) * variation;
+    }
+    const float variation = 0.86f + 0.14f * Hash01_3(x, y, z, 0x2b3c4d5eu);
+    return glm::vec3(0.42f, 0.30f, 0.18f) * variation;
+}
+
+glm::vec3 LeafColor(glm::ivec3 normal, int x, int y, int z) {
+    const float variation = 0.78f + 0.44f * Hash01_3(x, y, z, 0x3c4d5e6fu);
+    glm::vec3 base(0.20f, 0.56f, 0.17f);
+    if (normal.y > 0) base *= 1.12f;
+    if (normal.y < 0) base *= 0.72f;
+    return base * variation;
+}
+
+glm::vec3 WaterColor(glm::ivec3 normal, int x, int y, int z) {
+    const float variation = 0.94f + 0.12f * Hash01_3(x, y, z, 0x4d5e6f70u);
+    glm::vec3 base(0.11f, 0.33f, 0.52f);
+    if (normal.y > 0) base = glm::vec3(0.15f, 0.43f, 0.63f);
+    return base * variation;
+}
+
 std::shared_ptr<ChunkData> GenerateChunk(ChunkCoord coord) {
     auto result = std::make_shared<ChunkData>();
 
@@ -513,8 +784,27 @@ std::shared_ptr<ChunkData> GenerateChunk(ChunkCoord coord) {
     }
 
     CpuMesh& mesh = result->mesh;
-    mesh.vertices.reserve(kChunkSize * kChunkSize * 8);
-    mesh.indices.reserve(kChunkSize * kChunkSize * 12);
+    mesh.vertices.reserve(kChunkSize * kChunkSize * 8 + 4096);
+    mesh.indices.reserve(kChunkSize * kChunkSize * 12 + 6144);
+
+    const int extentBaseX = baseX - kTreeMargin;
+    const int extentBaseZ = baseZ - kTreeMargin;
+
+    std::vector<std::uint8_t> occupancy;
+    BuildTreeOccupancy(coord, occupancy);
+
+    // A cell is solid for meshing when it is terrain or a tree block. Terrain
+    // fills everything below the height field; trees sit on top of it.
+    const auto solid = [&](int worldX, int worldY, int worldZ) -> bool {
+        if (worldY < WorldHeight(worldX, worldZ)) return true;
+
+        const int localX = worldX - extentBaseX;
+        const int localZ = worldZ - extentBaseZ;
+        if (localX < 0 || localX >= kTreeExtent) return false;
+        if (localZ < 0 || localZ >= kTreeExtent) return false;
+        if (worldY < 0 || worldY >= kTreeMaxY) return false;
+        return occupancy[TreeBlockIndex(localX, localZ, worldY)] != 0;
+    };
 
     for (int z = 0; z < kChunkSize; ++z) {
         for (int x = 0; x < kChunkSize; ++x) {
@@ -525,16 +815,18 @@ std::shared_ptr<ChunkData> GenerateChunk(ChunkCoord coord) {
             const float zf = static_cast<float>(z);
             const float top = static_cast<float>(h);
 
-            EmitQuad(
-                mesh,
-                {
-                    glm::vec3{xf,       top, zf},
-                    glm::vec3{xf,       top, zf + 1.0f},
-                    glm::vec3{xf + 1.0f,top, zf + 1.0f},
-                    glm::vec3{xf + 1.0f,top, zf}
-                },
-                glm::vec3{0.0f, 1.0f, 0.0f},
-                SurfaceColor(h - 1, h, glm::ivec3{0, 1, 0}));
+            if (!solid(worldX, h, worldZ)) {
+                EmitQuad(
+                    mesh,
+                    {
+                        glm::vec3{xf,       top, zf},
+                        glm::vec3{xf,       top, zf + 1.0f},
+                        glm::vec3{xf + 1.0f,top, zf + 1.0f},
+                        glm::vec3{xf + 1.0f,top, zf}
+                    },
+                    glm::vec3{0.0f, 1.0f, 0.0f},
+                    SurfaceColor(h - 1, h, glm::ivec3{0, 1, 0}));
+            }
 
             const int west = WorldHeight(worldX - 1, worldZ);
             if (west < h) {
@@ -598,6 +890,114 @@ std::shared_ptr<ChunkData> GenerateChunk(ChunkCoord coord) {
         }
     }
 
+    // Bake the trees that fall inside this chunk into the same mesh. Blocks are
+    // only emitted for the chunk's own footprint; the wider occupancy grid keeps
+    // faces at chunk seams culled consistently.
+    for (int z = 0; z < kChunkSize; ++z) {
+        for (int x = 0; x < kChunkSize; ++x) {
+            const int worldX = baseX + x;
+            const int worldZ = baseZ + z;
+            const int localX = x + kTreeMargin;
+            const int localZ = z + kTreeMargin;
+            const int ground = WorldHeight(worldX, worldZ);
+
+            for (int y = ground; y < kTreeMaxY; ++y) {
+                const std::uint8_t kind =
+                    occupancy[TreeBlockIndex(localX, localZ, y)];
+                if (kind == 0) continue;
+
+                const float fx = static_cast<float>(x);
+                const float fz = static_cast<float>(z);
+                const float fy = static_cast<float>(y);
+
+                const auto emit = [&](glm::ivec3 normal,
+                                      glm::vec3 a,
+                                      glm::vec3 b,
+                                      glm::vec3 c,
+                                      glm::vec3 d) {
+                    const glm::vec3 color = kind == 1
+                        ? TrunkColor(normal, worldX, y, worldZ)
+                        : LeafColor(normal, worldX, y, worldZ);
+                    EmitQuad(mesh, {a, b, c, d}, glm::vec3(normal), color);
+                };
+
+                if (!solid(worldX, y + 1, worldZ)) {
+                    emit({0, 1, 0},
+                         {fx,     fy + 1.0f, fz},
+                         {fx,     fy + 1.0f, fz + 1.0f},
+                         {fx + 1.0f, fy + 1.0f, fz + 1.0f},
+                         {fx + 1.0f, fy + 1.0f, fz});
+                }
+                if (!solid(worldX, y - 1, worldZ)) {
+                    emit({0, -1, 0},
+                         {fx,     fy, fz + 1.0f},
+                         {fx,     fy, fz},
+                         {fx + 1.0f, fy, fz},
+                         {fx + 1.0f, fy, fz + 1.0f});
+                }
+                if (!solid(worldX - 1, y, worldZ)) {
+                    emit({-1, 0, 0},
+                         {fx,     fy,     fz + 1.0f},
+                         {fx,     fy,     fz},
+                         {fx,     fy + 1.0f, fz},
+                         {fx,     fy + 1.0f, fz + 1.0f});
+                }
+                if (!solid(worldX + 1, y, worldZ)) {
+                    emit({1, 0, 0},
+                         {fx + 1.0f, fy,     fz},
+                         {fx + 1.0f, fy,     fz + 1.0f},
+                         {fx + 1.0f, fy + 1.0f, fz + 1.0f},
+                         {fx + 1.0f, fy + 1.0f, fz});
+                }
+                if (!solid(worldX, y, worldZ - 1)) {
+                    emit({0, 0, -1},
+                         {fx + 1.0f, fy,     fz},
+                         {fx,     fy,     fz},
+                         {fx,     fy + 1.0f, fz},
+                         {fx + 1.0f, fy + 1.0f, fz});
+                }
+                if (!solid(worldX, y, worldZ + 1)) {
+                    emit({0, 0, 1},
+                         {fx,     fy,     fz + 1.0f},
+                         {fx + 1.0f, fy,     fz + 1.0f},
+                         {fx + 1.0f, fy + 1.0f, fz + 1.0f},
+                         {fx,     fy + 1.0f, fz + 1.0f});
+                }
+            }
+        }
+    }
+
+    // Water is a separate mesh so it can be drawn in a blended pass. Only the
+    // flat top surface is needed: the shore walls are the terrain side faces,
+    // which already run down to the river/pond floor, so no water side quads are
+    // generated (and nothing z-fights with the bank).
+    CpuMesh& water = result->water;
+    water.vertices.reserve(kChunkSize * kChunkSize * 4);
+    water.indices.reserve(kChunkSize * kChunkSize * 6);
+
+    for (int z = 0; z < kChunkSize; ++z) {
+        for (int x = 0; x < kChunkSize; ++x) {
+            const int worldX = baseX + x;
+            const int worldZ = baseZ + z;
+            if (WorldHeight(worldX, worldZ) >= kWaterLevel) continue;
+
+            const float fx = static_cast<float>(x);
+            const float fz = static_cast<float>(z);
+            const float surface = static_cast<float>(kWaterLevel);
+
+            EmitQuad(
+                water,
+                {
+                    glm::vec3{fx,        surface, fz},
+                    glm::vec3{fx,        surface, fz + 1.0f},
+                    glm::vec3{fx + 1.0f, surface, fz + 1.0f},
+                    glm::vec3{fx + 1.0f, surface, fz}
+                },
+                glm::vec3{0.0f, 1.0f, 0.0f},
+                WaterColor(glm::ivec3{0, 1, 0}, worldX, kWaterLevel, worldZ));
+        }
+    }
+
     return result;
 }
 
@@ -605,6 +1005,11 @@ struct GpuTicket {
     Render::RenderResourceHandle<Render::VertexBufferSpec> handle{};
     std::uint32_t indexCount = 0;
     bool pending = true;
+
+    Render::RenderResourceHandle<Render::VertexBufferSpec> waterHandle{};
+    std::uint32_t waterIndexCount = 0;
+    bool waterPending = false;
+
     bool retired = false;
 };
 
@@ -731,6 +1136,39 @@ public:
         }
     }
 
+    void RecordWater(
+        Render::RHIFrameEncoder& frame,
+        Render::RenderResourceHandle<Render::UniformBufferSpec> objectUniform) const {
+        for (const auto& pair : active_) {
+            const ChunkCoord coord = pair.first;
+            const std::shared_ptr<GpuTicket>& ticket = pair.second;
+
+            if (!ticket
+                || ticket->waterPending
+                || ticket->retired
+                || !ticket->waterHandle.IsValid()
+                || ticket->waterIndexCount == 0) {
+                continue;
+            }
+
+            ObjectConstants object{};
+            object.model = glm::translate(
+                glm::mat4(1.0f),
+                glm::vec3(
+                    static_cast<float>(coord.x * kChunkSize),
+                    0.0f,
+                    static_cast<float>(coord.z * kChunkSize)));
+
+            if (!frame.UpdateUniformBuffer(objectUniform, object)) return;
+            if (!frame.BindUniformBuffer(objectUniform, 1)) return;
+            if (!frame.BindMesh(ticket->waterHandle)) return;
+
+            Render::RHICommand::DrawIndexed draw{};
+            draw.indexCount = ticket->waterIndexCount;
+            if (!frame.DrawIndexed(draw)) return;
+        }
+    }
+
     std::size_t CacheCount() const {
         return cache_.size();
     }
@@ -749,6 +1187,7 @@ public:
             const auto& ticket = pair.second;
             if (ticket
                 && !ticket->pending
+                && !ticket->waterPending
                 && !ticket->retired
                 && ticket->handle.IsValid()) {
                 ++count;
@@ -811,6 +1250,10 @@ private:
             device_->async_DeleteVertexBuffer(ticket->handle);
             ticket->handle = {};
         }
+        if (ticket->waterHandle.IsValid()) {
+            device_->async_DeleteVertexBuffer(ticket->waterHandle);
+            ticket->waterHandle = {};
+        }
     }
 
     void RetireFar(ChunkCoord center) {
@@ -869,6 +1312,47 @@ private:
                 }
 
                 ticket->handle = handle;
+            });
+
+        if (data->water.indices.empty()) return;
+
+        ticket->waterPending = true;
+        ticket->waterIndexCount =
+            static_cast<std::uint32_t>(data->water.indices.size());
+
+        Render::CreateMeshBufferDesc waterDesc{};
+        waterDesc.vertexLayout = TerrainVertexLayout();
+        waterDesc.vertexCount =
+            static_cast<std::uint32_t>(data->water.vertices.size());
+        waterDesc.vertexData = data->water.vertices.data();
+        waterDesc.vertexByteSize =
+            data->water.vertices.size() * sizeof(Vertex);
+        waterDesc.indexCount =
+            static_cast<std::uint32_t>(data->water.indices.size());
+        waterDesc.indexData = data->water.indices.data();
+        waterDesc.indexByteSize =
+            data->water.indices.size() * sizeof(std::uint32_t);
+        waterDesc.indexType = Render::IndexType::UInt32;
+        waterDesc.usage = Render::BufferUsage::Static;
+
+        device_->async_CreateMeshBuffer(
+            waterDesc,
+            [ticket, device](
+                Render::RenderResourceHandle<Render::VertexBufferSpec> handle) {
+                ticket->waterPending = false;
+
+                if (ticket->retired) {
+                    if (handle.IsValid()) {
+                        device->async_DeleteVertexBuffer(handle);
+                    }
+                    return;
+                }
+
+                if (!handle.IsValid()) {
+                    return;
+                }
+
+                ticket->waterHandle = handle;
             });
     }
 
@@ -964,18 +1448,24 @@ int main() {
     FlyCamera camera;
     camera.Start(nativeWindow);
 
-    GpuProgram gpu(device);
+    GpuProgram gpu(device, kVertexShader, kFragmentShader, false);
+    GpuProgram waterGpu(device, kVertexShader, kWaterFragmentShader, true);
     gpu.Start();
+    waterGpu.Start();
 
-    while (!window->ShouldClose() && !gpu.Ready() && !gpu.Failed()) {
+    while (!window->ShouldClose()
+           && !(gpu.Ready() && waterGpu.Ready())
+           && !gpu.Failed()
+           && !waterGpu.Failed()) {
         window->PollEvents();
         callbackSystem.OnTick();
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
-    if (!gpu.Ready()) {
+    if (!gpu.Ready() || !waterGpu.Ready()) {
         std::cerr << "Failed to initialize terrain GPU resources.\n";
         gpu.Shutdown();
+        waterGpu.Shutdown();
         callbackSystem.OnEnd();
         renderModule.Shutdown();
         windowModule.Shutdown();
@@ -1047,6 +1537,15 @@ int main() {
 
             streamer.Record(frame, gpu.ObjectUniform());
 
+            // Translucent pass: drawn after all opaque geometry, depth tested but
+            // not depth written.
+            if (!frame.BindPipeline(waterGpu.Pipeline())
+                || !frame.BindUniformBuffer(gpu.ViewUniform(), 0)) {
+                std::cerr << "Failed to bind water pipeline.\n";
+                break;
+            }
+            streamer.RecordWater(frame, waterGpu.ObjectUniform());
+
             if (!frame.End(true)) {
                 std::cerr << "Failed to end frame.\n";
                 break;
@@ -1065,6 +1564,7 @@ int main() {
     }
 
     gpu.Shutdown();
+    waterGpu.Shutdown();
     callbackSystem.OnTick();
     callbackSystem.OnEnd();
 

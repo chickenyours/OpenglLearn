@@ -35,6 +35,22 @@ struct BlockRenderInfo {
     // Per-face vertex colors. Kept alongside the tile index so the same mesh
     // can feed either a textured or a flat-shaded (color) pipeline.
     std::array<glm::vec3, 6> color{};
+
+    // Material tiles, split into the three voxel faces. These are expanded into
+    // the legacy per-face `tile[6]` array by ApplyFaceTiles(), so existing code
+    // that reads `tile[face]` keeps working unchanged.
+    std::uint16_t topTile = 0;
+    std::uint16_t sideTile = 0;
+    std::uint16_t bottomTile = 0;
+
+    void ApplyFaceTiles() {
+        tile[static_cast<std::size_t>(Face::PositiveY)] = topTile;
+        tile[static_cast<std::size_t>(Face::NegativeY)] = bottomTile;
+        tile[static_cast<std::size_t>(Face::NegativeX)] = sideTile;
+        tile[static_cast<std::size_t>(Face::PositiveX)] = sideTile;
+        tile[static_cast<std::size_t>(Face::NegativeZ)] = sideTile;
+        tile[static_cast<std::size_t>(Face::PositiveZ)] = sideTile;
+    }
 };
 
 class BlockRenderRegistry {

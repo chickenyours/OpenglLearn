@@ -6,6 +6,7 @@
 
 #include <glm/glm.hpp>
 
+#include "Terrain/Public/block_atlas.h"
 #include "Terrain/Public/terrain_components.h"
 #include "Terrain/Public/terrain_generator.h"
 
@@ -202,11 +203,18 @@ private:
         const std::uint32_t first = static_cast<std::uint32_t>(out.vertices.size());
 
         const Clock::time_point vertexStart = stats ? Clock::now() : Clock::time_point{};
+        const std::uint16_t tileIndex = block.tile[face];
+        float u0 = 0.0f, v0 = 0.0f, u1 = 1.0f, v1 = 1.0f;
+        BlockAtlas::TileTexelRect(static_cast<BlockTile>(tileIndex), u0, v0, u1, v1);
+
         out.vertices.resize(static_cast<std::size_t>(first) + 4);
         Vertex* vertices = out.vertices.data() + first;
         for(std::size_t i = 0; i < 4; ++i) {
+            const glm::vec2 atlasUv{
+                (uvs_[i].x > 0.5f) ? u1 : u0,
+                (uvs_[i].y > 0.5f) ? v1 : v0};
             vertices[i] = Vertex{
-                base + corners_[face][i], normals_[face], color, uvs_[i], block.tile[face]};
+                base + corners_[face][i], normals_[face], color, atlasUv, tileIndex};
         }
         if(stats) stats->emitVertexMs += Millis(Clock::now() - vertexStart);
 

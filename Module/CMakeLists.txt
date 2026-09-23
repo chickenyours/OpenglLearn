@@ -148,6 +148,30 @@ if(NOT WIN32)
     target_link_libraries(job_system_worker_config_test PRIVATE pthread)
 endif()
 
+# Task Terrain-1: density field determinism / boundary / throughput test.
+add_executable(terrain_density_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/Terrain/Test/terrain_density_test.cpp
+)
+target_include_directories(terrain_density_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/Engine/include
+    ${CMAKE_SOURCE_DIR}/Engine/include/engine
+    ${CMAKE_SOURCE_DIR}/Engine/include/engine/ToolAndAlgorithm
+    ${CMAKE_SOURCE_DIR}/Module
+)
+
+# Phase 1: block material atlas test.
+add_executable(terrain_block_atlas_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/Terrain/Test/terrain_block_atlas_test.cpp
+)
+target_include_directories(terrain_block_atlas_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/Engine/include
+    ${CMAKE_SOURCE_DIR}/Engine/include/engine
+    ${CMAKE_SOURCE_DIR}/Engine/include/engine/ToolAndAlgorithm
+    ${CMAKE_SOURCE_DIR}/Module
+)
+
 
 
 

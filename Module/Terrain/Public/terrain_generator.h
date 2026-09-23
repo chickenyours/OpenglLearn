@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -9,9 +10,42 @@
 
 #include <glm/glm.hpp>
 
+#include "Terrain/Generator/density_field.h"
 #include "Terrain/Public/terrain_components.h"
 
 namespace Terrain {
+
+// Which generator produces the terrain. HEIGHTMAP is the original 2D path
+// (LegacyHeightGenerator, kept intact); DENSITY_FIELD is the new 3D path.
+enum class TerrainGeneratorMode : std::uint8_t {
+    Heightmap = 0,
+    DensityField = 1,
+};
+
+// Process-wide generator configuration. Set on the main thread at startup,
+// before any generation job is dispatched; read by worker jobs. Atomics keep the
+// read side race-free even if a host changes it between frames.
+inline std::atomic<TerrainGeneratorMode>& TerrainModeStorage() {
+    static std::atomic<TerrainGeneratorMode> mode{TerrainGeneratorMode::Heightmap};
+    return mode;
+}
+inline void SetTerrainGeneratorMode(TerrainGeneratorMode mode) {
+    TerrainModeStorage().store(mode, std::memory_order_relaxed);
+}
+inline TerrainGeneratorMode GetTerrainGeneratorMode() {
+    return TerrainModeStorage().load(std::memory_order_relaxed);
+}
+
+inline std::atomic<std::uint64_t>& TerrainSeedStorage() {
+    static std::atomic<std::uint64_t> seed{0};
+    return seed;
+}
+inline void SetWorldSeed(std::uint64_t seed) {
+    TerrainSeedStorage().store(seed, std::memory_order_relaxed);
+}
+inline std::uint64_t GetWorldSeed() {
+    return TerrainSeedStorage().load(std::memory_order_relaxed);
+}
 
 // Block ids used by the generated terrain. Air is the default (0), so a freshly
 // created ChunkBlocks is already empty.
@@ -193,9 +227,48 @@ inline BlockId TreeBlockAt(int x, int y, int z) {
                 : static_cast<BlockId>(Block::Air);
 }
 
+// ---------------------------------------------------------------------------
+// New path: DensityField terrain (Minecraft-1.18-style, first version)
+// ---------------------------------------------------------------------------
+
+// Density at a world coordinate using the configured world seed and the legacy
+// surface as the vertical bias.
+inline float Density(int worldX, int worldY, int worldZ) {
+    return DensityField::Density(
+        worldX, worldY, worldZ, GetWorldSeed(), WorldHeight(worldX, worldZ));
+}
+
+// Block the density field produces: solid when density > 0, else air. The surface
+// rule is intentionally simple (Stone interior, Grass/Sand on the top face).
+inline BlockId DensityBlockAt(int worldX, int worldY, int worldZ) {
+    const std::uint64_t seed = GetWorldSeed();
+    const int surface = WorldHeight(worldX, worldZ);
+
+    if (DensityField::Density(worldX, worldY, worldZ, seed, surface) <= 0.0f) {
+        return static_cast<BlockId>(Block::Air);
+    }
+
+    const bool exposedAbove =
+        DensityField::Density(worldX, worldY + 1, worldZ, seed, surface) <= 0.0f;
+    if (exposedAbove) {
+        return static_cast<BlockId>(
+            worldY <= WaterLevel + 1 ? Block::Sand : Block::Grass);
+    }
+    return static_cast<BlockId>(Block::Stone);
+}
+
+// ---------------------------------------------------------------------------
+// Legacy path: LegacyHeightGenerator (2D surface height)
+// ---------------------------------------------------------------------------
+
 // Authoritative block lookup at any world coordinate. Used both to fill a chunk
-// and to sample neighbours across chunk borders while meshing.
+// and to sample neighbours across chunk borders while meshing. Dispatches on the
+// active generator mode.
 inline BlockId BlockAt(int worldX, int worldY, int worldZ) {
+    if (GetTerrainGeneratorMode() == TerrainGeneratorMode::DensityField) {
+        return DensityBlockAt(worldX, worldY, worldZ);
+    }
+
     const int h = WorldHeight(worldX, worldZ);
 
     if (worldY < h) {
@@ -227,7 +300,38 @@ inline void GenerateChunkBlocks(const glm::ivec3& section, ChunkBlocks& out) {
         out.blocks[ChunkBlocks::Index(x, y, z)] = id;
     };
 
-    // Terrain columns plus water.
+    if (GetTerrainGeneratorMode() == TerrainGeneratorMode::DensityField) {
+        // 3D density fill: solid iff density > 0, otherwise air. Water and trees
+        // are not part of the density version yet.
+        const std::uint64_t seed = GetWorldSeed();
+        for (int z = 0; z < SectionSize; ++z) {
+            for (int x = 0; x < SectionSize; ++x) {
+                const int worldX = baseX + x;
+                const int worldZ = baseZ + z;
+                const int surface = WorldHeight(worldX, worldZ);
+
+                float current = DensityField::Density(worldX, 0, worldZ, seed, surface);
+                for (int y = 0; y < SectionHeight; ++y) {
+                    const float next =
+                        DensityField::Density(worldX, y + 1, worldZ, seed, surface);
+                    if (current > 0.0f) {
+                        const BlockId id = next <= 0.0f
+                            ? static_cast<BlockId>(
+                                  y <= WaterLevel + 1 ? Block::Sand : Block::Grass)
+                            : static_cast<BlockId>(Block::Stone);
+                        write(x, y, z, id);
+                    }
+                    current = next;
+                }
+            }
+        }
+
+        out.generated = true;
+        ++out.revision;
+        return;
+    }
+
+    // Legacy height path. Terrain columns plus water.
     for (int z = 0; z < SectionSize; ++z) {
         for (int x = 0; x < SectionSize; ++x) {
             const int worldX = baseX + x;
@@ -375,6 +479,14 @@ inline void RegisterDefaultTerrainBlocks(BlockRenderRegistry& registry) {
 class TerrainSampleCache {
 public:
     void Build(const glm::ivec3& section) {
+        // The density path has no per-column structure to precompute; delegate
+        // every query straight to the (deterministic) density field.
+        if(GetTerrainGeneratorMode() == TerrainGeneratorMode::DensityField) {
+            densityMode_ = true;
+            return;
+        }
+        densityMode_ = false;
+
         base_ = glm::ivec3(section.x * SectionSize, 0, section.z * SectionSize);
         const int originX = base_.x - kMargin;
         const int originZ = base_.z - kMargin;
@@ -427,6 +539,8 @@ public:
     // Same result as the free BlockAt() for coordinates covered by the padded
     // region (fallback keeps correctness for anything outside).
     BlockId At(int worldX, int worldY, int worldZ) const {
+        if(densityMode_) return BlockAt(worldX, worldY, worldZ);
+
         const Column* column = Find(worldX, worldZ);
         if(column == nullptr) return BlockAt(worldX, worldY, worldZ);
 
@@ -501,6 +615,7 @@ private:
     glm::ivec3 base_{0};
     std::array<Column, kExtent * kExtent> columns_{};
     std::vector<TreeSource> sources_;
+    bool densityMode_ = false;
 };
 
 } // namespace Terrain

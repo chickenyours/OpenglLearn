@@ -6,10 +6,13 @@
 // through the RenderWorld extraction pipeline. This file is only the host:
 // window, camera, GPU pipelines and the main loop.
 
+#define _CRT_SECURE_NO_WARNINGS
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <thread>
@@ -36,6 +39,8 @@
 #include "Render/Systems/callback_system.h"
 #include "Render/Systems/render_pipeline_system.h"
 
+#include "Terrain/Public/block_atlas.h"
+#include "Terrain/Public/terrain_atlas_texture.h"
 #include "Terrain/Public/terrain_components.h"
 #include "Terrain/Public/terrain_generator.h"
 #include "Terrain/Systems/terrain_systems.h"
@@ -50,6 +55,7 @@ constexpr char kVertexShader[] = R"GLSL(
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec3 aColor;
+layout(location = 3) in vec2 aTexCoord;
 
 layout(std140, binding = 0) uniform ViewData {
     mat4 uViewProjection;
@@ -63,12 +69,14 @@ layout(std140, binding = 1) uniform ObjectData {
 out vec3 vWorldPosition;
 out vec3 vNormal;
 out vec3 vColor;
+out vec2 vTexCoord;
 
 void main() {
     vec4 world = uModel * vec4(aPosition, 1.0);
     vWorldPosition = world.xyz;
     vNormal = normalize(mat3(uModel) * aNormal);
     vColor = aColor;
+    vTexCoord = aTexCoord;
     gl_Position = uViewProjection * world;
 }
 )GLSL";
@@ -81,9 +89,12 @@ layout(std140, binding = 0) uniform ViewData {
     vec4 uCameraPosition;
 };
 
+layout(binding = 0) uniform sampler2D uAtlas;
+
 in vec3 vWorldPosition;
 in vec3 vNormal;
 in vec3 vColor;
+in vec2 vTexCoord;
 
 layout(location = 0) out vec4 FragColor;
 
@@ -93,7 +104,9 @@ void main() {
     vec3 lightDirection = normalize(vec3(0.42, 0.86, 0.28));
     float light = 0.34 + 0.66 * max(dot(n, lightDirection), 0.0);
 
-    vec3 color = vColor * light;
+    // Atlas sample, tinted by the per-face vertex color (future biome tint).
+    vec3 albedo = texture(uAtlas, vTexCoord).rgb * vColor;
+    vec3 color = albedo * light;
 
     float d = distance(vWorldPosition, uCameraPosition.xyz);
     float fog = smoothstep(62.0, 88.0, d);
@@ -111,9 +124,12 @@ layout(std140, binding = 0) uniform ViewData {
     vec4 uCameraPosition;
 };
 
+layout(binding = 0) uniform sampler2D uAtlas;
+
 in vec3 vWorldPosition;
 in vec3 vNormal;
 in vec3 vColor;
+in vec2 vTexCoord;
 
 layout(location = 0) out vec4 FragColor;
 
@@ -126,7 +142,8 @@ void main() {
     vec3 viewDirection = normalize(uCameraPosition.xyz - vWorldPosition);
     float fresnel = pow(1.0 - max(dot(n, viewDirection), 0.0), 3.0);
 
-    vec3 color = mix(vColor * light, sky, fresnel * 0.6);
+    vec3 albedo = texture(uAtlas, vTexCoord).rgb * vColor;
+    vec3 color = mix(albedo * light, sky, fresnel * 0.6);
 
     float d = distance(vWorldPosition, uCameraPosition.xyz);
     float fog = smoothstep(62.0, 88.0, d);
@@ -419,22 +436,26 @@ int main() {
 
     TerrainGpu gpu(device, kVertexShader, kFragmentShader, false);
     TerrainGpu waterGpu(device, kVertexShader, kWaterFragmentShader, true);
+    Terrain::TerrainAtlasTexture atlas(device);
     gpu.Start();
     waterGpu.Start();
+    atlas.Start();
 
     while (!window->ShouldClose()
-           && !(gpu.Ready() && waterGpu.Ready())
+           && !(gpu.Ready() && waterGpu.Ready() && atlas.Ready())
            && !gpu.Failed()
-           && !waterGpu.Failed()) {
+           && !waterGpu.Failed()
+           && !atlas.Failed()) {
         window->PollEvents();
         callbackSystem.OnTick();
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
-    if (!gpu.Ready() || !waterGpu.Ready()) {
+    if (!gpu.Ready() || !waterGpu.Ready() || !atlas.Ready()) {
         std::cerr << "Failed to initialize terrain GPU resources.\n";
         gpu.Shutdown();
         waterGpu.Shutdown();
+        atlas.Shutdown();
         callbackSystem.OnEnd();
         renderModule.Shutdown();
         windowModule.Shutdown();
@@ -444,6 +465,17 @@ int main() {
     // The job pool must exist before any Scene is constructed.
     ECS::Core::ECSKernel kernel;
     kernel.Init();
+
+    // Optional host-level generator selection (defaults to the legacy heightmap).
+    //   TERRAIN_MODE=density  TERRAIN_SEED=12345
+    if (const char* mode = std::getenv("TERRAIN_MODE")) {
+        if (std::strcmp(mode, "density") == 0) {
+            Terrain::SetTerrainGeneratorMode(Terrain::TerrainGeneratorMode::DensityField);
+        }
+    }
+    if (const char* seed = std::getenv("TERRAIN_SEED")) {
+        Terrain::SetWorldSeed(std::strtoull(seed, nullptr, 10));
+    }
 
     Terrain::RegisterTerrainComponents();
 
@@ -463,6 +495,7 @@ int main() {
 
     Terrain::BlockRenderRegistry blockRegistry;
     Terrain::RegisterDefaultTerrainBlocks(blockRegistry);
+    Terrain::ApplyDefaultBlockAtlas(blockRegistry); // top/side/bottom atlas tiles
 
     Render::RHIMeshUploadQueue uploader(*device);
     Render::RenderWorld renderWorld;
@@ -470,6 +503,7 @@ int main() {
     Terrain::System::RenderSettings terrainSettings{};
     terrainSettings.pipelines[0] = gpu.Pipeline();
     terrainSettings.pipelines[2] = waterGpu.Pipeline();
+    terrainSettings.atlas = atlas.Handle();
 
     ECS::System::Pipeline pipeline;
     pipeline.Add<Terrain::System::StreamingSystem>(chunkArchetype);
@@ -568,6 +602,7 @@ int main() {
 
     gpu.Shutdown();
     waterGpu.Shutdown();
+    atlas.Shutdown();
 
     renderModule.Shutdown();
     windowModule.Shutdown();

@@ -104,3 +104,53 @@ if(NOT WIN32)
     target_link_libraries(terrain_render_demo PRIVATE pthread)
 endif()
 # <<< dynamic_terrain_clean_patch_v1 <<<
+
+# Task 0.1: headless ECS / Terrain performance baseline.
+add_executable(terrain_benchmark
+    ${CMAKE_CURRENT_SOURCE_DIR}/Terrain/Test/terrain_benchmark.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/job_system.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/job_system_schedule.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/context.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/archtype_description.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/archtype_instance.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/archtype_manager.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/archtype_preload_instance.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/scene.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/chunk_schedule.cpp
+)
+target_include_directories(terrain_benchmark PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/Engine/include
+    ${CMAKE_SOURCE_DIR}/Engine/include/engine
+    ${CMAKE_SOURCE_DIR}/Engine/include/engine/ToolAndAlgorithm
+    ${CMAKE_SOURCE_DIR}/Module
+)
+target_compile_definitions(terrain_benchmark PRIVATE ECS_PROFILING_ENABLED=1)
+if(NOT WIN32)
+    target_link_libraries(terrain_benchmark PRIVATE pthread)
+endif()
+
+# Task 1.3: worker-count policy verification.
+add_executable(job_system_worker_config_test
+    ${CMAKE_SOURCE_DIR}/Engine/tests/job_system_worker_config_test.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/job_system.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/job_system_schedule.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/context.cpp
+)
+target_include_directories(job_system_worker_config_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/Engine/include
+    ${CMAKE_SOURCE_DIR}/Engine/include/engine
+    ${CMAKE_SOURCE_DIR}/Engine/include/engine/ToolAndAlgorithm
+    ${CMAKE_SOURCE_DIR}/Module
+)
+if(NOT WIN32)
+    target_link_libraries(job_system_worker_config_test PRIVATE pthread)
+endif()
+
+
+
+
+
+
+

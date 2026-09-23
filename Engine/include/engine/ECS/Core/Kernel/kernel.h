@@ -9,8 +9,9 @@ namespace ECS::Core{
             JobSystemSchedule jobSchedule_;
         public:
             ECSKernel(){}
-            void Init(){
-                jobSchedule_.Start(8);
+            // workerCount == 0 uses the JobSystemSchedule default policy.
+            void Init(std::size_t workerCount = 0){
+                jobSchedule_.Start(workerCount);
                 globalECSCoreContext.jobSystemSchedule = &jobSchedule_;
             }
     };

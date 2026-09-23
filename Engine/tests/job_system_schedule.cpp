@@ -1,6 +1,9 @@
 #include "engine/ECS/JobSystem/job_system_schedule.h"
 #include "engine/ECS/JobSystem/job_system.h"
 
+#include <algorithm>
+#include <cstdlib>
+
 namespace ECS::Core
 {
     Task::Task() noexcept
@@ -44,6 +47,41 @@ namespace ECS::Core
         Stop();
     }
 
+    std::size_t JobSystemSchedule::DefaultWorkerCount(std::size_t hardwareThreads)
+    {
+        // Leave one hardware thread for the caller/main thread, but never return
+        // zero and never grow past kMaxDefaultWorkers: on large desktops the
+        // hardware-1 figure over-provisions a machine that is also running other
+        // desktop applications. Explicit Start(N) / ECS_JOB_WORKERS can exceed it.
+        const std::size_t candidate = hardwareThreads > 0 ? hardwareThreads - 1 : 0;
+        return std::clamp<std::size_t>(candidate, 1, kMaxDefaultWorkers);
+    }
+
+    std::size_t JobSystemSchedule::ResolveWorkerCount(std::size_t requested)
+    {
+        if (requested != 0)
+        {
+            return requested;
+        }
+
+        if (const char* env = std::getenv("ECS_JOB_WORKERS"))
+        {
+            char* end = nullptr;
+            const unsigned long long value = std::strtoull(env, &end, 10);
+            if (end != env && value > 0)
+            {
+                return static_cast<std::size_t>(value);
+            }
+        }
+
+        std::size_t hardwareThreads = std::thread::hardware_concurrency();
+        if (hardwareThreads == 0)
+        {
+            hardwareThreads = 1;
+        }
+        return DefaultWorkerCount(hardwareThreads);
+    }
+
     void JobSystemSchedule::Start(std::size_t threadCount)
     {
         if (running_)
@@ -51,6 +89,7 @@ namespace ECS::Core
             return;
         }
 
+        threadCount = ResolveWorkerCount(threadCount);
         if (threadCount == 0)
         {
             threadCount = 1;
@@ -59,6 +98,7 @@ namespace ECS::Core
         {
             std::lock_guard<std::mutex> lock(queueMutex_);
             stopping_ = false;
+            peakActiveWorkers_ = 0;
         }
 
         workers_.clear();
@@ -159,6 +199,12 @@ namespace ECS::Core
         return tasks_.size();
     }
 
+    std::size_t JobSystemSchedule::GetPeakActiveWorkers() const
+    {
+        std::lock_guard<std::mutex> lock(queueMutex_);
+        return peakActiveWorkers_;
+    }
+
     void JobSystemSchedule::WorkerLoop()
     {
         while (true)
@@ -181,6 +227,10 @@ namespace ECS::Core
                 scheduledTask = tasks_.front();
                 tasks_.pop();
                 ++activeWorkers_;
+                if (activeWorkers_ > peakActiveWorkers_)
+                {
+                    peakActiveWorkers_ = activeWorkers_;
+                }
             }
 
             localECSCoreContext.scene = scheduledTask.scene;

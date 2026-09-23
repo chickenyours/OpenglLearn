@@ -6,6 +6,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "engine/ECS/Profiling/profiler.h"
+
 namespace ECS::Core {
 class Scene;
 }
@@ -120,6 +122,9 @@ private:
     void TickInternal(Context& context) {
         if (!started_ || !enabled_) return;
         context_ = &context;
+#if ECS_PROFILING_ENABLED
+        ECS::Profiling::ScopedTimer profileTimer(name_);
+#endif
         OnTick();
         context_ = nullptr;
     }

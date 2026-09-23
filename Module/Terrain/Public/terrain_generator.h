@@ -1,8 +1,11 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
+#include <vector>
 
 #include <glm/glm.hpp>
 
@@ -358,5 +361,146 @@ inline void RegisterDefaultTerrainBlocks(BlockRenderRegistry& registry) {
         registry.Set(static_cast<BlockId>(Block::Water), info);
     }
 }
+
+// Chunk-local sampling cache for the mesher.
+//
+// BlockAt() recomputes WorldHeight()/IsTreeAt() for the same (x,z) column once per
+// queried y, and TreeBlockAt() rescans 25 candidate trunks per query. The mesher
+// probes each border coord many times while walking the chunk shell, so this cache
+// precomputes the generator facts for the padded column region exactly once and
+// then answers BlockAt queries with array lookups.
+//
+// Lifetime: created and destroyed inside a single Build call, owned by the calling
+// job, never shared between threads, no synchronization.
+class TerrainSampleCache {
+public:
+    void Build(const glm::ivec3& section) {
+        base_ = glm::ivec3(section.x * SectionSize, 0, section.z * SectionSize);
+        const int originX = base_.x - kMargin;
+        const int originZ = base_.z - kMargin;
+
+        // Step 1: one hash-based evaluation per padded column, instead of one per
+        // (column, y) probe.
+        std::array<int, kExtent * kExtent> heights{};
+        std::array<bool, kExtent * kExtent> trees{};
+        for(int cz = 0; cz < kExtent; ++cz) {
+            for(int cx = 0; cx < kExtent; ++cx) {
+                const int index = cz * kExtent + cx;
+                const int worldX = originX + cx;
+                const int worldZ = originZ + cz;
+                heights[index] = WorldHeight(worldX, worldZ);
+                trees[index] = IsTreeAt(worldX, worldZ);
+                columns_[index].height = heights[index];
+                columns_[index].sourceBegin = 0;
+                columns_[index].sourceCount = 0;
+            }
+        }
+
+        // Step 2: collect the nearby trunks per column from the cached tree flags,
+        // so querying a column never re-hashes its 5x5 neighbourhood.
+        sources_.clear();
+        for(int cz = 0; cz < kExtent; ++cz) {
+            for(int cx = 0; cx < kExtent; ++cx) {
+                Column& column = columns_[cz * kExtent + cx];
+                column.sourceBegin = static_cast<std::uint32_t>(sources_.size());
+
+                for(int dz = -2; dz <= 2; ++dz) {
+                    for(int dx = -2; dx <= 2; ++dx) {
+                        const int nx = cx + dx;
+                        const int nz = cz + dz;
+                        if(nx < 0 || nx >= kExtent || nz < 0 || nz >= kExtent) continue;
+
+                        const int neighbor = nz * kExtent + nx;
+                        if(!trees[neighbor]) continue;
+
+                        const int trunkX = originX + nx;
+                        const int trunkZ = originZ + nz;
+                        sources_.push_back(TreeSource{
+                            trunkX, trunkZ, heights[neighbor], TreeTrunkHeight(trunkX, trunkZ)});
+                        ++column.sourceCount;
+                    }
+                }
+            }
+        }
+    }
+
+    // Same result as the free BlockAt() for coordinates covered by the padded
+    // region (fallback keeps correctness for anything outside).
+    BlockId At(int worldX, int worldY, int worldZ) const {
+        const Column* column = Find(worldX, worldZ);
+        if(column == nullptr) return BlockAt(worldX, worldY, worldZ);
+
+        if(worldY < column->height) {
+            const int depth = column->height - 1 - worldY;
+            if(depth == 0) {
+                return static_cast<BlockId>(
+                    column->height <= WaterLevel + 1 ? Block::Sand : Block::Grass);
+            }
+            if(depth <= 2) return static_cast<BlockId>(Block::Dirt);
+            return static_cast<BlockId>(Block::Stone);
+        }
+
+        if(column->height < WaterLevel && worldY < WaterLevel) {
+            return static_cast<BlockId>(Block::Water);
+        }
+
+        const std::uint32_t begin = column->sourceBegin;
+        const std::uint32_t end = begin + column->sourceCount;
+
+        // Trunks win over leaves, matching TreeBlockAt()'s priority.
+        for(std::uint32_t i = begin; i < end; ++i) {
+            const TreeSource& source = sources_[i];
+            if(source.x == worldX && source.z == worldZ
+               && worldY >= source.ground && worldY < source.ground + source.trunkHeight) {
+                return static_cast<BlockId>(Block::Wood);
+            }
+        }
+        for(std::uint32_t i = begin; i < end; ++i) {
+            const TreeSource& source = sources_[i];
+            for(int layer = 0; layer < 4; ++layer) {
+                const int layerY = source.ground + source.trunkHeight - 3 + layer;
+                if(layerY != worldY) continue;
+
+                const int radius = layer < 2 ? 2 : 1;
+                const int dx = worldX - source.x;
+                const int dz = worldZ - source.z;
+                if(std::abs(dx) > radius || std::abs(dz) > radius) continue;
+                if(std::abs(dx) == radius && std::abs(dz) == radius) continue;
+                return static_cast<BlockId>(Block::Leaves);
+            }
+        }
+
+        return static_cast<BlockId>(Block::Air);
+    }
+
+private:
+    static constexpr int kMargin = 3;
+    static constexpr int kExtent = SectionSize + 2 * kMargin; // 22
+
+    struct TreeSource {
+        int x = 0;
+        int z = 0;
+        int ground = 0;
+        int trunkHeight = 0;
+    };
+
+    struct Column {
+        int height = 0;
+        std::uint32_t sourceBegin = 0;
+        std::uint16_t sourceCount = 0;
+    };
+
+    const Column* Find(int worldX, int worldZ) const {
+        const int localX = worldX - (base_.x - kMargin);
+        const int localZ = worldZ - (base_.z - kMargin);
+        if(localX < 0 || localX >= kExtent) return nullptr;
+        if(localZ < 0 || localZ >= kExtent) return nullptr;
+        return &columns_[static_cast<std::size_t>(localZ) * kExtent + localX];
+    }
+
+    glm::ivec3 base_{0};
+    std::array<Column, kExtent * kExtent> columns_{};
+    std::vector<TreeSource> sources_;
+};
 
 } // namespace Terrain

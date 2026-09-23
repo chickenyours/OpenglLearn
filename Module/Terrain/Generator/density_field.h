@@ -13,6 +13,8 @@
 #include <cmath>
 #include <cstdint>
 
+#include "Terrain/Generator/noise_router.h"
+
 namespace Terrain::DensityField {
 
 // ---------------------------------------------------------------------------
@@ -78,41 +80,30 @@ inline float ValueNoise3D(float x, float y, float z, std::uint64_t seed) {
 }
 
 // ---------------------------------------------------------------------------
-// Density formula (first version, deliberately simple)
+// Density = (NoiseRouter terrain height) - y + a little 3D noise
 // ---------------------------------------------------------------------------
 
-inline constexpr float NoiseFrequency = 0.095f; // lattice ~10.5 blocks
-inline constexpr float NoiseAmplitude = 8.0f;   // surface can move ~+/- 8 blocks
-inline constexpr float InfluenceRange = 9.0f;   // noise fades out this far from the surface
-inline constexpr float VerticalScale = 1.0f;
-inline constexpr int BedrockDepth = 3;          // force solid near the world floor
-inline constexpr float BedrockBoost = 20.0f;
+inline constexpr float Noise3DFrequency = 0.11f;  // ~9 block variation
+inline constexpr float Noise3DAmplitude = 2.5f;   // (amplitude * frequency) < 1
+                                                  // keeps density monotonic in y,
+                                                  // so no caves / floating islands.
 
-// density = baseNoise * amplitude * influence + (surface - y) * verticalScale + bedrock
-//
-// heightBias   = surface - y          (positive below the surface)
-// influence    = vertical falloff of the noise (1 at the surface, 0 far away),
-//                which guarantees solid deep underground and air high above and
-//                keeps the 3D variation near the surface.
-// bedrock      = strong positive bias in the bottom few blocks (no holes).
-inline float Density(int worldX, int worldY, int worldZ,
-                     std::uint64_t seed, int surfaceHeight) {
-    const float depth = static_cast<float>(surfaceHeight - worldY);
-    const float influence = std::clamp(
-        1.0f - std::abs(depth) / InfluenceRange, 0.0f, 1.0f);
+// Density from a precomputed router height. TerrainHeight() only depends on
+// (x, z), so callers that walk a whole column compute it once.
+inline float DensityWithHeight(float terrainHeight, int worldX, int worldY, int worldZ,
+                               std::uint64_t seed) {
+    const float noise3 = ValueNoise3D(
+        static_cast<float>(worldX) * Noise3DFrequency,
+        static_cast<float>(worldY) * Noise3DFrequency,
+        static_cast<float>(worldZ) * Noise3DFrequency,
+        seed ^ 0xD1CE5EEDULL);
+    return (terrainHeight - static_cast<float>(worldY)) + noise3 * Noise3DAmplitude;
+}
 
-    const float baseNoise = ValueNoise3D(
-        static_cast<float>(worldX) * NoiseFrequency,
-        static_cast<float>(worldY) * NoiseFrequency,
-        static_cast<float>(worldZ) * NoiseFrequency,
-        seed);
-
-    const float heightBias = depth * VerticalScale;
-    const float bedrock = worldY < BedrockDepth
-        ? static_cast<float>(BedrockDepth - worldY) * BedrockBoost
-        : 0.0f;
-
-    return baseNoise * NoiseAmplitude * influence + heightBias + bedrock;
+inline float Density(int worldX, int worldY, int worldZ, std::uint64_t seed) {
+    return DensityWithHeight(
+        NoiseRouter::TerrainHeight(worldX, worldZ, seed),
+        worldX, worldY, worldZ, seed);
 }
 
 } // namespace Terrain::DensityField

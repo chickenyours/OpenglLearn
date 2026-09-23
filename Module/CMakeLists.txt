@@ -160,6 +160,42 @@ target_include_directories(terrain_density_test PRIVATE
     ${CMAKE_SOURCE_DIR}/Module
 )
 
+# Task Terrain-2: noise router terrain test.
+add_executable(terrain_noise_router_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/Terrain/Test/terrain_noise_router_test.cpp
+)
+target_include_directories(terrain_noise_router_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/Engine/include
+    ${CMAKE_SOURCE_DIR}/Engine/include/engine
+    ${CMAKE_SOURCE_DIR}/Engine/include/engine/ToolAndAlgorithm
+    ${CMAKE_SOURCE_DIR}/Module
+)
+
+# Task Terrain-3: region + biome + surface rules test.
+add_executable(terrain_biome_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/Terrain/Test/terrain_biome_test.cpp
+)
+target_include_directories(terrain_biome_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/Engine/include
+    ${CMAKE_SOURCE_DIR}/Engine/include/engine
+    ${CMAKE_SOURCE_DIR}/Engine/include/engine/ToolAndAlgorithm
+    ${CMAKE_SOURCE_DIR}/Module
+)
+
+# Task Terrain-5: continental-scale terrain test.
+add_executable(terrain_large_scale_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/Terrain/Test/terrain_large_scale_test.cpp
+)
+target_include_directories(terrain_large_scale_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/Engine/include
+    ${CMAKE_SOURCE_DIR}/Engine/include/engine
+    ${CMAKE_SOURCE_DIR}/Engine/include/engine/ToolAndAlgorithm
+    ${CMAKE_SOURCE_DIR}/Module
+)
+
 # Phase 1: block material atlas test.
 add_executable(terrain_block_atlas_test
     ${CMAKE_CURRENT_SOURCE_DIR}/Terrain/Test/terrain_block_atlas_test.cpp

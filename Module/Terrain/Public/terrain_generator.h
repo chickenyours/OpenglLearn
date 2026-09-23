@@ -10,7 +10,9 @@
 
 #include <glm/glm.hpp>
 
+#include "Terrain/Generator/biome.h"
 #include "Terrain/Generator/density_field.h"
+#include "Terrain/Generator/terrain_region.h"
 #include "Terrain/Public/terrain_components.h"
 
 namespace Terrain {
@@ -58,6 +60,13 @@ enum class Block : BlockId {
     Water = 5,
     Wood = 6,
     Leaves = 7,
+    // Additional materials used by the density/biome surface rules. Values mirror
+    // BlockAtlas::BlockIds so the atlas tiles line up.
+    Sandstone = 8,
+    Snow = 9,
+    Ice = 10,
+    Gravel = 11,
+    Bedrock = 12,
 };
 
 // Hydrology is a single global water level: every column whose ground dips
@@ -228,33 +237,129 @@ inline BlockId TreeBlockAt(int x, int y, int z) {
 }
 
 // ---------------------------------------------------------------------------
-// New path: DensityField terrain (Minecraft-1.18-style, first version)
+// DensityField terrain (Noise Router, Terrain-2)
 // ---------------------------------------------------------------------------
 
-// Density at a world coordinate using the configured world seed and the legacy
-// surface as the vertical bias.
-inline float Density(int worldX, int worldY, int worldZ) {
-    return DensityField::Density(
-        worldX, worldY, worldZ, GetWorldSeed(), WorldHeight(worldX, worldZ));
+// Router sea level: ocean surface / seabed threshold.
+inline int DensitySeaLevel() {
+    return NoiseRouter::DefaultConfig().seaLevel;
 }
 
-// Block the density field produces: solid when density > 0, else air. The surface
-// rule is intentionally simple (Stone interior, Grass/Sand on the top face).
+// Surface height for a column (router), exposed for statistics/debug.
+inline float RouterTerrainHeight(int worldX, int worldZ) {
+    return NoiseRouter::TerrainHeight(worldX, worldZ, GetWorldSeed());
+}
+
+// Density at a world coordinate (interface unchanged: Density(x, y, z)).
+inline float Density(int worldX, int worldY, int worldZ) {
+    return DensityField::Density(worldX, worldY, worldZ, GetWorldSeed());
+}
+
+// Per-column terrain classification (region + biome), computed once per column.
+struct ColumnTerrain {
+    float terrainHeight = 0.0f;
+    TerrainRegion region = TerrainRegion::Ocean;
+    Biome biome = Biome::Ocean;
+};
+
+inline ColumnTerrain ComputeColumnTerrain(int worldX, int worldZ) {
+    const std::uint64_t seed = GetWorldSeed();
+    const NoiseRouter::Config& router = NoiseRouter::DefaultConfig();
+
+    const NoiseRouter::Sample sample =
+        NoiseRouter::SampleRouter(worldX, worldZ, seed, router);
+
+    ColumnTerrain column;
+    column.terrainHeight = NoiseRouter::TerrainHeightFromSample(sample, router);
+    column.region = ClassifyTerrainRegion(
+        column.terrainHeight, sample, router.seaLevel);
+    column.biome = ClassifyBiome(
+        column.region,
+        SampleClimate(worldX, worldZ, seed),
+        static_cast<int>(std::lround(column.terrainHeight)),
+        router.seaLevel);
+    return column;
+}
+
+// Highest y that can hold a non-air block for a column (small safety margin).
+// Above this the chunk is air, so generation is O(terrain height) rather than
+// O(SectionHeight) in the 128-tall world.
+inline int ColumnScanTop(const ColumnTerrain& column) {
+    const int top = static_cast<int>(std::ceil(
+        column.terrainHeight + DensityField::Noise3DAmplitude)) + 1;
+    return std::clamp(top, DensitySeaLevel(), SectionHeight);
+}
+
+// Surface material for a solid block, from region + biome + depth.
+inline BlockId SurfaceBlock(const ColumnTerrain& column, int worldX, int worldY,
+                            int worldZ, bool isTop) {
+    const int seaLevel = DensitySeaLevel();
+    const int surfaceY = static_cast<int>(std::lround(column.terrainHeight));
+    const int depth = surfaceY - 1 - worldY;
+
+    // Seabed / beach.
+    if (column.region == TerrainRegion::Ocean || surfaceY <= seaLevel + 1) {
+        if (isTop) return static_cast<BlockId>(Block::Sand);
+        return static_cast<BlockId>(depth <= 3 ? Block::Sand : Block::Stone);
+    }
+
+    switch (column.region) {
+    case TerrainRegion::Peak: {
+        if (!isTop) return static_cast<BlockId>(Block::Stone);
+        // Snow with occasional exposed ice.
+        const bool icy = ((worldX * 31 + worldZ * 17) & 3) == 0;
+        return static_cast<BlockId>(icy ? Block::Ice : Block::Snow);
+    }
+    case TerrainRegion::Mountain: {
+        // Low slopes are rock, high tops are snow.
+        const bool snowLine =
+            surfaceY >= seaLevel + DefaultBiomeConfig().snowAltitude;
+        if (isTop && snowLine) return static_cast<BlockId>(Block::Snow);
+        return static_cast<BlockId>(Block::Stone);
+    }
+    case TerrainRegion::Plateau: {
+        // Flat rocky top.
+        if (isTop) return static_cast<BlockId>(Block::Stone);
+        return static_cast<BlockId>(depth <= 2 ? Block::Gravel : Block::Stone);
+    }
+    case TerrainRegion::Valley:
+    case TerrainRegion::Lowland:
+    case TerrainRegion::Hills:
+    case TerrainRegion::Ocean:
+    default:
+        break;
+    }
+
+    switch (column.biome) {
+    case Biome::Desert:
+        if (isTop) return static_cast<BlockId>(Block::Sand);
+        return static_cast<BlockId>(depth <= 3 ? Block::Sandstone : Block::Stone);
+    case Biome::Snow:
+        if (isTop) return static_cast<BlockId>(Block::Snow);
+        return static_cast<BlockId>(depth <= 2 ? Block::Dirt : Block::Stone);
+    case Biome::Forest:
+    case Biome::Plains:
+    default:
+        if (isTop) return static_cast<BlockId>(Block::Grass);
+        return static_cast<BlockId>(depth <= 3 ? Block::Dirt : Block::Stone);
+    }
+}
+
+// Block the density field produces:
+//   density > 0  -> solid (SurfaceBlock picks Grass/Sand/Sandstone/Snow/Stone)
+//   density <= 0 -> Water below sea level, otherwise Air
 inline BlockId DensityBlockAt(int worldX, int worldY, int worldZ) {
     const std::uint64_t seed = GetWorldSeed();
-    const int surface = WorldHeight(worldX, worldZ);
+    const ColumnTerrain column = ComputeColumnTerrain(worldX, worldZ);
 
-    if (DensityField::Density(worldX, worldY, worldZ, seed, surface) <= 0.0f) {
-        return static_cast<BlockId>(Block::Air);
+    if (DensityField::DensityWithHeight(column.terrainHeight, worldX, worldY, worldZ, seed) <= 0.0f) {
+        return static_cast<BlockId>(
+            worldY < DensitySeaLevel() ? Block::Water : Block::Air);
     }
 
     const bool exposedAbove =
-        DensityField::Density(worldX, worldY + 1, worldZ, seed, surface) <= 0.0f;
-    if (exposedAbove) {
-        return static_cast<BlockId>(
-            worldY <= WaterLevel + 1 ? Block::Sand : Block::Grass);
-    }
-    return static_cast<BlockId>(Block::Stone);
+        DensityField::DensityWithHeight(column.terrainHeight, worldX, worldY + 1, worldZ, seed) <= 0.0f;
+    return SurfaceBlock(column, worldX, worldY, worldZ, exposedAbove);
 }
 
 // ---------------------------------------------------------------------------
@@ -301,27 +406,32 @@ inline void GenerateChunkBlocks(const glm::ivec3& section, ChunkBlocks& out) {
     };
 
     if (GetTerrainGeneratorMode() == TerrainGeneratorMode::DensityField) {
-        // 3D density fill: solid iff density > 0, otherwise air. Water and trees
-        // are not part of the density version yet.
+        // Noise-router fill: solid iff density > 0, ocean water below sea level,
+        // air otherwise. No trees in the density version.
         const std::uint64_t seed = GetWorldSeed();
+        const int seaLevel = DensitySeaLevel();
+
         for (int z = 0; z < SectionSize; ++z) {
             for (int x = 0; x < SectionSize; ++x) {
                 const int worldX = baseX + x;
                 const int worldZ = baseZ + z;
-                const int surface = WorldHeight(worldX, worldZ);
+                const ColumnTerrain column = ComputeColumnTerrain(worldX, worldZ);
 
-                float current = DensityField::Density(worldX, 0, worldZ, seed, surface);
-                for (int y = 0; y < SectionHeight; ++y) {
-                    const float next =
-                        DensityField::Density(worldX, y + 1, worldZ, seed, surface);
-                    if (current > 0.0f) {
-                        const BlockId id = next <= 0.0f
-                            ? static_cast<BlockId>(
-                                  y <= WaterLevel + 1 ? Block::Sand : Block::Grass)
-                            : static_cast<BlockId>(Block::Stone);
-                        write(x, y, z, id);
+                const int scanTop = ColumnScanTop(column);
+                float density[SectionHeight + 1];
+                for (int y = 0; y <= scanTop; ++y) {
+                    density[y] = DensityField::DensityWithHeight(
+                        column.terrainHeight, worldX, y, worldZ, seed);
+                }
+
+                for (int y = 0; y < scanTop; ++y) {
+                    if (density[y] > 0.0f) {
+                        write(x, y, z,
+                              SurfaceBlock(column, worldX, y, worldZ,
+                                           density[y + 1] <= 0.0f));
+                    } else if (y < seaLevel) {
+                        write(x, y, z, static_cast<BlockId>(Block::Water));
                     }
-                    current = next;
                 }
             }
         }
@@ -391,6 +501,95 @@ inline void GenerateChunkBlocks(const glm::ivec3& section, ChunkBlocks& out) {
 
     out.generated = true;
     ++out.revision;
+}
+
+// Debug statistics over a square region of chunks (density mode).
+struct TerrainStatistics {
+    int minHeight = 0;
+    int maxHeight = 0;
+    float averageHeight = 0.0f;
+    long long solidBlocks = 0;
+    long long airBlocks = 0;
+    long long waterBlocks = 0;
+};
+
+inline TerrainStatistics ComputeTerrainStatistics(int chunkRadius) {
+    TerrainStatistics stats;
+    stats.minHeight = SectionHeight + 1;
+
+    const std::uint64_t seed = GetWorldSeed();
+    const int seaLevel = DensitySeaLevel();
+    double heightSum = 0.0;
+    long long columns = 0;
+
+    for (int cz = -chunkRadius; cz <= chunkRadius; ++cz) {
+        for (int cx = -chunkRadius; cx <= chunkRadius; ++cx) {
+            for (int z = 0; z < SectionSize; ++z) {
+                for (int x = 0; x < SectionSize; ++x) {
+                    const int worldX = cx * SectionSize + x;
+                    const int worldZ = cz * SectionSize + z;
+
+                    const ColumnTerrain column = ComputeColumnTerrain(worldX, worldZ);
+                    const int scanTop = ColumnScanTop(column);
+                    int topSolid = -1;
+                    for (int y = 0; y < scanTop; ++y) {
+                        const float density = DensityField::DensityWithHeight(
+                            column.terrainHeight, worldX, y, worldZ, seed);
+                        if (density > 0.0f) {
+                            ++stats.solidBlocks;
+                            topSolid = y;
+                        } else if (y < seaLevel) {
+                            ++stats.waterBlocks;
+                        } else {
+                            ++stats.airBlocks;
+                        }
+                    }
+                    stats.airBlocks += (SectionHeight - scanTop);
+
+                    const int height = topSolid + 1;
+                    stats.minHeight = std::min(stats.minHeight, height);
+                    stats.maxHeight = std::max(stats.maxHeight, height);
+                    heightSum += static_cast<double>(height);
+                    ++columns;
+                }
+            }
+        }
+    }
+
+    stats.averageHeight = columns > 0
+        ? static_cast<float>(heightSum / static_cast<double>(columns))
+        : 0.0f;
+    return stats;
+}
+
+// Terrain region / biome statistics (Terrain-3 debug).
+struct RegionStatistics {
+    long long counts[static_cast<int>(TerrainRegion::Count)] = {};
+    long long total = 0;
+};
+
+struct BiomeStatistics {
+    long long counts[static_cast<int>(Biome::Count)] = {};
+    long long total = 0;
+};
+
+inline void AccumulateTerrainClassification(int chunkRadius,
+                                            RegionStatistics& regions,
+                                            BiomeStatistics& biomes) {
+    for (int cz = -chunkRadius; cz <= chunkRadius; ++cz) {
+        for (int cx = -chunkRadius; cx <= chunkRadius; ++cx) {
+            for (int z = 0; z < SectionSize; ++z) {
+                for (int x = 0; x < SectionSize; ++x) {
+                    const ColumnTerrain column = ComputeColumnTerrain(
+                        cx * SectionSize + x, cz * SectionSize + z);
+                    ++regions.counts[static_cast<int>(column.region)];
+                    ++biomes.counts[static_cast<int>(column.biome)];
+                    ++regions.total;
+                    ++biomes.total;
+                }
+            }
+        }
+    }
 }
 
 // Colors and layers for the generated block ids. Kept in the module so the demo
@@ -464,6 +663,13 @@ inline void RegisterDefaultTerrainBlocks(BlockRenderRegistry& registry) {
         info.color[kPositiveY] = glm::vec3(0.15f, 0.43f, 0.63f);
         registry.Set(static_cast<BlockId>(Block::Water), info);
     }
+
+    // Biome / surface materials (Terrain-3). The atlas overrides these with tiles.
+    setBlock(static_cast<BlockId>(Block::Sandstone), sand * 0.92f, Layer::Opaque, true);
+    setBlock(static_cast<BlockId>(Block::Snow), glm::vec3(0.94f, 0.95f, 0.97f), Layer::Opaque, true);
+    setBlock(static_cast<BlockId>(Block::Ice), glm::vec3(0.62f, 0.80f, 0.92f), Layer::Opaque, true);
+    setBlock(static_cast<BlockId>(Block::Gravel), glm::vec3(0.47f, 0.45f, 0.43f), Layer::Opaque, true);
+    setBlock(static_cast<BlockId>(Block::Bedrock), glm::vec3(0.24f, 0.24f, 0.26f), Layer::Opaque, true);
 }
 
 // Chunk-local sampling cache for the mesher.

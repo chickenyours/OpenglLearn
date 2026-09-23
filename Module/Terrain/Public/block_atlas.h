@@ -108,10 +108,12 @@ inline std::uint8_t Byte(float v) {
 class BlockAtlas {
 public:
     static constexpr int TileSize = 16;   // visible tile (centre)
-    // Duplicated-edge gutter width. A 1-texel gutter removes mip-1 bleed, but mip
-    // level 2 averages 4x4 texel blocks, so the padded cell must be a multiple of
-    // 4 for tiles to stay aligned there too: 16 + 2*2 = 20.
-    static constexpr int Gutter = 2;
+    // Duplicated-edge gutter. For mip level L, the 2^L x 2^L blocks that contain
+    // visible texels must stay inside the padded cell, which requires
+    // (TileSize + 2*Gutter) % 2^L == 0. mip 4 needs a multiple of 16, so the
+    // smallest sufficient gutter is 8: 16 + 2*8 = 32 (a power of two, so the
+    // atlas stays mip-aligned through level 5).
+    static constexpr int Gutter = 8;
     static constexpr int PaddedTileSize = TileSize + 2 * Gutter;
     static constexpr int Columns = 8;
     static constexpr int Rows = 2;
@@ -122,6 +124,17 @@ public:
     static const std::vector<std::uint8_t>& Pixels() {
         static const std::vector<std::uint8_t> pixels = BuildPixels();
         return pixels;
+    }
+
+    // Rebuilds the atlas and returns an FNV-1a checksum (determinism check).
+    static std::uint64_t Checksum() {
+        const std::vector<std::uint8_t> fresh = BuildPixels();
+        std::uint64_t hash = 1469598103934665603ULL;
+        for (const std::uint8_t byte : fresh) {
+            hash ^= byte;
+            hash *= 1099511628211ULL;
+        }
+        return hash;
     }
 
     static constexpr int TileCount() { return static_cast<int>(BlockTile::Count); }
@@ -144,15 +157,16 @@ public:
         v1 = static_cast<float>(py + TileSize) / static_cast<float>(Height);
     }
 
-    // UV rect inset to texel centres of the visible centre (never the gutter).
+    // UV rect of the visible 16x16 region (no half-texel inset: the gutter absorbs
+    // the filtering/mip footprint, so exact tile edges are safe).
     static void TileTexelRect(BlockTile tile, float& u0, float& v0, float& u1, float& v1) {
         int px = 0;
         int py = 0;
         TilePixelOrigin(tile, px, py);
-        u0 = (static_cast<float>(px) + 0.5f) / static_cast<float>(Width);
-        v0 = (static_cast<float>(py) + 0.5f) / static_cast<float>(Height);
-        u1 = (static_cast<float>(px + TileSize) - 0.5f) / static_cast<float>(Width);
-        v1 = (static_cast<float>(py + TileSize) - 0.5f) / static_cast<float>(Height);
+        u0 = (static_cast<float>(px)) / static_cast<float>(Width);
+        v0 = (static_cast<float>(py)) / static_cast<float>(Height);
+        u1 = (static_cast<float>(px + TileSize)) / static_cast<float>(Width);
+        v1 = (static_cast<float>(py + TileSize)) / static_cast<float>(Height);
     }
 
     // Final atlas UV for one face corner.

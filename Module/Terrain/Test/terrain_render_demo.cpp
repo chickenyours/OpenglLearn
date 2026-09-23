@@ -109,7 +109,7 @@ void main() {
     vec3 color = albedo * light;
 
     float d = distance(vWorldPosition, uCameraPosition.xyz);
-    float fog = smoothstep(62.0, 88.0, d);
+    float fog = smoothstep(250.0, 400.0, d);
     color = mix(color, sky, fog);
 
     FragColor = vec4(color, 1.0);
@@ -473,7 +473,7 @@ int main() {
             Terrain::SetTerrainGeneratorMode(Terrain::TerrainGeneratorMode::DensityField);
         }
     }
-    if (const char* seed = std::getenv("TERRAIN_SEED")) {
+    if (const char* seed = std::getenv("TERRAIN_SEEDD")) {
         Terrain::SetWorldSeed(std::strtoull(seed, nullptr, 10));
     }
 
@@ -565,7 +565,7 @@ int main() {
 
         const float aspect = static_cast<float>(width) / static_cast<float>(height);
         const glm::mat4 projection =
-            glm::perspective(glm::radians(67.0f), aspect, 0.1f, 105.0f);
+            glm::perspective(glm::radians(67.0f), aspect, 0.1f, 500.0f);
 
         Render::RenderView renderView{};
         renderView.viewProjection = projection * camera.View();

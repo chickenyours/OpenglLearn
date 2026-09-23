@@ -8,6 +8,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <utility>
 #include <vector>
 
 #include "Terrain/Public/block_atlas.h"
@@ -231,27 +232,37 @@ int main() {
         const int cellX = (t % BlockAtlas::Columns) * BlockAtlas::PaddedTileSize;
         const int cellY = (t / BlockAtlas::Columns) * BlockAtlas::PaddedTileSize;
 
-        // The gutter must duplicate the tile's edge texels.
+        // Every gutter texel must duplicate the corresponding edge texel.
         for (int i = 0; i < BlockAtlas::TileSize; ++i) {
-            const auto* leftCenter = atlasPixels.data() + ((oy + i) * BlockAtlas::Width + ox) * 4;
-            const auto* leftGutter = atlasPixels.data() + ((oy + i) * BlockAtlas::Width + (ox - 1)) * 4;
-            const auto* rightCenter = atlasPixels.data() + ((oy + i) * BlockAtlas::Width + (ox + BlockAtlas::TileSize - 1)) * 4;
-            const auto* rightGutter = atlasPixels.data() + ((oy + i) * BlockAtlas::Width + (ox + BlockAtlas::TileSize)) * 4;
-            const auto* topCenter = atlasPixels.data() + (oy * BlockAtlas::Width + (ox + i)) * 4;
-            const auto* topGutter = atlasPixels.data() + ((oy - 1) * BlockAtlas::Width + (ox + i)) * 4;
-            const auto* bottomCenter = atlasPixels.data() + ((oy + BlockAtlas::TileSize - 1) * BlockAtlas::Width + (ox + i)) * 4;
-            const auto* bottomGutter = atlasPixels.data() + ((oy + BlockAtlas::TileSize) * BlockAtlas::Width + (ox + i)) * 4;
-            for (int c = 0; c < 4; ++c) {
-                if (leftGutter[c] != leftCenter[c] || rightGutter[c] != rightCenter[c]
-                    || topGutter[c] != topCenter[c] || bottomGutter[c] != bottomCenter[c]) {
-                    ++gutterMismatches;
+            for (int g = 1; g <= BlockAtlas::Gutter; ++g) {
+                const auto* leftCenter = atlasPixels.data() + ((oy + i) * BlockAtlas::Width + ox) * 4;
+                const auto* leftGutter = atlasPixels.data() + ((oy + i) * BlockAtlas::Width + (ox - g)) * 4;
+                const auto* rightCenter = atlasPixels.data() + ((oy + i) * BlockAtlas::Width + (ox + BlockAtlas::TileSize - 1)) * 4;
+                const auto* rightGutter = atlasPixels.data() + ((oy + i) * BlockAtlas::Width + (ox + BlockAtlas::TileSize - 1 + g)) * 4;
+                const auto* topCenter = atlasPixels.data() + (oy * BlockAtlas::Width + (ox + i)) * 4;
+                const auto* topGutter = atlasPixels.data() + ((oy - g) * BlockAtlas::Width + (ox + i)) * 4;
+                const auto* bottomCenter = atlasPixels.data() + ((oy + BlockAtlas::TileSize - 1) * BlockAtlas::Width + (ox + i)) * 4;
+                const auto* bottomGutter = atlasPixels.data() + ((oy + BlockAtlas::TileSize - 1 + g) * BlockAtlas::Width + (ox + i)) * 4;
+                for (int c = 0; c < 4; ++c) {
+                    if (leftGutter[c] != leftCenter[c] || rightGutter[c] != rightCenter[c]
+                        || topGutter[c] != topCenter[c] || bottomGutter[c] != bottomCenter[c]) {
+                        ++gutterMismatches;
+                    }
+                }
+            }
+            // Corners duplicate the nearest centre corner.
+            for (int g = 1; g <= BlockAtlas::Gutter; ++g) {
+                const auto* corner = atlasPixels.data() + ((oy - g) * BlockAtlas::Width + (ox - g)) * 4;
+                const auto* center = atlasPixels.data() + (oy * BlockAtlas::Width + ox) * 4;
+                for (int c = 0; c < 4; ++c) {
+                    if (corner[c] != center[c]) ++gutterMismatches;
                 }
             }
         }
 
-        // Every mip 1 / mip 2 block that contains a sampled (centre) texel must lie
+        // Every mip 1..4 block that contains a sampled (visible) texel must lie
         // entirely inside this tile's padded cell, so it cannot average a neighbour.
-        for (int level = 1; level <= 2; ++level) {
+        for (int level = 1; level <= 4; ++level) {
             const int block = 1 << level;
             const int xs[2] = {ox, ox + BlockAtlas::TileSize - 1};
             const int ys[2] = {oy, oy + BlockAtlas::TileSize - 1};
@@ -263,16 +274,36 @@ int main() {
             }
         }
     }
-    failures += !Expect(gutterMismatches == 0, "gutter duplicates tile edge texels");
-    failures += !Expect(bleedMismatches == 0, "mip1/mip2 blocks stay inside the tile cell");
+    failures += !Expect(gutterMismatches == 0, "gutter duplicates tile edge/corner texels");
+    failures += !Expect(bleedMismatches == 0, "mip1..mip4 blocks stay inside the tile cell");
 
-    // CPU mip chain sanity: the mip2 texel containing Dirt's right edge centre must
+    // Before/after alignment table: (16 + 2*G) % 2^L == 0 means mip L is clean.
+    std::printf("mip alignment:\n");
+    for (int g : {2, 4, 8}) {
+        int clean = 0;
+        for (int level = 1; level <= 6; ++level) {
+            if ((BlockAtlas::TileSize + 2 * g) % (1 << level) == 0) clean = level;
+            else break;
+        }
+        std::printf("  gutter %d (cell %2d): clean through mip %d\n",
+                    g, BlockAtlas::TileSize + 2 * g, clean);
+    }
+
+    // Atlas checksum determinism.
+    const std::uint64_t checksumA = BlockAtlas::Checksum();
+    const std::uint64_t checksumB = BlockAtlas::Checksum();
+    std::printf("atlas checksum: %llu / %llu\n",
+                static_cast<unsigned long long>(checksumA),
+                static_cast<unsigned long long>(checksumB));
+    failures += !Expect(checksumA == checksumB, "atlas checksum deterministic");
+
+    // CPU mip chain sanity: the mip4 texel containing Dirt's right edge centre must
     // stay brown (not average in the grey Stone tile next to it).
     {
         const int W = BlockAtlas::Width;
         const int H = BlockAtlas::Height;
         std::vector<std::uint8_t> mip = atlasPixels;
-        for (int level = 1; level <= 2; ++level) {
+        for (int level = 1; level <= 4; ++level) {
             const int w = W >> level;
             const int h = H >> level;
             std::vector<std::uint8_t> next(static_cast<std::size_t>(w) * h * 4u, 0);
@@ -295,13 +326,13 @@ int main() {
         int dirtOx = 0;
         int dirtOy = 0;
         BlockAtlas::TilePixelOrigin(BlockTile::Dirt, dirtOx, dirtOy);
-        const int edgeX = (dirtOx + BlockAtlas::TileSize - 1) >> 2;
-        const int edgeY = dirtOy >> 2;
-        const int W2 = W >> 2;
+        const int edgeX = (dirtOx + BlockAtlas::TileSize - 1) >> 4;
+        const int edgeY = dirtOy >> 4;
+        const int W2 = W >> 4;
         const std::size_t o = (static_cast<std::size_t>(edgeY) * W2 + edgeX) * 4u;
-        const glm::vec3 mip2Edge(mip[o], mip[o + 1], mip[o + 2]);
-        failures += !Expect(mip2Edge.r > mip2Edge.b && mip2Edge.r > mip2Edge.g,
-                            "mip2 tile edge stays dirt (no Stone contamination)");
+        const glm::vec3 mip4Edge(mip[o], mip[o + 1], mip[o + 2]);
+        failures += !Expect(mip4Edge.r > mip4Edge.b && mip4Edge.r > mip4Edge.g,
+                            "mip4 tile edge stays dirt (no Stone contamination)");
     }
 
     // CPU-rendered face preview: grass top | grass side | grass bottom | sandstone side.
@@ -344,6 +375,64 @@ int main() {
         std::FILE* file = std::fopen("block_preview.ppm", "wb");
         if (file != nullptr) {
             std::fprintf(file, "P6\n%d %d\n255\n", width, size);
+            std::fwrite(image.data(), 1, image.size(), file);
+            std::fclose(file);
+        }
+    }
+
+    // Mip-chain screenshot: levels 0..4 stacked (tiles stay distinct at each level).
+    {
+        const int W = BlockAtlas::Width;
+        const int H = BlockAtlas::Height;
+        std::vector<std::vector<std::uint8_t>> levels;
+        levels.push_back(atlasPixels);
+        for (int level = 1; level <= 4; ++level) {
+            const int pw = W >> (level - 1);
+            const int ph = H >> (level - 1);
+            const int w = W >> level;
+            const int h = H >> level;
+            const std::vector<std::uint8_t>& src = levels.back();
+            std::vector<std::uint8_t> dst(static_cast<std::size_t>(w) * h * 4u, 0);
+            for (int y = 0; y < h; ++y) {
+                for (int x = 0; x < w; ++x) {
+                    int sum[4] = {0, 0, 0, 0};
+                    for (int dy = 0; dy < 2; ++dy) {
+                        for (int dx = 0; dx < 2; ++dx) {
+                            const std::size_t s =
+                                (static_cast<std::size_t>((y * 2 + dy) * pw + (x * 2 + dx))) * 4u;
+                            for (int c = 0; c < 4; ++c) sum[c] += src[s + c];
+                        }
+                    }
+                    const std::size_t d = (static_cast<std::size_t>(y) * w + x) * 4u;
+                    for (int c = 0; c < 4; ++c) dst[d + c] = static_cast<std::uint8_t>(sum[c] / 4);
+                }
+            }
+            levels.push_back(std::move(dst));
+        }
+
+        int totalHeight = 0;
+        for (int level = 0; level <= 4; ++level) totalHeight += H >> level;
+        std::vector<std::uint8_t> image(
+            static_cast<std::size_t>(W) * totalHeight * 3u, 20);
+        int rowOffset = 0;
+        for (int level = 0; level <= 4; ++level) {
+            const int lw = W >> level;
+            const int lh = H >> level;
+            const std::vector<std::uint8_t>& src = levels[level];
+            for (int y = 0; y < lh; ++y) {
+                for (int x = 0; x < lw; ++x) {
+                    const std::size_t s = (static_cast<std::size_t>(y) * lw + x) * 4u;
+                    const std::size_t d =
+                        (static_cast<std::size_t>(rowOffset + y) * W + x) * 3u;
+                    image[d + 0] = src[s + 0];
+                    image[d + 1] = src[s + 1];
+                    image[d + 2] = src[s + 2];
+                }
+            }
+            rowOffset += lh;
+        }
+        if (std::FILE* file = std::fopen("atlas_mips.ppm", "wb")) {
+            std::fprintf(file, "P6\n%d %d\n255\n", W, totalHeight);
             std::fwrite(image.data(), 1, image.size(), file);
             std::fclose(file);
         }

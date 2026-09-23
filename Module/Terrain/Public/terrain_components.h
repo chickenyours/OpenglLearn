@@ -17,9 +17,9 @@
 namespace Terrain {
 
 inline constexpr int SectionSize = 16;
-// A terrain chunk is a full column: 16x16 footprint, tall enough to hold the
-// tallest hill plus an oak on top of it.
-inline constexpr int SectionHeight = 32;
+// A terrain chunk is a full column: 16x16 footprint, tall enough for a
+// Minecraft-style vertical scale (oceans, plains, mountains, snow peaks).
+inline constexpr int SectionHeight = 128;
 inline constexpr std::size_t SectionVolume =
     static_cast<std::size_t>(SectionSize) * SectionSize * SectionHeight;
 using BlockId = std::uint16_t;

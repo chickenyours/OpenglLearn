@@ -10,6 +10,7 @@
 // This file does not touch the generator, ECS, JobSystem or the mesher.
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <vector>
@@ -102,14 +103,20 @@ inline std::uint8_t Byte(float v) {
 
 } // namespace AtlasDetail
 
-// Procedurally generated, deterministic 16x16 voxel textures.
+// Procedurally generated, deterministic 16x16 voxel textures, stored with a
+// duplicated-edge gutter so mipmapped sampling never blends neighbouring tiles.
 class BlockAtlas {
 public:
-    static constexpr int TileSize = 16;
+    static constexpr int TileSize = 16;   // visible tile (centre)
+    // Duplicated-edge gutter width. A 1-texel gutter removes mip-1 bleed, but mip
+    // level 2 averages 4x4 texel blocks, so the padded cell must be a multiple of
+    // 4 for tiles to stay aligned there too: 16 + 2*2 = 20.
+    static constexpr int Gutter = 2;
+    static constexpr int PaddedTileSize = TileSize + 2 * Gutter;
     static constexpr int Columns = 8;
     static constexpr int Rows = 2;
-    static constexpr int Width = TileSize * Columns;
-    static constexpr int Height = TileSize * Rows;
+    static constexpr int Width = PaddedTileSize * Columns;
+    static constexpr int Height = PaddedTileSize * Rows;
 
     // RGBA8, row-major, top-left origin. Built once (thread-safe static init).
     static const std::vector<std::uint8_t>& Pixels() {
@@ -119,27 +126,50 @@ public:
 
     static constexpr int TileCount() { return static_cast<int>(BlockTile::Count); }
 
-    // Normalized UV rect of a tile, for a future textured pipeline.
-    static void TileRect(BlockTile tile, float& u0, float& v0, float& u1, float& v1) {
+    // Pixel origin of a tile's visible 16x16 centre inside the atlas.
+    static void TilePixelOrigin(BlockTile tile, int& originX, int& originY) {
         const int index = static_cast<int>(tile);
-        const int col = index % Columns;
-        const int row = index / Columns;
-        u0 = static_cast<float>(col * TileSize) / static_cast<float>(Width);
-        v0 = static_cast<float>(row * TileSize) / static_cast<float>(Height);
-        u1 = static_cast<float>((col + 1) * TileSize) / static_cast<float>(Width);
-        v1 = static_cast<float>((row + 1) * TileSize) / static_cast<float>(Height);
+        originX = (index % Columns) * PaddedTileSize + Gutter;
+        originY = (index / Columns) * PaddedTileSize + Gutter;
     }
 
-    // UV rect inset to texel centres. Nearest sampling of this rect never reads
-    // a neighbouring tile in the atlas.
+    // Normalized UV rect of a tile's visible centre.
+    static void TileRect(BlockTile tile, float& u0, float& v0, float& u1, float& v1) {
+        int px = 0;
+        int py = 0;
+        TilePixelOrigin(tile, px, py);
+        u0 = static_cast<float>(px) / static_cast<float>(Width);
+        v0 = static_cast<float>(py) / static_cast<float>(Height);
+        u1 = static_cast<float>(px + TileSize) / static_cast<float>(Width);
+        v1 = static_cast<float>(py + TileSize) / static_cast<float>(Height);
+    }
+
+    // UV rect inset to texel centres of the visible centre (never the gutter).
     static void TileTexelRect(BlockTile tile, float& u0, float& v0, float& u1, float& v1) {
-        const int index = static_cast<int>(tile);
-        const int col = index % Columns;
-        const int row = index / Columns;
-        u0 = (static_cast<float>(col * TileSize) + 0.5f) / static_cast<float>(Width);
-        v0 = (static_cast<float>(row * TileSize) + 0.5f) / static_cast<float>(Height);
-        u1 = (static_cast<float>((col + 1) * TileSize) - 0.5f) / static_cast<float>(Width);
-        v1 = (static_cast<float>((row + 1) * TileSize) - 0.5f) / static_cast<float>(Height);
+        int px = 0;
+        int py = 0;
+        TilePixelOrigin(tile, px, py);
+        u0 = (static_cast<float>(px) + 0.5f) / static_cast<float>(Width);
+        v0 = (static_cast<float>(py) + 0.5f) / static_cast<float>(Height);
+        u1 = (static_cast<float>(px + TileSize) - 0.5f) / static_cast<float>(Width);
+        v1 = (static_cast<float>(py + TileSize) - 0.5f) / static_cast<float>(Height);
+    }
+
+    // Final atlas UV for one face corner.
+    //
+    // cornerU/cornerV are the face-local corner coordinates in {0, 1}, where
+    // cornerV == 1 is the top of a side face.
+    //
+    // glTexImage2D uploads data row 0 to texture coordinate v = 0, so the atlas
+    // image is stored bottom-up in OpenGL. We therefore sample texel centres and
+    // invert V: the image's top row maps to cornerV == 1 (top of the face).
+    static void FaceCornerUv(BlockTile tile, float cornerU, float cornerV,
+                             float& u, float& v) {
+        float u0 = 0.0f, v0 = 0.0f, u1 = 1.0f, v1 = 1.0f;
+        TileTexelRect(tile, u0, v0, u1, v1);
+
+        u = (cornerU > 0.5f) ? u1 : u0;
+        v = (cornerV > 0.5f) ? v0 : v1; // flip: top of face -> top row of image
     }
 
     // Block id -> top / side / bottom tile.
@@ -165,26 +195,46 @@ private:
     static std::vector<std::uint8_t> BuildPixels() {
         std::vector<std::uint8_t> pixels(
             static_cast<std::size_t>(Width) * Height * 4u, 0);
+
+        std::array<std::uint8_t, static_cast<std::size_t>(TileSize) * TileSize * 4u> tile{};
         for (int i = 0; i < TileCount(); ++i) {
-            PaintTile(pixels, static_cast<BlockTile>(i));
+            PaintTile(tile.data(), static_cast<BlockTile>(i));
+
+            // Blit the 16x16 centre and duplicate its edge texels into the gutter.
+            const int cellX = (i % Columns) * PaddedTileSize;
+            const int cellY = (i / Columns) * PaddedTileSize;
+            for (int py = 0; py < PaddedTileSize; ++py) {
+                const int sy = std::clamp(py - Gutter, 0, TileSize - 1);
+                for (int px = 0; px < PaddedTileSize; ++px) {
+                    const int sx = std::clamp(px - Gutter, 0, TileSize - 1);
+                    const std::size_t dst =
+                        (static_cast<std::size_t>(cellY + py) * Width
+                         + static_cast<std::size_t>(cellX + px)) * 4u;
+                    const std::size_t src =
+                        (static_cast<std::size_t>(sy) * TileSize
+                         + static_cast<std::size_t>(sx)) * 4u;
+                    pixels[dst + 0] = tile[src + 0];
+                    pixels[dst + 1] = tile[src + 1];
+                    pixels[dst + 2] = tile[src + 2];
+                    pixels[dst + 3] = tile[src + 3];
+                }
+            }
         }
         return pixels;
     }
 
-    static void PaintTile(std::vector<std::uint8_t>& pixels, BlockTile tile) {
+    static void PaintTile(std::uint8_t* tilePixels, BlockTile tile) {
         const int index = static_cast<int>(tile);
-        const int col = index % Columns;
-        const int row = index / Columns;
         const std::uint32_t seed = 0xA53C9E1u + static_cast<std::uint32_t>(index) * 0x9E3779B9u;
 
         const auto put = [&](int x, int y, float r, float g, float b) {
             const std::size_t o =
-                (static_cast<std::size_t>(row * TileSize + y) * Width
-                 + static_cast<std::size_t>(col * TileSize + x)) * 4u;
-            pixels[o + 0] = AtlasDetail::Byte(r);
-            pixels[o + 1] = AtlasDetail::Byte(g);
-            pixels[o + 2] = AtlasDetail::Byte(b);
-            pixels[o + 3] = 255;
+                (static_cast<std::size_t>(y) * TileSize
+                 + static_cast<std::size_t>(x)) * 4u;
+            tilePixels[o + 0] = AtlasDetail::Byte(r);
+            tilePixels[o + 1] = AtlasDetail::Byte(g);
+            tilePixels[o + 2] = AtlasDetail::Byte(b);
+            tilePixels[o + 3] = 255;
         };
 
         // Base fill with deterministic per-pixel brightness variation. `chunk`
@@ -219,7 +269,7 @@ private:
             const float tg = snow ? 240.0f : 142.0f;
             const float tb = snow ? 248.0f : 60.0f;
             for (int x = 0; x < TileSize; ++x) {
-                const int strip = 3 + static_cast<int>(AtlasDetail::Rand01(x, col, seed) * 3.0f);
+                const int strip = 3 + static_cast<int>(AtlasDetail::Rand01(x, index, seed) * 3.0f);
                 for (int y = 0; y < TileSize; ++y) {
                     const float n = AtlasDetail::Rand01(x, y, seed);
                     const float v = 1.0f + (n - 0.5f) * 0.16f;

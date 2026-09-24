@@ -15,12 +15,7 @@ namespace Render::System{
             }
             virtual void OnTick() override {
                 if(device){
-                    RHICommandReturnSystem& returnSystem = device->returnSystem;
-                    ThreadSafeQueue<std::function<void()>>& callbacks = returnSystem.callbacks;
-                    while(!callbacks.empty()){
-                        auto callback = callbacks.wait_pop(); 
-                        callback();
-                    }
+                    device->returnSystem.DrainCallbacks();
                 }
             }
             virtual void OnEnd() override {

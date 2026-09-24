@@ -196,6 +196,7 @@ struct UploadResult {
     bool done = false;
     bool succeeded = false;
     bool updating = false;
+    bool cancelled = false; // chunk unloaded before the create callback arrived
     std::uint64_t revision = 0;
     std::uint32_t indexCount = 0;
 };

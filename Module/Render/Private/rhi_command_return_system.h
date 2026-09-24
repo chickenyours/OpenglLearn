@@ -4,6 +4,9 @@
 #include <mutex>
 #include <condition_variable>
 #include <optional>
+#include <algorithm>
+#include <chrono>
+#include <functional>
 #include "Render/Public/rhi_resource_handle.h"
 #include "Render/Public/RHIResourceType/rhi_resource_type.h"
 
@@ -82,5 +85,22 @@ namespace Render{
     class RHICommandReturnSystem{
         public:
             ThreadSafeQueue<std::function<void()>> callbacks;
+
+            // Main-thread pump: concurrent producers must not extend this tick
+            // indefinitely. Individual callbacks must themselves be short.
+            std::size_t DrainCallbacks(std::size_t maxCount = 64) {
+                const auto count = std::min(maxCount, callbacks.size());
+                const auto start = std::chrono::steady_clock::now();
+                std::size_t processed = 0;
+                while(processed < count) {
+                    if(processed > 0 && std::chrono::steady_clock::now() - start >=
+                        std::chrono::milliseconds(1)) break;
+                    auto callback = callbacks.try_pop();
+                    if(!callback) break;
+                    if(*callback) (*callback)();
+                    ++processed;
+                }
+                return processed;
+            }
     };
 }

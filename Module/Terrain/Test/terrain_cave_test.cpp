@@ -3,7 +3,7 @@
 //  - seed sensitivity
 //  - the per-chunk lattice cache is exactly equal to the direct sampler
 //  - chunk border consistency (GenerateChunkBlocks == DensityBlockAt)
-//  - surface protection (no cave within surfaceProtection of the column top)
+//  - protected sea floor, selected surface entrances connected to deep tunnels
 //  - world floor protection (y <= minY never carved)
 //  - caves actually exist, but do not consume the whole underground
 //  - generation throughput
@@ -11,6 +11,7 @@
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
+#include <deque>
 #include <vector>
 
 #include "Terrain/Generator/cave_generator.h"
@@ -41,6 +42,22 @@ int main() {
     SetTerrainGeneratorMode(TerrainGeneratorMode::DensityField);
 
     const CaveGenerator::CaveConfig& config = CaveGenerator::DefaultCaveConfig();
+
+    {
+        using namespace CaveGenerator;
+        failures += !Expect(TubeDistance(0.0f, 0.8f) > config.spaghettiWidth,
+                            "one zero field alone cannot carve a flat sheet");
+        failures += !Expect(std::abs(TubeDistance(0.12f, 0.16f) - 0.20f) < 0.00001f,
+                            "tube cross-section uses circular distance");
+        CaveSample tube;
+        tube.spaghetti = config.spaghettiWidth * 0.5f;
+        failures += !Expect(!CarveWithGuards(tube, 80, 80, 0, config)
+                            && CarveWithGuards(tube, 80, 80, 1, config),
+                            "only selected entrance tubes reach the surface");
+        failures += !Expect(!CarveWithGuards(tube, 74, 80, 0, config)
+                            && CarveWithGuards(tube, 65, 80, 0, config),
+                            "sealed tunnel narrows gradually towards roof");
+    }
 
     // 1) Determinism: same seed + coordinate -> identical sample.
     {
@@ -113,6 +130,25 @@ int main() {
             }
         }
         failures += !Expect(borderMismatches == 0, "cave is consistent across chunk borders");
+
+        // Negative coordinates and out-of-cache fallback, including the entire
+        // entrance band at an inland synthetic surface and a sealed config.
+        for(bool entrances : {false, true}) {
+            auto settings = config;
+            settings.surfaceEntrances = entrances;
+            field.Build({-2, 0, -1}, SectionSize, SectionHeight, SectionSize, kSeed, settings);
+            for(int z = -18; z <= 1; z += 2) {
+                for(int x = -34; x <= -13; x += 2) {
+                    for(int y = 0; y < 100; y += 3) {
+                        if(field.ShouldCarve(x, y, z, 80) !=
+                           CaveGenerator::ShouldCarve(x, y, z, 80, kSeed, settings)) ++cacheMismatches;
+                        if(!entrances && y > CaveGenerator::CaveCeiling(80, settings) &&
+                           field.ShouldCarve(x, y, z, 80)) ++cacheMismatches;
+                    }
+                }
+            }
+        }
+        failures += !Expect(cacheMismatches == 0, "negative coords / fallback / sealed mode agree");
     }
 
     // 4) Surface + floor protection and cave existence, over one chunk.
@@ -145,7 +181,7 @@ int main() {
                     carved, solidBase);
         failures += !Expect(carved > 0, "caves exist below the surface");
         failures += !Expect(carved * 4 < solidBase, "caves do not eat the whole underground");
-        failures += !Expect(protectedLeaks == 0, "no cave within surfaceProtection");
+        failures += !Expect(protectedLeaks == 0, "low coastal column keeps its protected roof");
         failures += !Expect(floorLeaks == 0, "no cave at/below minY");
     }
 
@@ -186,7 +222,115 @@ int main() {
                             "no surface material on cave walls");
     }
 
-    // 5) Throughput: full density generation with caves.
+    // 5) Actual block-world entrances, not just noise-mask holes: a carved
+    // surface voxel must connect through carved rock to a walkable deep tunnel.
+    {
+        constexpr int chunks = 12, width = chunks * SectionSize;
+        constexpr int height = SectionHeight;
+        // The origin is coastal for this seed. Locate inland terrain rather
+        // than weakening sea-floor protection to make a coastal fixture pass.
+        glm::ivec2 center{0};
+        bool foundLand = false;
+        for(int z = -1024; z <= 1024 && !foundLand; z += 64) {
+            for(int x = -1024; x <= 1024; x += 64) {
+                if(ComputeColumnTerrain(x, z).terrainHeight < 64.0f) continue;
+                center = {x, z}; foundLand = true; break;
+            }
+        }
+        failures += !Expect(foundLand, "inland entrance test region located");
+        const int originX = center.x - width / 2, originZ = center.y - width / 2;
+        const auto index = [](int x, int y, int z) {
+            return (y * width + z) * width + x;
+        };
+        std::vector<std::uint8_t> cells(width * width * height, 0);
+        int openings = 0;
+        int entranceBorderMismatches = 0;
+        float maxSurface = 0.0f;
+        for(int cz = 0; cz < chunks; ++cz) {
+            for(int cx = 0; cx < chunks; ++cx) {
+                ChunkBlocks blocks;
+                GenerateChunkBlocks({originX / SectionSize + cx, 0, originZ / SectionSize + cz}, blocks);
+                for(int z = 0; z < SectionSize; ++z) {
+                    for(int x = 0; x < SectionSize; ++x) {
+                        const int px = cx * SectionSize + x, pz = cz * SectionSize + z;
+                        const int wx = originX + px, wz = originZ + pz;
+                        const auto column = ComputeColumnTerrain(wx, wz);
+                        maxSurface = std::max(maxSurface, column.terrainHeight);
+                        int top = std::min(height - 1, static_cast<int>(std::ceil(column.terrainHeight + DensityField::Noise3DAmplitude)));
+                        while(top >= 0 && DensityField::DensityWithHeight(column.terrainHeight, wx, top, wz, kSeed) <= 0) --top;
+                        if(x == 0 || x == SectionSize - 1) {
+                            for(int y = std::max(0, top - 10); y <= std::min(height - 1, top + 3); ++y) {
+                                if(blocks.Get(x, y, z) != DensityBlockFromColumn(column, wx, y, wz, kSeed))
+                                    ++entranceBorderMismatches;
+                            }
+                        }
+                        for(int y = 0; y <= top; ++y) {
+                            if(blocks.Get(x, y, z) != 0) continue;
+                            cells[index(px, y, pz)] = 1;
+                            if(y == top && y >= DensitySeaLevel()) {
+                                cells[index(px, y, pz)] |= 2;
+                                ++openings;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        int connectedEntrances = 0;
+        for(int start = 0; start < static_cast<int>(cells.size()); ++start) {
+            if(cells[start] != 1 && cells[start] != 3) continue;
+            std::deque<int> frontier{start};
+            cells[start] |= 4;
+            int mouths = 0, minY = height, mouthY = -1, minX = width, maxX = 0, minZ = width, maxZ = 0;
+            glm::ivec3 example{0};
+            while(!frontier.empty()) {
+                const int at = frontier.front(); frontier.pop_front();
+                const int x = at % width, z = (at / width) % width, y = at / (width * width);
+                minY = std::min(minY, y);
+                minX = std::min(minX, x); maxX = std::max(maxX, x);
+                minZ = std::min(minZ, z); maxZ = std::max(maxZ, z);
+                if(cells[at] & 2) { ++mouths; mouthY = std::max(mouthY, y); example = {originX + x, y, originZ + z}; }
+                for(auto direction : {glm::ivec3{1,0,0}, {-1,0,0}, {0,1,0}, {0,-1,0}, {0,0,1}, {0,0,-1}}) {
+                    const auto next = glm::ivec3(x,y,z) + direction;
+                    if(next.x < 0 || next.x >= width || next.z < 0 || next.z >= width || next.y < 0 || next.y >= height) continue;
+                    const int neighbor = index(next.x, next.y, next.z);
+                    if((cells[neighbor] & 1) && !(cells[neighbor] & 4)) {
+                        cells[neighbor] |= 4;
+                        frontier.push_back(neighbor);
+                    }
+                }
+            }
+            if(mouths >= 4 && mouthY - minY >= 10 && std::max(maxX - minX, maxZ - minZ) >= 16) {
+                if(connectedEntrances == 0) std::printf("  example entrance (%d,%d,%d), connected depth %d\n", example.x, example.y, example.z, mouthY - minY);
+                ++connectedEntrances;
+            }
+        }
+        std::printf("  surface openings: %d voxels, %d deep connected cave systems, max height %.1f\n", openings, connectedEntrances, maxSurface);
+        failures += !Expect(openings > 0 && openings < width * width / 8, "visible entrances exist without perforating most terrain");
+        failures += !Expect(connectedEntrances > 0, "entrances connect >=10 blocks down and >=16 across");
+        failures += !Expect(entranceBorderMismatches == 0, "surface-band carving matches reference across inland borders");
+    }
+
+    // The demo's default seed must also produce real above-water entrances.
+    {
+        SetWorldSeed(0);
+        bool found = false;
+        for(int z = -1024; z <= 1024 && !found; z += 8) {
+            for(int x = -1024; x <= 1024; x += 8) {
+                const auto column = ComputeColumnTerrain(x, z);
+                if(column.terrainHeight <= config.entranceMinHeight) continue;
+                int y = std::min(SectionHeight - 1, static_cast<int>(std::ceil(column.terrainHeight + DensityField::Noise3DAmplitude)));
+                while(y > 0 && DensityField::DensityWithHeight(column.terrainHeight, x, y, z, 0) <= 0) --y;
+                if(DensityBlockFromColumn(column, x, y, z, 0) != 0) continue;
+                std::printf("  default seed entrance candidate (%d,%d,%d)\n", x, y, z);
+                found = true; break;
+            }
+        }
+        failures += !Expect(found, "demo default seed has exposed cave mouths");
+        SetWorldSeed(kSeed);
+    }
+
+    // 6) Throughput: full density generation with caves.
     {
         constexpr int kGrid = 12;
         const auto start = Clock::now();

@@ -360,9 +360,8 @@ inline BlockId DensityBlockFromColumn(const ColumnTerrain& column, int worldX,
     }
 
     // A block is a *terrain* surface block only when the air above it is normal
-    // sky, not a cave pocket. Caves never reach within surfaceProtection of the
-    // column top, so any voxel above the cave ceiling can be classified normally;
-    // deeper "air above" is cave exposure and must stay stone/dirt.
+    // sky in the uncarved density field, not a cave pocket. An entrance does not
+    // promote the newly exposed underground floor to grass/snow.
     const bool exposedAbove =
         DensityField::DensityWithHeight(column.terrainHeight, worldX, worldY + 1, worldZ, seed) <= 0.0f;
     const bool isTerrainSurface = exposedAbove
@@ -439,8 +438,8 @@ inline void GenerateChunkBlocks(const glm::ivec3& section, ChunkBlocks& out) {
         const int seaLevel = DensitySeaLevel();
         const float amplitude = DensityField::Noise3DAmplitude;
 
-        // Cave carving only touches the guaranteed-solid rock below the surface
-        // band. The per-chunk lattice cache keeps the extra 3D noise cost small
+        // Cave carving includes entrance tunnels through the surface band.
+        // The per-chunk lattice cache keeps the extra 3D noise cost small
         // and produces bit-identical results to the direct SampleCave() path the
         // reference API (DensityBlockAt) uses.
         CaveGenerator::CaveField cave;
@@ -467,20 +466,19 @@ inline void GenerateChunkBlocks(const glm::ivec3& section, ChunkBlocks& out) {
                 // here, and cave exposure never promotes a block to surface
                 // material (see DensityBlockFromColumn / SurfaceBlock).
                 for (int y = 0; y < bandBegin; ++y) {
-                    if (y <= caveCeiling
-                        && cave.ShouldCarve(worldX, y, worldZ, height)) {
+                    if (cave.ShouldCarve(worldX, y, worldZ, height)) {
                         continue;  // cave air
                     }
                     write(x, y, z, SurfaceBlock(column, worldX, y, worldZ, false));
                 }
 
                 // Surface band: the only place the surface 3D noise is sampled.
-                // Caves are protected here, but keep the surface-material guard
-                // consistent with the reference path.
+                // Apply the same entrance carve decision as the reference path.
                 for (int y = bandBegin; y <= bandEnd; ++y) {
                     const float density = DensityField::DensityWithHeight(
                         height, worldX, y, worldZ, seed);
                     if (density > 0.0f) {
+                        if(cave.ShouldCarve(worldX, y, worldZ, height)) continue;
                         const float densityAbove = DensityField::DensityWithHeight(
                             height, worldX, y + 1, worldZ, seed);
                         const bool isTop = densityAbove <= 0.0f && y > caveCeiling;

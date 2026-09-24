@@ -31,7 +31,15 @@ namespace Render{
                 }
             }
 
+            void threadAny_Push(T&& command) {
+                std::lock_guard<std::mutex> lock(m_);
+                outsideQueue_->push(std::move(command));
+            }
+
             void thread_Switch(){
+                // Only the consumer calls this. Never send an unfinished batch
+                // back to producers: that would reorder commands across slices.
+                if (!insideQueue_->empty()) return;
                 std::lock_guard<std::mutex> lock(m_);
                 if(switchFlag_){
                     outsideQueue_ = &queue1_;
@@ -54,8 +62,7 @@ namespace Render{
             }
 
             T thread_Pop(){
-                T result;
-                result = insideQueue_->front();
+                T result = std::move(insideQueue_->front());
                 insideQueue_->pop();
                 return result;
             }

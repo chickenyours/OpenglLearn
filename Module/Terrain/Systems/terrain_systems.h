@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
@@ -24,6 +25,8 @@
 #include "engine/ECS/System/system.h"
 #include "Render/Public/Pipeline/mesh_upload_queue.h"
 #include "Render/Public/Pipeline/render_world.h"
+#include "Render/Public/Pipeline/render_pipeline.h"
+#include "Render/Public/Pipeline/view_frustum.h"
 #include "Terrain/Public/terrain_components.h"
 #include "Terrain/Public/terrain_edit.h"
 #include "Terrain/Public/terrain_generator.h"
@@ -61,20 +64,26 @@ using ViewerQuery = ECS::Core::ChunkQuery<
     ECS::Core::Optional<>, ECS::Core::Exclude<>>;
 
 // A small thread-safe one-way result queue. Workers push; the main thread drains
-// once per tick. Pushing never blocks the main thread, and the queue outlives
+// once per tick without waiting for workers. The queue outlives
 // every job (systems WaitIdle in OnEnd before they are destroyed).
 template <typename T>
 class WorkCompletionQueue {
 public:
     void Push(T&& value) {
+        auto item = std::make_unique<T>(std::move(value));
         std::lock_guard<std::mutex> lock(mutex_);
-        items_.push_back(std::move(value));
+        items_.push_back(std::move(item));
     }
     bool TryPop(T& out) {
-        std::lock_guard<std::mutex> lock(mutex_);
-        if(items_.empty()) return false;
-        out = std::move(items_.front());
-        items_.pop_front();
+        std::unique_ptr<T> item;
+        {
+            std::unique_lock<std::mutex> lock(mutex_, std::try_to_lock);
+            if(!lock.owns_lock() || items_.empty()) return false;
+            item = std::move(items_.front());
+            items_.pop_front();
+        }
+        // Large block copies and old mesh destruction happen outside the lock.
+        out = std::move(*item);
         return true;
     }
     bool Empty() const {
@@ -84,7 +93,7 @@ public:
 
 private:
     mutable std::mutex mutex_;
-    std::deque<T> items_;
+    std::deque<std::unique_ptr<T>> items_;
 };
 
 // A finished generation job. `blocks` is worker-owned until the main thread
@@ -156,13 +165,13 @@ inline void DispatchJobs(ECS::Core::Scene* scene,
     for(auto& job : jobs) job();
 }
 
-// Number of worker threads backing the scene, used to size the scheduling
-// budget and the in-flight cap. 1 when running inline.
+// Bound snapshot copying and queued terrain work even with a large worker pool.
+// The worker pool remains shared with other scene systems. 1 when inline.
 inline std::size_t TerrainWorkerCount(ECS::Core::Scene* scene) {
     if(scene != nullptr) {
         if(auto* jobSystem = scene->GetJobSystem()) {
             if(auto* schedule = jobSystem->GetSchedule()) {
-                return std::max<std::size_t>(1, schedule->GetWorkerCount());
+                return std::clamp<std::size_t>(schedule->GetWorkerCount(), 1, 4);
             }
         }
     }
@@ -194,6 +203,25 @@ struct IVec2Hash {
         return static_cast<std::size_t>(h);
     }
 };
+
+// Called while the uploader service is still alive, before removing ECS state.
+// A late create callback observes cancellation and retires its new handle.
+inline void ReleaseChunkRender(ChunkRender& render, Render::IMeshUploadQueue& uploader) {
+    for(auto& gpu : render.layers) {
+        Render::RenderResourceHandle<Render::VertexBufferSpec> pendingHandle;
+        if(auto pending = gpu.pending) {
+            std::lock_guard<std::mutex> lock(pending->mutex);
+            pending->cancelled = true;
+            if(pending->done && !pending->updating) {
+                pendingHandle = pending->handle;
+                pending->handle = {};
+            }
+        }
+        if(pendingHandle.IsValid() && pendingHandle != gpu.handle) uploader.Destroy(pendingHandle);
+        if(gpu.handle.IsValid()) uploader.Destroy(gpu.handle);
+        gpu = GpuSubmesh{};
+    }
+}
 
 // Creates and destroys chunk entities around the viewer. Entity lifetime is a
 // structural change, so this is the only terrain system that must stay on the
@@ -259,7 +287,13 @@ public:
             }
         }
 
+        std::size_t removed = 0;
         for(const StaleChunk& entry : stale) {
+            if(removed++ >= kMaxChunkCreationsPerFrame) break;
+            if(auto* uploader = context->GetService<Render::IMeshUploadQueue>()) {
+                if(auto* render = scene->GetActiveComponent<ChunkRender>(entry.entity).Get())
+                    ReleaseChunkRender(*render, *uploader);
+            }
             if(world != nullptr) world->UnregisterChunk(entry.section);
             scene->DeleteEntity(ECS::EntityHandle(entry.entity));
         }
@@ -362,7 +396,7 @@ private:
 
     void CommitResults(ECS::Core::Scene& scene, TerrainWorld* world) {
         GeneratedChunkResult result;
-        while(generationQueue_.TryPop(result)) {
+        for(std::size_t n = 0; n < 4 && generationQueue_.TryPop(result); ++n) {
             if(generationInFlight_ > 0) --generationInFlight_;
 
             auto blocksHandle = scene.GetActiveComponent<ChunkBlocks>(result.entity);
@@ -620,7 +654,7 @@ private:
 
     void CommitResults(ECS::Core::Scene& scene, std::deque<MeshChunkProbe>* probes) {
         MeshedChunkResult result;
-        while(meshQueue_.TryPop(result)) {
+        for(std::size_t n = 0; n < 4 && meshQueue_.TryPop(result); ++n) {
             if(meshInFlight_ > 0) --meshInFlight_;
 
             auto meshHandle = scene.GetActiveComponent<ChunkMesh>(result.entity);
@@ -785,19 +819,46 @@ public:
         auto* uploader = context ? context->GetService<Render::IMeshUploadQueue>() : nullptr;
         if(context == nullptr || context->scene == nullptr || uploader == nullptr) return;
         query_.RefreshIfNeeded(*context->scene);
+        UploadBudget budget;
         for(auto chunk : query_) {
             auto* meshes = chunk.Get<ChunkMesh>();
             auto* renders = chunk.Get<ChunkRender>();
-            for(std::size_t i = 0; i < chunk.count; ++i) Process(meshes[i], renders[i], *uploader);
+            for(std::size_t i = 0; i < chunk.count; ++i) Process(meshes[i], renders[i], *uploader, budget);
+        }
+    }
+
+    void OnEnd() override {
+        auto* context = GetContext();
+        auto* uploader = context ? context->GetService<Render::IMeshUploadQueue>() : nullptr;
+        if(context == nullptr || context->scene == nullptr || uploader == nullptr) return;
+        query_.RefreshIfNeeded(*context->scene);
+        for(auto chunk : query_) {
+            auto* renders = chunk.Get<ChunkRender>();
+            for(std::size_t i = 0; i < chunk.count; ++i) ReleaseChunkRender(renders[i], *uploader);
         }
     }
 
 private:
+    struct UploadBudget {
+        std::size_t count = 0;
+        std::size_t bytes = 0;
+        std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+        bool Take(std::size_t size) {
+            // Allow one oversized mesh so it cannot remain queued forever.
+            if(count >= 4 || (count > 0 && (bytes + size > 4 * 1024 * 1024 ||
+                std::chrono::steady_clock::now() - start >= std::chrono::milliseconds(2)))) return false;
+            ++count;
+            bytes += size;
+            return true;
+        }
+    };
+
     static Render::VertexLayout Layout() {
         return TerrainVertexLayout();
     }
 
-    static void Process(const ChunkMesh& mesh, ChunkRender& render, Render::IMeshUploadQueue& uploader) {
+    void Process(const ChunkMesh& mesh, ChunkRender& render, Render::IMeshUploadQueue& uploader,
+                 UploadBudget& budget) {
         for(std::size_t layer = 0; layer < mesh.layers.size(); ++layer) {
             const CpuSubmesh& cpu = mesh.layers[layer];
             GpuSubmesh& gpu = render.layers[layer];
@@ -830,6 +891,9 @@ private:
                 }
             }
             if(gpu.pending || gpu.uploadedRevision == mesh.meshRevision) continue;
+            const auto byteSize = cpu.vertices.size() * sizeof(Vertex) +
+                cpu.indices.size() * sizeof(std::uint32_t);
+            if(inFlight_->load() >= 16 || !budget.Take(byteSize)) continue;
             if(cpu.indices.empty()) {
                 if(gpu.handle.IsValid()) uploader.Destroy(gpu.handle);
                 gpu = GpuSubmesh{};
@@ -841,6 +905,8 @@ private:
             result->revision = mesh.meshRevision;
             result->indexCount = static_cast<std::uint32_t>(cpu.indices.size());
             gpu.pending = result;
+            auto inFlight = inFlight_;
+            ++*inFlight;
             if(gpu.handle.IsValid()) {
                 result->updating = true;
                 Render::UpdateMeshBufferDesc desc{};
@@ -848,8 +914,9 @@ private:
                 desc.vertexData = cpu.vertices.data(); desc.vertexByteSize = cpu.vertices.size() * sizeof(Vertex);
                 desc.indexCount = static_cast<std::uint32_t>(cpu.indices.size());
                 desc.indexData = cpu.indices.data(); desc.indexByteSize = cpu.indices.size() * sizeof(std::uint32_t);
-                uploader.Update(gpu.handle, desc, [result](bool ok) {
+                uploader.Update(gpu.handle, desc, [result, inFlight](bool ok) {
                     std::lock_guard<std::mutex> lock(result->mutex); result->succeeded = ok; result->done = true;
+                    --*inFlight;
                 });
             } else {
                 Render::CreateMeshBufferDesc desc{};
@@ -859,14 +926,23 @@ private:
                 desc.indexCount = static_cast<std::uint32_t>(cpu.indices.size());
                 desc.indexData = cpu.indices.data(); desc.indexByteSize = cpu.indices.size() * sizeof(std::uint32_t);
                 desc.usage = Render::BufferUsage::Dynamic;
-                uploader.Create(desc, [result](Render::RenderResourceHandle<Render::VertexBufferSpec> handle) {
-                    std::lock_guard<std::mutex> lock(result->mutex); result->handle = handle;
-                    result->succeeded = handle.IsValid(); result->done = true;
+                uploader.Create(desc, [result, inFlight, &uploader](Render::RenderResourceHandle<Render::VertexBufferSpec> handle) {
+                    bool cancelled;
+                    {
+                        std::lock_guard<std::mutex> lock(result->mutex);
+                        cancelled = result->cancelled;
+                        result->handle = cancelled ? decltype(handle){} : handle;
+                        result->succeeded = handle.IsValid(); result->done = true;
+                    }
+                    if(cancelled && handle.IsValid()) uploader.Destroy(handle);
+                    --*inFlight;
                 });
             }
         }
     }
     TerrainQuery query_;
+    // Callbacks may outlive the system or the chunk that initiated an upload.
+    std::shared_ptr<std::atomic_size_t> inFlight_ = std::make_shared<std::atomic_size_t>(0);
 };
 
 struct RenderSettings {
@@ -884,22 +960,34 @@ public:
         auto* world = context ? context->GetService<Render::RenderWorld>() : nullptr;
         auto* settings = context ? context->GetService<RenderSettings>() : nullptr;
         if(context == nullptr || context->scene == nullptr || world == nullptr || settings == nullptr) return;
+        auto* frame = context->GetService<Render::RenderFrameService>();
+        const Render::ViewFrustum frustum(frame ? frame->view.viewProjection : glm::mat4(1.0f));
         query_.RefreshIfNeeded(*context->scene);
         for(auto chunk : query_) {
             auto* locations = chunk.Get<ChunkLocation>();
             auto* renders = chunk.Get<ChunkRender>();
             for(std::size_t i = 0; i < chunk.count; ++i) {
                 if(!renders[i].visible) continue;
+                const glm::vec3 origin = locations[i].WorldOrigin();
+                const glm::vec3 extent(SectionSize, SectionHeight, SectionSize);
+                if(frame && !frustum.Intersects(origin, origin + extent)) continue;
                 for(std::size_t layer = 0; layer < renders[i].layers.size(); ++layer) {
                     const GpuSubmesh& gpu = renders[i].layers[layer];
                     if(!gpu.handle.IsValid() || gpu.indexCount == 0 || !settings->pipelines[layer].IsValid()) continue;
                     Render::RenderItem item{};
                     item.mesh = gpu.handle; item.pipeline = settings->pipelines[layer]; item.texture = settings->atlas;
-                    item.model = glm::translate(glm::mat4(1.0f), locations[i].WorldOrigin());
-                    item.draw.indexCount = gpu.indexCount;
+                    item.model = glm::translate(glm::mat4(1.0f), origin);
+                    // This handle is updated in place on the render thread.
+                    // A queued frame may outlive a shrink/grow upload, so draw
+                    // the whole current buffer instead of a stale CPU count.
+                    item.draw.indexCount = 0;
                     item.layer = layer == 0 ? Render::RenderLayer::Opaque :
                                  layer == 1 ? Render::RenderLayer::Cutout : Render::RenderLayer::Transparent;
                     item.viewDepth = renders[i].viewDepth;
+                    if(frame) {
+                        const auto delta = origin + extent * 0.5f - glm::vec3(frame->view.cameraPosition);
+                        item.viewDepth = glm::dot(delta, delta);
+                    }
                     item.sortKey = (static_cast<std::uint64_t>(item.pipeline.id) << 32u) | item.texture.id;
                     world->Add(std::move(item));
                 }

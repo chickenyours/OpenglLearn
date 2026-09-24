@@ -258,7 +258,11 @@ private:
         const std::uint32_t indexBase = static_cast<std::uint32_t>(out.indices.size());
         out.indices.resize(static_cast<std::size_t>(indexBase) + 6);
         std::uint32_t* indices = out.indices.data() + indexBase;
-        constexpr std::array<std::uint32_t, 6> pattern{0, 1, 2, 0, 2, 3};
+        // X/Y corner tables run inward; Z corner tables already run outward.
+        // Keep the UV corner mapping and reverse only the inward triangles.
+        constexpr std::array<std::uint32_t, 6> reversed{0, 2, 1, 0, 3, 2};
+        constexpr std::array<std::uint32_t, 6> forward{0, 1, 2, 0, 2, 3};
+        const auto& pattern = face < 4 ? reversed : forward;
         for(std::size_t i = 0; i < 6; ++i) {
             indices[i] = first + pattern[i];
         }

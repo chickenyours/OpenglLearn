@@ -12,6 +12,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -502,7 +503,8 @@ private:
                 desc.spec.shaderProgram = shaderProgram_;
                 desc.spec.topology = Render::PrimitiveTopology::TriangleList;
                 desc.spec.expectVertexLayout = Terrain::TerrainVertexLayout();
-                desc.spec.cullMode = Render::CullMode::None;
+                desc.spec.cullMode = Render::CullMode::Back;
+                desc.spec.frontFaceCounterClockwise = true;
                 desc.spec.depthTest = true;
                 desc.spec.depthWrite = !translucent_;
                 desc.spec.depthCompare = Render::CompareOp::LessEqual;
@@ -610,17 +612,31 @@ private:
     double lastY_ = 0.0;
 };
 
-void UpdateTitle(GLFWwindow* window) {
+void UpdateTitle(GLFWwindow* window, const Render::RHIDevice& device, double cpuMs) {
     static double previous = -1.0;
+    static std::uint64_t previousFrames = 0;
     const double now = glfwGetTime();
     if (previous >= 0.0 && now - previous < 0.25) return;
+    const auto stats = device.GetFrameStats();
+    const double fps = previous >= 0 ? (stats.rendered - previousFrames) / (now - previous) : 0;
     previous = now;
-    glfwSetWindowTitle(window, "ECS Terrain | WASD + mouse, LMB break block, Shift fast, Esc quit");
+    previousFrames = stats.rendered;
+    char title[256];
+    std::snprintf(title, sizeof(title),
+        "ECS Terrain | %.0f FPS | CPU %.1f ms | queue %.1f ms | render/present %.1f ms | skipped %llu | Esc quit",
+        fps, cpuMs, stats.queueMs, stats.executeMs,
+        static_cast<unsigned long long>(stats.superseded));
+    glfwSetWindowTitle(window, title);
 }
 
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
+    const bool smokeTest = argc > 1 && std::strcmp(argv[1], "--smoke-test") == 0;
+    if(smokeTest) {
+        if(!glfwInit()) return 5;
+        glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    }
     ApplicationWindow::ApplicationWindowModule windowModule;
     Render::RenderModule renderModule;
     Render::System::CallBackSystem callbackSystem;
@@ -654,7 +670,7 @@ int main() {
     GLFWwindow* nativeWindow = window->GetNativeWindow();
 
     FlyCamera camera;
-    camera.Start(nativeWindow);
+    if(!smokeTest) camera.Start(nativeWindow);
 
     TerrainGpu gpu(device, kVertexShader, kFragmentShader, false);
     TerrainGpu waterGpu(device, kVertexShader, kWaterFragmentShader, true);
@@ -769,8 +785,12 @@ int main() {
     std::uint64_t frameIndex = 1;
     double previousTime = glfwGetTime();
     bool previousLeftClick = false;
+    const double smokeStart = glfwGetTime();
+    double peakCpuMs = 0, peakQueueMs = 0, peakRenderMs = 0;
+    std::uint64_t smokeEdits = 0;
 
     while (!window->ShouldClose()) {
+        if(smokeTest && glfwGetTime() - smokeStart >= 10.0) break;
         window->PollEvents();
         callbackSystem.OnTick();
 
@@ -779,7 +799,25 @@ int main() {
             static_cast<float>(now - previousTime), 0.0f, 0.05f);
         previousTime = now;
 
-        camera.Update(nativeWindow, deltaSeconds);
+        if(smokeTest) camera.position.x += 24.0f * deltaSeconds;
+        else camera.Update(nativeWindow, deltaSeconds);
+
+        // Exercise shrinking/growing live meshes while older frames may still
+        // be queued; no saved world is modified by this in-memory smoke test.
+        if(smokeTest && frameIndex % 8 == 0) {
+            const glm::ivec3 section(
+                static_cast<int>(std::floor(camera.position.x / Terrain::SectionSize)), 0,
+                static_cast<int>(std::floor(camera.position.z / Terrain::SectionSize)));
+            auto* chunk = terrainWorld.FindBlocks(section);
+            if(chunk && chunk->generated) {
+                for(int y = Terrain::SectionHeight - 1; y >= 0; --y) {
+                    if(chunk->Get(8, y, 8) == 0) continue;
+                    terrainWorld.SetBlockWorld(section * Terrain::SectionSize + glm::ivec3(8, y, 8), 0);
+                    ++smokeEdits;
+                    break;
+                }
+            }
+        }
 
         // Crosshair pick: cast the camera ray into the live ChunkBlocks every
         // frame (the DDA touches ~6-10 voxels). The crosshair is always the
@@ -850,12 +888,19 @@ int main() {
             break;
         }
 
-        if (!device->async_SubmitFrameCommands(frame.GetCommandBuffer())) {
+        if (!device->async_SubmitLatestFrameCommands(frame.GetCommandBuffer())) {
             std::cerr << "Failed to submit frame.\n";
             break;
         }
 
-        UpdateTitle(nativeWindow);
+        const double cpuMs = (glfwGetTime() - now) * 1000.0;
+        UpdateTitle(nativeWindow, *device, cpuMs);
+        if(smokeTest) {
+            const auto stats = device->GetFrameStats();
+            peakCpuMs = std::max(peakCpuMs, cpuMs);
+            peakQueueMs = std::max(peakQueueMs, stats.queueMs);
+            peakRenderMs = std::max(peakRenderMs, stats.executeMs);
+        }
         ++frameIndex;
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
@@ -868,7 +913,21 @@ int main() {
     waterGpu.Shutdown();
     atlas.Shutdown();
 
+    int smokeErrors = 0;
+    if(smokeTest) {
+        device->async_ExecuteCode([&smokeErrors] {
+            while(glGetError() != GL_NO_ERROR) ++smokeErrors;
+        });
+        device->StopAndRelease();
+        const auto stats = device->GetFrameStats();
+        std::cout << "GPU smoke: rendered=" << stats.rendered << " superseded=" << stats.superseded
+            << " buffers=" << device->GetRHIFrameCommandBufferPool()->GetAllocatedBufferCount()
+            << " peak CPU/queue/render(ms)=" << peakCpuMs << "/" << peakQueueMs << "/" << peakRenderMs
+            << " edits=" << smokeEdits << " GL errors=" << smokeErrors << '\n';
+        if(stats.rendered == 0) ++smokeErrors;
+    }
+
     renderModule.Shutdown();
     windowModule.Shutdown();
-    return 0;
+    return smokeErrors == 0 ? 0 : 6;
 }

@@ -105,6 +105,12 @@ if(NOT WIN32)
 endif()
 # <<< dynamic_terrain_clean_patch_v1 <<<
 
+add_executable(render_scheduling_test Render/Test/render_scheduling_test.cpp)
+get_target_property(RENDER_TEST_INCLUDES terrain_render_demo INCLUDE_DIRECTORIES)
+target_include_directories(render_scheduling_test PRIVATE ${RENDER_TEST_INCLUDES})
+target_link_directories(render_scheduling_test PRIVATE ${CMAKE_SOURCE_DIR}/lib/debug)
+target_link_libraries(render_scheduling_test PRIVATE opengl32 glfw3 glad)
+
 # Task 0.1: headless ECS / Terrain performance baseline.
 add_executable(terrain_benchmark
     ${CMAKE_CURRENT_SOURCE_DIR}/Terrain/Test/terrain_benchmark.cpp

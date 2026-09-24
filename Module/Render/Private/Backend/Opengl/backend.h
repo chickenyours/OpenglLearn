@@ -709,6 +709,12 @@ public:
             return;
         }
         glBindBuffer(GL_UNIFORM_BUFFER, spec->rhi_id);
+        // Per-object constants overwrite the whole UBO between draws. Orphan
+        // its backing store so the GPU may finish reading the previous value.
+        // Partial updates must preserve the bytes outside the changed range.
+        if (command.offset == 0 && command.size == spec->byteSize) {
+            glBufferData(GL_UNIFORM_BUFFER, spec->byteSize, nullptr, GL_STREAM_DRAW);
+        }
         glBufferSubData(GL_UNIFORM_BUFFER, command.offset, command.size,
             command.data.data());
         glBindBuffer(GL_UNIFORM_BUFFER, 0);

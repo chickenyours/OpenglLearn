@@ -7,11 +7,11 @@
 // threads all agree. It is intentionally independent from biome / surface /
 // aquifer logic; the DensityField integration lives in terrain_generator.h.
 //
-// Structure (first version, deliberately simple):
+// Structure:
 //   * Cheese cave   : one low-frequency 3D noise, carved where noise > threshold.
 //   * Spaghetti cave: two higher-frequency 3D noises, carved along the tubes
-//                     where both fields cross zero (|n| < width).
-// Height guards keep the surface sealed and the world floor intact.
+//                     around the intersection of two zero fields (A*A+B*B).
+// Smooth roof/floor taper avoids flat cut planes. Selected tubes reach daylight.
 
 #include <algorithm>
 #include <cmath>
@@ -27,15 +27,22 @@ namespace Terrain::CaveGenerator {
 // Scenario-tuned parameters, kept in one place (no scattered magic numbers).
 struct CaveConfig {
     // Cheese cave: large open caverns.
-    float cheeseFrequency = 0.038f;  // ~26 block features
-    float cheeseThreshold = 0.66f;   // carve where noise is above this
+    float cheeseFrequency = 0.030f;
+    float cheeseThreshold = 0.78f;   // occasional rooms, tunnels dominate
 
     // Spaghetti cave: long winding tunnels.
-    float spaghettiFrequency = 0.060f; // ~17 block features
-    float spaghettiWidth = 0.045f;     // carve where |n| < width
+    float spaghettiFrequency = 0.035f; // longer, gently bending tunnels
+    float spaghettiWidth = 0.16f;      // radius in the two-noise cross-section
 
     int minY = 3;               // y <= minY is never carved (world floor)
-    int surfaceProtection = 6;  // no cave within this many blocks of the surface
+    int surfaceProtection = 6;  // protected roof outside entrance regions
+    float roofBlend = 8.0f;
+    float floorBlend = 4.0f;
+    bool surfaceEntrances = true;
+    float entranceFrequency = 0.014f;
+    float entranceThreshold = 0.12f;
+    float entranceBlend = 0.22f;
+    float entranceMinHeight = static_cast<float>(NoiseRouter::DefaultConfig().seaLevel + 4);
 };
 
 inline const CaveConfig& DefaultCaveConfig() {
@@ -43,8 +50,8 @@ inline const CaveConfig& DefaultCaveConfig() {
     return config;
 }
 
-// Highest y that may be carved for a column with the given surface height.
-// (Caves only exist strictly below this; the surface stays sealed.)
+// Protected roof boundary for rooms and sealed tunnels; entrance tubes can
+// cross it. Also used to keep deep cave walls free of surface materials.
 inline int CaveCeiling(float surfaceHeight,
                        const CaveConfig& config = DefaultCaveConfig()) {
     return static_cast<int>(std::floor(surfaceHeight)) - config.surfaceProtection;
@@ -52,9 +59,41 @@ inline int CaveCeiling(float surfaceHeight,
 
 struct CaveSample {
     float cheese = 0.0f;
-    float spaghetti = 0.0f;  // min(|tubeA|, |tubeB|); small means inside a tube
+    float spaghetti = 0.0f;  // sqrt(A*A+B*B): circular, not a union of sheets
     bool carve = false;
 };
+
+inline float SmoothRange(float lo, float hi, float value) {
+    const float t = std::clamp((value - lo) / std::max(hi - lo, 0.0001f), 0.0f, 1.0f);
+    return DensityField::Fade(t);
+}
+
+inline float TubeDistance(float a, float b) {
+    return std::sqrt(a * a + b * b);
+}
+
+inline float TubeWidth(float cheese, const CaveConfig& config) {
+    return config.spaghettiWidth * (1.0f + 0.20f * cheese);
+}
+
+inline float EntranceWeight(float noise, float height, const CaveConfig& config) {
+    if(!config.surfaceEntrances) return 0.0f;
+    // Keep the sea floor sealed; blend inland instead of cutting at one height.
+    return SmoothRange(config.entranceThreshold, config.entranceThreshold + config.entranceBlend, noise)
+        * SmoothRange(config.entranceMinHeight, config.entranceMinHeight + 4.0f, height);
+}
+
+inline bool CarveWithGuards(const CaveSample& sample, int y, float height,
+                           float entrance, const CaveConfig& config) {
+    if(y <= config.minY) return false;
+    const float floor = SmoothRange(static_cast<float>(config.minY),
+        static_cast<float>(config.minY) + config.floorBlend, static_cast<float>(y));
+    const float roof = SmoothRange(static_cast<float>(config.surfaceProtection),
+        static_cast<float>(config.surfaceProtection) + config.roofBlend, height - y);
+    const float tubeRadius = TubeWidth(sample.cheese, config) * floor * (roof + (1.0f - roof) * entrance);
+    const float roomThreshold = 1.0f - (1.0f - config.cheeseThreshold) * floor * roof;
+    return sample.cheese > roomThreshold || sample.spaghetti < tubeRadius;
+}
 
 // Raw noise sample: world-coordinate deterministic, no height guard. Exposed so
 // tests (and callers) can reason about the field without the surface rules.
@@ -78,9 +117,9 @@ inline CaveSample SampleCave(int worldX, int worldY, int worldZ,
     const float tubeA = DensityField::ValueNoise3D(sx, sy, sz, seed ^ 0xCA7E0002ULL);
     const float tubeB = DensityField::ValueNoise3D(
         sx + 17.0f, sy + 31.0f, sz + 47.0f, seed ^ 0xCA7E0003ULL);
-    sample.spaghetti = std::min(std::abs(tubeA), std::abs(tubeB));
+    sample.spaghetti = TubeDistance(tubeA, tubeB);
     sample.carve = sample.cheese > config.cheeseThreshold
-        || sample.spaghetti < config.spaghettiWidth;
+        || sample.spaghetti < TubeWidth(sample.cheese, config);
     return sample;
 }
 
@@ -89,9 +128,13 @@ inline CaveSample Sample(int worldX, int worldY, int worldZ, float surfaceHeight
                          std::uint64_t seed,
                          const CaveConfig& config = DefaultCaveConfig()) {
     CaveSample sample = SampleCave(worldX, worldY, worldZ, seed, config);
-    sample.carve = sample.carve
-        && worldY > config.minY
-        && worldY <= CaveCeiling(surfaceHeight, config);
+    float entrance = 0.0f;
+    if(config.surfaceEntrances && surfaceHeight - worldY < config.surfaceProtection + config.roofBlend) {
+        entrance = EntranceWeight(DensityField::ValueNoise3D(
+            worldX * config.entranceFrequency, 0.0f, worldZ * config.entranceFrequency,
+            seed ^ 0xCA7E0004ULL), surfaceHeight, config);
+    }
+    sample.carve = CarveWithGuards(sample, worldY, surfaceHeight, entrance, config);
     return sample;
 }
 
@@ -100,15 +143,14 @@ inline bool ShouldCarve(int worldX, int worldY, int worldZ, float surfaceHeight,
                         std::uint64_t seed,
                         const CaveConfig& config = DefaultCaveConfig()) {
     if (worldY <= config.minY) return false;
-    if (worldY > CaveCeiling(surfaceHeight, config)) return false;
-    return SampleCave(worldX, worldY, worldZ, seed, config).carve;
+    return Sample(worldX, worldY, worldZ, surfaceHeight, seed, config).carve;
 }
 
 // ---------------------------------------------------------------------------
 // Per-chunk lattice cache
 // ---------------------------------------------------------------------------
 //
-// The cave frequencies are low (0.035 / 0.055), so a whole 16x128x16 chunk spans
+// The cave frequencies are low, so a whole 16x128x16 chunk spans
 // only a handful of noise lattice cells per axis. Evaluating the (expensive)
 // 8-hash trilinear ValueNoise3D per voxel is wasteful; caching the lattice
 // corner values once per chunk and interpolating is *exactly* the same result
@@ -134,26 +176,27 @@ public:
         BuildLattice(tubeB_, baseX, baseY, baseZ, sizeX, sizeY, sizeZ,
                      config.spaghettiFrequency, seed ^ 0xCA7E0003ULL,
                      glm::vec3(17.0f, 31.0f, 47.0f));
+        BuildLattice(entrance_, baseX, 0, baseZ, sizeX, 1, sizeZ,
+                     config.entranceFrequency, seed ^ 0xCA7E0004ULL, glm::vec3(0.0f));
     }
 
     bool ShouldCarve(int worldX, int worldY, int worldZ, float surfaceHeight) const {
         if (worldY <= config_.minY) return false;
-        if (worldY > CaveCeiling(surfaceHeight, config_)) return false;
-
-        const float cheese = Eval(cheese_, worldX, worldY, worldZ);
-        if (cheese > config_.cheeseThreshold) return true;
-
-        const float a = Eval(tubeA_, worldX, worldY, worldZ);
-        const float b = Eval(tubeB_, worldX, worldY, worldZ);
-        return std::min(std::abs(a), std::abs(b)) < config_.spaghettiWidth;
+        CaveSample sample;
+        sample.cheese = Cheese(worldX, worldY, worldZ);
+        sample.spaghetti = Spaghetti(worldX, worldY, worldZ);
+        const float entrance = config_.surfaceEntrances
+            && surfaceHeight - worldY < config_.surfaceProtection + config_.roofBlend
+            ? EntranceWeight(Eval(entrance_, worldX, 0, worldZ), surfaceHeight, config_) : 0.0f;
+        return CarveWithGuards(sample, worldY, surfaceHeight, entrance, config_);
     }
 
     float Cheese(int worldX, int worldY, int worldZ) const {
         return Eval(cheese_, worldX, worldY, worldZ);
     }
     float Spaghetti(int worldX, int worldY, int worldZ) const {
-        return std::min(std::abs(Eval(tubeA_, worldX, worldY, worldZ)),
-                        std::abs(Eval(tubeB_, worldX, worldY, worldZ)));
+        return TubeDistance(Eval(tubeA_, worldX, worldY, worldZ),
+                            Eval(tubeB_, worldX, worldY, worldZ));
     }
 
 private:
@@ -262,6 +305,7 @@ private:
     Lattice cheese_{};
     Lattice tubeA_{};
     Lattice tubeB_{};
+    Lattice entrance_{};
 };
 
 } // namespace Terrain::CaveGenerator

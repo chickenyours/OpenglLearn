@@ -8,6 +8,7 @@
 #include <functional>
 #include <limits>
 #include <mutex>
+#include <optional>
 #include <thread>
 #include <type_traits>
 #include <utility>
@@ -43,6 +44,7 @@ using RHICommands = RHICommandSystem<
 >;
 
 class RHIDevice {
+    friend struct RHIDeviceTestAccess;
 private:
     RHICommands commandSystem_;
     RHIResourcePool resourcePool_;
@@ -53,6 +55,9 @@ private:
     std::condition_variable rendercv_;
     std::mutex waitMutex_;
     std::atomic_bool isRun_{false};
+    std::optional<FrameCommands> latestFrame_; // protected by waitMutex_
+    std::atomic_uint64_t renderedFrames_{0}, supersededFrames_{0};
+    std::atomic<double> lastFrameQueueMs_{0}, lastFrameExecuteMs_{0};
 
 public:
     RHICommandReturnSystem returnSystem;
@@ -60,7 +65,11 @@ public:
 private:
     template <typename T>
     void threadAny_PushCommand(T command) {
-        commandSystem_.GetQueue<T>().threadAny_Push(1, &command);
+        {
+            // Pair predicate changes with the wait mutex to avoid lost wakeups.
+            std::lock_guard<std::mutex> lock(waitMutex_);
+            commandSystem_.GetQueue<T>().threadAny_Push(std::move(command));
+        }
         rendercv_.notify_one();
     }
 
@@ -160,7 +169,7 @@ private:
     template <typename Command, typename CreateFn>
     void ProcessCreateQueue(CreateFn create) {
         auto& queue = commandSystem_.GetQueue<Command>();
-        while (!queue.thread_IsConsumeQueueEmpty()) {
+        for (size_t n = 0; n < 8 && !queue.thread_IsConsumeQueueEmpty(); ++n) {
             Command command = queue.thread_Pop();
             auto handle = (backend_.Get()->*create)(command);
             if (command.OnFinish) {
@@ -170,25 +179,28 @@ private:
                         callback(handle);
                     });
             }
+            thread_ProcessNextFrame();
         }
     }
 
     template <typename Command, typename DeleteFn>
     void ProcessDeleteQueue(DeleteFn destroy) {
         auto& queue = commandSystem_.GetQueue<Command>();
-        while (!queue.thread_IsConsumeQueueEmpty()) {
+        for (size_t n = 0; n < 8 && !queue.thread_IsConsumeQueueEmpty(); ++n) {
             Command command = queue.thread_Pop();
             (backend_.Get()->*destroy)(command);
             if (command.OnFinish) {
                 returnSystem.callbacks.push(std::move(command.OnFinish));
             }
+            thread_ProcessNextFrame();
         }
     }
 
     void thread_ProcessCurrentQueue() {
+        thread_ProcessNextFrame();
         ProcessCreateQueue<CreateVertexBufferCommand>(&IBackend::CreateVertexBuffer);
         auto& meshUpdates = commandSystem_.GetQueue<UpdateVertexBufferCommand>();
-        while (!meshUpdates.thread_IsConsumeQueueEmpty()) {
+        for (size_t n = 0; n < 8 && !meshUpdates.thread_IsConsumeQueueEmpty(); ++n) {
             UpdateVertexBufferCommand command = meshUpdates.thread_Pop();
             const bool succeeded = backend_->UpdateVertexBuffer(command);
             if (command.OnFinish) {
@@ -198,6 +210,7 @@ private:
                         callback(succeeded);
                     });
             }
+            thread_ProcessNextFrame();
         }
         ProcessDeleteQueue<DeleteVertexBufferCommand>(&IBackend::DeleteVertexBuffer);
         ProcessCreateQueue<CreateUniformBufferCommand>(&IBackend::CreateUniformBuffer);
@@ -210,12 +223,42 @@ private:
         ProcessCreateQueue<CreatePipelineCommand>(&IBackend::CreatePipeline);
         ProcessDeleteQueue<DeletePipelineCommand>(&IBackend::DeletePipeline);
 
+        thread_ProcessNextFrame();
+
+        auto& backDoor = commandSystem_.GetQueue<BackDoorExecutionCommand>();
+        for (size_t n = 0; n < 8 && !backDoor.thread_IsConsumeQueueEmpty(); ++n) {
+            BackDoorExecutionCommand command = backDoor.thread_Pop();
+            if (command.execution) command.execution();
+            if (command.OnFinish) {
+                returnSystem.callbacks.push(std::move(command.OnFinish));
+            }
+            thread_ProcessNextFrame();
+        }
+    }
+
+    // Poll the frame queue between resource commands, including newly submitted
+    // frames. A single backend command is indivisible; a mesh backlog is not.
+    void thread_ProcessNextFrame() {
         auto& frames = commandSystem_.GetQueue<FrameCommands>();
-        while (!frames.thread_IsConsumeQueueEmpty()) {
-            FrameCommands command = frames.thread_Pop();
+        frames.thread_Switch();
+        std::optional<FrameCommands> next;
+        // Preserve the reliable FIFO API for frames with non-replaceable work.
+        if (!frames.thread_IsConsumeQueueEmpty()) next = frames.thread_Pop();
+        else {
+            std::lock_guard<std::mutex> lock(waitMutex_);
+            next.swap(latestFrame_);
+        }
+        if (next) {
+            FrameCommands command = std::move(*next);
+            const auto start = std::chrono::steady_clock::now();
+            lastFrameQueueMs_.store(std::chrono::duration<double, std::milli>(
+                start - command.submittedAt).count());
             ObjectWeakPtr<RHIFrameCommandBuffer> buffer = command.buffer;
             bool succeeded = false;
             if (buffer) succeeded = thread_ProcessFrameCommands(*buffer);
+            lastFrameExecuteMs_.store(std::chrono::duration<double, std::milli>(
+                std::chrono::steady_clock::now() - start).count());
+            ++renderedFrames_;
             if (buffer) {
                 buffer->Reset();
                 frameCommandPool_.threadAny_Recycle(buffer);
@@ -228,14 +271,6 @@ private:
             }
         }
 
-        auto& backDoor = commandSystem_.GetQueue<BackDoorExecutionCommand>();
-        while (!backDoor.thread_IsConsumeQueueEmpty()) {
-            BackDoorExecutionCommand command = backDoor.thread_Pop();
-            if (command.execution) command.execution();
-            if (command.OnFinish) {
-                returnSystem.callbacks.push(std::move(command.OnFinish));
-            }
-        }
     }
 
     void thread_InitBackend(BackendType type, void* specData) {
@@ -257,12 +292,13 @@ private:
         for (;;) {
             std::unique_lock<std::mutex> lock(waitMutex_);
             rendercv_.wait(lock, [&]() {
-                return !isRun_.load() || commandSystem_.hasPendingCommands();
+                return !isRun_.load() || !commandSystem_.thread_empty() ||
+                    latestFrame_.has_value() || commandSystem_.hasPendingCommands();
             });
-            const bool hasPending = commandSystem_.hasPendingCommands();
-            if (!isRun_.load() && !hasPending) break;
+            const bool hasPending = latestFrame_.has_value() || commandSystem_.hasPendingCommands();
+            if (!isRun_.load() && !hasPending && commandSystem_.thread_empty()) break;
             lock.unlock();
-            if (hasPending) {
+            if (hasPending || !commandSystem_.thread_empty()) {
                 commandSystem_.thread_SwitchQueues();
                 thread_ProcessCurrentQueue();
             }
@@ -289,7 +325,11 @@ public:
     }
 
     void StopAndRelease() {
-        if (isRun_.exchange(false)) rendercv_.notify_one();
+        {
+            std::lock_guard<std::mutex> lock(waitMutex_);
+            isRun_.store(false);
+        }
+        rendercv_.notify_one();
         if (renderThread_.joinable()) renderThread_.join();
     }
 
@@ -467,6 +507,43 @@ public:
         }
         threadAny_PushCommand(FrameCommands{commandBuffer, std::move(callback)});
         return true;
+    }
+
+    // Opt-in mailbox for complete, replaceable scene snapshots. At most one
+    // frame waits behind the executing frame. Superseded callbacks mean retired,
+    // not presented; resource uploads must stay in the reliable resource queues.
+    bool async_SubmitLatestFrameCommands(
+        ObjectWeakPtr<RHIFrameCommandBuffer> commandBuffer,
+        std::function<void()> callback = nullptr
+    ) {
+        std::optional<FrameCommands> retired;
+        {
+            std::lock_guard<std::mutex> lock(waitMutex_);
+            if (!isRun_.load() || !commandBuffer || commandBuffer->GetCommandCount() == 0 ||
+                !commandBuffer->Seal()) return false;
+            retired.swap(latestFrame_);
+            latestFrame_.emplace(FrameCommands{commandBuffer, std::move(callback)});
+        }
+        if (retired) {
+            auto buffer = retired->buffer;
+            if (buffer) {
+                buffer->Reset();
+                frameCommandPool_.threadAny_Recycle(buffer);
+            }
+            if (retired->OnFinish) returnSystem.callbacks.push(std::move(retired->OnFinish));
+            ++supersededFrames_;
+        }
+        rendercv_.notify_one();
+        return true;
+    }
+
+    struct FrameStats {
+        uint64_t rendered, superseded;
+        double queueMs, executeMs;
+    };
+    FrameStats GetFrameStats() const {
+        return {renderedFrames_.load(), supersededFrames_.load(),
+            lastFrameQueueMs_.load(), lastFrameExecuteMs_.load()};
     }
 
     void async_ExecuteCode(

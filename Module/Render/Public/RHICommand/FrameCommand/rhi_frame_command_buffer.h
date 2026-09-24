@@ -70,6 +70,10 @@ namespace Render{
             std::vector<ObjectWeakPtr<RHIFrameCommandBuffer>> freeBuffers;
             std::mutex m;
         public:
+            size_t GetAllocatedBufferCount() {
+                std::lock_guard lock(m);
+                return buffers.size();
+            }
             ObjectWeakPtr<RHIFrameCommandBuffer> threadAny_GetBuffer(){
                 std::lock_guard lock(m);
                 ObjectWeakPtr<RHIFrameCommandBuffer> result;

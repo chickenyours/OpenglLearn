@@ -9,6 +9,7 @@
 #include <deque>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -24,6 +25,7 @@
 #include "Render/Public/Pipeline/mesh_upload_queue.h"
 #include "Render/Public/Pipeline/render_world.h"
 #include "Terrain/Public/terrain_components.h"
+#include "Terrain/Public/terrain_edit.h"
 #include "Terrain/Public/terrain_generator.h"
 #include "Terrain/Public/terrain_mesher.h"
 
@@ -31,9 +33,9 @@ namespace Terrain::System {
 
 using ECS::EntityID;
 
-// Task 2.0: per-chunk meshing probe. Each job writes exactly one slot (its own
-// task-local record); the main thread aggregates them only after WaitIdle(), so
-// no shared profiler state is touched by workers and no lock/atomic is needed.
+// Task 2.0: per-chunk meshing probe. Each job carries its own record in its
+// result; the main thread aggregates them at commit time, so no shared profiler
+// state is touched by workers and no lock/atomic is needed.
 struct MeshChunkProbe {
     int sectionX = 0;
     int sectionZ = 0;
@@ -58,13 +60,67 @@ using ViewerQuery = ECS::Core::ChunkQuery<
     ECS::Core::Require<TerrainViewer>,
     ECS::Core::Optional<>, ECS::Core::Exclude<>>;
 
-// Runs a batch of chunk jobs on the scene's JobSystem. Falls back to running
-// them inline when no worker pool is configured (e.g. the headless test), so the
-// systems stay usable with or without an ECSKernel. `stage` labels the profiling
-// counters ("Generation" / "Meshing") and does not affect behavior.
-inline void RunJobs(ECS::Core::Scene* scene,
-                    std::vector<ECS::Core::ExecuteTask>& jobs,
-                    const char* stage) {
+// A small thread-safe one-way result queue. Workers push; the main thread drains
+// once per tick. Pushing never blocks the main thread, and the queue outlives
+// every job (systems WaitIdle in OnEnd before they are destroyed).
+template <typename T>
+class WorkCompletionQueue {
+public:
+    void Push(T&& value) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        items_.push_back(std::move(value));
+    }
+    bool TryPop(T& out) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if(items_.empty()) return false;
+        out = std::move(items_.front());
+        items_.pop_front();
+        return true;
+    }
+    bool Empty() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return items_.empty();
+    }
+
+private:
+    mutable std::mutex mutex_;
+    std::deque<T> items_;
+};
+
+// A finished generation job. `blocks` is worker-owned until the main thread
+// commits it; the worker never touches ECS storage.
+struct GeneratedChunkResult {
+    EntityID entity = 0;
+    glm::ivec3 section{0};
+    std::uint64_t token = 0;
+    ChunkBlocks blocks{};
+#if ECS_PROFILING_ENABLED
+    double buildMs = 0.0;
+#endif
+};
+
+// A finished meshing job. The worker built `mesh` from an independent snapshot.
+struct MeshedChunkResult {
+    EntityID entity = 0;
+    glm::ivec3 section{0};
+    std::uint64_t token = 0;
+    std::uint64_t sourceRevision = 0;
+    ChunkMesh mesh{};
+#if ECS_PROFILING_ENABLED
+    double buildMs = 0.0;
+    TerrainMeshStats stats{};
+#endif
+};
+
+// Submits a batch of jobs and dispatches them WITHOUT waiting. The main thread
+// returns immediately; workers deliver their results through each system's
+// completion queue and the next tick commits them. Falls back to inline
+// execution when no worker pool is configured (e.g. the headless test), in which
+// case results still flow through the same queue. `stage` labels the profiling
+// counters and does not affect behavior.
+inline void DispatchJobs(ECS::Core::Scene* scene,
+                         std::vector<ECS::Core::ExecuteTask>& jobs,
+                         const char* stage) {
     if(jobs.empty()) return;
 
 #if ECS_PROFILING_ENABLED
@@ -89,20 +145,42 @@ inline void RunJobs(ECS::Core::Scene* scene,
                 profiler.Count("Jobs dispatched", static_cast<double>(dispatched));
                 profiler.Count(std::string(stage) + " dispatched",
                                static_cast<double>(dispatched));
-                const auto waitStart = std::chrono::steady_clock::now();
 #endif
-                jobSystem->WaitIdle();
-#if ECS_PROFILING_ENABLED
-                const double waitMs = std::chrono::duration<double, std::milli>(
-                    std::chrono::steady_clock::now() - waitStart).count();
-                profiler.Accumulate(std::string(stage) + " wait", waitMs);
-#endif
+                // Deliberately no WaitIdle(): the async pipeline commits results
+                // as they arrive instead of stalling the main thread.
                 return;
             }
         }
     }
 
     for(auto& job : jobs) job();
+}
+
+// Number of worker threads backing the scene, used to size the scheduling
+// budget and the in-flight cap. 1 when running inline.
+inline std::size_t TerrainWorkerCount(ECS::Core::Scene* scene) {
+    if(scene != nullptr) {
+        if(auto* jobSystem = scene->GetJobSystem()) {
+            if(auto* schedule = jobSystem->GetSchedule()) {
+                return std::max<std::size_t>(1, schedule->GetWorkerCount());
+            }
+        }
+    }
+    return 1;
+}
+
+// Viewer position used to prioritise the nearest chunks. Zero when no viewer.
+inline glm::vec3 TerrainViewerCenter(ECS::Core::Scene& scene, ViewerQuery& query) {
+    glm::vec3 center{0.0f};
+    query.RefreshIfNeeded(scene);
+    for(auto view : query) {
+        auto* viewers = view.Get<TerrainViewer>();
+        if(viewers != nullptr && view.count > 0) {
+            center = viewers[0].position;
+            break;
+        }
+    }
+    return center;
 }
 
 struct IVec2Hash {
@@ -132,6 +210,7 @@ public:
         auto* context = GetContext();
         if(context == nullptr || context->scene == nullptr) return;
         auto* scene = context->scene;
+        auto* world = context->GetService<TerrainWorld>();
 
         glm::vec3 center{0.0f};
         bool hasViewer = false;
@@ -154,26 +233,36 @@ public:
 
         chunkQuery_.RefreshIfNeeded(*scene);
 
+        struct StaleChunk { EntityID entity; glm::ivec3 section; };
         std::unordered_set<glm::ivec2, IVec2Hash> active;
-        std::vector<EntityID> stale;
+        std::vector<StaleChunk> stale;
         for(auto view : chunkQuery_) {
             auto* locations = view.Get<ChunkLocation>();
             if(locations == nullptr) continue;
+            const auto& entities = view.archType->GetIndexEntities();
             for(std::size_t i = 0; i < view.count; ++i) {
                 const glm::ivec3 section = locations[i].section;
                 const glm::ivec2 coord{section.x, section.z};
                 active.insert(coord);
 
+                // Keep the world lookup registry in sync with entity lifetime.
+                if(world != nullptr) {
+                    world->RegisterChunk(section, entities[view.beginIndex + i]);
+                }
+
                 const int distance = std::max(
                     std::abs(coord.x - centerChunk.x),
                     std::abs(coord.y - centerChunk.y));
                 if(distance > keepRadius) {
-                    stale.push_back(view.archType->GetIndexEntities()[view.beginIndex + i]);
+                    stale.push_back(StaleChunk{entities[view.beginIndex + i], section});
                 }
             }
         }
 
-        for(const EntityID id : stale) scene->DeleteEntity(ECS::EntityHandle(id));
+        for(const StaleChunk& entry : stale) {
+            if(world != nullptr) world->UnregisterChunk(entry.section);
+            scene->DeleteEntity(ECS::EntityHandle(entry.entity));
+        }
 
         struct Wanted { glm::ivec2 coord; int distance; };
         std::vector<Wanted> wanted;
@@ -218,8 +307,9 @@ private:
     TerrainQuery chunkQuery_;
 };
 
-// Fills ChunkBlocks for every chunk that has not been generated yet, one job per
-// terrain entity so independent chunks can be generated on different workers.
+// Fills ChunkBlocks for chunks that have not been generated yet. Generation runs
+// asynchronously: workers fill an independent result that is delivered through a
+// completion queue, and only the main thread ever writes ECS storage.
 class GenerationSystem final : public ECS::System::System {
 public:
     GenerationSystem()
@@ -231,47 +321,163 @@ public:
         auto* context = GetContext();
         if(context == nullptr || context->scene == nullptr) return;
         auto* scene = context->scene;
+        auto* world = context->GetService<TerrainWorld>();
 
         query_.RefreshIfNeeded(*scene);
+        CommitResults(*scene, world);
+        ScheduleJobs(*scene);
+    }
+
+    void OnEnd() override {
+        // No worker may still reference this system's queue after it is gone.
+        if(auto* context = GetContext()) {
+            if(context->scene != nullptr) {
+                if(auto* jobSystem = context->scene->GetJobSystem()) {
+                    if(jobSystem->GetSchedule() != nullptr) jobSystem->WaitIdle();
+                }
+            }
+        }
+        GeneratedChunkResult discard;
+        while(generationQueue_.TryPop(discard)) {}
+    }
+
+    // Test / benchmark hook: true while generation work is queued or running.
+    bool HasPendingWork() const {
+        return generationInFlight_ > 0 || !generationQueue_.Empty();
+    }
+
+private:
+    struct Candidate {
+        EntityID entity = 0;
+        glm::ivec3 section{0};
+        ChunkBlocks* blocks = nullptr;
+        int distance = 0;
+    };
+
+    static int ChunkDistance(const glm::ivec3& section, int centerX, int centerZ) {
+        const int dx = section.x - centerX;
+        const int dz = section.z - centerZ;
+        return dx * dx + dz * dz;
+    }
+
+    void CommitResults(ECS::Core::Scene& scene, TerrainWorld* world) {
+        GeneratedChunkResult result;
+        while(generationQueue_.TryPop(result)) {
+            if(generationInFlight_ > 0) --generationInFlight_;
+
+            auto blocksHandle = scene.GetActiveComponent<ChunkBlocks>(result.entity);
+            if(blocksHandle.owner == 0) continue;                 // entity unloaded
+            ChunkBlocks* blocks = blocksHandle.Get();
+            if(blocks == nullptr) continue;
+            if(blocks->generationToken != result.token) continue; // stale result
+
+            *blocks = std::move(result.blocks);
+            blocks->generationToken = result.token;
+            blocks->generationPending = false;
+
+            // User edits win over the procedural result. Applied here on the main
+            // thread so no worker ever touches the edit map, and so a chunk that
+            // is unloaded and later reloaded keeps the player's changes.
+            if(world != nullptr) {
+                const std::size_t applied = world->Edits().Apply(result.section, *blocks);
+                if(applied > 0) {
+                    world->MarkNeighborsDirty(result.section);
+                }
+            }
 
 #if ECS_PROFILING_ENABLED
-        std::size_t pending = 0;
+            auto& profiler = ECS::Profiling::Profiler::Get();
+            profiler.Count("Chunks generated (committed)", 1.0);
+            profiler.Accumulate("Generation build", result.buildMs);
 #endif
-        std::vector<ECS::Core::ExecuteTask> jobs;
+        }
+    }
+
+    void ScheduleJobs(ECS::Core::Scene& scene) {
+        const std::size_t workers = TerrainWorkerCount(&scene);
+        const std::size_t inFlightLimit = std::max<std::size_t>(2, workers * 2);
+        if(generationInFlight_ >= inFlightLimit) return;
+        const std::size_t budget = std::max<std::size_t>(1, workers);
+
+        const glm::vec3 center = TerrainViewerCenter(scene, viewerQuery_);
+        const int centerChunkX =
+            static_cast<int>(std::floor(center.x / static_cast<float>(SectionSize)));
+        const int centerChunkZ =
+            static_cast<int>(std::floor(center.z / static_cast<float>(SectionSize)));
+
+        std::vector<Candidate> candidates;
         for(auto view : query_) {
             auto* blocks = view.Get<ChunkBlocks>();
             auto* locations = view.Get<ChunkLocation>();
             if(blocks == nullptr || locations == nullptr || view.count == 0) continue;
+            const auto& entities = view.archType->GetIndexEntities();
 
             for(std::size_t i = 0; i < view.count; ++i) {
-                if(blocks[i].generated) continue;
-#if ECS_PROFILING_ENABLED
-                ++pending;
-#endif
-                // One job per entity: the job owns exactly this ChunkBlocks slot,
-                // and no structural change can move it before WaitIdle() returns.
-                ChunkBlocks* block = &blocks[i];
-                const glm::ivec3 section = locations[i].section;
-                jobs.emplace_back([block, section]() {
-                    GenerateChunkBlocks(section, *block);
-                });
+                if(blocks[i].generated || blocks[i].generationPending) continue;
+                candidates.push_back(Candidate{
+                    entities[view.beginIndex + i], locations[i].section, &blocks[i],
+                    ChunkDistance(locations[i].section, centerChunkX, centerChunkZ)});
             }
+        }
+        if(candidates.empty()) return;
+
+        std::sort(candidates.begin(), candidates.end(),
+                  [](const Candidate& a, const Candidate& b) {
+                      return a.distance < b.distance;
+                  });
+
+        const std::size_t remaining = inFlightLimit - generationInFlight_;
+        const std::size_t count = std::min({candidates.size(), budget, remaining});
+
+        std::vector<ECS::Core::ExecuteTask> jobs;
+        jobs.reserve(count);
+        for(std::size_t i = 0; i < count; ++i) {
+            ChunkBlocks* blocks = candidates[i].blocks;
+            const glm::ivec3 section = candidates[i].section;
+            const EntityID entity = candidates[i].entity;
+
+            blocks->generationPending = true;
+            blocks->generationToken = ++generationTokenCounter_;
+            const std::uint64_t token = blocks->generationToken;
+
+            WorkCompletionQueue<GeneratedChunkResult>* queue = &generationQueue_;
+            jobs.emplace_back([section, entity, token, queue]() {
+                GeneratedChunkResult result;
+                result.entity = entity;
+                result.section = section;
+                result.token = token;
+#if ECS_PROFILING_ENABLED
+                const auto buildStart = std::chrono::steady_clock::now();
+                GenerateChunkBlocks(section, result.blocks);
+                result.buildMs = std::chrono::duration<double, std::milli>(
+                    std::chrono::steady_clock::now() - buildStart).count();
+#else
+                GenerateChunkBlocks(section, result.blocks);
+#endif
+                queue->Push(std::move(result));
+            });
+            ++generationInFlight_;
         }
 
 #if ECS_PROFILING_ENABLED
-        ECS::Profiling::Profiler::Get().Count(
-            "Chunks generated", static_cast<double>(pending));
+        auto& profiler = ECS::Profiling::Profiler::Get();
+        profiler.Count("Chunks generated", static_cast<double>(count));
+        profiler.Count("Generation in flight", static_cast<double>(generationInFlight_));
 #endif
-        RunJobs(scene, jobs, "Generation");
+        DispatchJobs(&scene, jobs, "Generation");
     }
 
-private:
     TerrainQuery query_;
+    ViewerQuery viewerQuery_;
+    WorkCompletionQueue<GeneratedChunkResult> generationQueue_;
+    std::uint64_t generationTokenCounter_ = 0;
+    std::size_t generationInFlight_ = 0;
 };
 
 #if ECS_PROFILING_ENABLED
-// Aggregates one frame of per-chunk probes. Runs on the main thread after
-// WaitIdle(), which provides the happens-before edge for the worker writes.
+// Aggregates one frame of per-chunk probes. Runs on the main thread over results
+// popped from the completion queue, which provides the happens-before edge for
+// the worker writes.
 inline void AggregateMeshingProbes(const std::deque<MeshChunkProbe>& probes) {
     if(probes.empty()) return;
 
@@ -346,9 +552,11 @@ inline void AggregateMeshingProbes(const std::deque<MeshChunkProbe>& probes) {
 }
 #endif
 
-// Rebuilds CPU meshes for chunks whose blocks changed. One job per terrain entity;
-// neighbouring blocks across the chunk border come from the deterministic
-// generator, so the job reads only its own entity and there are no seams.
+// Rebuilds CPU meshes for chunks whose blocks changed. Meshing runs
+// asynchronously: the scheduling step snapshots the chunk's blocks so the worker
+// never dereferences ECS storage, and the resulting CPU mesh is committed on the
+// main thread. Neighbouring blocks across the chunk border come from the
+// deterministic generator, so the snapshot plus generator equals the old result.
 class MeshingSystem final : public ECS::System::System {
 public:
     MeshingSystem()
@@ -359,72 +567,212 @@ public:
     void OnTick() override {
         auto* context = GetContext();
         auto* registry = context ? context->GetService<BlockRenderRegistry>() : nullptr;
+        auto* world = context ? context->GetService<TerrainWorld>() : nullptr;
         if(context == nullptr || context->scene == nullptr || registry == nullptr) return;
         auto* scene = context->scene;
 
         query_.RefreshIfNeeded(*scene);
 
 #if ECS_PROFILING_ENABLED
-        std::size_t pending = 0;
-        // Task-local probe slots: std::deque keeps element addresses stable while
-        // it grows, so each job writes its own record lock-free. The main thread
-        // reads them only after WaitIdle().
         std::deque<MeshChunkProbe> probes;
+        CommitResults(*scene, &probes);
+#else
+        CommitResults(*scene, nullptr);
 #endif
-        std::vector<ECS::Core::ExecuteTask> jobs;
-        for(auto view : query_) {
-            auto* blocks = view.Get<ChunkBlocks>();
-            auto* locations = view.Get<ChunkLocation>();
-            auto* meshes = view.Get<ChunkMesh>();
-            if(blocks == nullptr || locations == nullptr || meshes == nullptr) continue;
-
-            for(std::size_t i = 0; i < view.count; ++i) {
-                if(meshes[i].sourceRevision == blocks[i].revision) continue;
-#if ECS_PROFILING_ENABLED
-                ++pending;
-#endif
-                // One job per entity: it reads only this ChunkBlocks slot and
-                // writes only this ChunkMesh slot.
-                ChunkBlocks* block = &blocks[i];
-                ChunkMesh* mesh = &meshes[i];
-                const glm::ivec3 section = locations[i].section;
-                MeshChunkProbe* probe = nullptr;
-#if ECS_PROFILING_ENABLED
-                probes.push_back(MeshChunkProbe{section.x, section.z, 0.0, 0, 0});
-                probe = &probes.back();
-#endif
-                jobs.emplace_back([block, mesh, section, registry, probe]() {
-                    if(mesh->sourceRevision == block->revision) return;
-#if ECS_PROFILING_ENABLED
-                    const auto buildStart = std::chrono::steady_clock::now();
-#endif
-                    TerrainMesher::Build(*block, section, *registry, *mesh,
-                                         probe ? &probe->mesh : nullptr);
-
-#if ECS_PROFILING_ENABLED
-                    probe->buildMs = std::chrono::duration<double, std::milli>(
-                        std::chrono::steady_clock::now() - buildStart).count();
-                    for(const CpuSubmesh& layer : mesh->layers) {
-                        probe->vertexCount += layer.vertices.size();
-                        probe->indexCount += layer.indices.size();
-                    }
-#endif
-                });
-            }
-        }
-
-#if ECS_PROFILING_ENABLED
-        ECS::Profiling::Profiler::Get().Count(
-            "Meshes rebuilt", static_cast<double>(pending));
-#endif
-        RunJobs(scene, jobs, "Meshing");
+        ScheduleJobs(*scene, registry, world);
 #if ECS_PROFILING_ENABLED
         AggregateMeshingProbes(probes);
 #endif
     }
 
+    void OnEnd() override {
+        // No worker may still reference this system's queue after it is gone.
+        if(auto* context = GetContext()) {
+            if(context->scene != nullptr) {
+                if(auto* jobSystem = context->scene->GetJobSystem()) {
+                    if(jobSystem->GetSchedule() != nullptr) jobSystem->WaitIdle();
+                }
+            }
+        }
+        MeshedChunkResult discard;
+        while(meshQueue_.TryPop(discard)) {}
+    }
+
+    // Test / benchmark hook: true while meshing work is queued or running.
+    bool HasPendingWork() const {
+        return meshInFlight_ > 0 || !meshQueue_.Empty();
+    }
+
 private:
+    struct Candidate {
+        EntityID entity = 0;
+        glm::ivec3 section{0};
+        ChunkBlocks* blocks = nullptr;
+        ChunkMesh* mesh = nullptr;
+        int distance = 0;
+    };
+
+    static int ChunkDistance(const glm::ivec3& section, int centerX, int centerZ) {
+        const int dx = section.x - centerX;
+        const int dz = section.z - centerZ;
+        return dx * dx + dz * dz;
+    }
+
+    void CommitResults(ECS::Core::Scene& scene, std::deque<MeshChunkProbe>* probes) {
+        MeshedChunkResult result;
+        while(meshQueue_.TryPop(result)) {
+            if(meshInFlight_ > 0) --meshInFlight_;
+
+            auto meshHandle = scene.GetActiveComponent<ChunkMesh>(result.entity);
+            if(meshHandle.owner == 0) continue;               // entity unloaded
+            ChunkMesh* mesh = meshHandle.Get();
+            if(mesh == nullptr) continue;
+            if(mesh->meshToken != result.token) {
+#if ECS_PROFILING_ENABLED
+                ECS::Profiling::Profiler::Get().Count(
+                    "Stale mesh results discarded", 1.0);
+#endif
+                continue;                                     // stale result
+            }
+
+            auto blocksHandle = scene.GetActiveComponent<ChunkBlocks>(result.entity);
+            ChunkBlocks* blocks = blocksHandle.Get();
+            if(blocks == nullptr || blocks->revision != result.sourceRevision) {
+                // Blocks changed while meshing (e.g. the player broke a block):
+                // drop this mesh and let the next tick reschedule against the
+                // fresh revision, so a stale mesh can never overwrite the edit.
+                mesh->meshPending = false;
+#if ECS_PROFILING_ENABLED
+                ECS::Profiling::Profiler::Get().Count(
+                    "Stale mesh results discarded", 1.0);
+#endif
+                continue;
+            }
+
+            const std::uint64_t nextMeshRevision = mesh->meshRevision + 1;
+            *mesh = std::move(result.mesh);
+            mesh->sourceRevision = result.sourceRevision;
+            mesh->meshRevision = nextMeshRevision;
+            mesh->meshToken = result.token;
+            mesh->meshPending = false;
+
+#if ECS_PROFILING_ENABLED
+            if(probes != nullptr) {
+                MeshChunkProbe probe;
+                probe.sectionX = result.section.x;
+                probe.sectionZ = result.section.z;
+                probe.buildMs = result.buildMs;
+                for(const CpuSubmesh& layer : mesh->layers) {
+                    probe.vertexCount += layer.vertices.size();
+                    probe.indexCount += layer.indices.size();
+                }
+                probe.mesh = result.stats;
+                probes->push_back(probe);
+            }
+            ECS::Profiling::Profiler::Get().Count("Meshes rebuilt", 1.0);
+#endif
+        }
+    }
+
+    void ScheduleJobs(ECS::Core::Scene& scene, BlockRenderRegistry* registry,
+                      TerrainWorld* world) {
+        const std::size_t workers = TerrainWorkerCount(&scene);
+        const std::size_t inFlightLimit = std::max<std::size_t>(2, workers * 2);
+        if(meshInFlight_ >= inFlightLimit) return;
+        const std::size_t budget = std::max<std::size_t>(1, workers);
+
+        const glm::vec3 center = TerrainViewerCenter(scene, viewerQuery_);
+        const int centerChunkX =
+            static_cast<int>(std::floor(center.x / static_cast<float>(SectionSize)));
+        const int centerChunkZ =
+            static_cast<int>(std::floor(center.z / static_cast<float>(SectionSize)));
+
+        std::vector<Candidate> candidates;
+        for(auto view : query_) {
+            auto* blocks = view.Get<ChunkBlocks>();
+            auto* locations = view.Get<ChunkLocation>();
+            auto* meshes = view.Get<ChunkMesh>();
+            if(blocks == nullptr || locations == nullptr || meshes == nullptr
+               || view.count == 0) {
+                continue;
+            }
+            const auto& entities = view.archType->GetIndexEntities();
+
+            for(std::size_t i = 0; i < view.count; ++i) {
+                if(!blocks[i].generated) continue;
+                if(meshes[i].sourceRevision == blocks[i].revision) continue;
+                if(meshes[i].meshPending) continue;
+                candidates.push_back(Candidate{
+                    entities[view.beginIndex + i], locations[i].section, &blocks[i],
+                    &meshes[i],
+                    ChunkDistance(locations[i].section, centerChunkX, centerChunkZ)});
+            }
+        }
+        if(candidates.empty()) return;
+
+        std::sort(candidates.begin(), candidates.end(),
+                  [](const Candidate& a, const Candidate& b) {
+                      return a.distance < b.distance;
+                  });
+
+        const std::size_t remaining = inFlightLimit - meshInFlight_;
+        const std::size_t count = std::min({candidates.size(), budget, remaining});
+
+        std::vector<ECS::Core::ExecuteTask> jobs;
+        jobs.reserve(count);
+        for(std::size_t i = 0; i < count; ++i) {
+            ChunkBlocks* blocks = candidates[i].blocks;
+            ChunkMesh* mesh = candidates[i].mesh;
+            const glm::ivec3 section = candidates[i].section;
+            const EntityID entity = candidates[i].entity;
+
+            mesh->meshPending = true;
+            mesh->meshToken = ++meshTokenCounter_;
+            const std::uint64_t token = mesh->meshToken;
+            const std::uint64_t revision = blocks->revision;
+
+            // The worker owns private snapshots, so entity create/delete cannot
+            // move the storage out from under it. The neighbourhood is copied on
+            // the main thread so border faces see the real (edited) world.
+            auto snapshot = std::make_shared<ChunkBlocks>(*blocks);
+            auto neighbors = std::make_shared<ChunkNeighborhood>();
+            if(world != nullptr) world->CollectNeighborhood(section, *neighbors);
+            WorkCompletionQueue<MeshedChunkResult>* queue = &meshQueue_;
+            jobs.emplace_back([snapshot, neighbors, section, entity, token,
+                               revision, registry, queue]() {
+                MeshedChunkResult result;
+                result.entity = entity;
+                result.section = section;
+                result.token = token;
+                result.sourceRevision = revision;
+#if ECS_PROFILING_ENABLED
+                const auto buildStart = std::chrono::steady_clock::now();
+                TerrainMesher::Build(*snapshot, section, *registry, result.mesh,
+                                     &result.stats, neighbors.get());
+                result.buildMs = std::chrono::duration<double, std::milli>(
+                    std::chrono::steady_clock::now() - buildStart).count();
+#else
+                TerrainMesher::Build(*snapshot, section, *registry, result.mesh,
+                                     nullptr, neighbors.get());
+#endif
+                queue->Push(std::move(result));
+            });
+            ++meshInFlight_;
+        }
+
+#if ECS_PROFILING_ENABLED
+        auto& profiler = ECS::Profiling::Profiler::Get();
+        profiler.Count("Mesh jobs scheduled", static_cast<double>(count));
+        profiler.Count("Meshing in flight", static_cast<double>(meshInFlight_));
+#endif
+        DispatchJobs(&scene, jobs, "Meshing");
+    }
+
     TerrainQuery query_;
+    ViewerQuery viewerQuery_;
+    WorkCompletionQueue<MeshedChunkResult> meshQueue_;
+    std::uint64_t meshTokenCounter_ = 0;
+    std::size_t meshInFlight_ = 0;
 };
 
 class MeshUploadSystem final : public ECS::System::System {

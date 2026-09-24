@@ -16,6 +16,7 @@
 #include <cstring>
 #include <iostream>
 #include <thread>
+#include <vector>
 
 #include <glad/glad.h>
 #include <glfw/glfw3.h>
@@ -42,12 +43,18 @@
 #include "Terrain/Public/block_atlas.h"
 #include "Terrain/Public/terrain_atlas_texture.h"
 #include "Terrain/Public/terrain_components.h"
+#include "Terrain/Public/terrain_edit.h"
 #include "Terrain/Public/terrain_generator.h"
+#include "Terrain/Public/terrain_raycast.h"
 #include "Terrain/Systems/terrain_systems.h"
 
 namespace {
 
 constexpr glm::vec4 kSkyColor{0.44f, 0.68f, 0.90f, 1.0f};
+
+// Voxel break reach (blocks). The crosshair ray is short on purpose: it never
+// scans the whole world.
+constexpr float kBreakReach = 6.0f;
 
 constexpr char kVertexShader[] = R"GLSL(
 #version 450 core
@@ -155,6 +162,221 @@ void main() {
     FragColor = vec4(color, alpha);
 }
 )GLSL";
+
+// Screen-space crosshair. The vertex shader writes clip-space positions directly
+// and ignores the camera view/projection, so the crosshair is always dead centre
+// regardless of resolution; the pipeline disables depth test/write so world
+// geometry never occludes it.
+constexpr char kCrosshairVertexShader[] = R"GLSL(
+#version 450 core
+
+layout(location = 0) in vec2 aPosition;
+layout(location = 1) in vec3 aColor;
+
+out vec3 vColor;
+
+void main() {
+    vColor = aColor;
+    gl_Position = vec4(aPosition, 0.0, 1.0);
+}
+)GLSL";
+
+constexpr char kCrosshairFragmentShader[] = R"GLSL(
+#version 450 core
+
+in vec3 vColor;
+layout(location = 0) out vec4 FragColor;
+
+void main() {
+    FragColor = vec4(vColor, 1.0);
+}
+)GLSL";
+
+struct CrosshairVertex {
+    glm::vec2 position{0.0f};
+    glm::vec3 color{1.0f};
+};
+
+Render::VertexLayout CrosshairVertexLayout() {
+    Render::VertexLayout layout;
+    layout.typeSlots = {Render::VertexFieldType::Vec2, Render::VertexFieldType::Vec3};
+    return layout;
+}
+
+struct CrosshairMeshData {
+    std::vector<CrosshairVertex> vertices;
+    std::vector<std::uint32_t> indices;
+};
+
+// Four rectangles (a plus) with a dark outline, sized in pixels using the live
+// framebuffer dimensions so it never depends on a hard-coded resolution.
+CrosshairMeshData BuildCrosshair(float width, float height) {
+    CrosshairMeshData data;
+    const float px = 2.0f / std::max(width, 1.0f);
+    const float py = 2.0f / std::max(height, 1.0f);
+    const float arm = 6.0f;     // half length (px)
+    const float thick = 1.0f;   // half thickness (px)
+    const float edge = 1.0f;    // outline thickness (px)
+    const glm::vec3 white(0.95f, 0.96f, 0.98f);
+    const glm::vec3 black(0.03f, 0.03f, 0.05f);
+
+    const auto addRect = [&](float x0, float x1, float y0, float y1, glm::vec3 color) {
+        const std::uint32_t base = static_cast<std::uint32_t>(data.vertices.size());
+        data.vertices.push_back(CrosshairVertex{{x0 * px, y0 * py}, color});
+        data.vertices.push_back(CrosshairVertex{{x1 * px, y0 * py}, color});
+        data.vertices.push_back(CrosshairVertex{{x1 * px, y1 * py}, color});
+        data.vertices.push_back(CrosshairVertex{{x0 * px, y1 * py}, color});
+        constexpr std::uint32_t pattern[6] = {0, 1, 2, 0, 2, 3};
+        for (std::uint32_t index : pattern) data.indices.push_back(base + index);
+    };
+
+    // Outline first, then the bright arms on top.
+    addRect(-arm - edge, arm + edge, -thick - edge, thick + edge, black);
+    addRect(-thick - edge, thick + edge, -arm - edge, arm + edge, black);
+    addRect(-arm, arm, -thick, thick, white);
+    addRect(-thick, thick, -arm, arm, white);
+    return data;
+}
+
+// Service read by CrosshairExtractSystem each frame.
+struct HudSettings {
+    Render::RenderResourceHandle<Render::PipelineSpec> pipeline;
+    Render::RenderResourceHandle<Render::VertexBufferSpec> mesh;
+    std::uint32_t indexCount = 0;
+};
+
+// Adds the crosshair as an Overlay render item, after terrain extraction and
+// before Publish, so it is not cleared by RenderExtractBeginSystem.
+class CrosshairExtractSystem final : public ECS::System::System {
+public:
+    CrosshairExtractSystem()
+        : ECS::System::System("CrosshairExtractSystem", ECS::System::Phase::RenderExtract) {}
+
+    void OnTick() override {
+        auto* context = GetContext();
+        if(context == nullptr) return;
+        auto* world = context->GetService<Render::RenderWorld>();
+        auto* hud = context->GetService<HudSettings>();
+        if(world == nullptr || hud == nullptr) return;
+        if(!hud->pipeline.IsValid() || !hud->mesh.IsValid() || hud->indexCount == 0) return;
+
+        Render::RenderItem item{};
+        item.mesh = hud->mesh;
+        item.pipeline = hud->pipeline;
+        item.model = glm::mat4(1.0f);
+        item.draw.indexCount = hud->indexCount;
+        item.layer = Render::RenderLayer::Overlay;
+        world->Add(std::move(item));
+    }
+};
+
+// Creates the crosshair pipeline and keeps its (resolution dependent) mesh up to
+// date. Handles are written from the upload-queue callbacks, which the demo pumps
+// on the main thread via CallBackSystem.
+class CrosshairGpu {
+public:
+    CrosshairGpu(Render::RHIDevice* device, Render::IMeshUploadQueue* uploader)
+        : device_(device), uploader_(uploader) {}
+
+    void Start() {
+        Render::CreateShaderSourceDesc vs{};
+        vs.type = Render::ShaderSourceType::Vertex;
+        vs.codeSource = kCrosshairVertexShader;
+        vs.size = std::strlen(kCrosshairVertexShader);
+        device_->async_CreateShaderSource(
+            vs, [this](Render::RenderResourceHandle<Render::ShaderSourceSpec> handle) {
+                vertexShader_ = handle; TryCreateProgram();
+            });
+
+        Render::CreateShaderSourceDesc fs{};
+        fs.type = Render::ShaderSourceType::Fragment;
+        fs.codeSource = kCrosshairFragmentShader;
+        fs.size = std::strlen(kCrosshairFragmentShader);
+        device_->async_CreateShaderSource(
+            fs, [this](Render::RenderResourceHandle<Render::ShaderSourceSpec> handle) {
+                fragmentShader_ = handle; TryCreateProgram();
+            });
+    }
+
+    void EnsureMesh(float width, float height) {
+        if(width == width_ && height == height_ && (meshValid_ || createRequested_)) return;
+        width_ = width;
+        height_ = height;
+
+        const CrosshairMeshData data = BuildCrosshair(width, height);
+        settings_.indexCount = static_cast<std::uint32_t>(data.indices.size());
+
+        if(settings_.mesh.IsValid()) {
+            Render::UpdateMeshBufferDesc desc{};
+            desc.vertexCount = static_cast<std::uint32_t>(data.vertices.size());
+            desc.vertexData = data.vertices.data();
+            desc.vertexByteSize = data.vertices.size() * sizeof(CrosshairVertex);
+            desc.indexCount = static_cast<std::uint32_t>(data.indices.size());
+            desc.indexData = data.indices.data();
+            desc.indexByteSize = data.indices.size() * sizeof(std::uint32_t);
+            const auto handle = settings_.mesh;
+            uploader_->Update(handle, desc, [](bool) {});
+        } else if(!createRequested_) {
+            createRequested_ = true;
+            Render::CreateMeshBufferDesc desc{};
+            desc.vertexLayout = CrosshairVertexLayout();
+            desc.vertexCount = static_cast<std::uint32_t>(data.vertices.size());
+            desc.vertexData = data.vertices.data();
+            desc.vertexByteSize = data.vertices.size() * sizeof(CrosshairVertex);
+            desc.indexCount = static_cast<std::uint32_t>(data.indices.size());
+            desc.indexData = data.indices.data();
+            desc.indexByteSize = data.indices.size() * sizeof(std::uint32_t);
+            desc.usage = Render::BufferUsage::Dynamic;
+            uploader_->Create(desc,
+                [this](Render::RenderResourceHandle<Render::VertexBufferSpec> handle) {
+                    settings_.mesh = handle;
+                    meshValid_ = handle.IsValid();
+                });
+        }
+    }
+
+    HudSettings& Settings() { return settings_; }
+
+private:
+    void TryCreateProgram() {
+        if(programRequested_ || !vertexShader_.IsValid() || !fragmentShader_.IsValid()) return;
+        programRequested_ = true;
+
+        Render::CreateGraphicShaderDesc shader{};
+        shader.vertexShaderSource = vertexShader_;
+        shader.fragmentShaderSource = fragmentShader_;
+        device_->async_CreateGraphicShader(
+            shader, [this](Render::RenderResourceHandle<Render::ShaderProgramSpec> handle) {
+                shaderProgram_ = handle;
+                if(!handle.IsValid()) return;
+
+                Render::CreatePipelineDesc desc{};
+                desc.spec.shaderProgram = shaderProgram_;
+                desc.spec.topology = Render::PrimitiveTopology::TriangleList;
+                desc.spec.expectVertexLayout = CrosshairVertexLayout();
+                desc.spec.cullMode = Render::CullMode::None;
+                desc.spec.depthTest = false;
+                desc.spec.depthWrite = false;
+                desc.spec.blendEnable = false;
+                device_->async_CreatePipeline(
+                    desc, [this](Render::RenderResourceHandle<Render::PipelineSpec> created) {
+                        settings_.pipeline = created;
+                    });
+            });
+    }
+
+    Render::RHIDevice* device_ = nullptr;
+    Render::IMeshUploadQueue* uploader_ = nullptr;
+    HudSettings settings_{};
+    Render::RenderResourceHandle<Render::ShaderSourceSpec> vertexShader_{};
+    Render::RenderResourceHandle<Render::ShaderSourceSpec> fragmentShader_{};
+    Render::RenderResourceHandle<Render::ShaderProgramSpec> shaderProgram_{};
+    float width_ = 0.0f;
+    float height_ = 0.0f;
+    bool createRequested_ = false;
+    bool meshValid_ = false;
+    bool programRequested_ = false;
+};
 
 // Owns the uniforms and the two terrain pipelines (opaque + translucent water).
 class TerrainGpu {
@@ -393,7 +615,7 @@ void UpdateTitle(GLFWwindow* window) {
     const double now = glfwGetTime();
     if (previous >= 0.0 && now - previous < 0.25) return;
     previous = now;
-    glfwSetWindowTitle(window, "ECS Terrain | WASD + mouse, Shift fast, Esc quit");
+    glfwSetWindowTitle(window, "ECS Terrain | WASD + mouse, LMB break block, Shift fast, Esc quit");
 }
 
 } // namespace
@@ -466,20 +688,30 @@ int main() {
     ECS::Core::ECSKernel kernel;
     kernel.Init();
 
-    // Optional host-level generator selection (defaults to the legacy heightmap).
-    //   TERRAIN_MODE=density  TERRAIN_SEED=12345
+    // Optional host-level generator selection (defaults to DensityField).
+    //   TERRAIN_MODE=density|heightmap  TERRAIN_SEED=12345
     if (const char* mode = std::getenv("TERRAIN_MODE")) {
-        if (std::strcmp(mode, "density") == 0) {
+        if (std::strcmp(mode, "heightmap") == 0 || std::strcmp(mode, "height") == 0) {
+            Terrain::SetTerrainGeneratorMode(Terrain::TerrainGeneratorMode::Heightmap);
+        } else if (std::strcmp(mode, "density") == 0) {
             Terrain::SetTerrainGeneratorMode(Terrain::TerrainGeneratorMode::DensityField);
         }
     }
-    if (const char* seed = std::getenv("TERRAIN_SEEDD")) {
-        Terrain::SetWorldSeed(std::strtoull(seed, nullptr, 10));
+    // Standard name; keep accepting the historical misspelling for a while.
+    const char* seedEnv = std::getenv("TERRAIN_SEED");
+    if (seedEnv == nullptr) seedEnv = std::getenv("TERRAIN_SEEDD");
+    if (seedEnv != nullptr) {
+        Terrain::SetWorldSeed(std::strtoull(seedEnv, nullptr, 10));
     }
 
     Terrain::RegisterTerrainComponents();
 
     ECS::Core::Scene scene;
+
+    // Editable world state: chunk registry + user edit overlay. Owned by the
+    // main thread; systems receive it as a service.
+    Terrain::TerrainWorld terrainWorld;
+    terrainWorld.SetScene(&scene);
 
     auto chunkDescription = scene.CreateArchTypeDescription();
     chunkDescription->AddComponentArray<Terrain::ChunkLocation>();
@@ -500,6 +732,9 @@ int main() {
     Render::RHIMeshUploadQueue uploader(*device);
     Render::RenderWorld renderWorld;
 
+    CrosshairGpu crosshair(device, &uploader);
+    crosshair.Start();
+
     Terrain::System::RenderSettings terrainSettings{};
     terrainSettings.pipelines[0] = gpu.Pipeline();
     terrainSettings.pipelines[2] = waterGpu.Pipeline();
@@ -512,12 +747,15 @@ int main() {
     pipeline.Add<Terrain::System::MeshUploadSystem>();
     pipeline.Add<Render::System::RenderExtractBeginSystem>();
     pipeline.Add<Terrain::System::RenderExtractSystem>();
+    pipeline.Add<CrosshairExtractSystem>();
     pipeline.Add<Render::System::RenderPublishSystem>();
     pipeline.Add<Render::System::RenderPipelineSystem>();
     pipeline.RunBefore<Terrain::System::StreamingSystem, Terrain::System::GenerationSystem>();
     pipeline.RunBefore<Terrain::System::GenerationSystem, Terrain::System::MeshingSystem>();
     pipeline.RunBefore<Render::System::RenderExtractBeginSystem, Terrain::System::RenderExtractSystem>();
     pipeline.RunBefore<Terrain::System::RenderExtractSystem, Render::System::RenderPublishSystem>();
+    pipeline.RunBefore<Render::System::RenderExtractBeginSystem, CrosshairExtractSystem>();
+    pipeline.RunBefore<CrosshairExtractSystem, Render::System::RenderPublishSystem>();
 
     ECS::System::Context context;
     context.scene = &scene;
@@ -525,9 +763,12 @@ int main() {
     context.SetService<Render::IMeshUploadQueue>(&uploader);
     context.SetService(&renderWorld);
     context.SetService(&terrainSettings);
+    context.SetService(&terrainWorld);
+    context.SetService(&crosshair.Settings());
 
     std::uint64_t frameIndex = 1;
     double previousTime = glfwGetTime();
+    bool previousLeftClick = false;
 
     while (!window->ShouldClose()) {
         window->PollEvents();
@@ -540,6 +781,27 @@ int main() {
 
         camera.Update(nativeWindow, deltaSeconds);
 
+        // Crosshair pick: cast the camera ray into the live ChunkBlocks every
+        // frame (the DDA touches ~6-10 voxels). The crosshair is always the
+        // screen centre, so origin/direction come straight from the camera.
+        const auto provider = [&terrainWorld](int x, int y, int z) {
+            return terrainWorld.GetBlockWorld(x, y, z);
+        };
+        const Terrain::VoxelRaycastHit hit = Terrain::RaycastBlocks(
+            camera.position, camera.Forward(), kBreakReach, provider);
+
+        // Left-click edge breaks the selected block (never repeats while held).
+        const bool leftDown =
+            glfwGetMouseButton(nativeWindow, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+        const bool leftPressed = leftDown && !previousLeftClick;
+        previousLeftClick = leftDown;
+        if (leftPressed && hit.hit) {
+            // SetBlockWorld records the override, updates the live chunk and
+            // marks the chunk (+ boundary neighbour) for async remeshing.
+            terrainWorld.SetBlockWorld(
+                hit.block, static_cast<Terrain::BlockId>(Terrain::Block::Air));
+        }
+
         auto viewer = scene.GetActiveComponent<Terrain::TerrainViewer>(viewerEntity.GetID());
         if (auto* component = viewer.Get()) component->position = camera.position;
         int width = 0;
@@ -549,6 +811,8 @@ int main() {
             std::this_thread::sleep_for(std::chrono::milliseconds(8));
             continue;
         }
+
+        crosshair.EnsureMesh(static_cast<float>(width), static_cast<float>(height));
 
         Render::RHICommand::BeginFrame begin{};
         begin.frameIndex = frameIndex;

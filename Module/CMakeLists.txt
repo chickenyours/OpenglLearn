@@ -208,6 +208,78 @@ target_include_directories(terrain_block_atlas_test PRIVATE
     ${CMAKE_SOURCE_DIR}/Module
 )
 
+# Cave generation: determinism, border consistency, surface protection.
+add_executable(terrain_cave_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/Terrain/Test/terrain_cave_test.cpp
+)
+target_include_directories(terrain_cave_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/Engine/include
+    ${CMAKE_SOURCE_DIR}/Engine/include/engine
+    ${CMAKE_SOURCE_DIR}/Engine/include/engine/ToolAndAlgorithm
+    ${CMAKE_SOURCE_DIR}/Module
+)
+
+# Voxel raycast (3D DDA) test.
+add_executable(terrain_raycast_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/Terrain/Test/terrain_raycast_test.cpp
+)
+target_include_directories(terrain_raycast_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/Engine/include
+    ${CMAKE_SOURCE_DIR}/Engine/include/engine
+    ${CMAKE_SOURCE_DIR}/Engine/include/engine/ToolAndAlgorithm
+    ${CMAKE_SOURCE_DIR}/Module
+)
+
+# Async stale-mesh / revision token test.
+add_executable(terrain_async_edit_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/Terrain/Test/terrain_async_edit_test.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/job_system.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/job_system_schedule.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/context.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/archtype_description.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/archtype_instance.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/archtype_manager.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/archtype_preload_instance.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/scene.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/chunk_schedule.cpp
+)
+target_include_directories(terrain_async_edit_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/Engine/include
+    ${CMAKE_SOURCE_DIR}/Engine/include/engine
+    ${CMAKE_SOURCE_DIR}/Engine/include/engine/ToolAndAlgorithm
+    ${CMAKE_SOURCE_DIR}/Module
+)
+if(NOT WIN32)
+    target_link_libraries(terrain_async_edit_test PRIVATE pthread)
+endif()
+
+# Block edit overlay / boundary remesh test.
+add_executable(terrain_interaction_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/Terrain/Test/terrain_interaction_test.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/job_system.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/job_system_schedule.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/context.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/archtype_description.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/archtype_instance.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/archtype_manager.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/archtype_preload_instance.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/scene.cpp
+    ${CMAKE_SOURCE_DIR}/Engine/tests/chunk_schedule.cpp
+)
+target_include_directories(terrain_interaction_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/Engine/include
+    ${CMAKE_SOURCE_DIR}/Engine/include/engine
+    ${CMAKE_SOURCE_DIR}/Engine/include/engine/ToolAndAlgorithm
+    ${CMAKE_SOURCE_DIR}/Module
+)
+if(NOT WIN32)
+    target_link_libraries(terrain_interaction_test PRIVATE pthread)
+endif()
+
 
 
 

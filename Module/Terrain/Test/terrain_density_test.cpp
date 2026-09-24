@@ -93,6 +93,23 @@ int main() {
                 boundaryMismatches == 0 ? "consistent" : "FAIL");
     if (boundaryMismatches != 0) ++failures;
 
+    // ---- Density mode: every cell matches the reference (per-y) path --------
+    // GenerateChunkBlocks only samples the 3D noise in a thin surface band; this
+    // verifies the shortcut is exact against the unoptimised DensityBlockAt().
+    int interiorMismatches = 0;
+    for (int z = 0; z < SectionSize; ++z) {
+        for (int x = 0; x < SectionSize; ++x) {
+            for (int y = 0; y < SectionHeight; ++y) {
+                if (chunk00.Get(x, y, z) != DensityBlockAt(x, y, z)) {
+                    ++interiorMismatches;
+                }
+            }
+        }
+    }
+    std::printf("full-chunk mismatches: %d -> %s\n", interiorMismatches,
+                interiorMismatches == 0 ? "consistent" : "FAIL");
+    if (interiorMismatches != 0) ++failures;
+
     // ---- Content summary (visual sanity) ----------------------------------
     long counts[8] = {0};
     for (BlockId id : chunk00.blocks) {
@@ -112,6 +129,31 @@ int main() {
     if (heightA != heightB) ++failures;
     if (heightA == densityA) {
         std::printf("  WARNING: heightmap and density checksums are equal\n");
+    }
+
+    // The mesher trusts minNonAirY/maxNonAirY to skip empty cells, so verify the
+    // generator maintains them (including tree leaves above the trunk).
+    {
+        ChunkBlocks heightChunk;
+        GenerateChunkBlocks(glm::ivec3(0, 0, 0), heightChunk);
+        int expectedMin = SectionHeight;
+        int expectedMax = -1;
+        for (int y = 0; y < SectionHeight; ++y) {
+            for (int z = 0; z < SectionSize; ++z) {
+                for (int x = 0; x < SectionSize; ++x) {
+                    if (heightChunk.Get(x, y, z) == 0) continue;
+                    if (y < expectedMin) expectedMin = y;
+                    if (y > expectedMax) expectedMax = y;
+                }
+            }
+        }
+        const bool boundsOk = expectedMin == heightChunk.minNonAirY
+            && expectedMax == heightChunk.maxNonAirY;
+        std::printf("heightmap non-air bounds: [%d,%d] tracked [%d,%d] -> %s\n",
+                    expectedMin, expectedMax,
+                    heightChunk.minNonAirY, heightChunk.maxNonAirY,
+                    boundsOk ? "consistent" : "FAIL");
+        if (!boundsOk) ++failures;
     }
 
     // ---- Density throughput ----------------------------------------------

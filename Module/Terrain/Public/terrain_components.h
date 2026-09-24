@@ -79,6 +79,21 @@ struct ChunkBlocks : ECS::Component::Component<ChunkBlocks> {
     // Terrain generation is a one-shot per chunk; the flag lets the generation
     // system skip chunks that are already filled in.
     bool generated = false;
+
+    // Async generation bookkeeping. The main thread marks a chunk pending and
+    // stamps a never-reused token before submitting a worker job; the commit
+    // step only writes the result back when the token still matches. This makes
+    // a stale result (chunk unloaded, entity id recycled, or a newer request)
+    // harmless instead of corrupting the chunk.
+    bool generationPending = false;
+    std::uint64_t generationToken = 0;
+
+    // Inclusive vertical bounds of non-air content. Maintained as blocks are
+    // written so the mesher can skip the (usually large) empty top of the
+    // 128-tall column instead of scanning every cell.
+    int minNonAirY = SectionHeight;
+    int maxNonAirY = -1;
+
     bool LoadFromMetaDataImpl(const Json::Value&, Log::StackLogErrorHandle) { return true; }
 
     static constexpr std::size_t Index(int x, int y, int z) {
@@ -89,7 +104,51 @@ struct ChunkBlocks : ECS::Component::Component<ChunkBlocks> {
             && x < SectionSize && y < SectionHeight && z < SectionSize;
     }
     BlockId Get(int x, int y, int z) const { return blocks[Index(x, y, z)]; }
-    void Set(int x, int y, int z, BlockId id) { blocks[Index(x, y, z)] = id; ++revision; }
+    void MarkNonAir(int y) {
+        if(y < minNonAirY) minNonAirY = y;
+        if(y > maxNonAirY) maxNonAirY = y;
+    }
+    void Set(int x, int y, int z, BlockId id) {
+        blocks[Index(x, y, z)] = id;
+        if(id != 0) MarkNonAir(y);
+        ++revision;
+    }
+    // Bump the revision without touching content. Used to invalidate a chunk's
+    // mesh when a *neighbouring* block edit changes one of its exposed faces.
+    void MarkDirty() { ++revision; }
+};
+
+// One-block-thick border layers just outside a chunk, handed to a meshing job.
+//
+// The main thread fills a layer only for neighbours that contain user edits, so
+// border faces sample the live edited world instead of the pristine generator.
+// Unedited/unloaded neighbours are simply left unset and the mesher falls back
+// to the deterministic procedural cache (which equals the unedited neighbour).
+//
+// The layers are indexed by the in-plane coordinate `u` (z for the X faces, x
+// for the Z faces) and y: value(u, y) is the neighbour block adjacent to the
+// chunk's own block at that (u, y).
+struct ChunkNeighborhood {
+    static constexpr std::size_t SliceSize =
+        static_cast<std::size_t>(SectionSize) * SectionHeight;
+    using Slice = std::array<BlockId, SliceSize>;
+
+    Slice negativeX{};
+    Slice positiveX{};
+    Slice negativeZ{};
+    Slice positiveZ{};
+    bool hasNegativeX = false;
+    bool hasPositiveX = false;
+    bool hasNegativeZ = false;
+    bool hasPositiveZ = false;
+
+    static constexpr std::size_t Index(int u, int y) {
+        return static_cast<std::size_t>(u) * SectionHeight + y;
+    }
+    BlockId NegativeX(int u, int y) const { return negativeX[Index(u, y)]; }
+    BlockId PositiveX(int u, int y) const { return positiveX[Index(u, y)]; }
+    BlockId NegativeZ(int u, int y) const { return negativeZ[Index(u, y)]; }
+    BlockId PositiveZ(int u, int y) const { return positiveZ[Index(u, y)]; }
 };
 
 struct Vertex {
@@ -122,6 +181,12 @@ struct ChunkMesh : ECS::Component::Component<ChunkMesh> {
     std::array<CpuSubmesh, 3> layers;
     std::uint64_t sourceRevision = 0;
     std::uint64_t meshRevision = 0;
+
+    // Async meshing bookkeeping, mirrors ChunkBlocks::generationPending/Token.
+    // A meshing job owns an independent snapshot, never this component.
+    bool meshPending = false;
+    std::uint64_t meshToken = 0;
+
     bool LoadFromMetaDataImpl(const Json::Value&, Log::StackLogErrorHandle) { return true; }
 };
 

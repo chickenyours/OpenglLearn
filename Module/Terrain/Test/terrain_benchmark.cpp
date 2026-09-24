@@ -10,6 +10,7 @@
 // every frame. After a warm-up that fills the initial load radius, the profiler
 // is reset and a fixed number of steady-state frames is measured.
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -30,6 +31,7 @@
 #include "Render/Systems/render_pipeline_system.h"
 
 #include "Terrain/Public/terrain_components.h"
+#include "Terrain/Public/terrain_edit.h"
 #include "Terrain/Public/terrain_generator.h"
 #include "Terrain/Systems/terrain_systems.h"
 
@@ -79,6 +81,37 @@ std::size_t CountChunks(ECS::Core::Scene& scene) {
     return count;
 }
 
+std::size_t CountGenerated(ECS::Core::Scene& scene) {
+    TerrainChunkQuery query;
+    query.Refresh(scene);
+    std::size_t count = 0;
+    for (auto view : query) {
+        auto* blocks = view.Get<Terrain::ChunkBlocks>();
+        if (blocks == nullptr) continue;
+        for (std::size_t i = 0; i < view.count; ++i) {
+            if (blocks[i].generated) ++count;
+        }
+    }
+    return count;
+}
+
+std::size_t CountMeshed(ECS::Core::Scene& scene) {
+    TerrainChunkQuery query;
+    query.Refresh(scene);
+    std::size_t count = 0;
+    for (auto view : query) {
+        auto* blocks = view.Get<Terrain::ChunkBlocks>();
+        auto* meshes = view.Get<Terrain::ChunkMesh>();
+        if (blocks == nullptr || meshes == nullptr) continue;
+        for (std::size_t i = 0; i < view.count; ++i) {
+            if (blocks[i].generated && meshes[i].sourceRevision == blocks[i].revision) {
+                ++count;
+            }
+        }
+    }
+    return count;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -102,9 +135,25 @@ int main(int argc, char** argv) {
         ECS::Core::JobSystemSchedule::ResolveWorkerCount(requestedWorkers);
     const std::size_t actualWorkers = schedule != nullptr ? schedule->GetWorkerCount() : 0;
 
+    // Generator mode: argv[2] or TERRAIN_MODE ("density" default, "heightmap").
+    // TERRAIN_SEED optionally overrides the world seed.
+    const char* modeArg = argc > 2 ? argv[2] : std::getenv("TERRAIN_MODE");
+    const bool heightmapMode = modeArg != nullptr
+        && (std::strcmp(modeArg, "heightmap") == 0
+            || std::strcmp(modeArg, "height") == 0);
+    Terrain::SetTerrainGeneratorMode(heightmapMode
+        ? Terrain::TerrainGeneratorMode::Heightmap
+        : Terrain::TerrainGeneratorMode::DensityField);
+    if (const char* seed = std::getenv("TERRAIN_SEED")) {
+        Terrain::SetWorldSeed(std::strtoull(seed, nullptr, 10));
+    }
+
     Terrain::RegisterTerrainComponents();
 
     ECS::Core::Scene scene;
+
+    Terrain::TerrainWorld terrainWorld;
+    terrainWorld.SetScene(&scene);
 
     auto chunkDescription = scene.CreateArchTypeDescription();
     chunkDescription->AddComponentArray<Terrain::ChunkLocation>();
@@ -141,6 +190,7 @@ int main(int argc, char** argv) {
     context.SetService<Render::IMeshUploadQueue>(&uploader);
     context.SetService(&renderWorld);
     context.SetService(&terrainSettings);
+    context.SetService(&terrainWorld);
 
     ECS::System::Pipeline pipeline;
     pipeline.Add<Terrain::System::StreamingSystem>(chunkArchetype);
@@ -161,6 +211,7 @@ int main(int argc, char** argv) {
     std::printf("  configured workers: %zu (requested %zu, 0 = auto)\n",
                 resolvedWorkers, requestedWorkers);
     std::printf("  actual workers: %zu\n", actualWorkers);
+    std::printf("  generator mode: %s\n", heightmapMode ? "heightmap" : "density");
     std::printf("  archetype entities/chunk: %zu, load radius: 6, measured frames: %d\n",
                 kEntitiesPerChunk, kMeasuredFrames);
     std::printf("  viewer speed: %.1f units/frame, warmup frames: %d\n",
@@ -200,6 +251,7 @@ int main(int argc, char** argv) {
     ECS::Profiling::Profiler::Get().Reset();
 
     // Steady-state measurement while continuously entering new territory.
+    const auto measuredStart = std::chrono::steady_clock::now();
     for (int i = 0; i < kMeasuredFrames; ++i) {
         viewerPosition.x += kViewerSpeedPerFrame;
         auto viewer = scene.GetActiveComponent<Terrain::TerrainViewer>(viewerEntity.GetID());
@@ -207,8 +259,19 @@ int main(int argc, char** argv) {
 
         tickFrame(frameIndex++);
     }
+    const double measuredSeconds = std::chrono::duration<double>(
+        std::chrono::steady_clock::now() - measuredStart).count();
 
     const std::size_t finalChunks = CountChunks(scene);
+    const std::size_t profiledFrames = ECS::Profiling::Profiler::Get().FrameCount();
+    const auto genCommittedStats =
+        ECS::Profiling::Profiler::Get().Stats("Chunks generated (committed)");
+    const auto meshCommittedStats =
+        ECS::Profiling::Profiler::Get().Stats("Meshes rebuilt");
+    const double generatedCommitted =
+        genCommittedStats.average * static_cast<double>(genCommittedStats.samples);
+    const double meshedCommitted =
+        meshCommittedStats.average * static_cast<double>(meshCommittedStats.samples);
 
     std::printf("\nwarmup chunks: %zu, final chunks: %zu\n", warmupChunks, finalChunks);
     if (schedule != nullptr) {
@@ -218,6 +281,22 @@ int main(int argc, char** argv) {
 
     ECS::Profiling::Profiler::Get().Report(
         "Terrain ECS baseline - steady flight (times in ms, counts are raw)");
+
+    // Async generation: schedule/completion/in-flight. The main thread never
+    // waits for a batch, so total minus build stays close to scheduling cost.
+    {
+        const auto& profiler = ECS::Profiling::Profiler::Get();
+        std::printf("\nGenerationSystem (avg per frame):\n");
+        std::printf("  total            %8.4f ms\n",
+                    profiler.Stats("TerrainGenerationSystem").average);
+        std::printf("  build (worker)   %8.4f ms\n",
+                    profiler.Stats("Generation build").average);
+        std::printf("  scheduled/frame  %8.2f\n", profiler.Stats("Chunks generated").average);
+        std::printf("  committed/frame  %8.2f\n",
+                    profiler.Stats("Chunks generated (committed)").average);
+        std::printf("  in flight (avg)  %8.2f\n",
+                    profiler.Stats("Generation in flight").average);
+    }
 
     // Task 2.0: MeshingSystem cost decomposition.
     {
@@ -230,10 +309,14 @@ int main(int argc, char** argv) {
         std::printf("\nMeshingSystem (avg per frame):\n");
         std::printf("  total          %8.4f ms\n", total);
         std::printf("  dispatch       %8.4f ms\n", profiler.Stats("Meshing dispatch").average);
-        std::printf("  wait           %8.4f ms\n", wait);
+        std::printf("  wait           %8.4f ms (async: expected ~0)\n", wait);
         std::printf("  build (worker) %8.4f ms\n", buildPerFrame);
         std::printf("  main-thread    %8.4f ms (total - wait)\n", total - wait);
         std::printf("  jobs submitted %8.2f\n", profiler.Stats("Meshing jobs").average);
+        std::printf("  scheduled/frame%8.2f, committed/frame %8.2f\n",
+                    profiler.Stats("Mesh jobs scheduled").average,
+                    profiler.Stats("Meshes rebuilt").average);
+        std::printf("  in flight (avg)%8.2f\n", profiler.Stats("Meshing in flight").average);
 
         if (chunksPerFrame > 0.0) {
             std::printf("Per chunk (avg):\n");
@@ -315,6 +398,50 @@ int main(int argc, char** argv) {
                     perChunk(indicesPushed),
                     emittedFaces > 0.0 ? indicesPushed / emittedFaces : 0.0);
     }
+
+    // Async pipeline flush: the measured loop is not frame-rate limited, so
+    // workers may still be catching up. Drain the backlog (this is an explicit
+    // benchmark sync point, not part of the realtime tick) and report the
+    // aggregate streaming throughput over the whole run.
+    auto* generationSystem = pipeline.Get<Terrain::System::GenerationSystem>();
+    auto* meshingSystem = pipeline.Get<Terrain::System::MeshingSystem>();
+    const auto flushStart = std::chrono::steady_clock::now();
+    std::size_t flushFrames = 0;
+    constexpr std::size_t kMaxFlushFrames = 500000;
+    for (; flushFrames < kMaxFlushFrames; ++flushFrames) {
+        const std::size_t total = CountChunks(scene);
+        const bool complete = CountGenerated(scene) >= total
+            && CountMeshed(scene) >= total
+            && !(generationSystem != nullptr && generationSystem->HasPendingWork())
+            && !(meshingSystem != nullptr && meshingSystem->HasPendingWork());
+        if (complete) break;
+        if (schedule != nullptr) schedule->WaitIdle();
+        tickFrame(frameIndex++);
+    }
+    if (schedule != nullptr) schedule->WaitIdle();
+
+    const double flushSeconds = std::chrono::duration<double>(
+        std::chrono::steady_clock::now() - flushStart).count();
+    const std::size_t flushedGenerated = CountGenerated(scene);
+    const std::size_t flushedMeshed = CountMeshed(scene);
+
+    std::printf("\nAsync flush (explicit sync, benchmark-only; not in realtime tick):\n");
+    std::printf("  measurement wall:  %8.3f s, %.0f fps (%zu frames)\n",
+                measuredSeconds,
+                measuredSeconds > 0.0
+                    ? static_cast<double>(profiledFrames) / measuredSeconds : 0.0,
+                profiledFrames);
+    std::printf("  committed in window:%7.0f generated, %.0f meshed\n",
+                generatedCommitted, meshedCommitted);
+    if (measuredSeconds > 0.0) {
+        std::printf("  generation rate:   %8.0f chunks/s (window)\n",
+                    generatedCommitted / measuredSeconds);
+    }
+    std::printf("  flush:             %8zu frames, %.3f s\n", flushFrames, flushSeconds);
+    std::printf("  final generated:   %8zu / %zu loaded chunks\n",
+                flushedGenerated, CountChunks(scene));
+    std::printf("  final meshed:      %8zu / %zu loaded chunks\n",
+                flushedMeshed, CountChunks(scene));
 
     pipeline.Stop(context);
     return 0;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstdint>
@@ -53,7 +54,8 @@ public:
                       const glm::ivec3& section,
                       const BlockRenderRegistry& registry,
                       ChunkMesh& out,
-                      TerrainMeshStats* stats = nullptr) {
+                      TerrainMeshStats* stats = nullptr,
+                      const ChunkNeighborhood* neighbors = nullptr) {
         const Clock::time_point buildStart = stats ? Clock::now() : Clock::time_point{};
 
         for(auto& layer : out.layers) layer.Clear();
@@ -70,9 +72,39 @@ public:
         const glm::ivec3 base =
             glm::ivec3(section.x * SectionSize, 0, section.z * SectionSize);
 
-        const auto sample = [&blocks, &cache, base, stats](int x, int y, int z) -> BlockId {
+        const auto sample = [&blocks, &cache, base, stats,
+                             neighbors](int x, int y, int z) -> BlockId {
             if(stats) ++stats->neighborSamples;
             if(ChunkBlocks::InBounds(x, y, z)) return blocks.Get(x, y, z);
+
+            // Border sampling prefers the live border layer of an *edited*
+            // neighbour; unedited/unloaded neighbours fall back to the
+            // deterministic procedural cache (which equals their generator
+            // output). Corners (both axes out of range) also fall back.
+            if(neighbors != nullptr && y >= 0 && y < SectionHeight) {
+                BlockId border = 0;
+                bool haveBorder = false;
+                if(x == -1 && z >= 0 && z < SectionSize && neighbors->hasNegativeX) {
+                    border = neighbors->NegativeX(z, y);
+                    haveBorder = true;
+                } else if(x == SectionSize && z >= 0 && z < SectionSize
+                          && neighbors->hasPositiveX) {
+                    border = neighbors->PositiveX(z, y);
+                    haveBorder = true;
+                } else if(z == -1 && x >= 0 && x < SectionSize
+                          && neighbors->hasNegativeZ) {
+                    border = neighbors->NegativeZ(x, y);
+                    haveBorder = true;
+                } else if(z == SectionSize && x >= 0 && x < SectionSize
+                          && neighbors->hasPositiveZ) {
+                    border = neighbors->PositiveZ(x, y);
+                    haveBorder = true;
+                }
+                if(haveBorder) {
+                    if(stats) ++stats->outOfBoundsSamples;
+                    return border;
+                }
+            }
 
             if(stats) {
                 ++stats->outOfBoundsSamples;
@@ -84,7 +116,12 @@ public:
             return cache.At(base.x + x, base.y + y, base.z + z);
         };
 
-        for(int y = 0; y < SectionHeight; ++y) {
+        // Only scan the occupied vertical band. `minNonAirY`/`maxNonAirY` are
+        // tracked while the chunk is generated (or by Set()), so the usual empty
+        // upper half of the 128-tall column costs nothing.
+        const int yBegin = std::max(0, blocks.minNonAirY);
+        const int yEnd = std::min(SectionHeight - 1, blocks.maxNonAirY);
+        for(int y = yBegin; y <= yEnd; ++y) {
             for(int z = 0; z < SectionSize; ++z) {
                 for(int x = 0; x < SectionSize; ++x) {
                     if(stats) ++stats->blocksVisited;

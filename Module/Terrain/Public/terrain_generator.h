@@ -11,6 +11,7 @@
 #include <glm/glm.hpp>
 
 #include "Terrain/Generator/biome.h"
+#include "Terrain/Generator/cave_generator.h"
 #include "Terrain/Generator/density_field.h"
 #include "Terrain/Generator/terrain_region.h"
 #include "Terrain/Public/terrain_components.h"
@@ -28,7 +29,7 @@ enum class TerrainGeneratorMode : std::uint8_t {
 // before any generation job is dispatched; read by worker jobs. Atomics keep the
 // read side race-free even if a host changes it between frames.
 inline std::atomic<TerrainGeneratorMode>& TerrainModeStorage() {
-    static std::atomic<TerrainGeneratorMode> mode{TerrainGeneratorMode::Heightmap};
+    static std::atomic<TerrainGeneratorMode> mode{TerrainGeneratorMode::DensityField};
     return mode;
 }
 inline void SetTerrainGeneratorMode(TerrainGeneratorMode mode) {
@@ -345,21 +346,38 @@ inline BlockId SurfaceBlock(const ColumnTerrain& column, int worldX, int worldY,
     }
 }
 
-// Block the density field produces:
+// Block the density field produces for an already-classified column:
 //   density > 0  -> solid (SurfaceBlock picks Grass/Sand/Sandstone/Snow/Stone)
 //   density <= 0 -> Water below sea level, otherwise Air
-inline BlockId DensityBlockAt(int worldX, int worldY, int worldZ) {
-    const std::uint64_t seed = GetWorldSeed();
-    const ColumnTerrain column = ComputeColumnTerrain(worldX, worldZ);
-
+//
+// Splitting this out lets the mesher's sampling cache reuse a ColumnTerrain it
+// already computed instead of recomputing the whole noise router + climate.
+inline BlockId DensityBlockFromColumn(const ColumnTerrain& column, int worldX,
+                                      int worldY, int worldZ, std::uint64_t seed) {
     if (DensityField::DensityWithHeight(column.terrainHeight, worldX, worldY, worldZ, seed) <= 0.0f) {
         return static_cast<BlockId>(
             worldY < DensitySeaLevel() ? Block::Water : Block::Air);
     }
 
+    // A block is a *terrain* surface block only when the air above it is normal
+    // sky, not a cave pocket. Caves never reach within surfaceProtection of the
+    // column top, so any voxel above the cave ceiling can be classified normally;
+    // deeper "air above" is cave exposure and must stay stone/dirt.
     const bool exposedAbove =
         DensityField::DensityWithHeight(column.terrainHeight, worldX, worldY + 1, worldZ, seed) <= 0.0f;
-    return SurfaceBlock(column, worldX, worldY, worldZ, exposedAbove);
+    const bool isTerrainSurface = exposedAbove
+        && worldY > CaveGenerator::CaveCeiling(column.terrainHeight);
+    const BlockId solid = SurfaceBlock(column, worldX, worldY, worldZ, isTerrainSurface);
+
+    if (CaveGenerator::ShouldCarve(worldX, worldY, worldZ, column.terrainHeight, seed)) {
+        return static_cast<BlockId>(Block::Air);
+    }
+    return solid;
+}
+
+inline BlockId DensityBlockAt(int worldX, int worldY, int worldZ) {
+    const ColumnTerrain column = ComputeColumnTerrain(worldX, worldZ);
+    return DensityBlockFromColumn(column, worldX, worldY, worldZ, GetWorldSeed());
 }
 
 // ---------------------------------------------------------------------------
@@ -402,34 +420,80 @@ inline void GenerateChunkBlocks(const glm::ivec3& section, ChunkBlocks& out) {
 
     const auto write = [&](int x, int y, int z, BlockId id) {
         if (!ChunkBlocks::InBounds(x, y, z)) return;
+        if (id == 0) return;
         out.blocks[ChunkBlocks::Index(x, y, z)] = id;
+        out.MarkNonAir(y);
     };
 
     if (GetTerrainGeneratorMode() == TerrainGeneratorMode::DensityField) {
         // Noise-router fill: solid iff density > 0, ocean water below sea level,
         // air otherwise. No trees in the density version.
+        //
+        // density(y) = (h - y) + noise * A, with noise in [-1, 1], so the result
+        // is known without sampling the 3D noise for most of the column:
+        //   y <= floor(h - A) - 2  -> strictly solid (and never the surface)
+        //   y >= ceil(h + A) + 1   -> strictly non-solid (air or water)
+        // Only the thin surface band in between needs DensityWithHeight, which
+        // removes ~90% of the 3D value-noise evaluations per chunk.
         const std::uint64_t seed = GetWorldSeed();
         const int seaLevel = DensitySeaLevel();
+        const float amplitude = DensityField::Noise3DAmplitude;
+
+        // Cave carving only touches the guaranteed-solid rock below the surface
+        // band. The per-chunk lattice cache keeps the extra 3D noise cost small
+        // and produces bit-identical results to the direct SampleCave() path the
+        // reference API (DensityBlockAt) uses.
+        CaveGenerator::CaveField cave;
+        cave.Build(section, SectionSize, SectionHeight, SectionSize, seed);
 
         for (int z = 0; z < SectionSize; ++z) {
             for (int x = 0; x < SectionSize; ++x) {
                 const int worldX = baseX + x;
                 const int worldZ = baseZ + z;
                 const ColumnTerrain column = ComputeColumnTerrain(worldX, worldZ);
-
+                const float height = column.terrainHeight;
                 const int scanTop = ColumnScanTop(column);
-                float density[SectionHeight + 1];
-                for (int y = 0; y <= scanTop; ++y) {
-                    density[y] = DensityField::DensityWithHeight(
-                        column.terrainHeight, worldX, y, worldZ, seed);
+                const int caveCeiling = CaveGenerator::CaveCeiling(height);
+
+                const int guaranteedSolidEnd =
+                    static_cast<int>(std::floor(height - amplitude)) - 2;
+                const int guaranteedAirStart =
+                    static_cast<int>(std::ceil(height + amplitude)) + 1;
+
+                const int bandBegin = std::clamp(guaranteedSolidEnd + 1, 0, scanTop);
+                const int bandEnd = std::clamp(guaranteedAirStart, 0, scanTop) - 1;
+
+                // Deep rock/dirt, minus cave carving. `isTop` is provably false
+                // here, and cave exposure never promotes a block to surface
+                // material (see DensityBlockFromColumn / SurfaceBlock).
+                for (int y = 0; y < bandBegin; ++y) {
+                    if (y <= caveCeiling
+                        && cave.ShouldCarve(worldX, y, worldZ, height)) {
+                        continue;  // cave air
+                    }
+                    write(x, y, z, SurfaceBlock(column, worldX, y, worldZ, false));
                 }
 
-                for (int y = 0; y < scanTop; ++y) {
-                    if (density[y] > 0.0f) {
+                // Surface band: the only place the surface 3D noise is sampled.
+                // Caves are protected here, but keep the surface-material guard
+                // consistent with the reference path.
+                for (int y = bandBegin; y <= bandEnd; ++y) {
+                    const float density = DensityField::DensityWithHeight(
+                        height, worldX, y, worldZ, seed);
+                    if (density > 0.0f) {
+                        const float densityAbove = DensityField::DensityWithHeight(
+                            height, worldX, y + 1, worldZ, seed);
+                        const bool isTop = densityAbove <= 0.0f && y > caveCeiling;
                         write(x, y, z,
-                              SurfaceBlock(column, worldX, y, worldZ,
-                                           density[y + 1] <= 0.0f));
+                              SurfaceBlock(column, worldX, y, worldZ, isTop));
                     } else if (y < seaLevel) {
+                        write(x, y, z, static_cast<BlockId>(Block::Water));
+                    }
+                }
+
+                // Provably non-solid above the band: water up to sea level.
+                for (int y = std::max(bandEnd + 1, bandBegin); y < scanTop; ++y) {
+                    if (y < seaLevel) {
                         write(x, y, z, static_cast<BlockId>(Block::Water));
                     }
                 }
@@ -493,6 +557,7 @@ inline void GenerateChunkBlocks(const glm::ivec3& section, ChunkBlocks& out) {
                         if (out.blocks[ChunkBlocks::Index(lx, y, lz)] != 0) continue;
                         out.blocks[ChunkBlocks::Index(lx, y, lz)] =
                             static_cast<BlockId>(Block::Leaves);
+                        out.MarkNonAir(y);
                     }
                 }
             }
@@ -536,8 +601,13 @@ inline TerrainStatistics ComputeTerrainStatistics(int chunkRadius) {
                         const float density = DensityField::DensityWithHeight(
                             column.terrainHeight, worldX, y, worldZ, seed);
                         if (density > 0.0f) {
-                            ++stats.solidBlocks;
-                            topSolid = y;
+                            if (CaveGenerator::ShouldCarve(
+                                    worldX, y, worldZ, column.terrainHeight, seed)) {
+                                ++stats.airBlocks;  // carved cave pocket
+                            } else {
+                                ++stats.solidBlocks;
+                                topSolid = y;
+                            }
                         } else if (y < seaLevel) {
                             ++stats.waterBlocks;
                         } else {
@@ -685,17 +755,24 @@ inline void RegisterDefaultTerrainBlocks(BlockRenderRegistry& registry) {
 class TerrainSampleCache {
 public:
     void Build(const glm::ivec3& section) {
-        // The density path has no per-column structure to precompute; delegate
-        // every query straight to the (deterministic) density field.
-        if(GetTerrainGeneratorMode() == TerrainGeneratorMode::DensityField) {
-            densityMode_ = true;
-            return;
-        }
-        densityMode_ = false;
-
         base_ = glm::ivec3(section.x * SectionSize, 0, section.z * SectionSize);
         const int originX = base_.x - kMargin;
         const int originZ = base_.z - kMargin;
+
+        // The density path has no trees, but the noise-router column (height,
+        // region, biome) is expensive and is re-sampled for every padded column.
+        // Classify the padded columns once; At() then only pays for the 3D noise.
+        if(GetTerrainGeneratorMode() == TerrainGeneratorMode::DensityField) {
+            densityMode_ = true;
+            for(int cz = 0; cz < kExtent; ++cz) {
+                for(int cx = 0; cx < kExtent; ++cx) {
+                    columns_[cz * kExtent + cx].terrain =
+                        ComputeColumnTerrain(originX + cx, originZ + cz);
+                }
+            }
+            return;
+        }
+        densityMode_ = false;
 
         // Step 1: one hash-based evaluation per padded column, instead of one per
         // (column, y) probe.
@@ -745,7 +822,12 @@ public:
     // Same result as the free BlockAt() for coordinates covered by the padded
     // region (fallback keeps correctness for anything outside).
     BlockId At(int worldX, int worldY, int worldZ) const {
-        if(densityMode_) return BlockAt(worldX, worldY, worldZ);
+        if(densityMode_) {
+            const Column* column = Find(worldX, worldZ);
+            if(column == nullptr) return DensityBlockAt(worldX, worldY, worldZ);
+            return DensityBlockFromColumn(
+                column->terrain, worldX, worldY, worldZ, GetWorldSeed());
+        }
 
         const Column* column = Find(worldX, worldZ);
         if(column == nullptr) return BlockAt(worldX, worldY, worldZ);
@@ -808,6 +890,7 @@ private:
         int height = 0;
         std::uint32_t sourceBegin = 0;
         std::uint16_t sourceCount = 0;
+        ColumnTerrain terrain{};   // density mode only
     };
 
     const Column* Find(int worldX, int worldZ) const {

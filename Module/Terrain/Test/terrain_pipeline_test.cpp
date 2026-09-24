@@ -38,6 +38,9 @@ int main() {
     const auto entity = scene.CreateEntity(archetype);
     auto blocks = scene.GetActiveComponent<Terrain::ChunkBlocks>(entity.GetID());
     blocks.Get()->Set(1, 1, 1, 1);
+    // No GenerationSystem runs in this test, so mark the chunk as generated to
+    // let the async MeshingSystem pick it up (mirrors a committed generation).
+    blocks.Get()->generated = true;
 
     Terrain::BlockRenderRegistry blockRegistry;
     Terrain::BlockRenderInfo stone{};
@@ -74,6 +77,10 @@ int main() {
     assert((pipeline.RunBefore<Render::System::RenderExtractBeginSystem, Terrain::System::RenderExtractSystem>()));
     assert((pipeline.RunBefore<Terrain::System::RenderExtractSystem, Render::System::RenderPublishSystem>()));
     assert(pipeline.Tick(context));
+    ++context.frameIndex;
+    assert(pipeline.Tick(context));
+    // Meshing is async: tick 1 schedules, tick 2 commits + starts the upload,
+    // tick 3 observes the completed upload.
     ++context.frameIndex;
     assert(pipeline.Tick(context));
 

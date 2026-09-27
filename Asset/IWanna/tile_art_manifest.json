@@ -1,0 +1,25 @@
+{
+  "author": "Original procedural pixel art generated for this project",
+  "generator": "tools/build_iwanna_tiles.py",
+  "sha256": {
+    "terrain_00.png": "019ed4ad5c7f07f7ec2487d426448e822ea2d08ec33d0c2309603aaa2198b373",
+    "terrain_01.png": "3b189564bdfef6a94293ac91fc424bbd573fca3d94537f5107b5d3e9eab9aca6",
+    "terrain_02.png": "e7eee6f847bf41bdcdd7964d067cd5cdc93dabdac554ceef0092bc17b714a0c1",
+    "terrain_03.png": "c2edcc3d0581f14c84e2437b2b383cabcd7c7fdb7b8c788075a506fd34e42aea",
+    "terrain_04.png": "34ab4c46b899c21e940cac601e8249fa2afee9a49dbe7349240ca87e2547fc0a",
+    "terrain_05.png": "bb6921531dc65957012338b4abd531ff5e82680270c51db36b6298d295e8f7e8",
+    "terrain_06.png": "096d5b5b3c4a04b55f03a5ed236e9ac41843048ea42f540296d9751d7dd5fc91",
+    "terrain_07.png": "1c919bc231d5feff266ae6b61d3cd09caa8e8a7ac35797d92933dcbc19f084d6",
+    "terrain_08.png": "18ebf7fc668c67a22bc77f94c891716dfb476692d953f2e75a0eba78c2bb325e",
+    "terrain_09.png": "fc0db0317c44970e7ef6c3f6f29ccd7929edb9fd5dd72b149790dd1aaf603c6b",
+    "terrain_10.png": "b7839ea29e24190c53d801df7ab0c50c60fd81797867afb8e95901c41c0e7e74",
+    "terrain_11.png": "5b6194da20aa007063be9792e80cb6dca913ae93487e388b6d040325e28642b5",
+    "terrain_12.png": "8d1623ebd914e7baf24350507aafc2dd8b0688b866a0daac20ca331a944e2f01",
+    "terrain_13.png": "d40fa568300f3b52991172eb69f2ed4e0a392e5a7ae3eb266a72f1f9d23a63af",
+    "terrain_14.png": "9e96cee93332e4f75c1c2a925efb5b84f48f91bacbbddd26f53bbaa992b1dcee",
+    "terrain_15.png": "54ee65a3fec6754b2cc0bd77e814b50ff6bd257f4889792bff945afc7867af4c",
+    "sign_pixel.png": "1c223f6abca2ead66d2c496a901a7f4ef6465fbb411bb388cef601e9b58d13e0",
+    "checkpoint_idle.png": "60da402d4c18494a4571348c8144bb7004a703edec439204e817d82c0964e9fe",
+    "checkpoint_active.png": "e11275a9f036fa37d4254c67b7b7d2cdc1249f8f4e0d8c71584be98b69ddee67"
+  }
+}

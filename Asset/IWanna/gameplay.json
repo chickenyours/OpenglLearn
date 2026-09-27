@@ -1,0 +1,26 @@
+{
+  "description": "World units and seconds. Edit this file and restart with run_iwanna.bat; no rebuild needed. Direct EXE launch defaults to bin/IWanna/gameplay.json. See Module/IWanna/README.md.",
+  "physics": {
+    "runSpeed": 18.0,
+    "jumpSpeed": 50.0,
+    "doubleJumpSpeed": 35.0,
+    "gravity": 150.0,
+    "maxFallSpeed": 65.0,
+    "fixedHz": 120,
+    "maxSubstepDistance": 0.025
+  },
+  "collision": {
+    "alphaThreshold": 128,
+    "description": "Stable inner player rectangle against terrain and hazard alpha masks. Body ratios are relative to the full player image; contact distances are world units.",
+    "playerBody": { "widthRatio": 0.28, "heightRatio": 0.72, "offsetXRatio": 0.0, "offsetYRatio": 0.04 },
+    "contact": { "skin": 0.02, "stepHeight": 0.12, "groundSnap": 0.06, "recoveryDistance": 0.35, "wallSlide": 0.1 }
+  },
+  "player": {
+    "width": 4.8,
+    "height": 3.6,
+    "facesLeftInSource": true,
+    "idle": { "image": "player_idle.png", "columns": 4, "cellWidth": 128, "cellHeight": 96, "duration": 0.6 },
+    "run": { "image": "player_run.png", "columns": 5, "cellWidth": 128, "cellHeight": 96, "duration": 0.45 },
+    "jump": { "image": "player_jump.png", "columns": 2, "cellWidth": 128, "cellHeight": 96, "duration": 0.4 }
+  }
+}

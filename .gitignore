@@ -17,6 +17,10 @@ build/
 
 /Log/
 
+# Generated libraries for the IWanna port.
+/lib/debug/audio_module.lib
+/lib/debug/iwanna_module.lib
+
 # 忽略 bin 目录下的所有文件和目录，除了 shaders 目录
 /bin/*
 !/bin/shaders/

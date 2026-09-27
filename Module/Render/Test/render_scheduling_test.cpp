@@ -151,6 +151,14 @@ int main() {
     }
 
     Render::RHICommandReturnSystem returns;
+    assert(!returns.WaitForCallbacks(std::chrono::milliseconds(0)));
+    int notified=0;
+    std::thread producer([&]{returns.callbacks.push([&]{++notified;});});
+    const bool woke=returns.WaitForCallbacks(std::chrono::seconds(1));
+    producer.join();
+    assert(woke && notified==0); // wait observes data, never executes callbacks
+    assert(returns.DrainCallbacks()==1 && notified==1);
+    assert(!returns.WaitForCallbacks(std::chrono::milliseconds(0)));
     std::function<void()> refill;
     int calls = 0;
     refill = [&] { ++calls; returns.callbacks.push(refill); };

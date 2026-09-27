@@ -1,3 +1,4 @@
+add_subdirectory(Audio)
 add_executable(test1
     ${CMAKE_CURRENT_SOURCE_DIR}/Render/Test/test2.cpp
 )
@@ -104,6 +105,7 @@ if(NOT WIN32)
     target_link_libraries(terrain_render_demo PRIVATE pthread)
 endif()
 # <<< dynamic_terrain_clean_patch_v1 <<<
+add_subdirectory(IWanna)
 
 add_executable(render_scheduling_test Render/Test/render_scheduling_test.cpp)
 get_target_property(RENDER_TEST_INCLUDES terrain_render_demo INCLUDE_DIRECTORIES)

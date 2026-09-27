@@ -68,6 +68,14 @@ public:
         return queue_.empty();
     }
 
+    // Wake on producer notification rather than repeatedly sleeping/polling.
+    // Does not consume data; callbacks still execute only in the host pump.
+    template<class Rep,class Period>
+    bool wait_for_data(std::chrono::duration<Rep,Period> timeout) {
+        std::unique_lock<std::mutex> lock(mutex_);
+        return cv_.wait_for(lock,timeout,[this]{return !queue_.empty();});
+    }
+
     size_t size() const {
         std::lock_guard<std::mutex> lock(mutex_);
         return queue_.size();
@@ -85,6 +93,10 @@ namespace Render{
     class RHICommandReturnSystem{
         public:
             ThreadSafeQueue<std::function<void()>> callbacks;
+
+            bool WaitForCallbacks(std::chrono::milliseconds timeout) {
+                return callbacks.wait_for_data(timeout);
+            }
 
             // Main-thread pump: concurrent producers must not extend this tick
             // indefinitely. Individual callbacks must themselves be short.

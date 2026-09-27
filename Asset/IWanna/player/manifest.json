@@ -1,0 +1,10 @@
+{
+  "source": "User-supplied sprite sheet; original attribution retained in source.png",
+  "sha256": {
+    "player/source.png": "926d32e821fbc5526bc6e66dc3c91eb4f7fa97f1fb333d4e6e9b15daf9944d7e",
+    "player/crops.json": "3b8ef0d3e7f4e371a85598e07204efae82cc8ed44c521ac00c768add14f6138c",
+    "images/player_idle.png": "ddedefbf22be61ee3c7d0294d15160db463e81bc24ee202e729e1abc5b45c6f8",
+    "images/player_run.png": "61506d1b50791886d46b0667384d97533c7b11b382af34720764fcec5915f172",
+    "images/player_jump.png": "071b7f9668748e15c14cad7e85515e81a5d83a01a9f4c5a5d40671f8ee9ea05f"
+  }
+}

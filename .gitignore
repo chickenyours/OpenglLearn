@@ -20,9 +20,16 @@ build/
 # Generated libraries for the IWanna port.
 /lib/debug/audio_module.lib
 /lib/debug/iwanna_module.lib
+/lib/debug/scripting_module.lib
+/lib/debug/iwanna_lua.lib
 
 # 忽略 bin 目录下的所有文件和目录，除了 shaders 目录
 /bin/*
 !/bin/shaders/
 
 
+
+# Local level editor recovery files.
+*.editor.bak
+*.editor.tmp
+*.editor.old

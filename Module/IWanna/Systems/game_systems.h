@@ -25,6 +25,9 @@ public:
     }
 };
 class PhysicsSystem final : public ECS::System::System {
+    static Transform Detection(const EntityView& view) {
+        auto t=*view.transform;if(view.collider->detectionBox){t.position+=view.collider->detectionOffset;t.size=view.collider->detectionSize;}return t;
+    }
     std::vector<const EntityView*> solids_,triggers_,moving_;
 public:
     PhysicsSystem():System("IWanna.Physics") {
@@ -47,10 +50,10 @@ public:
             auto body=g.PlayerBody();body.size-=glm::vec2(2*settings.skin);
             for(auto view:solids_) {
                 if(!view->collider->enabled)continue;
-                const auto& other=*view->transform;
+                const auto other=Detection(*view);
                 if(other.rotation==0 && (std::abs(body.position.x-other.position.x)>(body.size.x+other.size.x)*.5f ||
                     std::abs(body.position.y-other.position.y)>(body.size.y+other.size.y)*.5f))continue;
-                if(MaskOverlap(body,rectangle,other,*view->sprite))return view;
+                if(MaskOverlap(body,rectangle,other,view->collider->detectionBox?rectangle:*view->sprite))return view;
             }
             return nullptr;
         };
@@ -164,16 +167,21 @@ public:
                 }
                 if(axis==1 && displacement>0) {p.grounded=true;p.jumps=0;}
                 velocity[axis]=0;
-                if(!contact->behavior->target.empty())g.Touch(contact->id);
+                if(!contact->behavior->target.empty()||!contact->behavior->event.empty())g.Touch(contact->id);
             }
             bool killed=false;
             const auto body=g.PlayerBody();
             for(auto view:triggers_) {
-                if(!view->collider->enabled || !MaskOverlap(body,rectangle,*view->transform,*view->sprite))continue;
+                const auto& mask=(view->collider->detectionBox||view->behavior->role==Role::Trigger||view->behavior->role==Role::Exit)?rectangle:*view->sprite;
+                if(!view->collider->enabled || !MaskOverlap(body,rectangle,Detection(*view),mask))continue;
                 if(view->behavior->role==Role::Hazard) {killed=true;break;}
                 g.Touch(view->id);
             }
-            if(killed || t.position.y>45 || t.position.x < -100 || t.position.x>100)g.Kill();
+            const bool boundary=!killed&&g.IsRoomGame()&&g.World()->CrossBoundary(t.position);
+            bool outside=t.position.y>45 || t.position.x < -100 || t.position.x>100;
+            if(g.IsRoomGame()){const auto& room=g.World()->Current();outside=t.position.y>room.origin.y+room.extent.y||t.position.x<room.origin.x||t.position.x>room.origin.x+room.extent.x;}
+            if(killed || (!boundary&&outside))g.Kill();
+            if(boundary)remaining=0;
         }
         if(g.GetState()==State::Playing && (wasGrounded||p.grounded) && velocity.y>=0 && settings.groundSnap>0) {
             const auto start=t.position;
@@ -183,7 +191,7 @@ public:
                 const float distance=std::min(left,g.rules.maxSubstepDistance);left-=distance;
                 if(const auto* contact=castAxis(1,distance)) {
                     landed=true;p.grounded=true;p.jumps=0;velocity.y=0;
-                    if(!contact->behavior->target.empty())g.Touch(contact->id);
+                    if(!contact->behavior->target.empty()||!contact->behavior->event.empty())g.Touch(contact->id);
                     break;
                 }
             }
@@ -193,7 +201,8 @@ public:
         if(g.GetState()==State::Playing) {
             const auto body=g.PlayerBody();
             for(auto view:triggers_) {
-                if(!view->collider->enabled || !MaskOverlap(body,rectangle,*view->transform,*view->sprite))continue;
+                const auto& mask=(view->collider->detectionBox||view->behavior->role==Role::Trigger||view->behavior->role==Role::Exit)?rectangle:*view->sprite;
+                if(!view->collider->enabled || !MaskOverlap(body,rectangle,Detection(*view),mask))continue;
                 if(view->behavior->role==Role::Hazard){g.Kill();break;}
                 g.Touch(view->id);
             }

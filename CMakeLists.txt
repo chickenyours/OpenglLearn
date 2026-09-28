@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(MyProject LANGUAGES CXX)
+project(MyProject LANGUAGES C CXX)
 enable_testing()
 
 set(CMAKE_CXX_STANDARD 20)

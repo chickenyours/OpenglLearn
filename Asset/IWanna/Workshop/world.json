@@ -1,0 +1,7 @@
+{
+  "format": "IWANNA_WORLD_2",
+  "startRoom": "movement",
+  "startSpawn": "left",
+  "roomDirectory": "rooms",
+  "prefabDirectory": "prefabs"
+}

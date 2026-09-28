@@ -7,7 +7,7 @@
 #include <unordered_map>
 
 namespace IWanna {
-GameModule::GameModule(std::filesystem::path assets,std::filesystem::path config):assets_(std::move(assets)),configPath_(std::move(config)) {
+GameModule::GameModule(std::filesystem::path assets,std::filesystem::path config,std::filesystem::path world):assets_(std::move(assets)),configPath_(std::move(config)),worldPath_(std::move(world)) {
     pipeline_.Add<AnimationSystem>();pipeline_.Add<InputSystem>();pipeline_.Add<PhysicsSystem>();
     pipeline_.RunBefore<AnimationSystem,InputSystem>();
 }
@@ -19,6 +19,11 @@ bool GameModule::Startup() {
         masks_.Attach(config_.idle,assets_/"images",config_.alphaThreshold);
         masks_.Attach(config_.run,assets_/"images",config_.alphaThreshold);
         masks_.Attach(config_.jump,assets_/"images",config_.alphaThreshold);
+        if(!worldPath_.empty()) {
+            world_=std::make_unique<RoomWorld>(*this);world_->Load(worldPath_);
+            context_.scene=scene_.get();context_.SetService(this);started_=pipeline_.Start(context_);
+            if(!started_)throw std::runtime_error("Room pipeline failed");error_.clear();return true;
+        }
         scene_=std::make_unique<ECS::Core::Scene>();
         auto desc=scene_->CreateArchTypeDescription();
         desc->AddComponentArray<Transform>();desc->AddComponentArray<Motion>();desc->AddComponentArray<Sprite>();
@@ -67,6 +72,7 @@ bool GameModule::Startup() {
     } catch(const std::exception& e) {error_=e.what();Shutdown();return false;}
 }
 void GameModule::Shutdown() {
+    world_.reset();
     pipeline_.Stop(context_);views_.clear();entities_.clear();archetype_=nullptr;scene_.reset();masks_.Clear();context_.scene=nullptr;started_=false;
     player_=run_=deathTemplate_=0;state_=State::Playing;deaths_=0;accumulator_=0;pending_={};checkpoint_={-71.351f,23.764f};
 }
@@ -77,9 +83,15 @@ void GameModule::Advance(double seconds,Input next) {
     accumulator_+=std::min(seconds,.25);
     while(accumulator_>=rules.fixedStep) {FixedTick(pending_);pending_.jump=pending_.restart=pending_.any=false;accumulator_-=rules.fixedStep;}
 }
-void GameModule::FixedTick(Input next) {if(!started_) return;input=next;context_.deltaSeconds=rules.fixedStep;++context_.frameIndex;pipeline_.Tick(context_);}
-ECS::EntityID GameModule::Find(const std::string& name) {for(auto id:entities_) if(Get<Behavior>(id).name==name) return id;return 0;}
+void GameModule::FixedTick(Input next) {
+    if(!started_)return;
+    if(world_){if(next.restart)world_->RequestReset();world_->BeginTick();next.restart=false;}
+    input=next;context_.deltaSeconds=rules.fixedStep;++context_.frameIndex;pipeline_.Tick(context_);
+    if(world_)world_->EndTick(rules.fixedStep);
+}
+ECS::EntityID GameModule::Find(const std::string& name) {if(world_)return world_->Find(name);for(auto id:entities_) if(Get<Behavior>(id).name==name) return id;return 0;}
 void GameModule::Restart() {
+    if(world_){world_->RequestReset();return;}
     if(!player_) return;state_=State::Playing;
     Get<Transform>(player_).position=checkpoint_;Get<Motion>(player_).velocity={};Get<Player>(player_)={};Get<Sprite>(player_).visible=true;
     for(auto id:entities_) {
@@ -92,6 +104,7 @@ void GameModule::Restart() {
 }
 void GameModule::Kill() {
     if(state_!=State::Playing) return;state_=State::Dead;++deaths_;Sound("die");
+    if(world_){Get<Sprite>(player_).visible=false;Get<Motion>(player_).velocity={};world_->Death();return;}
     // Copy before allocating: ECS chunk growth can invalidate component addresses.
     auto t=Get<Transform>(deathTemplate_);t.position=Get<Transform>(player_).position;t.size={2.6f,3.23f};
     auto s=Get<Sprite>(deathTemplate_);s.visible=true;s.flipY=false;
@@ -101,6 +114,7 @@ void GameModule::Kill() {
     RebuildViews();
 }
 void GameModule::Touch(ECS::EntityID id) {
+    if(world_){world_->Touch(id);return;}
     auto& b=Get<Behavior>(id);
     if(b.role==Role::Checkpoint && !b.triggered) {
         checkpoint_=Get<Transform>(id).position;b.triggered=true;Get<Sprite>(id).visible=false;Get<Collider>(id).enabled=false;Sound("BLIP");

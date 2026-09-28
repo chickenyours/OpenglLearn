@@ -3,6 +3,7 @@
 #include "game_components.h"
 #include "game_config.h"
 #include "alpha_mask.h"
+#include "room_world.h"
 #include "engine/ECS/Scene/scene.h"
 #include "engine/ECS/System/system_pipeline.h"
 #include <filesystem>
@@ -12,7 +13,7 @@
 namespace IWanna {
 class GameModule final : public IModule {
 public:
-    explicit GameModule(std::filesystem::path assets,std::filesystem::path config = {});
+    explicit GameModule(std::filesystem::path assets,std::filesystem::path config = {},std::filesystem::path world = {});
     ~GameModule() override { Shutdown(); }
     const char* GetName() const noexcept override { return "IWannaModule"; }
     bool Startup() override;
@@ -42,16 +43,24 @@ public:
         return body;
     }
     void SelectPlayerAnimation();
-    std::vector<Sprite> AnimationAssets() const {return {config_.idle,config_.run,config_.jump};}
+    std::vector<Sprite> AnimationAssets() const {
+        std::vector<Sprite> result{config_.idle,config_.run,config_.jump};
+        if(world_){auto sprites=world_->Sprites();result.insert(result.end(),sprites.begin(),sprites.end());}return result;
+    }
+    bool IsRoomGame() const {return world_!=nullptr;}
+    RoomWorld* World() {return world_.get();}
     void ExportMasks(const std::filesystem::path& directory) const {masks_.Export(directory);}
     Rules rules;
     Input input;
     std::function<void(const std::string&)> playSound;
     void Sound(const std::string& name) {if(playSound) playSound(name);}
 private:
+    friend class RoomWorld;
     std::filesystem::path assets_;
     std::filesystem::path configPath_;
     GameConfig config_;
+    std::filesystem::path worldPath_;
+    std::unique_ptr<RoomWorld> world_;
     MaskLibrary masks_;
     std::unique_ptr<ECS::Core::Scene> scene_;
     ObjectWeakPtr<ECS::Core::ArchType> archetype_;

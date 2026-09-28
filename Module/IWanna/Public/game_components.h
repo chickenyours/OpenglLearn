@@ -11,7 +11,7 @@ template<class T> struct GameComponent : ECS::Component::Component<T> {
     // Level records are loaded by GameModule, not the engine JSON scene loader.
     bool LoadFromMetaDataImpl(const Json::Value&,Log::StackLogErrorHandle) {return false;}
 };
-enum class Role { Decoration, Player, Solid, Hazard, Checkpoint, Vanish, Goal, Intro, Ending, RunTemplate, DeathTemplate, Corpse };
+enum class Role { Decoration, Player, Solid, Hazard, Checkpoint, Vanish, Goal, Intro, Ending, RunTemplate, DeathTemplate, Corpse, Trigger, Exit };
 struct Transform : GameComponent<Transform> { glm::vec2 position{}, size{1}, spawn{}; float rotation=0; };
 struct Motion : GameComponent<Motion> { glm::vec2 velocity{}; };
 struct Sprite : GameComponent<Sprite> {
@@ -26,6 +26,7 @@ struct Sprite : GameComponent<Sprite> {
 };
 struct Collider : GameComponent<Collider> {
     std::vector<glm::vec2> points; bool enabled=false;
+    bool detectionBox=false; glm::vec2 detectionOffset{},detectionSize{1};
     // Derived cache: rebuilt only when source geometry or transform changes.
     std::vector<glm::vec2> cachedLocal,world;
     glm::vec2 cachedPosition{},cachedSize{},minimum{},maximum{};
@@ -35,6 +36,7 @@ struct Collider : GameComponent<Collider> {
 struct Behavior : GameComponent<Behavior> {
     Role role=Role::Decoration;
     std::string name, target;
+    std::string stableId,event;
     glm::vec2 triggerVelocity{};
     bool triggered=false;
 };

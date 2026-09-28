@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "IWanna independent room asset",
+  "type": "object",
+  "required": [
+    "format",
+    "grid",
+    "palette",
+    "tileLayers",
+    "entities",
+    "connections",
+    "scriptLua"
+  ],
+  "properties": {
+    "format": {
+      "const": "IWANNA_ROOM_2"
+    },
+    "title": {
+      "type": "string"
+    },
+    "hint": {
+      "type": "string"
+    },
+    "scriptLua": {
+      "type": "string"
+    },
+    "grid": {
+      "type": "object",
+      "required": [
+        "width",
+        "height",
+        "tileSize",
+        "origin"
+      ],
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 256
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 256
+        },
+        "tileSize": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 10
+        },
+        "origin": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        }
+      }
+    },
+    "palette": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[1-9][0-9]*$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[^/\\\\]+$"
+      }
+    },
+    "tileLayers": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "entities": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "kind",
+          "position"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "Entity",
+              "Spawn",
+              "Label"
+            ]
+          },
+          "position": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "size": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "prefab": {
+            "type": "string"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            }
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "Entity"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "prefab",
+                "size"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "connections": {
+      "type": "object",
+      "propertyNames": {
+        "enum": [
+          "left",
+          "right",
+          "top",
+          "bottom"
+        ]
+      },
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "room",
+          "spawn"
+        ],
+        "properties": {
+          "room": {
+            "type": "string",
+            "minLength": 1
+          },
+          "spawn": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}

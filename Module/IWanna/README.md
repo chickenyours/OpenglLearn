@@ -4,6 +4,8 @@
 
 在 OpenglLearn 根目录运行 `build.bat`，然后运行 `run_iwanna.bat`（或 `bin/iwanna_game.exe`）。
 默认窗口为 **1920×1080**，16:9 等比显示。地形现使用规则 TileMap，编辑方法见 [瓦片地图与像素素材](../../Asset/IWanna/TILEMAP.md)。
+
+另有独立的 **Tiled + Lua 房间演示**：运行根目录 `run_iwanna_showcase.bat`，体验相连的移动测试、陷阱和事件展示房间。新房间使用稳定对象 uid、会话存档和安全阶段命令队列；制作方法与脚本 API 见 [Showcase/README.md](../../Asset/IWanna/Showcase/README.md)。原启动脚本仍进入旧关卡。
 `build.bat` 可从其他工作目录调用；配置或编译失败会返回非零退出码。
 
 - A / D：左右移动；J：跳跃，可二段跳。方向键、空格也可使用。

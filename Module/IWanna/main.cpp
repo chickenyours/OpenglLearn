@@ -13,24 +13,35 @@
 #include <stb_image_write.h>
 
 int main(int argc,char** argv) {
-    bool smoke=false,mute=false;std::filesystem::path assets=std::filesystem::absolute(argv[0]).parent_path()/"IWanna";
-    std::string capture,metricsPath,configPath,maskDirectory;int benchmark=0;bool benchmarkVsync=false;
+    bool smoke=false,smokeTour=false,mute=false;std::filesystem::path assets=std::filesystem::absolute(argv[0]).parent_path()/"IWanna";
+    std::string capture,metricsPath,configPath,maskDirectory,worldPath,startRoom,startSpawn="left";int benchmark=0;bool benchmarkVsync=false;
     for(int i=1;i<argc;++i) {
         std::string arg=argv[i];if(arg=="--smoke-test") smoke=true;else if(arg=="--mute") mute=true;
+        else if(arg=="--smoke-tour")smoke=smokeTour=true;
         else if(arg=="--assets" && i+1<argc) assets=argv[++i];else if(arg=="--capture" && i+1<argc) capture=argv[++i];
         else if(arg=="--benchmark" && i+1<argc) benchmark=std::max(6,std::atoi(argv[++i]));
         else if(arg=="--metrics" && i+1<argc) metricsPath=argv[++i];
         else if(arg=="--benchmark-vsync") benchmarkVsync=true;
         else if(arg=="--config" && i+1<argc) configPath=argv[++i];
+        else if(arg=="--world" && i+1<argc) worldPath=argv[++i];
+        else if(arg=="--room" && i+1<argc) startRoom=argv[++i];
+        else if(arg=="--spawn" && i+1<argc) startSpawn=argv[++i];
         else if(arg=="--export-masks" && i+1<argc) maskDirectory=argv[++i];
-        else {std::cerr<<"Usage: iwanna_game [--assets path] [--config gameplay.json] [--export-masks directory] [--mute] [--smoke-test] [--capture file.png] [--benchmark frames] [--metrics file.csv] [--benchmark-vsync]\n";return 2;}
+        else {std::cerr<<"Usage: iwanna_game/showcase [--assets path] [--config gameplay.json] [--world world.json] [--room id] [--spawn id] [--export-masks directory] [--mute] [--smoke-test] [--capture file.png] [--benchmark frames] [--metrics file.csv] [--benchmark-vsync]\n";return 2;}
     }
-    IWanna::GameModule game(assets,configPath);Audio::AudioModule audio;
+#ifdef IWANNA_SHOWCASE
+    if(worldPath.empty())worldPath=(assets/"Workshop/world.json").string();
+#endif
+    IWanna::GameModule game(assets,configPath,worldPath);Audio::AudioModule audio;
     ApplicationWindow::ApplicationWindowModule windowModule;Render::RenderModule renderModule;
     std::unique_ptr<IWanna::SpriteRenderer> renderer;
     int result=0;
     try {
         if(!game.Startup()) throw std::runtime_error(game.Error());
+        if(!startRoom.empty()) {
+            if(!game.IsRoomGame())throw std::runtime_error("--room requires --world");
+            game.World()->RequestRoom(startRoom,startSpawn);game.FixedTick({});
+        }
         if(!maskDirectory.empty()){game.ExportMasks(maskDirectory);std::cout<<"Exported pixel collision masks to "<<maskDirectory<<'\n';return 0;}
         std::unordered_map<std::string,std::shared_ptr<const Audio::Clip>> sounds;
         for(const auto& entry:std::filesystem::directory_iterator(assets/"audio")) if(entry.path().extension()==".wav") sounds[entry.path().stem().string()]=Audio::Clip::LoadWav(entry.path());
@@ -38,7 +49,8 @@ int main(int argc,char** argv) {
         game.playSound=[&](const std::string& name){if(audio.IsStarted() && sounds.contains(name)) audio.GetMixer().Play(sounds.at(name),.65f);};
         if(!windowModule.Startup()) throw std::runtime_error("ApplicationWindow startup failed");
         auto window=windowModule.GetCurrentWindow();auto* native=window->GetNativeWindow();
-        glfwSetWindowTitle(native,"I WANNA BE THE KING | A/D move | J double jump | R respawn | ESC quit");
+        const char* appTitle=game.IsRoomGame()?"I WANNA ROOM SHOWCASE":"I WANNA BE THE KING";
+        glfwSetWindowTitle(native,appTitle);
         glfwSetWindowSize(native,1920,1080);
         if(!renderModule.Startup()) throw std::runtime_error("Render startup failed");
         auto device=renderModule.GetRHIDevice();renderer=std::make_unique<IWanna::SpriteRenderer>(device);renderer->Initialize(assets,game.Views(),game.AnimationAssets());
@@ -46,6 +58,7 @@ int main(int argc,char** argv) {
         IWanna::FrameMetrics metrics;
         auto fpsStart=IWanna::Clock::now();int fpsFrames=0;
         auto start=std::chrono::steady_clock::now(),last=start;bool oldJump=false,oldRestart=false;int frames=0;bool framePending=false;
+        std::string lastScriptError;
         while(!window->ShouldClose()) {
             window->PollEvents();device->returnSystem.DrainCallbacks();
             if(!renderer->Error().empty()) throw std::runtime_error(renderer->Error());
@@ -64,26 +77,43 @@ int main(int argc,char** argv) {
                 if(frames%60==0) game.Restart();
                 IWanna::Input replay{false,true,frames%30==0,false};game.FixedTick(replay);replay.jump=false;game.FixedTick(replay);
             } else if(!smoke) game.Advance(elapsed,input);
+            if(game.IsRoomGame() && game.World()->Error()!=lastScriptError) {
+                lastScriptError=game.World()->Error();if(!lastScriptError.empty())std::cerr<<"Room script: "<<lastScriptError<<'\n';
+            }
             const double simulationMs=IWanna::Milliseconds(IWanna::Clock::now()-measureStart);
             int width,height;glfwGetFramebufferSize(native,&width,&height);
             if(width<1 || height<1) {glfwWaitEventsTimeout(.05);continue;}
             if(framePending) {device->returnSystem.WaitForCallbacks(std::chrono::milliseconds(8));continue;}
+            if(smokeTour && (frames==3||frames==6)) {
+                if(!game.IsRoomGame())throw std::runtime_error("--smoke-tour requires room mode");
+                game.World()->RequestRoom(frames==3?"traps":"gallery","left");game.FixedTick({});
+                if(!game.World()->Error().empty())throw std::runtime_error(game.World()->Error());
+            }
             Render::RHICommand::BeginFrame begin;begin.frameIndex=frames;begin.framebufferWidth=width;begin.framebufferHeight=height;begin.clearColor={.035f,.045f,.065f,1};
             auto frame=device->BeginFrame(begin);
             int vw=std::min(width,height*16/9),vh=vw*9/16;
             frame.SetViewport({(width-vw)/2,(height-vh)/2,uint32_t(vw),uint32_t(vh)});
             renderer->Draw(frame,game.Extract());
+            if(game.IsRoomGame()) {
+                const auto& room=game.World()->Current();
+                renderer->Text(frame,room.title,{-69,-28},.65f,{.66f,.9f,1,1});
+                renderer->Text(frame,room.hint,{-69,-19},.28f,{.75f,.83f,.9f,1});
+                for(const auto& label:room.labels)renderer->Text(frame,label.text,label.position,label.scale,{.6f,.77f,.85f,1});
+                renderer->Rect(frame,{0,40},{150,4.375f},{.025f,.045f,.065f,1});
+                renderer->Text(frame,game.World()->Message(),{-69,38.8f},.28f,{.65f,1,.68f,1});
+                if(!game.World()->Error().empty())renderer->Text(frame,"SCRIPT ERROR SEE CONSOLE",{-35,-10},.4f,{1,.3f,.3f,1});
+            }
             renderer->Rect(frame,{-25,-35.5f},{99,4},{.02f,.035f,.045f,.92f});
             renderer->Text(frame,"A D MOVE   J DOUBLE JUMP   R RESPAWN",{-73,-36.4f},.26f,{.82f,.91f,.86f,1});
             renderer->Rect(frame,{59,-35.5f},{30,4},{.02f,.035f,.045f,.92f});
             renderer->Text(frame,"DEATHS "+std::to_string(game.Deaths()),{46,-36.4f},.3f,{1,.8f,.45f,1});
-            renderer->Text(frame,std::to_string(game.Deaths()),{57,30},.65f,{1,1,1,1});
+            if(!game.IsRoomGame())renderer->Text(frame,std::to_string(game.Deaths()),{57,30},.65f,{1,1,1,1});
             if(game.GetState()!=IWanna::State::Playing) {
                 renderer->Rect(frame,{0,0},{76,16},{.015f,.025f,.035f,.92f});
                 renderer->Text(frame,game.GetState()==IWanna::State::Won?"LEVEL CLEAR":"YOU DIED",{-26,-5},.65f,{1,.75f,.32f,1});
                 renderer->Text(frame,"R TO RESPAWN",{-20,3},.45f,{.85f,.93f,1,1});
             }
-            const bool final=smoke && frames==2;
+            const bool final=smoke && frames==(smokeTour?8:2);
             renderer->Flush(frame);
             frame.End(!final || capture.empty());framePending=true;
             const auto commands=frame.GetCommandBuffer()->GetCommandCount();
@@ -91,7 +121,7 @@ int main(int argc,char** argv) {
             renderer->Submit(frame.GetCommandBuffer(),[&,measureStart,simulationMs,buildMs,commands]{
                 framePending=false;if(benchmark) metrics.samples.push_back({simulationMs,buildMs,device->GetFrameStats().executeMs,IWanna::Milliseconds(IWanna::Clock::now()-measureStart),commands});
                 ++fpsFrames;auto fpsNow=IWanna::Clock::now();double seconds=std::chrono::duration<double>(fpsNow-fpsStart).count();
-                if(seconds>=1 && !benchmark) {char title[160];std::snprintf(title,sizeof(title),"I WANNA BE THE KING | %.0f FPS | A/D move | J double jump | R respawn | ESC quit",fpsFrames/seconds);glfwSetWindowTitle(native,title);fpsStart=fpsNow;fpsFrames=0;}
+                if(seconds>=1 && !benchmark) {char title[180];std::snprintf(title,sizeof(title),"%s | %.0f FPS | A/D move | J double jump | R respawn | ESC quit",appTitle,fpsFrames/seconds);glfwSetWindowTitle(native,title);fpsStart=fpsNow;fpsFrames=0;}
             });
             ++frames;
             if(final) {
@@ -107,7 +137,7 @@ int main(int argc,char** argv) {
                 while(!done && std::chrono::steady_clock::now()<deadline) {device->returnSystem.DrainCallbacks();std::this_thread::sleep_for(std::chrono::milliseconds(2));}
                 if(!done) device->StopAndRelease();
                 if(!done || glError || !saved) throw std::runtime_error("GPU smoke/capture failed");
-                std::cout<<"IWanna smoke PASS: "<<game.Entities().size()<<" ECS entities, 3 RHI frames\n";break;
+                std::cout<<"IWanna smoke PASS: "<<game.Entities().size()<<" ECS entities, "<<(smokeTour?9:3)<<" RHI frames\n";break;
             }
             device->returnSystem.WaitForCallbacks(std::chrono::milliseconds(8));
         }

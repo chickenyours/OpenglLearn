@@ -31,8 +31,8 @@ void SpriteRenderer::Initialize(const std::filesystem::path& assets,const std::v
         }
     }
     textures_["white"].frames.resize(1);tiles.push_back({"white",0,1,1,0,0,{255,255,255,255}});
-    textures_["font"].frames.resize(36);
-    for(int i=0;i<36;++i) tiles.push_back({"font",i,48,64,0,0,GlyphSdf(i)});
+    textures_["font"].frames.resize(50);
+    for(int i=0;i<50;++i) tiles.push_back({"font",i,48,64,0,0,GlyphSdf(i)});
     std::stable_sort(tiles.begin(),tiles.end(),[](const auto& a,const auto& b){return a.height>b.height;});
     int atlasWidth=2048,atlasHeight=0;
     for(;;) {
@@ -97,8 +97,8 @@ void SpriteRenderer::Quad(glm::vec2 pos,glm::vec2 size,float angle,glm::vec4 uv,
     }
     for(uint32_t i:{0,1,2,0,2,3}) indices_.push_back(first+i);
 }
-void SpriteRenderer::Draw(Render::RHIFrameEncoder&,const std::vector<DrawSprite>& sprites) {
-    vertices_.clear();indices_.clear();
+void SpriteRenderer::Draw(Render::RHIFrameEncoder&,const std::vector<DrawSprite>& sprites,bool clear) {
+    if(clear){vertices_.clear();indices_.clear();}
     for(const auto& draw:sprites) {
         const auto& t=draw.transform;const auto& s=draw.sprite;
         float radius=.5f*glm::length(t.size);
@@ -120,7 +120,9 @@ void SpriteRenderer::Text(Render::RHIFrameEncoder&,const std::string& text,glm::
     const float start=pos.x;
     for(char ch:text) {
         if(ch=='\n') {pos.x=start;pos.y+=9*pixel;continue;}
-        int g=ch>='0'&&ch<='9'?ch-'0':ch>='A'&&ch<='Z'?ch-'A'+10:-1;
+        if(ch>='a'&&ch<='z')ch=char(ch-'a'+'A');
+        const std::string punctuation=".-_:/=+[]\",!?*";auto pi=punctuation.find(ch);
+        int g=ch>='0'&&ch<='9'?ch-'0':ch>='A'&&ch<='Z'?ch-'A'+10:pi!=std::string::npos?36+int(pi):-1;
         if(g>=0) Quad(pos+glm::vec2(2,3)*pixel,glm::vec2(6,8)*pixel,0,textures_.at("font").frames[g],color,1);
         pos.x+=6*pixel;
     }

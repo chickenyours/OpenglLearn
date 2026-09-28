@@ -1,0 +1,225 @@
+{
+  "type": "tileset",
+  "version": "1.10",
+  "tiledversion": "1.11.2",
+  "name": "Showcase stone",
+  "tilewidth": 32,
+  "tileheight": 32,
+  "tilecount": 16,
+  "columns": 0,
+  "grid": {
+    "orientation": "orthogonal",
+    "width": 1,
+    "height": 1
+  },
+  "tiles": [
+    {
+      "id": 0,
+      "image": "editor/terrain_00.png",
+      "imagewidth": 32,
+      "imageheight": 32,
+      "properties": [
+        {
+          "name": "runtimeImage",
+          "type": "string",
+          "value": "terrain_00.png"
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "image": "editor/terrain_01.png",
+      "imagewidth": 32,
+      "imageheight": 32,
+      "properties": [
+        {
+          "name": "runtimeImage",
+          "type": "string",
+          "value": "terrain_01.png"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "image": "editor/terrain_02.png",
+      "imagewidth": 32,
+      "imageheight": 32,
+      "properties": [
+        {
+          "name": "runtimeImage",
+          "type": "string",
+          "value": "terrain_02.png"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "image": "editor/terrain_03.png",
+      "imagewidth": 32,
+      "imageheight": 32,
+      "properties": [
+        {
+          "name": "runtimeImage",
+          "type": "string",
+          "value": "terrain_03.png"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "image": "editor/terrain_04.png",
+      "imagewidth": 32,
+      "imageheight": 32,
+      "properties": [
+        {
+          "name": "runtimeImage",
+          "type": "string",
+          "value": "terrain_04.png"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "image": "editor/terrain_05.png",
+      "imagewidth": 32,
+      "imageheight": 32,
+      "properties": [
+        {
+          "name": "runtimeImage",
+          "type": "string",
+          "value": "terrain_05.png"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "image": "editor/terrain_06.png",
+      "imagewidth": 32,
+      "imageheight": 32,
+      "properties": [
+        {
+          "name": "runtimeImage",
+          "type": "string",
+          "value": "terrain_06.png"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "image": "editor/terrain_07.png",
+      "imagewidth": 32,
+      "imageheight": 32,
+      "properties": [
+        {
+          "name": "runtimeImage",
+          "type": "string",
+          "value": "terrain_07.png"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "image": "editor/terrain_08.png",
+      "imagewidth": 32,
+      "imageheight": 32,
+      "properties": [
+        {
+          "name": "runtimeImage",
+          "type": "string",
+          "value": "terrain_08.png"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "image": "editor/terrain_09.png",
+      "imagewidth": 32,
+      "imageheight": 32,
+      "properties": [
+        {
+          "name": "runtimeImage",
+          "type": "string",
+          "value": "terrain_09.png"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "image": "editor/terrain_10.png",
+      "imagewidth": 32,
+      "imageheight": 32,
+      "properties": [
+        {
+          "name": "runtimeImage",
+          "type": "string",
+          "value": "terrain_10.png"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "image": "editor/terrain_11.png",
+      "imagewidth": 32,
+      "imageheight": 32,
+      "properties": [
+        {
+          "name": "runtimeImage",
+          "type": "string",
+          "value": "terrain_11.png"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "image": "editor/terrain_12.png",
+      "imagewidth": 32,
+      "imageheight": 32,
+      "properties": [
+        {
+          "name": "runtimeImage",
+          "type": "string",
+          "value": "terrain_12.png"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "image": "editor/terrain_13.png",
+      "imagewidth": 32,
+      "imageheight": 32,
+      "properties": [
+        {
+          "name": "runtimeImage",
+          "type": "string",
+          "value": "terrain_13.png"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "image": "editor/terrain_14.png",
+      "imagewidth": 32,
+      "imageheight": 32,
+      "properties": [
+        {
+          "name": "runtimeImage",
+          "type": "string",
+          "value": "terrain_14.png"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "image": "editor/terrain_15.png",
+      "imagewidth": 32,
+      "imageheight": 32,
+      "properties": [
+        {
+          "name": "runtimeImage",
+          "type": "string",
+          "value": "terrain_15.png"
+        }
+      ]
+    }
+  ]
+}

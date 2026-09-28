@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "IWanna prefab asset",
+  "type": "object",
+  "required": [
+    "format",
+    "role",
+    "image",
+    "width",
+    "height"
+  ],
+  "properties": {
+    "format": {
+      "const": "IWANNA_PREFAB_1"
+    },
+    "role": {
+      "enum": [
+        "solid",
+        "hazard",
+        "checkpoint",
+        "trigger",
+        "exit",
+        "decoration"
+      ]
+    },
+    "image": {
+      "type": "string",
+      "pattern": "^[^/\\\\]+$"
+    },
+    "width": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "height": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "visible": {
+      "type": "boolean"
+    },
+    "collide": {
+      "type": "boolean"
+    },
+    "pixelArt": {
+      "type": "boolean"
+    },
+    "detectionEnabled": {
+      "type": "boolean"
+    },
+    "detectionX": {
+      "type": "number"
+    },
+    "detectionY": {
+      "type": "number"
+    },
+    "detectionW": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "detectionH": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    }
+  }
+}

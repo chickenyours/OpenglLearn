@@ -1,4 +1,5 @@
 add_subdirectory(Audio)
+add_subdirectory(Scripting)
 add_executable(test1
     ${CMAKE_CURRENT_SOURCE_DIR}/Render/Test/test2.cpp
 )

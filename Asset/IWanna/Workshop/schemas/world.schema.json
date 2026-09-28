@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "format",
+    "startRoom",
+    "startSpawn",
+    "roomDirectory",
+    "prefabDirectory"
+  ],
+  "properties": {
+    "format": {
+      "const": "IWANNA_WORLD_2"
+    },
+    "startRoom": {
+      "type": "string",
+      "minLength": 1
+    },
+    "startSpawn": {
+      "type": "string",
+      "minLength": 1
+    },
+    "roomDirectory": {
+      "type": "string",
+      "minLength": 1
+    },
+    "prefabDirectory": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

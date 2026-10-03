@@ -12,6 +12,9 @@ build.md
 /devel/
 
 /build/
+/output/
+/third_party/archives/
+/CMakeUserPresets.json
 
 build/
 

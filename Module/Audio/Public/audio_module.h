@@ -24,11 +24,16 @@ public:
     VoiceID Play(std::shared_ptr<const Clip> clip, float gain = 1, bool loop = false, float pan = 0);
     void Stop(VoiceID id);
     void StopAll();
+    // Paused voices retain their cursor and occupy a voice slot. Other voices,
+    // such as UI sounds and music, can continue while a game is paused.
+    void SetPaused(VoiceID id, bool paused);
+    bool IsPlaying(VoiceID id) const;
+    std::size_t ActiveVoices() const;
     void SetVolume(float gain);
     void Render(std::span<float> stereo, uint32_t outputRate = 48000);
 private:
-    struct Voice { VoiceID id; std::shared_ptr<const Clip> clip; double cursor; float gain, pan; bool loop; };
-    std::mutex mutex_;
+    struct Voice { VoiceID id; std::shared_ptr<const Clip> clip; double cursor; float gain, pan; bool loop; bool paused = false; };
+    mutable std::mutex mutex_;
     std::vector<Voice> voices_;
     VoiceID next_ = 1;
     float volume_ = 1;

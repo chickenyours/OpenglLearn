@@ -14,6 +14,8 @@ Scripting::Event ObjectEvent(const char* callback,const RoomObject& object,const
     }
     const auto& t=live?*live:object.transform;
     event.properties["positionX"]=double(t.position.x);event.properties["positionY"]=double(t.position.y);
+    event.properties["sizeX"]=double(t.size.x);event.properties["sizeY"]=double(t.size.y);
+    event.properties["rotation"]=double(t.rotation);
     return event;
 }
 }
@@ -41,6 +43,7 @@ ECS::EntityID RoomWorld::Create(const RoomObject& object) {
         game_.Get<Lifetime>(id).remaining=lifetime.asFloat();
     }
     auto& c=game_.Get<Collider>(id);c.enabled=object.collide;c.detectionBox=object.detectionBox;c.detectionOffset=object.detectionOffset;c.detectionSize=object.detectionSize;c.points={{-1,-1},{1,-1},{1,1},{-1,1}};
+    if(!object.event.empty())pendingSpawns_.push_back(object.id);
     return id;
 }
 void RoomWorld::Enter(const std::string& roomId,const std::string& spawn,bool reset,std::optional<glm::vec2> arrival) {
@@ -54,7 +57,7 @@ void RoomWorld::Enter(const std::string& roomId,const std::string& spawn,bool re
     desc->AddComponentArray<Collider>();desc->AddComponentArray<Behavior>();desc->AddComponentArray<Player>();desc->AddComponentArray<TileCell>();desc->AddComponentArray<Camera>();
     desc->AddComponentArray<ShotReceiver>();desc->AddComponentArray<Lifetime>();
     game_.archetype_=game_.scene_->CreateArchType(desc,64);game_.context_.scene=game_.scene_.get();
-    current_=roomId;entry_=spawn;script_=std::move(fresh);ids_.clear();handles_.clear();definitions_.clear();touched_.clear();previous_.clear();
+    current_=roomId;entry_=spawn;script_=std::move(fresh);ids_.clear();handles_.clear();definitions_.clear();pendingSpawns_.clear();touched_.clear();previous_.clear();
     hits_.clear();retired_.clear();runtimeSerial_=0;
     message_.clear();error_.clear();nextRoom_.clear();nextSpawn_.clear();nextPosition_.reset();reset_=died_=false;
     game_.state_=State::Playing;game_.pending_={};
@@ -128,6 +131,7 @@ void RoomWorld::Remove(const std::string& name) {
     const auto id=Find(name);if(!id||name=="player")return;
     game_.scene_->DeleteEntity(handles_.at(name));std::erase(game_.entities_,id);
     ids_.erase(name);handles_.erase(name);definitions_.erase(name);
+    std::erase(pendingSpawns_,name);
 }
 void RoomWorld::Touch(ECS::EntityID entity) {
     const auto& b=game_.Get<Behavior>(entity);if(!b.stableId.empty())touched_.insert(b.stableId);
@@ -186,7 +190,14 @@ void RoomWorld::Apply() {
     if(!script_->Error().empty()){error_=CurrentId()+": "+script_->Error();return;}
     bool structural=false;
     try {
+        size_t commandCount=0,initializationBatches=0;
+        // Commit the caller's whole batch before initialization so a spawn
+        // followed by set_size/set_rotation reports the resulting transform.
+        // Then commit each initializer independently: commands from many
+        // authored instances cannot overflow the Lua pending-command queue.
+        while(!commands.empty()||!pendingSpawns_.empty()) {
         for(const auto& c:commands) {
+            if(++commandCount>4096)throw std::runtime_error("Entity initialization command budget exceeded (4096 per Apply)");
             if(c.operation=="message"){message_=c.id;continue;}
             if(c.operation=="sound"){game_.Sound(c.id);continue;}
             if(c.operation=="change_room"){RequestRoom(c.id,c.text);continue;}
@@ -224,6 +235,9 @@ void RoomWorld::Apply() {
                 game_.UpdateCamera(true);continue;
             }
             if(c.operation=="set_player_scale"||c.operation=="set_player_size") {
+                // Earlier commands in this same initializer may have moved
+                // archetype storage; collision validation borrows Views().
+                if(structural){game_.RebuildViews();structural=false;}
                 const auto size=c.operation=="set_player_scale"
                     ?game_.config_.playerSize*glm::vec2(float(c.x),float(c.y))
                     :glm::vec2(float(c.x),float(c.y));
@@ -252,7 +266,7 @@ void RoomWorld::Apply() {
                 continue;
             }
             if(c.operation=="spawn") {
-                if(!catalog_.prefabs.contains(c.id)||ids_.size()>4096)throw std::runtime_error("Invalid/excessive spawn prefab: "+c.id);
+                if(!catalog_.prefabs.contains(c.id)||ids_.size()>=4096)throw std::runtime_error("Invalid/excessive spawn prefab: "+c.id);
                 auto object=catalog_.prefabs.at(c.id);object.id=c.text;object.transform.position={c.x,c.y};Create(object);structural=true;continue;
             }
             auto id=Find(c.id);if(!id||c.id=="player")throw std::runtime_error("Invalid script entity target: "+c.id);
@@ -276,7 +290,24 @@ void RoomWorld::Apply() {
                 Remove(c.id);structural=true;
             } else throw std::runtime_error("Unknown script command");
         }
-    }catch(const std::exception& e){error_=CurrentId()+": "+e.what();}
+        commands.clear();
+        // A later initializer may resize the player and consult Views().
+        if(structural){game_.RebuildViews();structural=false;}
+        if(pendingSpawns_.empty())break;
+        auto name=std::move(pendingSpawns_.front());pendingSpawns_.pop_front();
+        const auto entity=Find(name);
+        if(!entity||!definitions_.contains(name))continue;
+        const auto event=ObjectEvent("on_entity_spawn",definitions_.at(name),"spawn",&game_.Get<Transform>(entity));
+        if(!script_->Call(event))throw std::runtime_error(script_->Error());
+        commands=script_->TakeCommands();
+        // Missing callbacks remain no-ops for existing rooms. Only batches
+        // producing work count toward the recursion/initialization budget.
+        if(!commands.empty()&&++initializationBatches>256)
+            throw std::runtime_error("Entity initialization batch budget exceeded (256 per Apply)");
+        }
+    }catch(const std::exception& e){
+        error_=CurrentId()+": "+e.what();pendingSpawns_.clear();script_->TakeCommands();
+    }
     if(structural)game_.RebuildViews();
 }
 }

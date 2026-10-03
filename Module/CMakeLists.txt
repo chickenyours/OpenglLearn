@@ -4,6 +4,7 @@ add_subdirectory(ForestFire)
 include(${CMAKE_CURRENT_SOURCE_DIR}/Render/render_effects.cmake)
 add_subdirectory(MaterialLab)
 include(${CMAKE_CURRENT_SOURCE_DIR}/Render/sprite_tests.cmake)
+add_subdirectory(PixelSandbox)
 add_subdirectory(Brotato)
 add_executable(test1
     ${CMAKE_CURRENT_SOURCE_DIR}/Render/Test/test2.cpp
@@ -23,9 +24,6 @@ target_include_directories(test1 PRIVATE
     ${CMAKE_SOURCE_DIR}/Module/Render/Private
 )
 
-target_link_directories(test1 PRIVATE
-    ${CMAKE_SOURCE_DIR}/lib/debug
-)
 
 target_link_libraries(test1 PRIVATE
     opengl32
@@ -98,9 +96,6 @@ target_include_directories(terrain_render_demo PRIVATE
     ${CMAKE_SOURCE_DIR}/Module/Render/Private
 )
 
-target_link_directories(terrain_render_demo PRIVATE
-    ${CMAKE_SOURCE_DIR}/lib/debug
-)
 
 target_link_libraries(terrain_render_demo PRIVATE
     opengl32
@@ -116,7 +111,6 @@ add_subdirectory(IWanna)
 add_executable(render_scheduling_test Render/Test/render_scheduling_test.cpp)
 get_target_property(RENDER_TEST_INCLUDES terrain_render_demo INCLUDE_DIRECTORIES)
 target_include_directories(render_scheduling_test PRIVATE ${RENDER_TEST_INCLUDES})
-target_link_directories(render_scheduling_test PRIVATE ${CMAKE_SOURCE_DIR}/lib/debug)
 target_link_libraries(render_scheduling_test PRIVATE opengl32 glfw3 glad)
 include(${CMAKE_CURRENT_SOURCE_DIR}/Render/material_tests.cmake)
 

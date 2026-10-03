@@ -2,9 +2,9 @@
 setlocal
 pushd "%~dp0"
 if not exist "bin\brotato_game.exe" (
-    cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_TOOLCHAIN_FILE=clang-msvc.cmake
+    cmake -S . -B build/brotato -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_TOOLCHAIN_FILE=clang-msvc.cmake
     if errorlevel 1 goto failed
-    cmake --build build --target brotato_game
+    cmake --build build/brotato --target brotato_game
     if errorlevel 1 goto failed
 )
 "bin\brotato_game.exe" %*

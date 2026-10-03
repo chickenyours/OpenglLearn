@@ -18,6 +18,33 @@
 不存在时返回 `nil`。这是只读查询，不暴露 ECS 指针；读取已经提交的场景状态，
 本回调刚排入队列的 `spawn`/`destroy` 要等命令执行后才能从查询中看到。
 
+IWanna 宿主支持实例初始化回调 `on_entity_spawn(ctx,event)`。对象的 `event` 非空时，
+`event.name` 使用该路由名、`id` 为稳定实例 ID、`phase` 为 `spawn`；`properties`
+包含合并后的模板/实例标量，并用实时 `positionX/Y`、`sizeX/Y`、`rotation` 覆盖同名值。
+房间完整创建、位置查询就绪、`on_enter`（重置时加 `on_reset`）的命令提交后才分派；
+动态 `spawn` 或径向生成也会分派，同批尺寸和旋转命令先执行。此时 `get_position`
+能直接查询初始化对象，适合根据编辑器尺寸和角度生成视觉、碰撞或逻辑子实体。
+
+```lua
+return {
+  on_entity_spawn = function(ctx, event)
+    if event.name ~= "my_controller" then return end
+    local p = event.properties
+    local child = event.id .. ":hazard"
+    ctx:spawn("ordinary_hazard", child, p.positionX, p.positionY)
+    ctx:set_size(child, p.sizeX, p.sizeY)
+    ctx:set_rotation(child, p.rotation)
+    ctx:set_visible(event.id, false)
+  end
+}
+```
+
+示例 `ordinary_hazard` 模板的 `event` 应为空，控制器自己保留独立检测框。
+每个初始化回调完成后提交其命令，再处理下一对象；已删除实例的待初始化事件会移除。
+每次宿主提交最多执行 4096 条命令，以及 256 个产生后续命令的初始化批次，防止递归
+生成失控；超过限额会报告明确错误。单个 Lua 待提交队列仍限制为 256 条命令。
+回调不提供时是空操作；死亡和重置分别沿用 `on_death` 清理、新 VM 重新初始化。
+
 完整的 **Lua 生成苹果环** 示例在 `Asset/IWanna/Examples/apple_ring.lua`，
 MyIwana 第一关已使用同一代码。脚本自己调用 `math.random`、`math.cos/sin`
 计算数量、位置和速度，再逐个调用 `spawn`、`set_velocity`，并用 `after`
@@ -32,7 +59,8 @@ MyIwana 第一关已使用同一代码。脚本自己调用 `math.random`、`mat
 `event.name` 为其 `event` 属性，`phase` 为 `hit`，`properties.projectileId` 为弹体 ID。
 目标须设置 `receivesShots=true` 且启用碰撞；受击检测沿用贴图蒙版或可视检测框。
 每个目标每个固定步长合并一次受击；一次性机关再用 `ctx:once`。
-`on_trigger` 与 `on_hit` 都提供实时 `properties.positionX/positionY` 世界坐标。
+`on_trigger` 的进入事件、`on_hit`、`on_entity_spawn` 都提供实时
+`properties.positionX/positionY`、`sizeX/sizeY`、`rotation`。接触退出事件沿用资源位置。
 
 ```lua
 ctx:set_group_enabled("tiles:ShotGate", false) -- 图层名为 ShotGate 的所有墙格

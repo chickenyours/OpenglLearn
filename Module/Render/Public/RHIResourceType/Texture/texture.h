@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstddef>
 
 namespace Render{
     enum class RHITextureFormat {
@@ -47,6 +48,10 @@ namespace Render{
         return format == RHITextureFormat::Depth32F;
     }
 
+    inline bool IsValidTextureSampleCount(uint32_t samples) {
+        return samples == 1 || samples == 2 || samples == 4 || samples == 8;
+    }
+
     struct RHITextureSpec
     {
         uint32_t width = 0;
@@ -58,6 +63,7 @@ namespace Render{
         RHIAddressMode addressMode = RHIAddressMode::Repeat;
         uint32_t rhi_id = 0;
         bool mipmaps = true;
+        uint32_t samples = 1;
     };
 
     struct CreateRHITextureSpec{
@@ -70,5 +76,15 @@ namespace Render{
         RHIAddressMode addressMode = RHIAddressMode::Repeat;
         const void* data = nullptr;
         bool mipmaps = true;
+        // Multisample storage is allocation-only: no upload and no mipmaps.
+        uint32_t samples = 1;
+    };
+
+    // Packed rows, no padding. The device copies byteSize bytes before returning.
+    struct UpdateRHITextureDesc {
+        uint32_t x = 0, y = 0, width = 0, height = 0;
+        RHITextureFormat format = RHITextureFormat::RGBA8;
+        const void* data = nullptr;
+        std::size_t byteSize = 0;
     };
 }

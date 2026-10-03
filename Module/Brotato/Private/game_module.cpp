@@ -1,6 +1,7 @@
 #include "Brotato/Public/game_module.h"
 #include "Brotato/Systems/game_systems.h"
 #include "Brotato/Public/combat_geometry.h"
+#include "Brotato/Public/animation_catalog.h"
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -30,13 +31,17 @@ glm::vec2 SourceSpawn(std::mt19937& random, const Config& config) {
 GameModule::GameModule(Config config) : config_(config), selected_(config.initialWeapon), random_(config.seed) {
     pipeline_.Add<WaveSystem>(); pipeline_.Add<MovementSystem>(); pipeline_.Add<WeaponSystem>();
     pipeline_.Add<ProjectileSystem>(); pipeline_.Add<ContactSystem>(); pipeline_.Add<PickupSystem>();
+    pipeline_.Add<PresentationSystem>();
     pipeline_.RunBefore<WaveSystem, MovementSystem>();
     pipeline_.RunBefore<MovementSystem, WeaponSystem>();
     pipeline_.RunBefore<WeaponSystem, ProjectileSystem>();
     pipeline_.RunBefore<ProjectileSystem, ContactSystem>();
     pipeline_.RunBefore<ContactSystem, PickupSystem>();
+    pipeline_.RunBefore<PickupSystem, PresentationSystem>();
 }
 void GameModule::Validate() const {
+    if (config_.character >= Characters.size() || config_.map >= Maps.size())
+        throw std::invalid_argument("Brotato: invalid character/map selection");
     if (!Finite(config_.minimum) || !Finite(config_.maximum) || !Finite(config_.playerStart) ||
         config_.minimum.x >= config_.maximum.x || config_.minimum.y >= config_.maximum.y)
         throw std::invalid_argument("Brotato: invalid arena bounds");
@@ -47,7 +52,7 @@ void GameModule::Validate() const {
         if (!std::isfinite(value) || value <= 0) throw std::invalid_argument("Brotato: invalid positive setting");
     if (!std::isfinite(config_.dropChance) || config_.dropChance < 0 || config_.dropChance > 1 ||
         config_.initialHealth <= 0 || config_.contactDamage < 0 ||
-        config_.maxEnemies > 100000 || config_.maxProjectiles > 100000 || config_.maxPickups > 100000)
+        config_.maxEnemies > 100000 || config_.maxProjectiles > 100000 || config_.maxPickups > 100000 || config_.maxEffects > 100000)
         throw std::invalid_argument("Brotato: invalid combat/capacity setting");
     if (!ValidWeapon(config_.initialWeapon)) throw std::invalid_argument("Brotato: invalid initial weapon");
     for (const auto& weapon : config_.weapons) {
@@ -68,12 +73,14 @@ bool GameModule::Startup() {
     if (started_) return true;
     try {
         Validate(); RegisterComponents();
+        events_.reserve(MaxPendingEvents);
         scene_ = std::make_unique<ECS::Core::Scene>();
-        playerType_ = Archetype<Transform, Velocity, Circle, Sprite, Player>(*scene_);
+        playerType_ = Archetype<Transform, Velocity, Circle, Sprite, Player, ActorAnimation>(*scene_);
         weaponType_ = Archetype<Transform, Sprite, Weapon>(*scene_);
-        enemyType_ = Archetype<Transform, Velocity, Circle, Sprite, Enemy>(*scene_);
+        enemyType_ = Archetype<Transform, Velocity, Circle, Sprite, Enemy, ActorAnimation>(*scene_);
         projectileType_ = Archetype<Transform, Velocity, Circle, Sprite, Projectile>(*scene_);
         pickupType_ = Archetype<Transform, Circle, Sprite, Pickup>(*scene_);
+        effectType_ = Archetype<Transform, Velocity, Sprite, Effect>(*scene_);
         player_ = scene_->CreateEntity(playerType_);
         weapon_ = scene_->CreateEntity(weaponType_);
         context_.scene = scene_.get(); context_.SetService(this); context_.deltaSeconds = FixedStep;
@@ -83,16 +90,19 @@ bool GameModule::Startup() {
 }
 void GameModule::Shutdown() {
     pipeline_.Stop(context_);
-    enemies_.clear(); projectiles_.clear(); pickups_.clear(); pending_.clear(); retired_.clear();
+    ResetPresentation();
+    enemies_.clear(); projectiles_.clear(); pickups_.clear(); effects_.clear(); pending_.clear(); pendingEffects_.clear(); retired_.clear();
     playerType_ = nullptr; weaponType_ = nullptr; enemyType_ = nullptr; projectileType_ = nullptr; pickupType_ = nullptr;
+    effectType_ = nullptr;
     scene_.reset(); player_ = ECS::EntityHandle(0); weapon_ = ECS::EntityHandle(0); context_.scene = nullptr; context_.frameIndex = 0;
     started_ = false; accumulator_ = 0;
 }
 void GameModule::ClearTransient() {
-    for (const auto& list : {&enemies_, &projectiles_, &pickups_}) {
+    ResetPresentation();
+    for (const auto& list : {&enemies_, &projectiles_, &pickups_, &effects_}) {
         scene_->DeleteEntities(*list); list->clear();
     }
-    pending_.clear(); retired_.clear(); RefreshCounts();
+    pending_.clear(); pendingEffects_.clear(); retired_.clear(); RefreshCounts();
     ResetWeapon(true);
 }
 void GameModule::Restart() {
@@ -102,7 +112,8 @@ void GameModule::Restart() {
     Get<Player>(player_) = Player{}; Get<Player>(player_).health = config_.initialHealth;
     auto& transform = Get<Transform>(player_); transform.position = glm::clamp(config_.playerStart, config_.minimum, config_.maximum); transform.previous = transform.position;
     Get<Velocity>(player_).value = {}; Get<Circle>(player_).radius = .46f;
-    auto& sprite = Get<Sprite>(player_); sprite = Sprite{}; sprite.size = {.768f, .879f};
+    auto& sprite = Get<Sprite>(player_); sprite = Sprite{}; sprite.size = Characters[config_.character].size;
+    ResetActorAnimation(player_, ActorClip::PlayerIdle);
     ResetWeapon(true); RefreshCounts();
 }
 void GameModule::NextWave() {
@@ -150,6 +161,7 @@ ECS::EntityHandle GameModule::SpawnEnemy(glm::vec2 position, bool ready) {
     auto& t = Get<Transform>(entity); t.position = t.previous = position;
     auto& e = Get<Enemy>(entity); e.phase = ready ? EnemyPhase::Alive : EnemyPhase::Spawning; e.remaining = ready ? 0 : config_.spawnWarning;
     Get<Circle>(entity).radius = .43f; auto& s = Get<Sprite>(entity); s.image = Image::Enemy; s.size = {.769f, .898f};
+    ResetActorAnimation(entity, ActorClip::EnemyMove);
     RefreshCounts(); return entity;
 }
 ECS::EntityHandle GameModule::SpawnPickup(glm::vec2 position) {
@@ -178,7 +190,10 @@ ECS::EntityHandle GameModule::CreateProjectile(glm::vec2 position, glm::vec2 vel
     }
     RefreshCounts(); return entity;
 }
-void GameModule::RefreshCounts() { stats_.enemies = enemies_.size(); stats_.projectiles = projectiles_.size(); stats_.pickups = pickups_.size(); stats_.weapons = started_ ? 1 : 0; }
+void GameModule::RefreshCounts() {
+    stats_.enemies = enemies_.size(); stats_.projectiles = projectiles_.size(); stats_.pickups = pickups_.size();
+    stats_.weapons = started_ ? 1 : 0; stats_.effects = effects_.size();
+}
 void GameModule::WaveTick() {
     stats_.remaining = std::max(0.0, stats_.remaining - FixedStep);
     if (stats_.remaining < 1e-9) { stats_.remaining = 0; state_ = State::WaveComplete; return; }
@@ -187,7 +202,10 @@ void GameModule::WaveTick() {
         if (enemy.phase == EnemyPhase::Alive) continue;
         enemy.remaining -= dt;
         if (enemy.remaining > 1e-5f) continue;
-        if (enemy.phase == EnemyPhase::Spawning) enemy.phase = EnemyPhase::Alive;
+        if (enemy.phase == EnemyPhase::Spawning) {
+            enemy.phase = EnemyPhase::Alive;
+            ResetActorAnimation(entity, ActorClip::EnemyMove);
+        }
         else {
             auto& player = Get<Player>(player_); player.experience += 2;
             while (player.experience >= 100) { player.experience -= 100; ++player.level; }
@@ -217,11 +235,14 @@ void GameModule::Move() {
         if (delta.x != 0) Get<Sprite>(entity).flipX = delta.x < 0;
     }
 }
-void GameModule::Kill(ECS::EntityHandle entity) {
+void GameModule::Kill(ECS::EntityHandle entity, WeaponKind weapon) {
     auto& enemy = Get<Enemy>(entity);
     if (enemy.phase != EnemyPhase::Alive) return;
     enemy.phase = EnemyPhase::Dying; enemy.remaining = config_.deathDelay; enemy.touchingPlayer = false;
     Get<Velocity>(entity).value = {}; ++stats_.kills;
+    ResetActorAnimation(entity, ActorClip::EnemyDeath);
+    QueueHitEffects(entity);
+    EmitEvent(GameEventKind::EnemyKilled, entity, Get<Transform>(entity).position, weapon);
     if (double(random_()) / 4294967296.0 < config_.dropChance)
         pending_.push_back({Image::Material, Get<Transform>(entity).position});
 }
@@ -252,7 +273,7 @@ void GameModule::Projectiles() {
                 Get<Circle>(entity).radius, other.previous, otherEnd, Get<Circle>(enemy).radius);
             if (hit < first) { first = hit; target = enemy; }
         }
-        if (first <= 1) { Kill(target); bullet.consumed = true; }
+        if (first <= 1) { Kill(target, bullet.kind); bullet.consumed = true; }
         if (bullet.consumed || bullet.remaining <= 0) retired_.push_back(entity);
     }
 }
@@ -264,7 +285,11 @@ void GameModule::Contacts() {
         if (enemy.phase != EnemyPhase::Alive) continue;
         const float radius = Get<Circle>(entity).radius + Get<Circle>(player_).radius;
         const bool touching = DistanceSquared(position, Get<Transform>(entity).position) <= radius * radius;
-        if (touching && !enemy.touchingPlayer) player.health = std::max(0, player.health - config_.contactDamage);
+        if (touching && !enemy.touchingPlayer) {
+            const int health = player.health;
+            player.health = std::max(0, player.health - config_.contactDamage);
+            if (player.health < health) EmitEvent(GameEventKind::PlayerHurt, player_, position);
+        }
         enemy.touchingPlayer = touching;
     }
     if (player.health <= 0) state_ = State::Dead;
@@ -276,6 +301,7 @@ void GameModule::Pickups() {
         auto& pickup = Get<Pickup>(entity); const float radius = Get<Circle>(player_).radius + Get<Circle>(entity).radius;
         if (!pickup.collected && DistanceSquared(position, Get<Transform>(entity).position) <= radius * radius) {
             pickup.collected = true; Get<Player>(player_).materials += pickup.value; retired_.push_back(entity);
+            EmitEvent(GameEventKind::MaterialCollected, entity, Get<Transform>(entity).position);
         }
     }
 }
@@ -284,7 +310,7 @@ void GameModule::Commit() {
     // Deleting an ECS row can move another row. No borrowed component addresses
     // survive this boundary. Full generation handles reject stale references.
     scene_->DeleteEntities(retired_); retired_.clear();
-    for (const auto list : {&enemies_, &projectiles_, &pickups_})
+    for (const auto list : {&enemies_, &projectiles_, &pickups_, &effects_})
         std::erase_if(*list, [&](auto entity) { return !scene_->IsAlive(entity); });
     for (const auto& command : pending_) {
         if (command.kind == Image::Enemy) SpawnEnemy(command.position);
@@ -292,6 +318,7 @@ void GameModule::Commit() {
         else SpawnPickup(command.position);
     }
     pending_.clear();
+    CommitEffects();
 }
 std::vector<DrawSprite> GameModule::Extract() {
     std::vector<DrawSprite> result;
@@ -300,18 +327,27 @@ std::vector<DrawSprite> GameModule::Extract() {
         const auto& t = Get<Transform>(entity); const auto& s = Get<Sprite>(entity);
         result.push_back({s.image, t.position, s.size, s.angle, glm::vec4(1), s.flipX});
     };
-    for (auto entity : pickups_) append(entity);
-    for (auto entity : enemies_) {
-        append(entity); const auto& enemy = Get<Enemy>(entity);
-        if (enemy.phase == EnemyPhase::Spawning) {
-            auto& draw = result.back(); draw.image = Image::Spawn; draw.size = {1.1f, 1.1f};
-            draw.tint.a = enemy.remaining > 1.f && enemy.remaining < 1.3f ? .15f : .8f;
-        } else if (enemy.phase == EnemyPhase::Dying) {
-            result.back().tint = {.65f, .55f, .6f, .35f}; result.back().angle = 1.57f;
-        }
+    // Depth belongs to the actor's physical root. Animated limbs and bobbing
+    // overlays must never move through other layers of their own actor.
+    struct Group { ECS::EntityHandle entity; int kind; };
+    std::vector<Group> groups;
+    groups.reserve(pickups_.size() + enemies_.size() + 1);
+    for (auto entity : pickups_) groups.push_back({entity, 0});
+    for (auto entity : enemies_) groups.push_back({entity, 1});
+    groups.push_back({player_, 2});
+    std::stable_sort(groups.begin(), groups.end(), [&](const auto& a, const auto& b) {
+        return Get<Transform>(a.entity).position.y > Get<Transform>(b.entity).position.y;
+    });
+    for (const auto& group : groups) {
+        if (group.kind == 0) { append(group.entity); continue; }
+        if (group.kind == 2) { AppendActorSprites(result, group.entity, true); continue; }
+        const auto& enemy = Get<Enemy>(group.entity);
+        if (enemy.phase != EnemyPhase::Spawning) { AppendActorSprites(result, group.entity, false); continue; }
+        append(group.entity);
+        auto& draw = result.back(); draw.image = Image::Spawn; draw.size = {1.1f, 1.1f};
+        const float elapsed = config_.spawnWarning - enemy.remaining;
+        draw.tint.a = elapsed + 1e-6f >= .2f && elapsed < .5f - 1e-6f ? 0.f : 1.f;
     }
-    append(player_);
-    std::stable_sort(result.begin(), result.end(), [](const auto& a, const auto& b) { return a.position.y > b.position.y; });
     if (config_.armed) {
         append(weapon_);
         const auto& weapon = Get<Weapon>(weapon_); const auto& definition = Definition(weapon.kind);
@@ -321,15 +357,20 @@ std::vector<DrawSprite> GameModule::Extract() {
                 definition.attackSize, weapon.angle});
         if (weapon.flash > 0) {
             constexpr float flashDuration = .06666667f;
-            float elapsed = flashDuration - weapon.flash;
-            float progress = std::clamp(elapsed / flashDuration, 0.f, 1.f);
-            progress = progress * progress * (3 - 2 * progress);
-            const float alpha = elapsed <= .05f ? 1.f : std::clamp(weapon.flash / (flashDuration - .05f), 0.f, 1.f);
-            result.push_back({Image::Muzzle, position + Combat::Rotate({.094f + .372f * progress, 0}, weapon.angle),
-                {.5f, .48f}, weapon.angle, {1, 1, 1, alpha}});
+            Render::Animation::Pose flash;
+            Render::Animation::Sample(MuzzleFlash, flashDuration - weapon.flash,
+                                      std::span<Render::Animation::Pose>(&flash, 1));
+            result.push_back({Image::Muzzle, position + Combat::Rotate(flash.position, weapon.angle),
+                {.5f, .48f}, weapon.angle, {1, 1, 1, flash.opacity}});
         }
     }
     for (auto entity : projectiles_) append(entity);
+    for (auto entity : effects_) {
+        if (Get<Effect>(entity).kind == EffectKind::HitParticle) {
+            append(entity);
+            result.back().tint = {.8018868f, .19290671f, .1970778f, 1};
+        }
+    }
     return result;
 }
 } // namespace Brotato

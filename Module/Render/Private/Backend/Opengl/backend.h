@@ -710,6 +710,7 @@ public:
         glDepthRange(0.0, 1.0);
         glDisable(GL_SCISSOR_TEST);
         glDisable(GL_FRAMEBUFFER_SRGB);
+        if (target && target->samples > 1) glEnable(GL_MULTISAMPLE);
         glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
         glDepthMask(GL_TRUE);
         GLbitfield mask = 0;
@@ -723,6 +724,65 @@ public:
             mask |= GL_DEPTH_BUFFER_BIT;
         }
         if (mask != 0) glClear(mask);
+    }
+
+    virtual void ResolveRenderTarget(const RHICommand::ResolveRenderTarget& command) override {
+        const auto* source = rhiContext_.resourcePool->renderTargetTable.Get(command.source);
+        const auto* destination = rhiContext_.resourcePool->renderTargetTable.Get(command.destination);
+        if (!source || !destination || !source->rhi_id || !destination->rhi_id ||
+            command.source == command.destination || (!command.color && !command.depth) ||
+            !IsValidTextureSampleCount(source->samples) || source->samples == 1 || destination->samples != 1 ||
+            source->width == 0 || source->height == 0 ||
+            source->width > static_cast<std::uint32_t>(std::numeric_limits<GLint>::max()) ||
+            source->height > static_cast<std::uint32_t>(std::numeric_limits<GLint>::max()) ||
+            source->width != destination->width || source->height != destination->height) {
+            LOG_ERROR("ResolveRenderTarget", "invalid targets, sizes, or sample counts");
+            return;
+        }
+        const auto validAttachment = [&](RenderResourceHandle<RHITextureSpec> from,
+                                          RenderResourceHandle<RHITextureSpec> to, bool depth) {
+            const auto* a = rhiContext_.resourcePool->TextureTable.Get(from);
+            const auto* b = rhiContext_.resourcePool->TextureTable.Get(to);
+            return a && b && a->rhi_id && b->rhi_id &&
+                a->textureDataStoreType == b->textureDataStoreType &&
+                GetTextureFormatByteSize(a->textureDataStoreType) != 0 &&
+                IsDepthFormat(a->textureDataStoreType) == depth &&
+                a->width == source->width && a->height == source->height &&
+                b->width == source->width && b->height == source->height &&
+                a->samples == source->samples && b->samples == 1;
+        };
+        if ((command.color && !validAttachment(source->color, destination->color, false)) ||
+            (command.depth && !validAttachment(source->depth, destination->depth, true))) {
+            LOG_ERROR("ResolveRenderTarget", "missing, retired, or incompatible attachments");
+            return;
+        }
+
+        GLint oldDraw = 0, oldRead = 0;
+        glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &oldDraw);
+        glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &oldRead);
+        const bool scissor = glIsEnabled(GL_SCISSOR_TEST) == GL_TRUE;
+        const bool srgb = glIsEnabled(GL_FRAMEBUFFER_SRGB) == GL_TRUE;
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, source->rhi_id);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, destination->rhi_id);
+        if (glCheckFramebufferStatus(GL_READ_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE &&
+            glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE) {
+            // Blits obey scissor and framebuffer sRGB. Resolve the whole linear
+            // image, then restore both states without touching draw-state caches.
+            glDisable(GL_SCISSOR_TEST);
+            glDisable(GL_FRAMEBUFFER_SRGB);
+            GLbitfield mask = 0;
+            if (command.color) mask |= GL_COLOR_BUFFER_BIT;
+            if (command.depth) mask |= GL_DEPTH_BUFFER_BIT;
+            glBlitFramebuffer(0, 0, source->width, source->height,
+                              0, 0, destination->width, destination->height, mask, GL_NEAREST);
+            if (glGetError() != GL_NO_ERROR) LOG_ERROR("ResolveRenderTarget", "OpenGL resolve failed");
+            if (scissor) glEnable(GL_SCISSOR_TEST);
+            if (srgb) glEnable(GL_FRAMEBUFFER_SRGB);
+        } else {
+            LOG_ERROR("ResolveRenderTarget", "incomplete framebuffer");
+        }
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, static_cast<GLuint>(oldDraw));
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, static_cast<GLuint>(oldRead));
     }
 
     virtual void EndFrame(const RHICommand::EndFrame& command) override {
@@ -757,6 +817,11 @@ public:
         }
         const RHITextureSpec* spec =
             rhiContext_.resourcePool->TextureTable.Get(command.texture);
+        if (spec && spec->samples != 1) {
+            LOG_ERROR("BindTexture", "resolve multisample textures before sampler2D binding");
+            spec = nullptr;
+            pipelineValid = false;
+        }
         if (const auto* target = rhiContext_.resourcePool->renderTargetTable.Get(currentRenderTarget)) {
             if (command.texture.IsValid() && (command.texture == target->color || command.texture == target->depth)) {
                 LOG_ERROR("BindTexture", "cannot sample the active render target attachment");
@@ -1229,6 +1294,22 @@ public:
             return {};
         }
 
+        if (!IsValidTextureSampleCount(createSpec.samples) ||
+            (createSpec.samples > 1 && (createSpec.mipmaps || createSpec.data || !command.data.empty()))) {
+            LOG_ERROR("CreateTexture", "invalid multisample count, mipmaps, or upload");
+            return {};
+        }
+        if (createSpec.samples > 1) {
+            GLint maxSamples = 0, maxTextureSamples = 0;
+            glGetIntegerv(GL_MAX_SAMPLES, &maxSamples);
+            glGetIntegerv(IsDepthFormat(createSpec.textureDataStoreType) ?
+                GL_MAX_DEPTH_TEXTURE_SAMPLES : GL_MAX_COLOR_TEXTURE_SAMPLES, &maxTextureSamples);
+            if (createSpec.samples > static_cast<std::uint32_t>(std::max(0, std::min(maxSamples, maxTextureSamples)))) {
+                LOG_ERROR("CreateTexture", "sample count exceeds the device limit");
+                return {};
+            }
+        }
+
         GLuint texture = 0;
         glGenTextures(1, &texture);
 
@@ -1238,8 +1319,19 @@ public:
         }
 
         GLint oldTextureBinding = 0;
-        glGetIntegerv(GL_TEXTURE_BINDING_2D, &oldTextureBinding);
-        glBindTexture(GL_TEXTURE_2D, texture);
+        const GLenum textureTarget = createSpec.samples > 1 ? GL_TEXTURE_2D_MULTISAMPLE : GL_TEXTURE_2D;
+        glGetIntegerv(createSpec.samples > 1 ? GL_TEXTURE_BINDING_2D_MULTISAMPLE : GL_TEXTURE_BINDING_2D,
+                     &oldTextureBinding);
+        glBindTexture(textureTarget, texture);
+        GLint actualSamples = 1;
+        if (createSpec.samples > 1) {
+            glTexImage2DMultisample(textureTarget, static_cast<GLsizei>(createSpec.samples),
+                internalFormat, static_cast<GLsizei>(createSpec.width),
+                static_cast<GLsizei>(createSpec.height), GL_TRUE);
+            // Some drivers round requests up to a supported format-specific
+            // count. Reject that mismatch instead of publishing false metadata.
+            glGetTexLevelParameteriv(textureTarget, 0, GL_TEXTURE_SAMPLES, &actualSamples);
+        } else {
 
         // 避免 RGB8 在 width 不是 4 字节对齐时上传错位。
         GLint oldUnpackAlignment = 4;
@@ -1295,18 +1387,19 @@ public:
         }
         if (createSpec.mipmaps) glGenerateMipmap(GL_TEXTURE_2D);
         else glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+        }
 
         GLenum error = glGetError();
-        if (error != GL_NO_ERROR) {
+        if (error != GL_NO_ERROR || actualSamples != static_cast<GLint>(createSpec.samples)) {
             LOG_ERROR("CreateTexture", "OpenGL texture creation failed");
 
-            glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(oldTextureBinding));
+            glBindTexture(textureTarget, static_cast<GLuint>(oldTextureBinding));
             glDeleteTextures(1, &texture);
 
             return {};
         }
 
-        glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(oldTextureBinding));
+        glBindTexture(textureTarget, static_cast<GLuint>(oldTextureBinding));
 
         RHITextureSpec rhiSpec{};
         rhiSpec.width = createSpec.width;
@@ -1318,11 +1411,55 @@ public:
         rhiSpec.addressMode = createSpec.addressMode;
         rhiSpec.rhi_id = texture;
         rhiSpec.mipmaps = createSpec.mipmaps;
+        rhiSpec.samples = createSpec.samples;
 
         RenderResourceHandle<RHITextureSpec> handle =
             rhiContext_.resourcePool->TextureTable.Add(rhiSpec);
 
         return handle;
+    }
+
+    virtual bool UpdateTexture(const UpdateTextureCommand& command) override {
+        const auto* texture = rhiContext_.resourcePool->TextureTable.Get(command.handle);
+        const auto& desc = command.desc;
+        const auto bpp = GetTextureFormatByteSize(desc.format);
+        const std::uint64_t pixels = std::uint64_t(desc.width) * desc.height;
+        // Subtraction-based bounds checks cannot wrap for large offsets.
+        if (!texture || !texture->rhi_id || texture->samples != 1 || !bpp || !desc.width || !desc.height ||
+            desc.x > texture->width || desc.y > texture->height ||
+            desc.width > texture->width - desc.x || desc.height > texture->height - desc.y ||
+            desc.format != texture->textureUseType ||
+            IsDepthFormat(desc.format) != IsDepthFormat(texture->textureDataStoreType) ||
+            pixels > std::numeric_limits<std::size_t>::max() / bpp ||
+            pixels * bpp != command.data.size() ||
+            desc.byteSize != command.data.size()) return false;
+        const auto format = ToOpenGLPixelFormat(desc.format);
+        const auto type = ToOpenGLPixelType(desc.format);
+        if (!format || !type) return false;
+        GLint binding = 0, alignment = 4, rowLength = 0, skipRows = 0, skipPixels = 0, unpackBuffer = 0;
+        glGetIntegerv(GL_TEXTURE_BINDING_2D, &binding);
+        glGetIntegerv(GL_UNPACK_ALIGNMENT, &alignment);
+        glGetIntegerv(GL_UNPACK_ROW_LENGTH, &rowLength);
+        glGetIntegerv(GL_UNPACK_SKIP_ROWS, &skipRows);
+        glGetIntegerv(GL_UNPACK_SKIP_PIXELS, &skipPixels);
+        glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, &unpackBuffer);
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+        glBindTexture(GL_TEXTURE_2D, texture->rhi_id);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+        glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
+        glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, desc.x, desc.y, desc.width, desc.height,
+            format, type, command.data.data());
+        if (texture->mipmaps) glGenerateMipmap(GL_TEXTURE_2D);
+        const bool success = glGetError() == GL_NO_ERROR;
+        glPixelStorei(GL_UNPACK_ALIGNMENT, alignment);
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, rowLength);
+        glPixelStorei(GL_UNPACK_SKIP_ROWS, skipRows);
+        glPixelStorei(GL_UNPACK_SKIP_PIXELS, skipPixels);
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, unpackBuffer);
+        glBindTexture(GL_TEXTURE_2D, binding);
+        return success;
     }
 
     virtual void DeleteTexture(
@@ -1374,8 +1511,10 @@ public:
         glGenFramebuffers(1, &framebuffer);
         if (!framebuffer) return {};
         glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
-        if (color) glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, color->rhi_id, 0);
-        if (depth) glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depth->rhi_id, 0);
+        if (color) glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+            color->samples > 1 ? GL_TEXTURE_2D_MULTISAMPLE : GL_TEXTURE_2D, color->rhi_id, 0);
+        if (depth) glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+            depth->samples > 1 ? GL_TEXTURE_2D_MULTISAMPLE : GL_TEXTURE_2D, depth->rhi_id, 0);
         glDrawBuffer(color ? GL_COLOR_ATTACHMENT0 : GL_NONE);
         glReadBuffer(color ? GL_COLOR_ATTACHMENT0 : GL_NONE);
         const bool complete = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
@@ -1393,6 +1532,7 @@ public:
         spec.rhi_id = framebuffer;
         spec.color = desc.color;
         spec.depth = desc.depth;
+        spec.samples = sizeSource->samples;
         return rhiContext_.resourcePool->renderTargetTable.Add(spec);
     }
 

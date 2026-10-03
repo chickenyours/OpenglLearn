@@ -24,6 +24,7 @@ using namespace Render::Material;
 using namespace std::chrono_literals;
 
 namespace {
+constexpr float GalleryFloorHeight = -3.25f;
 void Require(bool condition, const std::string& message) {
     if (!condition) throw std::runtime_error(message);
 }
@@ -78,10 +79,11 @@ struct MaterialLabModule::Impl {
         glm::mat4 model{1};
     };
     std::vector<Entry> entries;
-    RenderResourceHandle<VertexBufferSpec> sphere, plane;
-    std::uint32_t sphereIndices = 0, planeIndices = 0;
+    RenderResourceHandle<VertexBufferSpec> sphere, plane, box;
+    std::uint32_t sphereIndices = 0, planeIndices = 0, boxIndices = 0;
     MaterialHandle floorMaterial;
     MaterialHandle glowMaterial;
+    MaterialHandle studyMaterial, studyFloorMaterial;
     std::unique_ptr<MaterialRenderPipeline> pipeline;
     std::uint64_t frameIndex = 0;
     std::uint32_t lastWidth = 0, lastHeight = 0;
@@ -256,6 +258,9 @@ struct MaterialLabModule::Impl {
         auto planeData = MakePlane();
         planeIndices = static_cast<std::uint32_t>(planeData.indices.size());
         plane = Mesh(planeData);
+        auto boxData = MakeBox();
+        boxIndices = static_cast<std::uint32_t>(boxData.indices.size());
+        box = Mesh(boxData);
         owner = RetainMaterialResources(device, std::exchange(owned, {}));
         common.lifetime = owner;
         const auto add = [&](std::string name, std::vector<ParameterOverride> defaults,
@@ -275,18 +280,18 @@ struct MaterialLabModule::Impl {
         }
         auto copperPass = common;
         copperPass.textures = {{0, copper}, {1, bump}, {2, metal}, {3, rough}, {4, ao}};
-        add("Textured copper", {{"metallic", 1.0f}, {"roughness", 0.3f}, {"useNormalMap", true}}, copperPass, {-3, -2.3f, 0});
-        entries.back().model = glm::translate(glm::mat4(1), glm::vec3(-3, -2.3f, 0)) *
+        add("Textured copper", {{"metallic", 1.0f}, {"roughness", 0.3f}, {"useNormalMap", true}}, copperPass, {-3, GalleryFloorHeight + 0.96f, 0});
+        entries.back().model = glm::translate(glm::mat4(1), glm::vec3(-3, GalleryFloorHeight + 0.96f, 0)) *
                                glm::scale(glm::mat4(1), glm::vec3(-0.87f, 0.96f, 0.73f));
         auto checkerPass = copperPass;
         checkerPass.textures[0].texture = checker;
         add("All five maps", {{"metallic", 0.0f}, {"roughness", 0.45f}, {"useNormalMap", true},
-            {"useMetallicMap", true}, {"useRoughnessMap", true}, {"useAoMap", true}}, checkerPass, {0, -2.3f, 0});
+            {"useMetallicMap", true}, {"useRoughnessMap", true}, {"useAoMap", true}}, checkerPass, {0, GalleryFloorHeight + 0.87f, 0});
         auto legacyPass = common;
         legacyPass.textures = {{0, legacy[0]}, {1, legacy[1]}, {2, white}, {3, legacy[2]}, {4, legacy[3]}};
         add(legacyDirectory.empty() ? "Legacy tile preset (procedural maps)" : "Legacy tile (original maps)",
             {{"metallic", 0.6f}, {"roughness", 0.5f}, {"ao", 1.0f}, {"useNormalMap", true},
-             {"useMetallicMap", false}, {"useRoughnessMap", true}, {"useAoMap", true}}, legacyPass, {3, -2.3f, 0});
+             {"useMetallicMap", false}, {"useRoughnessMap", true}, {"useAoMap", true}}, legacyPass, {3, GalleryFloorHeight + 0.87f, 0});
         auto floorAsset = MaterialAsset::Create(schema, {{"baseColor", glm::vec4(0.065f, 0.075f, 0.10f, 1)},
             {"roughness", 0.24f}, {"metallic", 0.35f}, {"reflectionStrength", 0.85f}});
         Require(floorAsset != nullptr, "Invalid floor asset");
@@ -295,6 +300,12 @@ struct MaterialLabModule::Impl {
             {"emissiveColor", glm::vec4(9.0f, 2.5f, 0.5f, 0)}, {"roughness", 0.4f}});
         Require(glowAsset != nullptr, "Invalid emissive material");
         glowMaterial = Register(glowAsset, common);
+        auto studyAsset = MaterialAsset::Create(schema, {{"baseColor", glm::vec4(0.65f,0.47f,0.24f,1)},
+            {"roughness", 0.82f}, {"metallic", 0.0f}});
+        auto studyFloorAsset = MaterialAsset::Create(schema, {{"baseColor", glm::vec4(0.32f,0.36f,0.42f,1)},
+            {"roughness", 0.9f}, {"metallic", 0.0f}});
+        Require(studyAsset && studyFloorAsset, "Invalid shadow study material");
+        studyMaterial = Register(studyAsset, common); studyFloorMaterial = Register(studyFloorAsset, common);
         pipeline = std::make_unique<MaterialRenderPipeline>(device);
         Require(pipeline->Initialize(), pipeline->LastError());
     }
@@ -313,10 +324,10 @@ struct MaterialLabModule::Impl {
                 std::isfinite(settings.cameraYaw) && std::isfinite(settings.cameraPitch) &&
                 std::isfinite(settings.cameraDistance) && settings.cameraDistance >= 3.0f,
                 "Invalid camera/exposure");
-        const bool isolated = settings.isolatedMaterial >= 0;
+        const bool isolated = !settings.shadowStudy && settings.isolatedMaterial >= 0;
         Require(!isolated || static_cast<std::size_t>(settings.isolatedMaterial) < entries.size(), "Invalid material index");
-        const glm::vec3 target = isolated ? glm::vec3(0) : glm::vec3(0, 0.7f, 0);
-        const float distance = isolated ? std::max(2.4f, settings.cameraDistance / 4.5f) : settings.cameraDistance;
+        const glm::vec3 target = settings.shadowStudy ? glm::vec3(0, 0.5f, -0.8f) : isolated ? glm::vec3(0) : glm::vec3(0, 0.7f, 0);
+        const float distance = settings.shadowStudy ? settings.cameraDistance * 0.65f : isolated ? std::max(2.4f, settings.cameraDistance / 4.5f) : settings.cameraDistance;
         const float pitch = glm::clamp(settings.cameraPitch, -1.3f, 1.3f);
         const glm::vec3 eye = target + distance * glm::vec3(std::sin(settings.cameraYaw) * std::cos(pitch),
             std::sin(pitch), std::cos(settings.cameraYaw) * std::cos(pitch));
@@ -328,11 +339,23 @@ struct MaterialLabModule::Impl {
             result.material = Capture(material);
             return result;
         };
-        if (isolated) frame.items.push_back(item(entries[settings.isolatedMaterial].handle, sphere, sphereIndices, glm::mat4(1)));
+        if (settings.shadowStudy) {
+            frame.items.push_back(item(studyFloorMaterial, plane, planeIndices, glm::scale(glm::mat4(1), glm::vec3(7,1,7))));
+            frame.items.push_back(item(studyMaterial, sphere, sphereIndices,
+                glm::translate(glm::mat4(1), glm::vec3(-2,1,0))));
+            frame.items.push_back(item(studyMaterial, box, boxIndices,
+                glm::translate(glm::mat4(1), glm::vec3(1.2f,0.9f,0)) * glm::scale(glm::mat4(1),glm::vec3(0.9f))));
+            frame.items.push_back(item(studyMaterial, box, boxIndices,
+                glm::translate(glm::mat4(1), glm::vec3(-0.3f,0.7f,2)) * glm::scale(glm::mat4(1),glm::vec3(0.06f,0.7f,0.8f))));
+            const float slope = glm::radians(15.0f);
+            frame.items.push_back(item(studyFloorMaterial, plane, planeIndices,
+                glm::translate(glm::mat4(1), glm::vec3(0,2.5f*std::sin(slope),-3.5f)) *
+                glm::rotate(glm::mat4(1), slope, glm::vec3(1,0,0)) * glm::scale(glm::mat4(1),glm::vec3(3.8f,1,2.5f))));
+        } else if (isolated) frame.items.push_back(item(entries[settings.isolatedMaterial].handle, sphere, sphereIndices, glm::mat4(1)));
         else {
             for (const auto& entry : entries) frame.items.push_back(item(entry.handle, sphere, sphereIndices, entry.model));
             frame.items.push_back(item(floorMaterial, plane, planeIndices,
-                glm::translate(glm::mat4(1), glm::vec3(0, -3.25f, 0)) * glm::scale(glm::mat4(1), glm::vec3(9, 1, 6))));
+                glm::translate(glm::mat4(1), glm::vec3(0, GalleryFloorHeight, 0)) * glm::scale(glm::mat4(1), glm::vec3(9, 1, 6))));
             frame.items.back().castsShadows = false;
             frame.items.back().visibleInReflections = false;
             for (float x : {-5.8f, 5.8f}) {
@@ -353,14 +376,21 @@ struct MaterialLabModule::Impl {
         }
         auto effects = settings.effects;
         effects.lighting = lighting;
+        effects.lighting.specularAA = settings.effects.lighting.specularAA;
         effects.post.exposure = settings.exposure;
         effects.time = settings.lightTime;
         if (isolated) effects.reflection.enabled = false;
+        if (settings.shadowStudy) {
+            effects.reflection.enabled = false;
+            effects.lighting.ambientAndExposure = glm::vec4(0.10f,0.10f,0.10f,1);
+            for (auto& color : effects.lighting.lightColors) color = glm::vec4(0);
+        }
         PipelineCamera camera;
         camera.position = eye;
         camera.view = glm::lookAt(eye, target, glm::vec3(0, 1, 0));
         camera.projection = glm::perspective(glm::radians(42.0f), float(settings.width) / settings.height, 0.1f, 100.0f);
-        Require(pipeline->Resize(settings.width, settings.height, effects.shadows.atlasResolution), pipeline->LastError());
+        Require(pipeline->Resize(settings.width, settings.height, effects.shadows.atlasResolution,
+            effects.temporal.msaaSamples, effects.reflection.resolutionScale), pipeline->LastError());
         RHICommand::BeginFrame begin;
         begin.frameIndex = frameIndex;
         begin.framebufferWidth = settings.width; begin.framebufferHeight = settings.height;
@@ -368,14 +398,17 @@ struct MaterialLabModule::Impl {
         auto encoder = device.BeginFrame(begin);
         if (!encoder.KeepAlive(owner) || !pipeline->Record(encoder, frame, camera, effects) || !encoder.End(settings.present)) {
             encoder.Cancel();
+            if (pipeline->RecordedFrameToken()) pipeline->DiscardFrame(pipeline->RecordedFrameToken());
             throw std::runtime_error("PBR frame recording failed: " + pipeline->LastError());
         }
         auto completion = std::make_shared<Completion<bool>>();
         if (!device.async_SubmitFrameCommands(encoder.GetCommandBuffer(), [completion] { completion->done = true; })) {
             encoder.Cancel();
+            pipeline->DiscardFrame(pipeline->RecordedFrameToken());
             throw std::runtime_error("PBR frame submission failed");
         }
         Wait([completion] { return completion->done; }, "PBR frame completion");
+        Require(pipeline->CompleteFrame(pipeline->RecordedFrameToken()), pipeline->LastError());
         lastWidth = settings.width; lastHeight = settings.height; lastPresented = settings.present;
     }
     FramePixels ReadPixels() {

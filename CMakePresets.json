@@ -1,0 +1,40 @@
+{
+  "version": 5,
+  "cmakeMinimumRequired": { "major": 3, "minor": 24, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "windows-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "toolchainFile": "${sourceDir}/clang-msvc.cmake",
+      "cacheVariables": {
+        "OPENGLLEARN_LEGACY_OUTPUT_LAYOUT": "OFF",
+        "OPENGLLEARN_OUTPUT_ROOT": "${sourceDir}/output"
+      },
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+    },
+    {
+      "name": "windows-debug",
+      "displayName": "Windows x64 Debug",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/build/windows-debug",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "OPENGLLEARN_STATIC_RUNTIME": "OFF" }
+    },
+    {
+      "name": "windows-release",
+      "displayName": "Windows x64 Release portable (static runtime)",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/build/windows-release",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release", "OPENGLLEARN_STATIC_RUNTIME": "ON" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "windows-debug", "configurePreset": "windows-debug", "jobs": 4 },
+    { "name": "windows-release", "configurePreset": "windows-release", "jobs": 4 },
+    { "name": "release-packages", "configurePreset": "windows-release", "targets": ["package_portable"], "jobs": 4 }
+  ],
+  "testPresets": [
+    { "name": "windows-debug", "configurePreset": "windows-debug", "output": { "outputOnFailure": true } },
+    { "name": "windows-release", "configurePreset": "windows-release", "output": { "outputOnFailure": true } }
+  ]
+}

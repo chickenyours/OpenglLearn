@@ -80,7 +80,7 @@ Prefab 文件名就是 Prefab ID；无需在 JSON 内重复写 ID。最小定义
 | `collide` | 省略时除 `decoration` 外默认为 true；关闭后既不作为固体，也不产生触发命中 |
 | `pixelArt` | 省略时默认为 true；控制当前贴图采样模式 |
 | `detectionEnabled`、`detectionX/Y/W/H` | 可在模板或实例设置；启用后以相对于实例中心的矩形**替换**原检测形状，宽高须为正 |
-| `event` | 模板或实例上的触发事件名；只有实际产生 `Touch` 的对象会发 `on_trigger` |
+| `event` | 模板或实例的脚本路由名；非空时创建后发 `on_entity_spawn`，实际产生 `Touch` 时发 `on_trigger` |
 | `destinationRoom`、`destinationSpawn` | `exit` 目标；房间装载时静态校验；`$self` 在导入时解析为当前房间名 |
 | 其他键 | 作为模板默认值合并到 `RoomObject::properties`；目前只有标量值会送入 Lua 事件，不会自动生成 ECS 组件或行为 |
 
@@ -166,7 +166,11 @@ return {
 }
 ```
 
-`event` 当前含 `name`（事件名）、`id`（触发对象的稳定 ID）、`phase`（`enter`/`exit`）及合并后的 `properties`。房间 VM 支持 `on_enter`、`on_reset`、`on_death`、`on_checkpoint`、`on_trigger`、`on_timer` 等由宿主调用的回调；无每个 Prefab 自带的独立 VM。可用命令见 [LuaModule](../Scripting/README.md)：`set_velocity`、`set_enabled`、`set_rotation(id,degrees)`、`spawn(prefabId,newId,x,y)`、`destroy`、`sound`、`message`、`change_room`、`complete`、`after`、`once`。
+`event` 当前含 `name`（事件名）、`id`（实例稳定 ID）、`phase`（创建为 `spawn`、接触为 `enter`/`exit`、受击为 `hit`）及合并后的 `properties`。房间 VM 支持 `on_enter`、`on_reset`、`on_entity_spawn`、`on_death`、`on_checkpoint`、`on_trigger`、`on_hit`、`on_timer` 等由宿主调用的回调；无每个 Prefab 自带的独立 VM。可用命令见 [LuaModule](../Scripting/README.md)：`set_velocity`、`set_enabled`、`set_rotation(id,degrees)`、`spawn(prefabId,newId,x,y)`、`destroy`、`sound`、`message`、`change_room`、`complete`、`after`、`once`。
+
+`on_entity_spawn(ctx,event)` 为所有 `event` 非空的存活实例提供初始化入口。进入房间时，先创建整间房和角色、安装位置查询、调用 `on_enter`（重置时再调用 `on_reset`），提交这些回调命令后，才初始化实例。动态 `spawn` 与径向生成同样收到此事件；同批 `set_size`/`set_rotation` 先提交，因此 `properties.positionX/Y`、`sizeX/Y`、`rotation` 是分派时的实时变换，会覆盖同名自定义标量。初始化可以生成子实体，命令通过有界队列执行；不要为伤害子实体复制控制器的 `event`，以免递归生成。已在初始化前删除的实例不会回调，死亡清理不会重新初始化；重新进入房间使用新 VM 再初始化。旧脚本省略该回调即可保持原行为。单次提交最多执行 4096 条命令、256 个产生后续命令的初始化批次，超限会报告脚本错误；每个 Lua 待提交队列原有的 256 命令上限仍然适用。
+
+完整用例见 [十种 Lua 变形尖刺](MORPH_SPIKES.md)：初始化回调把可编辑的近身检测控制器与真实蒙版伤害子实体组合起来，变换和阶段顺序由 Lua 数据表定义，编辑器复制实例即可自动接入行为。
 
 `spawn` 在 **本次系统运行结束后** 用模板默认值创建实体，传入的位置为世界坐标。它目前没有实例属性覆盖参数；如需带血量、阵营等初始值，不能靠现有 `spawn` 表达。`destroy` 同样延迟执行；旧的 `ECS::EntityID`、`EntityView` 指针和房间切换前的引用都不可跨这类结构变化保存。脚本命令按提交顺序执行；当前实现没有整批事务回滚，前面的命令成功后，后面的失败仍可能留下已发生的变更。
 

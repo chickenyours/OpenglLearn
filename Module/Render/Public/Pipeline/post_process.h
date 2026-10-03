@@ -36,6 +36,16 @@ struct PostProcessSettings {
     float contrast = 1.0f;
     float vignette = 0.0f;
     float sharpenStrength = 1.0f;
+    float bloomSoftKnee = 0.5f; // fraction of the luminance threshold, 0 = hard cutoff
+    // Local HDR luminance range: cap isolated samples above max(this, 4*local
+    // reference). Uniform highlights retain their energy; 0 disables cap/Karis.
+    // Nonlinear suppression can modulate moving highlights, so it is opt-in.
+    float bloomFireflyClamp = 0.0f;
+    // Fraction of each reconstructed level supplied by the wider/coarser
+    // image. Convex blending preserves constant HDR brightness at any depth.
+    float bloomScatter = 0.8f;
+    // Upsampling tent radius in texels of the smaller image, not screen UVs.
+    float bloomRadius = 1.25f;
 };
 
 // These limits describe the current renderer, not device capabilities. The
@@ -55,6 +65,12 @@ inline bool ValidatePostProcessSettings(const PostProcessSettings& settings,
     if (!inRange(settings.bloomThreshold, 0.0f, 1000000.0f) ||
         !inRange(settings.bloomStrength, 0.0f, 32.0f))
         return fail("Invalid Bloom threshold or strength");
+    if (!inRange(settings.bloomSoftKnee, 0.0f, 1.0f) ||
+        !inRange(settings.bloomFireflyClamp, 0.0f, 60000.0f))
+        return fail("Invalid Bloom soft knee or firefly clamp");
+    if (!inRange(settings.bloomScatter, 0.0f, 1.0f) ||
+        !inRange(settings.bloomRadius, 0.5f, 2.0f))
+        return fail("Invalid Bloom scatter or radius");
     if (!inRange(settings.ssaoRadius, 0.001f, 1000.0f) ||
         !inRange(settings.ssaoBias, 0.0f, settings.ssaoRadius) ||
         !inRange(settings.ssaoPower, 0.01f, 16.0f))
@@ -85,6 +101,7 @@ struct alignas(16) PostProcessConstants {
     glm::vec4 screen{1.0f, 1.0f, 0.0f, 1.0f}; // inverse source dimensions, unused, Bloom enabled
     glm::vec4 grading{1.0f, 1.0f, 0.0f, 1.0f}; // saturation, contrast, vignette, sharpen strength
     glm::vec4 misc{0.1f, 100.0f, 0.0f, 1.0f}; // near, far, time, SSAO enabled
+    glm::vec4 bloomStability{0.5f, 0.0f, 0.8f, 1.25f}; // soft knee, optional firefly range, scatter, radius
 };
 
 static_assert(std::is_standard_layout_v<PostProcessConstants>);
@@ -98,7 +115,8 @@ static_assert(offsetof(PostProcessConstants, output) == 160);
 static_assert(offsetof(PostProcessConstants, screen) == 176);
 static_assert(offsetof(PostProcessConstants, grading) == 192);
 static_assert(offsetof(PostProcessConstants, misc) == 208);
-static_assert(sizeof(PostProcessConstants) == 224);
+static_assert(offsetof(PostProcessConstants, bloomStability) == 224);
+static_assert(sizeof(PostProcessConstants) == 240);
 
 // Fill the settings portion; the pass recorder supplies projection matrices,
 // source dimensions and time and selects the Gaussian direction for each pass.
@@ -111,6 +129,8 @@ inline PostProcessConstants MakePostProcessConstants(const PostProcessSettings& 
     result.screen.w = settings.bloomEnabled ? 1.0f : 0.0f;
     result.grading = {settings.saturation, settings.contrast, settings.vignette, settings.sharpenStrength};
     result.misc.w = settings.ssaoEnabled ? 1.0f : 0.0f;
+    result.bloomStability = {settings.bloomSoftKnee, settings.bloomFireflyClamp,
+                             settings.bloomScatter, settings.bloomRadius};
     return result;
 }
 

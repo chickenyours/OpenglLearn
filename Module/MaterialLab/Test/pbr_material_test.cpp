@@ -166,12 +166,13 @@ void CheckLegacyAssetAndInstanceEdits() {
 
 void CheckPassAndShaderInterface() {
     static_assert(std::is_trivially_copyable_v<PbrPassConstants>);
-    static_assert(sizeof(PbrPassConstants) == 160);
+    static_assert(sizeof(PbrPassConstants) == 176);
     static_assert(alignof(PbrPassConstants) == 16);
     static_assert(offsetof(PbrPassConstants, lightPositions) == 0);
     static_assert(offsetof(PbrPassConstants, lightColors) == 64);
     static_assert(offsetof(PbrPassConstants, ambientAndExposure) == 128);
     static_assert(offsetof(PbrPassConstants, outputOptions) == 144);
+    static_assert(offsetof(PbrPassConstants, specularAA) == 160);
     static_assert(sizeof(PbrPassConstants) <= 256);
     static_assert(PbrPassBinding == 3 && MaterialParameterBinding == 2);
     const PbrPassConstants pass;
@@ -181,6 +182,7 @@ void CheckPassAndShaderInterface() {
     }
     assert(pass.ambientAndExposure.x == 0.03f && pass.ambientAndExposure.w == 1.0f);
     assert(pass.outputOptions.x == 0.2f && pass.outputOptions.y == 2.2f && pass.outputOptions.z == 1.0f);
+    assert(pass.specularAA == glm::vec4(0.15f, 0.20f, 1.0f, 0.0f));
 
     const auto declaration = MakePbrTemplate()->GenerateGLSLUniformBlock();
     assert(declaration.find("uint useNormalMap;") != std::string::npos);

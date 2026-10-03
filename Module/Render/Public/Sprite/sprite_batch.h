@@ -40,6 +40,17 @@ public:
     bool Sprite(std::string_view name, glm::vec2 center, glm::vec2 size,
         float radians = 0, glm::vec4 tint = {1, 1, 1, 1},
         bool flipX = false, bool flipY = false, int frame = 0);
+    // axisX/axisY are the complete world-space width/height vectors. They may
+    // include shear and reflection (for example a rotated child of a squashed
+    // parent). UV flips do not change this geometry. Singular bases are invalid.
+    bool SpriteAffine(std::string_view name, glm::vec2 center, glm::vec2 axisX, glm::vec2 axisY,
+        glm::vec4 tint = {1, 1, 1, 1}, bool flipX = false, bool flipY = false, int frame = 0);
+    // Region is relative to the selected image frame: normalized top-left u/v
+    // and positive width/height, entirely inside [0,1]. Atlas edge extrusion
+    // remains intact; subregions never reach a neighboring packed image.
+    bool SpriteRegion(std::string_view name, glm::vec2 center, glm::vec2 size,
+        glm::vec4 normalizedRegion, float radians = 0, glm::vec4 tint = {1, 1, 1, 1},
+        bool flipX = false, bool flipY = false, int frame = 0);
     void Rect(glm::vec2 center, glm::vec2 size, glm::vec4 tint, float radians = 0);
     // Original 5x7 bitmap ASCII font; lowercase maps to uppercase. pixel is one
     // font pixel in world units. topLeft uses y-up coordinates; newlines descend.
@@ -56,6 +67,8 @@ private:
     ObjectWeakPtr<RHIDevice> device_;
     std::shared_ptr<State> state_;
     void Quad(glm::vec2 center, glm::vec2 size, float radians, glm::vec4 region,
+        glm::vec4 tint, bool flipX = false, bool flipY = false, bool nearest = false);
+    bool AffineQuad(glm::vec2 center, glm::vec2 axisX, glm::vec2 axisY, glm::vec4 region,
         glm::vec4 tint, bool flipX = false, bool flipY = false, bool nearest = false);
 };
 

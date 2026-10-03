@@ -1,0 +1,1971 @@
+{
+  "format_version": 1,
+  "source_project": "Unity2021_Botato",
+  "operation": "Original RGBA crops and unweighted Hermite Transform curves",
+  "bindings": [
+    {
+      "id": "PlayerIdle",
+      "animator_file_id": "5083329934025401204",
+      "controller": "Assets/AnimatorController/Player.controller",
+      "controller_guid": "52ce4a6dc678d8a4092a98364c11ee3e",
+      "state": "Idle",
+      "clip": "Assets/AnimationClip/Idle_Player.anim",
+      "clip_guid": "02329dff6a52c944fb66c09c1c1129a5"
+    },
+    {
+      "id": "PlayerMove",
+      "animator_file_id": "5083329934025401204",
+      "controller": "Assets/AnimatorController/Player.controller",
+      "controller_guid": "52ce4a6dc678d8a4092a98364c11ee3e",
+      "state": "Move",
+      "clip": "Assets/AnimationClip/Move_Player.anim",
+      "clip_guid": "e72abb31a55a6fb498d82a58b89f4df4"
+    },
+    {
+      "id": "EnemyMove",
+      "animator_file_id": "4613876897586908232",
+      "controller": "Assets/AnimatorController/Monster_All.controller",
+      "controller_guid": "0b304e466342c36438da8fb8714e5759",
+      "state": "Move",
+      "clip": "Assets/AnimationClip/Idle_Monsters.anim",
+      "clip_guid": "176feebce5b751340a2c64fe63559e7a"
+    },
+    {
+      "id": "EnemyDeath",
+      "animator_file_id": "4613876897586908232",
+      "controller": "Assets/AnimatorController/Monster_All.controller",
+      "controller_guid": "0b304e466342c36438da8fb8714e5759",
+      "state": "Death",
+      "clip": "Assets/AnimationClip/Death_Monsters.anim",
+      "clip_guid": "1819c8ac92946c941a958283761c90b1"
+    },
+    {
+      "id": "DamageText",
+      "animator_file_id": "851670184780006794",
+      "controller": "Assets/AnimatorController/Value.controller",
+      "controller_guid": "fbc2ada897fe22847ad4ed11840bb88f",
+      "state": "AddIt",
+      "clip": "Assets/AnimationClip/AddIt.anim",
+      "clip_guid": "5f456c8f959122c43bb21f973a0c458a"
+    },
+    {
+      "id": "MuzzleFlash",
+      "animator_file_id": "607546829",
+      "controller": "Assets/AnimatorController/Shoot.controller",
+      "controller_guid": "89365581487bd0e43ba0c4e22c7bcf42",
+      "state": "BulletAnim",
+      "clip": "Assets/AnimationClip/BulletAnim.anim",
+      "clip_guid": "c2bc1bb04bb0d9047831087d0633294b"
+    }
+  ],
+  "player_nodes": [
+    {
+      "path": "",
+      "game_object_file_id": "5177511094683912420",
+      "parent": -1,
+      "position": [
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0
+      ],
+      "angle": 0.0,
+      "opacity": 1.0,
+      "image": "Player",
+      "visible": false,
+      "size": [
+        1.0,
+        1.0
+      ],
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "tint": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "order": 0
+    },
+    {
+      "path": "Player_Body_All",
+      "game_object_file_id": "5177739104851716520",
+      "parent": 0,
+      "position": [
+        0.0,
+        0.25
+      ],
+      "scale": [
+        1.0,
+        1.0
+      ],
+      "angle": 0.0,
+      "opacity": 1.0,
+      "image": "Player",
+      "visible": false,
+      "size": [
+        1.0,
+        1.0
+      ],
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "tint": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "order": 0
+    },
+    {
+      "path": "Player_Body_All/Mark",
+      "game_object_file_id": "5177427961459761554",
+      "parent": 1,
+      "position": [
+        0.0,
+        -0.326
+      ],
+      "scale": [
+        1.0,
+        1.0
+      ],
+      "angle": 0.0,
+      "opacity": 1.0,
+      "image": "PlayerMark",
+      "visible": true,
+      "size": [
+        0.679465,
+        0.3584776
+      ],
+      "pivot": [
+        0.51471746,
+        0.49999994
+      ],
+      "tint": [
+        0.44705883,
+        1.0,
+        0.9490196,
+        0.4509804
+      ],
+      "order": -1,
+      "source_sprite": "Assets/Sprite/highlight.asset",
+      "source_sprite_guid": "8fb67f3c0310a944185653f57e4edb8c"
+    },
+    {
+      "path": "Player_Body_All/Body",
+      "game_object_file_id": "5177698313764141475",
+      "parent": 1,
+      "position": [
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0
+      ],
+      "angle": 0.0,
+      "opacity": 1.0,
+      "image": "PlayerBody",
+      "visible": true,
+      "size": [
+        0.6289713,
+        0.7289712500000001
+      ],
+      "pivot": [
+        0.5083419,
+        0.46536648
+      ],
+      "tint": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "order": -1,
+      "source_sprite": "Assets/Sprite/potato1.asset",
+      "source_sprite_guid": "1237c20eb29691147b40991fcf397659"
+    },
+    {
+      "path": "Player_Body_All/Body/Itemes",
+      "game_object_file_id": "5177973264060913225",
+      "parent": 3,
+      "position": [
+        -0.0010128,
+        0.018993
+      ],
+      "scale": [
+        -0.7974548,
+        0.7974548
+      ],
+      "angle": 0.0,
+      "opacity": 1.0,
+      "image": "Player",
+      "visible": true,
+      "size": [
+        0.7684776,
+        0.8789713
+      ],
+      "pivot": [
+        0.5065064,
+        0.49971917
+      ],
+      "tint": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "order": 0,
+      "note": "Initially null renderer selected by five CharacterSetter.BodyCharacter references; migration chooses Well-Rounded as default."
+    },
+    {
+      "path": "Player_Body_All/Shadow",
+      "game_object_file_id": "5177263396963035490",
+      "parent": 1,
+      "position": [
+        0.0,
+        -0.32599998
+      ],
+      "scale": [
+        1.0,
+        -0.3
+      ],
+      "angle": 0.0,
+      "opacity": 1.0,
+      "image": "PlayerShadow",
+      "visible": true,
+      "size": [
+        0.6289713,
+        0.7289712500000001
+      ],
+      "pivot": [
+        0.5083419,
+        0.46536648
+      ],
+      "tint": [
+        0.0,
+        0.0,
+        0.0,
+        0.4509804
+      ],
+      "order": -1,
+      "source_sprite": "Assets/Sprite/potato1.asset",
+      "source_sprite_guid": "1237c20eb29691147b40991fcf397659"
+    },
+    {
+      "path": "Player_Body_All/Player_Legs",
+      "game_object_file_id": "5178110090832505519",
+      "parent": 1,
+      "position": [
+        0.0,
+        0.063999996
+      ],
+      "scale": [
+        1.25,
+        1.25
+      ],
+      "angle": 0.0,
+      "opacity": 1.0,
+      "image": "Player",
+      "visible": false,
+      "size": [
+        1.0,
+        1.0
+      ],
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "tint": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "order": 0
+    },
+    {
+      "path": "Player_Body_All/Player_Legs/Leg_r",
+      "game_object_file_id": "5177764054485574588",
+      "parent": 6,
+      "position": [
+        -0.18,
+        -0.25
+      ],
+      "scale": [
+        1.0,
+        1.0
+      ],
+      "angle": 0.0,
+      "opacity": 1.0,
+      "image": "PlayerLegRight",
+      "visible": true,
+      "size": [
+        0.2188657,
+        0.28946497
+      ],
+      "pivot": [
+        0.45455655,
+        0.5172733
+      ],
+      "tint": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "order": -1,
+      "source_sprite": "Assets/Sprite/legs_0.asset",
+      "source_sprite_guid": "8a67fdfe278a1934ebe69c722a0b1cff"
+    },
+    {
+      "path": "Player_Body_All/Player_Legs/Leg_L",
+      "game_object_file_id": "5177794143154711562",
+      "parent": 6,
+      "position": [
+        0.18,
+        -0.25
+      ],
+      "scale": [
+        1.0,
+        1.0
+      ],
+      "angle": 0.0,
+      "opacity": 1.0,
+      "image": "PlayerLegLeft",
+      "visible": true,
+      "size": [
+        0.20897127000000001,
+        0.28921932
+      ],
+      "pivot": [
+        0.52510816,
+        0.5168632
+      ],
+      "tint": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "order": -1,
+      "source_sprite": "Assets/Sprite/legs_1.asset",
+      "source_sprite_guid": "6698a93cc47dbf1448f7b2a558df9324"
+    }
+  ],
+  "enemy_nodes": [
+    {
+      "path": "",
+      "game_object_file_id": "4707076140825075378",
+      "parent": -1,
+      "position": [
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0
+      ],
+      "angle": 0.0,
+      "opacity": 1.0,
+      "image": "Enemy",
+      "visible": false,
+      "size": [
+        1.0,
+        1.0
+      ],
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "tint": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "order": 0
+    },
+    {
+      "path": "Monster_All",
+      "game_object_file_id": "4706753114243801735",
+      "parent": 0,
+      "position": [
+        0.0,
+        0.25
+      ],
+      "scale": [
+        1.0,
+        1.0
+      ],
+      "angle": 0.0,
+      "opacity": 1.0,
+      "image": "Enemy",
+      "visible": false,
+      "size": [
+        1.0,
+        1.0
+      ],
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "tint": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "order": 0
+    },
+    {
+      "path": "Monster_All/Monster",
+      "game_object_file_id": "4706427923776140074",
+      "parent": 1,
+      "position": [
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0
+      ],
+      "angle": 0.0,
+      "opacity": 1.0,
+      "image": "Enemy",
+      "visible": true,
+      "size": [
+        0.7688097399999999,
+        0.8984776
+      ],
+      "pivot": [
+        0.49371243,
+        0.5333898
+      ],
+      "tint": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "order": 10,
+      "source_sprite": "Assets/Sprite/40001.asset",
+      "source_sprite_guid": "c92a87de007fdfc4990c7d18eacd80fc"
+    }
+  ],
+  "clips": {
+    "PlayerIdle": {
+      "name": "Idle_Player",
+      "duration": 1.0,
+      "loop": true,
+      "tracks": [
+        {
+          "path": "Player_Body_All/Player_Legs/Leg_r",
+          "channel": "AngleDegrees",
+          "keys": [
+            [
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              1.0333333,
+              0.0,
+              0.0,
+              0.0
+            ]
+          ],
+          "node": 7
+        },
+        {
+          "path": "Player_Body_All/Player_Legs/Leg_L",
+          "channel": "AngleDegrees",
+          "keys": [
+            [
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              1.0333333,
+              0.0,
+              0.0,
+              0.0
+            ]
+          ],
+          "node": 8
+        },
+        {
+          "path": "Player_Body_All/Body",
+          "channel": "AngleDegrees",
+          "keys": [
+            [
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              1.0333333,
+              0.0,
+              0.0,
+              0.0
+            ]
+          ],
+          "node": 3
+        },
+        {
+          "path": "Player_Body_All",
+          "channel": "PositionX",
+          "keys": [
+            [
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.5,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          ],
+          "node": 1
+        },
+        {
+          "path": "Player_Body_All",
+          "channel": "PositionY",
+          "keys": [
+            [
+              0.0,
+              0.25,
+              0.0,
+              0.0
+            ],
+            [
+              0.5,
+              0.2,
+              0.0,
+              0.0
+            ],
+            [
+              1.0,
+              0.25,
+              0.0,
+              0.0
+            ]
+          ],
+          "node": 1
+        },
+        {
+          "path": "Player_Body_All/Player_Legs/Leg_L",
+          "channel": "PositionX",
+          "keys": [
+            [
+              0.0,
+              0.18,
+              0.0,
+              0.0
+            ],
+            [
+              1.0333333,
+              0.18,
+              0.0,
+              0.0
+            ]
+          ],
+          "node": 8
+        },
+        {
+          "path": "Player_Body_All/Player_Legs/Leg_L",
+          "channel": "PositionY",
+          "keys": [
+            [
+              0.0,
+              -0.25,
+              0.0,
+              0.0
+            ],
+            [
+              1.0333333,
+              -0.25,
+              0.0,
+              0.0
+            ]
+          ],
+          "node": 8
+        },
+        {
+          "path": "Player_Body_All/Player_Legs/Leg_r",
+          "channel": "PositionX",
+          "keys": [
+            [
+              0.0,
+              -0.18,
+              0.0,
+              0.0
+            ],
+            [
+              1.0333333,
+              -0.18,
+              0.0,
+              0.0
+            ]
+          ],
+          "node": 7
+        },
+        {
+          "path": "Player_Body_All/Player_Legs/Leg_r",
+          "channel": "PositionY",
+          "keys": [
+            [
+              0.0,
+              -0.25,
+              0.0,
+              0.0
+            ],
+            [
+              1.0333333,
+              -0.25,
+              0.0,
+              0.0
+            ]
+          ],
+          "node": 7
+        },
+        {
+          "path": "Player_Body_All",
+          "channel": "ScaleX",
+          "keys": [
+            [
+              0.0,
+              1.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.5,
+              1.15,
+              0.0,
+              0.0
+            ],
+            [
+              1.0,
+              1.0,
+              0.0,
+              0.0
+            ]
+          ],
+          "node": 1
+        },
+        {
+          "path": "Player_Body_All",
+          "channel": "ScaleY",
+          "keys": [
+            [
+              0.0,
+              1.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.5,
+              0.85,
+              0.0,
+              0.0
+            ],
+            [
+              1.0,
+              1.0,
+              0.0,
+              0.0
+            ]
+          ],
+          "node": 1
+        },
+        {
+          "path": "Player_Body_All/Player_Legs/Leg_r",
+          "channel": "ScaleX",
+          "keys": [
+            [
+              0.0,
+              1.0,
+              0.0,
+              0.0
+            ],
+            [
+              1.0333333,
+              1.0,
+              0.0,
+              0.0
+            ]
+          ],
+          "node": 7
+        },
+        {
+          "path": "Player_Body_All/Player_Legs/Leg_r",
+          "channel": "ScaleY",
+          "keys": [
+            [
+              0.0,
+              1.0,
+              0.0,
+              0.0
+            ],
+            [
+              1.0333333,
+              1.0,
+              0.0,
+              0.0
+            ]
+          ],
+          "node": 7
+        }
+      ]
+    },
+    "PlayerMove": {
+      "name": "Move_Player",
+      "duration": 0.6,
+      "loop": true,
+      "tracks": [
+        {
+          "path": "Player_Body_All/Player_Legs/Leg_r",
+          "channel": "AngleDegrees",
+          "keys": [
+            [
+              0.0,
+              -61.3,
+              0.0,
+              0.0
+            ],
+            [
+              0.1,
+              -105.0,
+              0.00015258789,
+              0.0
+            ],
+            [
+              0.2,
+              47.0,
+              -0.00030517578,
+              0.0
+            ],
+            [
+              0.3,
+              33.0,
+              -280.0,
+              -280.0
+            ],
+            [
+              0.4,
+              -29.0,
+              -240.00002,
+              -240.00002
+            ],
+            [
+              0.5,
+              -41.0,
+              -161.50003,
+              -161.49998
+            ],
+            [
+              0.6,
+              -61.3,
+              1.9073483e-05,
+              0.0
+            ]
+          ],
+          "node": 7
+        },
+        {
+          "path": "Player_Body_All/Player_Legs/Leg_L",
+          "channel": "AngleDegrees",
+          "keys": [
+            [
+              0.0,
+              29.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.1,
+              -12.0,
+              -484.9999,
+              -485.0
+            ],
+            [
+              0.2,
+              -68.0,
+              -159.99995,
+              -159.99998
+            ],
+            [
+              0.3,
+              -76.0,
+              -160.0,
+              -160.0
+            ],
+            [
+              0.4,
+              -109.0,
+              7.629395e-05,
+              0.0
+            ],
+            [
+              0.5,
+              14.0,
+              299.99973,
+              299.99997
+            ],
+            [
+              0.6,
+              29.0,
+              1.9073483e-05,
+              0.0
+            ]
+          ],
+          "node": 8
+        },
+        {
+          "path": "Player_Body_All",
+          "channel": "PositionX",
+          "keys": [
+            [
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.1,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.2,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.3,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.4,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.5,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.6,
+              0.0,
+              0.0,
+              0.0
+            ]
+          ],
+          "node": 1
+        },
+        {
+          "path": "Player_Body_All",
+          "channel": "PositionY",
+          "keys": [
+            [
+              0.0,
+              0.25,
+              0.0,
+              0.0
+            ],
+            [
+              0.1,
+              0.16,
+              2.9802322e-07,
+              0.0
+            ],
+            [
+              0.2,
+              0.3,
+              -2.9802322e-07,
+              0.0
+            ],
+            [
+              0.3,
+              0.22,
+              -0.7,
+              -0.70000005
+            ],
+            [
+              0.4,
+              0.16,
+              0.0,
+              0.0
+            ],
+            [
+              0.5,
+              0.3,
+              -2.9802325e-07,
+              0.0
+            ],
+            [
+              0.6,
+              0.25,
+              1.4901158e-07,
+              0.0
+            ]
+          ],
+          "node": 1
+        },
+        {
+          "path": "Player_Body_All/Player_Legs/Leg_L",
+          "channel": "PositionX",
+          "keys": [
+            [
+              0.0,
+              0.23,
+              0.0,
+              0.0
+            ],
+            [
+              0.1,
+              0.142,
+              -1.76,
+              -1.7600001
+            ],
+            [
+              0.2,
+              -0.212,
+              -0.04000008,
+              -0.040000413
+            ],
+            [
+              0.3,
+              -0.214,
+              0.0,
+              0.0
+            ],
+            [
+              0.4,
+              -0.196,
+              0.36000016,
+              0.36000016
+            ],
+            [
+              0.5,
+              0.095,
+              2.0050004,
+              2.0049999
+            ],
+            [
+              0.6,
+              0.205,
+              7.450579e-08,
+              0.0
+            ]
+          ],
+          "node": 8
+        },
+        {
+          "path": "Player_Body_All/Player_Legs/Leg_L",
+          "channel": "PositionY",
+          "keys": [
+            [
+              0.0,
+              -0.234,
+              0.0,
+              0.0
+            ],
+            [
+              0.1,
+              -0.26,
+              7.4505806e-08,
+              0.0
+            ],
+            [
+              0.2,
+              -0.254,
+              -1.8626451e-08,
+              0.0
+            ],
+            [
+              0.3,
+              -0.26,
+              0.0,
+              0.0
+            ],
+            [
+              0.4,
+              -0.22,
+              -7.450581e-08,
+              0.0
+            ],
+            [
+              0.5,
+              -0.27,
+              1.4901163e-07,
+              0.0
+            ],
+            [
+              0.6,
+              -0.22,
+              -1.4901158e-07,
+              0.0
+            ]
+          ],
+          "node": 8
+        },
+        {
+          "path": "Player_Body_All/Player_Legs/Leg_r",
+          "channel": "PositionX",
+          "keys": [
+            [
+              0.0,
+              -0.187,
+              0.0,
+              0.0
+            ],
+            [
+              0.1,
+              -0.19,
+              9.313226e-09,
+              0.0
+            ],
+            [
+              0.2,
+              0.195,
+              0.07999897,
+              0.08000041
+            ],
+            [
+              0.3,
+              0.199,
+              0.0,
+              0.0
+            ],
+            [
+              0.4,
+              0.142,
+              -1.14,
+              -1.14
+            ],
+            [
+              0.5,
+              -0.098,
+              -1.6449995,
+              -1.645
+            ],
+            [
+              0.6,
+              -0.187,
+              -3.7252896e-08,
+              0.0
+            ]
+          ],
+          "node": 7
+        },
+        {
+          "path": "Player_Body_All/Player_Legs/Leg_r",
+          "channel": "PositionY",
+          "keys": [
+            [
+              0.0,
+              -0.25,
+              0.0,
+              0.0
+            ],
+            [
+              0.1,
+              -0.22,
+              0.0,
+              0.0
+            ],
+            [
+              0.2,
+              -0.23200002,
+              -0.19999991,
+              -0.19999994
+            ],
+            [
+              0.3,
+              -0.26,
+              3.72529e-08,
+              0.0
+            ],
+            [
+              0.4,
+              -0.26,
+              0.0,
+              0.0
+            ],
+            [
+              0.5,
+              -0.28,
+              7.450581e-08,
+              0.0
+            ],
+            [
+              0.6,
+              -0.25,
+              -7.450579e-08,
+              0.0
+            ]
+          ],
+          "node": 7
+        },
+        {
+          "path": "Player_Body_All",
+          "channel": "ScaleX",
+          "keys": [
+            [
+              0.0,
+              1.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.1,
+              1.2,
+              -5.9604645e-07,
+              0.0
+            ],
+            [
+              0.2,
+              0.9,
+              5.9604645e-07,
+              0.0
+            ],
+            [
+              0.3,
+              1.0,
+              1.5000004,
+              1.5000004
+            ],
+            [
+              0.4,
+              1.2,
+              -2.9802325e-07,
+              0.0
+            ],
+            [
+              0.5,
+              0.9,
+              1.192093e-06,
+              0.0
+            ],
+            [
+              0.6,
+              1.0,
+              -2.9802317e-07,
+              0.0
+            ]
+          ],
+          "node": 1
+        },
+        {
+          "path": "Player_Body_All",
+          "channel": "ScaleY",
+          "keys": [
+            [
+              0.0,
+              1.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.1,
+              0.8,
+              5.9604645e-07,
+              0.0
+            ],
+            [
+              0.2,
+              1.1,
+              -5.9604645e-07,
+              0.0
+            ],
+            [
+              0.3,
+              1.0,
+              -1.4999999,
+              -1.5
+            ],
+            [
+              0.4,
+              0.8,
+              2.9802325e-07,
+              0.0
+            ],
+            [
+              0.5,
+              1.1,
+              -5.960465e-07,
+              0.0
+            ],
+            [
+              0.6,
+              1.0,
+              2.9802317e-07,
+              0.0
+            ]
+          ],
+          "node": 1
+        },
+        {
+          "path": "Player_Body_All/Player_Legs/Leg_r",
+          "channel": "ScaleX",
+          "keys": [
+            [
+              0.0,
+              -1.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.6333333,
+              -1.0,
+              0.0,
+              0.0
+            ]
+          ],
+          "node": 7
+        },
+        {
+          "path": "Player_Body_All/Player_Legs/Leg_r",
+          "channel": "ScaleY",
+          "keys": [
+            [
+              0.0,
+              1.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.6333333,
+              1.0,
+              0.0,
+              0.0
+            ]
+          ],
+          "node": 7
+        }
+      ]
+    },
+    "EnemyMove": {
+      "name": "Idle_Monsters",
+      "duration": 1.0,
+      "loop": true,
+      "tracks": [
+        {
+          "path": "Monster_All",
+          "channel": "AngleDegrees",
+          "keys": [
+            [
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              1.0333333,
+              0.0,
+              0.0,
+              0.0
+            ]
+          ],
+          "node": 1
+        },
+        {
+          "path": "Monster_All",
+          "channel": "PositionX",
+          "keys": [
+            [
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.5,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          ],
+          "node": 1
+        },
+        {
+          "path": "Monster_All",
+          "channel": "PositionY",
+          "keys": [
+            [
+              0.0,
+              0.25,
+              0.0,
+              0.0
+            ],
+            [
+              0.5,
+              0.225,
+              0.0,
+              0.0
+            ],
+            [
+              1.0,
+              0.25,
+              0.0,
+              0.0
+            ]
+          ],
+          "node": 1
+        },
+        {
+          "path": "Monster_All",
+          "channel": "ScaleX",
+          "keys": [
+            [
+              0.0,
+              1.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.5,
+              1.15,
+              0.0,
+              0.0
+            ],
+            [
+              1.0,
+              1.0,
+              0.0,
+              0.0
+            ]
+          ],
+          "node": 1
+        },
+        {
+          "path": "Monster_All",
+          "channel": "ScaleY",
+          "keys": [
+            [
+              0.0,
+              1.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.5,
+              0.85,
+              0.0,
+              0.0
+            ],
+            [
+              1.0,
+              1.0,
+              0.0,
+              0.0
+            ]
+          ],
+          "node": 1
+        }
+      ]
+    },
+    "EnemyDeath": {
+      "name": "Death_Monsters",
+      "duration": 0.5,
+      "loop": false,
+      "tracks": [
+        {
+          "path": "Monster_All",
+          "channel": "AngleDegrees",
+          "keys": [
+            [
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.5,
+              -360.0,
+              0.0,
+              0.0
+            ]
+          ],
+          "node": 1
+        },
+        {
+          "path": "Monster_All",
+          "channel": "ScaleX",
+          "keys": [
+            [
+              0.0,
+              1.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.5,
+              0.0,
+              0.0,
+              0.0
+            ]
+          ],
+          "node": 1
+        },
+        {
+          "path": "Monster_All",
+          "channel": "ScaleY",
+          "keys": [
+            [
+              0.0,
+              1.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.5,
+              0.0,
+              0.0,
+              0.0
+            ]
+          ],
+          "node": 1
+        }
+      ]
+    },
+    "DamageText": {
+      "name": "AddIt",
+      "duration": 0.48333332,
+      "loop": false,
+      "tracks": [
+        {
+          "path": "",
+          "channel": "PositionX",
+          "keys": [
+            [
+              0.0,
+              -0.039,
+              0.0,
+              0.0
+            ],
+            [
+              0.48333332,
+              -0.118,
+              0.0,
+              0.0
+            ]
+          ],
+          "node": 0
+        },
+        {
+          "path": "",
+          "channel": "PositionY",
+          "keys": [
+            [
+              0.0,
+              -0.758,
+              0.0,
+              0.0
+            ],
+            [
+              0.48333332,
+              0.194,
+              0.0,
+              0.0
+            ]
+          ],
+          "node": 0
+        }
+      ]
+    },
+    "MuzzleFlash": {
+      "name": "BulletAnim",
+      "duration": 0.06666667,
+      "loop": false,
+      "tracks": [
+        {
+          "path": "",
+          "channel": "PositionX",
+          "keys": [
+            [
+              0.0,
+              0.094,
+              0.0,
+              0.0
+            ],
+            [
+              0.06666667,
+              0.466,
+              0.0,
+              0.0
+            ]
+          ],
+          "node": 0
+        },
+        {
+          "path": "",
+          "channel": "PositionY",
+          "keys": [
+            [
+              0.0,
+              0.025,
+              0.0,
+              0.0
+            ],
+            [
+              0.06666667,
+              0.025,
+              0.0,
+              0.0
+            ]
+          ],
+          "node": 0
+        },
+        {
+          "path": "",
+          "channel": "Opacity",
+          "keys": [
+            [
+              0.0,
+              1.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.05,
+              1.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.06666667,
+              0.0,
+              0.0,
+              0.0
+            ]
+          ],
+          "node": 0
+        }
+      ]
+    }
+  },
+  "assets": [
+    {
+      "id": "player_leg_right",
+      "image_enum": "PlayerLegRight",
+      "output": "player_leg_right.png",
+      "source_sprite": "Assets/Sprite/legs_0.asset",
+      "source_sprite_guid": "8a67fdfe278a1934ebe69c722a0b1cff",
+      "source_sprite_sha256": "31b06f21ce6b780bd613f73c93dfd2f5df94b1e13790386be15346a110fce80a",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-entites-72974441.png",
+      "source_texture_sha256": "9d1b3cc1278c2d285471cb5d6a4fd6b30798c3459ef7f9f8afff7280bfd505be",
+      "unity_rect_xywh": [
+        631.05133,
+        123.02675,
+        21.88657,
+        28.946497
+      ],
+      "texture_guid": "2ce410849c8ff764ca760f4f7f5ae13a",
+      "unity_pivot_xy": [
+        0.45455655,
+        0.5172733
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        631,
+        872,
+        653,
+        901
+      ],
+      "output_size_px": [
+        22,
+        29
+      ],
+      "unity_size_units": [
+        0.2188657,
+        0.28946497
+      ],
+      "output_sha256": "007c4643cc2709cef59734734f4013e728247f361b14e9a0bd054aa1f6185b3c"
+    },
+    {
+      "id": "player_leg_left",
+      "image_enum": "PlayerLegLeft",
+      "output": "player_leg_left.png",
+      "source_sprite": "Assets/Sprite/legs_1.asset",
+      "source_sprite_guid": "6698a93cc47dbf1448f7b2a558df9324",
+      "source_sprite_sha256": "ca953eb8cb412b9ef6d0a679aba4f3c690c5282fab51463150295638338ba5cd",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-entites-72974441.png",
+      "source_texture_sha256": "9d1b3cc1278c2d285471cb5d6a4fd6b30798c3459ef7f9f8afff7280bfd505be",
+      "unity_rect_xywh": [
+        700.02673,
+        465.05133,
+        20.897127,
+        28.921932
+      ],
+      "texture_guid": "2ce410849c8ff764ca760f4f7f5ae13a",
+      "unity_pivot_xy": [
+        0.52510816,
+        0.5168632
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        700,
+        530,
+        721,
+        559
+      ],
+      "output_size_px": [
+        21,
+        29
+      ],
+      "unity_size_units": [
+        0.20897127000000001,
+        0.28921932
+      ],
+      "output_sha256": "e6df79f6b649b15f4d9d7c7b8be95e2f2c8995757310943193132afb9273f34e"
+    },
+    {
+      "id": "player_shadow",
+      "image_enum": "PlayerShadow",
+      "output": "player_shadow.png",
+      "source_sprite": "Assets/Sprite/potato1.asset",
+      "source_sprite_guid": "1237c20eb29691147b40991fcf397659",
+      "source_sprite_sha256": "76dca5c9029e5d1eb1e18c9b753fee7221b536f9c1c4eacaf733eb8a1ed5bff6",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-entites-72974441.png",
+      "source_texture_sha256": "9d1b3cc1278c2d285471cb5d6a4fd6b30798c3459ef7f9f8afff7280bfd505be",
+      "unity_rect_xywh": [
+        532.02673,
+        783.0761,
+        62.89713,
+        72.897125
+      ],
+      "texture_guid": "2ce410849c8ff764ca760f4f7f5ae13a",
+      "unity_pivot_xy": [
+        0.5083419,
+        0.46536648
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        532,
+        168,
+        595,
+        241
+      ],
+      "output_size_px": [
+        63,
+        73
+      ],
+      "unity_size_units": [
+        0.6289713,
+        0.7289712500000001
+      ],
+      "output_sha256": "23c62411ec348d0cfc51b62d4438a33e6d3a245b34372c32ebb6d0c037ec0cd9"
+    },
+    {
+      "id": "player_mark",
+      "image_enum": "PlayerMark",
+      "output": "player_mark.png",
+      "source_sprite": "Assets/Sprite/highlight.asset",
+      "source_sprite_guid": "8fb67f3c0310a944185653f57e4edb8c",
+      "source_sprite_sha256": "6da33f0828f8b6be31631b1612a7f94858d1e7dd2bdc491a47b55dd1e58f3b94",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-entites-72974441.png",
+      "source_texture_sha256": "9d1b3cc1278c2d285471cb5d6a4fd6b30798c3459ef7f9f8afff7280bfd505be",
+      "unity_rect_xywh": [
+        767.02673,
+        284.0761,
+        67.9465,
+        35.84776
+      ],
+      "texture_guid": "2ce410849c8ff764ca760f4f7f5ae13a",
+      "unity_pivot_xy": [
+        0.51471746,
+        0.49999994
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        767,
+        704,
+        835,
+        740
+      ],
+      "output_size_px": [
+        68,
+        36
+      ],
+      "unity_size_units": [
+        0.679465,
+        0.3584776
+      ],
+      "output_sha256": "d3971d326d5f8a4fe5b50d5027a20002a4785de198426963059a9200c3f75af8"
+    },
+    {
+      "id": "hit_particle",
+      "image_enum": "HitParticle",
+      "output": "hit_particle.png",
+      "source_sprite": "Assets/Sprite/particle_9.asset",
+      "source_sprite_guid": "32c6618a43a1a34409acccbf6662fe18",
+      "source_sprite_sha256": "37d3905a2dc20a051d2a84482f92510cb368dcfae565ba738dec6e41f05604ce",
+      "source_texture": "Assets/Texture2D/sactx-0-512x256-ETC2-particles-60fc1887.png",
+      "source_texture_sha256": "aeb9f163ae44e81f3ad03a3a75fb2d68ccd82be9ba00db64ef506d2c71ac49f7",
+      "unity_rect_xywh": [
+        371.0761,
+        63.058205,
+        54.847755,
+        52.915043
+      ],
+      "texture_guid": "10576a6a0c3691749a979bb8937eb9bd",
+      "unity_pivot_xy": [
+        0.54558074,
+        0.50915194
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        371,
+        140,
+        426,
+        193
+      ],
+      "output_size_px": [
+        55,
+        53
+      ],
+      "unity_size_units": [
+        0.54847755,
+        0.52915043
+      ],
+      "output_sha256": "eb569fd442ca03d89c0df7db358bf08448a8e8b7f402290924bdc19bffeb70a4"
+    }
+  ],
+  "characters": [
+    {
+      "id": "well_rounded",
+      "image": "player",
+      "pivot": [
+        0.5065064,
+        0.49971917
+      ]
+    },
+    {
+      "id": "brawler",
+      "image": "character_brawler",
+      "pivot": [
+        0.5065064,
+        0.49971917
+      ]
+    },
+    {
+      "id": "crazy",
+      "image": "character_crazy",
+      "pivot": [
+        0.5065064,
+        0.49971917
+      ]
+    },
+    {
+      "id": "ranger",
+      "image": "character_ranger",
+      "pivot": [
+        0.5128456,
+        0.49971917
+      ]
+    },
+    {
+      "id": "mage",
+      "image": "character_mage",
+      "pivot": [
+        0.4477927,
+        0.5218909
+      ]
+    }
+  ],
+  "hit_particles": {
+    "source_prefab": "Assets/PrefabInstance/DirectionalHitParticles.prefab",
+    "count": 6,
+    "lifetime": 0.5,
+    "speed_range": [
+      1,
+      8
+    ],
+    "size_range": [
+      0.1,
+      0.28
+    ],
+    "tint": [
+      0.8018868,
+      0.19290671,
+      0.1970778,
+      1
+    ],
+    "size_normalized_keys": [
+      [
+        0,
+        1,
+        0,
+        0
+      ],
+      [
+        1,
+        0,
+        -2,
+        -2
+      ]
+    ],
+    "cone_angle_degrees": 7,
+    "radius": 0.1,
+    "note": "Source uses a fixed +X 3D cone; the 2D ECS projection is documented separately."
+  },
+  "damage_text": {
+    "base_position": [
+      -0.039,
+      -0.758
+    ],
+    "parent_offset": [
+      -0.003,
+      0.9720000000000002
+    ],
+    "parent_rect_transform": "7041146916155741641",
+    "parent_local_position": [
+      -0.003,
+      -0.0,
+      0.972
+    ],
+    "tint": [
+      1,
+      1,
+      1,
+      1
+    ],
+    "font_size": 0.25,
+    "displayed_range": [
+      1,
+      8
+    ],
+    "note": "Cosmetic random +1..8, not damage or experience. Source keeps endpoint until corpse removal."
+  },
+  "excluded": [
+    "Player Death is not played by PlayerController; gameplay freezes on death.",
+    "Player Smoke ParticleSystem requires a separate emitter/material migration."
+  ],
+  "source_files": [
+    {
+      "path": "Assets/AI/NpcGo.prefab",
+      "sha256": "257449651bb64aa96028d1cb427cffe50ded25c8292a4d74d6590b30ece51ff8"
+    },
+    {
+      "path": "Assets/AnimationClip/AddIt.anim",
+      "sha256": "7b99beaa611cc05d9a4279d5c7258f72c77c86c8e16f5b09bc008bfd29c9a80a"
+    },
+    {
+      "path": "Assets/AnimationClip/BulletAnim.anim",
+      "sha256": "e262ef6332dfc563157bed6cca369398e817283ce4020252ae71266845f15a1c"
+    },
+    {
+      "path": "Assets/AnimationClip/Death_Monsters.anim",
+      "sha256": "a45dac2182ed21b024d438b78583201fbda6d771245113ce7bb1dcf0c329c997"
+    },
+    {
+      "path": "Assets/AnimationClip/Idle_Monsters.anim",
+      "sha256": "9a09e58a3db15479082611abfce17886342a8271e91ade137a9c97b33982bd4b"
+    },
+    {
+      "path": "Assets/AnimationClip/Idle_Player.anim",
+      "sha256": "f48b056623b55a2dee3d31103c9e603de635a9d5781a7cd8ccf72593f76fe755"
+    },
+    {
+      "path": "Assets/AnimationClip/Move_Player.anim",
+      "sha256": "87385b83322a7994d6fa72fb564d4158691ae584063911532cfa0442b6b2cb5f"
+    },
+    {
+      "path": "Assets/AnimatorController/Monster_All.controller",
+      "sha256": "e20c695bff3473b58c6647c420b78b30edfc4b17fcbd65970b9e3f63115bb382"
+    },
+    {
+      "path": "Assets/AnimatorController/Player.controller",
+      "sha256": "20a3e888d7153ac67d3f2892ac035bb559ea30bf540f198dd4146c09896e88de"
+    },
+    {
+      "path": "Assets/AnimatorController/Shoot.controller",
+      "sha256": "1d8713d7f524a1719d0a2839005d1ad94a774830c7b714b856e6feb5fc0f9ff8"
+    },
+    {
+      "path": "Assets/AnimatorController/Value.controller",
+      "sha256": "1e927508216f81e1208bda423fb0c98599879fefc8bd7611499d7cfe21a9e238"
+    },
+    {
+      "path": "Assets/Brotato.unity",
+      "sha256": "d6e2108e2d0157d436abaca640e429b97ee54cdae8b4554d3d502b74a2de131c"
+    },
+    {
+      "path": "Assets/PrefabInstance/DirectionalHitParticles.prefab",
+      "sha256": "31acdc99654c09321255a98be3cac26bc9d189db23c578cbd80f070784896c18"
+    },
+    {
+      "path": "Assets/Scripts/EnemyNPC.cs",
+      "sha256": "05d114517a73942e87a05d677157a054af53c635070dcaac36dc8525caa69537"
+    },
+    {
+      "path": "Assets/Scripts/PlayerController.cs",
+      "sha256": "3f9b63ac8a16cc70b52fb6066a488ba61e701e47924412d5af946a79bb9b0961"
+    }
+  ]
+}

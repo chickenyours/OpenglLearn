@@ -70,7 +70,7 @@ void GameModule::HitCapsule(glm::vec2 start, glm::vec2 end, float angle, float h
         const auto& transform = Get<Transform>(entity);
         if (Combat::CapsuleImpact(start, end, angle, halfLength, radius,
                 transform.previous, transform.position, Get<Circle>(entity).radius) <= 1)
-            Kill(entity);
+            Kill(entity, Get<Weapon>(weapon_).kind);
     }
 }
 
@@ -172,6 +172,7 @@ void GameModule::Fire() {
         projectiles_.size() + count > config_.maxProjectiles) return;
     weapon.cooldown = weapon.cooldowns[WeaponIndex(weapon.kind)] = definition.cooldown;
     weapon.elapsed = 0; ++stats_.shots;
+    EmitEvent(GameEventKind::WeaponAttack, weapon_, transform.position, weapon.kind);
     switch (definition.mode) {
     case AttackMode::Thrust:
         weapon.phase = WeaponPhase::Outbound; ThrustTick();

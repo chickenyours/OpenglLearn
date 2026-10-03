@@ -12,6 +12,7 @@ struct RenderTargetSpec {
     std::uint32_t rhi_id = 0;
     RenderResourceHandle<RHITextureSpec> color;
     RenderResourceHandle<RHITextureSpec> depth;
+    std::uint32_t samples = 1;
 };
 
 struct CreateRenderTargetDesc {
@@ -23,13 +24,15 @@ inline bool AreRenderTargetAttachmentsCompatible(const RHITextureSpec* color,
                                                  const RHITextureSpec* depth) {
     if (!color && !depth) return false;
     const auto validSize = [](const RHITextureSpec* texture) {
-        return !texture || (texture->width != 0 && texture->height != 0 && !texture->mipmaps);
+        return !texture || (texture->width != 0 && texture->height != 0 && !texture->mipmaps &&
+                            IsValidTextureSampleCount(texture->samples));
     };
     if (!validSize(color) || !validSize(depth)) return false;
     if (color && (IsDepthFormat(color->textureDataStoreType) ||
                   GetTextureFormatByteSize(color->textureDataStoreType) == 0)) return false;
     if (depth && !IsDepthFormat(depth->textureDataStoreType)) return false;
-    return !color || !depth || (color->width == depth->width && color->height == depth->height);
+    return !color || !depth || (color->width == depth->width && color->height == depth->height &&
+                               color->samples == depth->samples);
 }
 
 } // namespace Render

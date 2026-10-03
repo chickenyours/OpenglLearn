@@ -4,6 +4,7 @@
 #include <memory>
 #include <set>
 #include <random>
+#include <deque>
 #include "engine/ECS/Scene/scene.h"
 namespace IWanna {
 class GameModule;
@@ -36,6 +37,9 @@ private:
     std::map<std::string,ECS::EntityID> ids_;
     std::map<std::string,ECS::EntityHandle> handles_;
     std::map<std::string,RoomObject> definitions_;
+    // Stable IDs only: callbacks may append commands which move ECS storage.
+    // Remove erases pending entries before an ID can be reused.
+    std::deque<std::string> pendingSpawns_;
     std::set<std::string> touched_,previous_,activated_;
     std::set<std::string> retired_;
     std::map<std::string,std::string> hits_;

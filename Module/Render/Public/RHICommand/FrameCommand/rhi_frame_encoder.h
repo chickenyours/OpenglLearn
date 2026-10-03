@@ -37,6 +37,12 @@ public:
         return Record(command);
     }
 
+    bool ResolveRenderTarget(const RHICommand::ResolveRenderTarget& command) {
+        if (!command.source.IsValid() || !command.destination.IsValid() ||
+            command.source == command.destination || (!command.color && !command.depth)) return false;
+        return Record(command);
+    }
+
     bool SetScissor(const RHICommand::SetScissor& command) {
         return Record(command);
     }

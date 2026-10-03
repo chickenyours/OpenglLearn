@@ -133,6 +133,16 @@ struct SetRenderTarget {
     float clearDepth = 1.0f;
 };
 
+// Full-size resolve from a multisample FBO to an equally sized single-sample
+// FBO. Selected attachment formats must match. Window targets are not accepted.
+// Does not change the current draw target, viewport, or scissor state.
+struct ResolveRenderTarget {
+    RenderResourceHandle<RenderTargetSpec> source;
+    RenderResourceHandle<RenderTargetSpec> destination;
+    bool color = true;
+    bool depth = false;
+};
+
 // Existing command ids stay stable (0..5). New commands are appended so old
 // captured buffers and tests remain readable.
 using FrameCommandsSet = CommandTable<
@@ -151,7 +161,8 @@ using FrameCommandsSet = CommandTable<
     UpdateUniformBuffer,
     DrawIndexed,
     DrawInstance,
-    SetRenderTarget
+    SetRenderTarget,
+    ResolveRenderTarget
 >;
 
 } // namespace Render::RHICommand

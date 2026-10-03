@@ -4,7 +4,7 @@
 namespace Brotato {
 class WaveSystem final : public ECS::System::System {
 public:
-    WaveSystem() : System("Brotato.Wave", ECS::System::Phase::Update) { Writes<Enemy>(); Writes<Player>(); }
+    WaveSystem() : System("Brotato.Wave", ECS::System::Phase::Update) { Writes<Enemy>(); Writes<Player>(); Writes<ActorAnimation>(); }
     void OnTick() override { GetContext()->GetService<GameModule>()->WaveTick(); }
 };
 class MovementSystem final : public ECS::System::System {
@@ -17,14 +17,14 @@ public:
 class WeaponSystem final : public ECS::System::System {
 public:
     WeaponSystem() : System("Brotato.Weapon", ECS::System::Phase::Update) {
-        Reads<Circle>(); Writes<Transform>(); Writes<Enemy>(); Writes<Velocity>(); Writes<Sprite>(); Writes<Weapon>();
+        Reads<Circle>(); Writes<Transform>(); Writes<Enemy>(); Writes<Velocity>(); Writes<Sprite>(); Writes<Weapon>(); Writes<ActorAnimation>();
     }
     void OnTick() override { GetContext()->GetService<GameModule>()->Fire(); }
 };
 class ProjectileSystem final : public ECS::System::System {
 public:
     ProjectileSystem() : System("Brotato.Projectile", ECS::System::Phase::Update) {
-        Reads<Circle>(); Writes<Velocity>(); Writes<Transform>(); Writes<Projectile>(); Writes<Enemy>();
+        Reads<Circle>(); Writes<Velocity>(); Writes<Transform>(); Writes<Projectile>(); Writes<Enemy>(); Writes<ActorAnimation>();
     }
     void OnTick() override { GetContext()->GetService<GameModule>()->Projectiles(); }
 };
@@ -37,5 +37,12 @@ class PickupSystem final : public ECS::System::System {
 public:
     PickupSystem() : System("Brotato.Pickup", ECS::System::Phase::Update) { Reads<Transform>(); Reads<Circle>(); Writes<Player>(); Writes<Pickup>(); }
     void OnTick() override { GetContext()->GetService<GameModule>()->Pickups(); }
+};
+class PresentationSystem final : public ECS::System::System {
+public:
+    PresentationSystem() : System("Brotato.Presentation", ECS::System::Phase::Update) {
+        Reads<Enemy>(); Reads<Velocity>(); Writes<Transform>(); Writes<Sprite>(); Writes<ActorAnimation>(); Writes<Effect>();
+    }
+    void OnTick() override { GetContext()->GetService<GameModule>()->Animate(); }
 };
 } // namespace Brotato

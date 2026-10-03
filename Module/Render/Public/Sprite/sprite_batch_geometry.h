@@ -85,25 +85,65 @@ struct SpriteVertex {
 };
 static_assert(sizeof(SpriteVertex) == 9 * sizeof(float));
 
+inline bool ValidRegion(glm::vec4 region) {
+    return std::isfinite(region.x) && std::isfinite(region.y) &&
+        std::isfinite(region.z) && std::isfinite(region.w) &&
+        region.x >= 0 && region.y >= 0 && region.z > 0 && region.w > 0 &&
+        region.x + region.z <= 1 && region.y + region.w <= 1;
+}
+
+// Child coordinates are relative to the complete frame, before sprite flips.
+// The packed frame's extruded outside border is unaffected by this composition.
+inline glm::vec4 ComposeRegion(glm::vec4 frame, glm::vec4 child) {
+    if (!ValidRegion(frame) || !ValidRegion(child))
+        throw std::invalid_argument("Sprite region must be positive, finite and inside its frame");
+    return {frame.x + child.x * frame.z, frame.y + child.y * frame.w,
+            child.z * frame.z, child.w * frame.w};
+}
+
+inline bool Finite(glm::vec2 value) { return std::isfinite(value.x) && std::isfinite(value.y); }
+inline bool Finite(glm::vec4 value) { return Finite(glm::vec2(value)) && Finite(glm::vec2(value.z,value.w)); }
+
+inline bool ValidAffineBasis(glm::vec2 axisX, glm::vec2 axisY) {
+    // Double precision prevents a finite but very large/tiny basis from
+    // overflowing/underflowing solely while testing its determinant.
+    return Finite(axisX) && Finite(axisY) &&
+        double(axisX.x)*axisY.y-double(axisX.y)*axisY.x != 0;
+}
+
 // Positions use y-up world coordinates; image row zero remains at the top.
-inline std::array<SpriteVertex, 4> MakeQuad(glm::vec2 center, glm::vec2 size, float radians,
+// A full 2D affine basis preserves shear from hierarchical transforms.
+inline std::array<SpriteVertex, 4> MakeAffineQuad(glm::vec2 center, glm::vec2 axisX, glm::vec2 axisY,
     glm::vec4 region, glm::vec4 tint, glm::vec2 halfExtent, glm::vec2 cameraCenter = {},
     bool flipX = false, bool flipY = false, bool nearest = false) {
     if (!(halfExtent.x > 0 && halfExtent.y > 0) || !std::isfinite(halfExtent.x) || !std::isfinite(halfExtent.y))
         throw std::invalid_argument("Sprite view extents must be positive and finite");
-    const float cosine = std::cos(radians), sine = std::sin(radians);
+    if (!Finite(center) || !Finite(cameraCenter) || !Finite(tint) || !ValidAffineBasis(axisX,axisY) || !ValidRegion(region))
+        throw std::invalid_argument("Sprite affine transform, region and tint must be finite and nonsingular");
     const std::array<glm::vec2, 4> corners = {glm::vec2(0, 0), {1, 0}, {1, 1}, {0, 1}};
     std::array<SpriteVertex, 4> vertices;
     for (size_t i = 0; i < corners.size(); ++i) {
-        const auto local = (corners[i] - .5f) * size;
-        const auto position = center + glm::vec2(cosine * local.x - sine * local.y, sine * local.x + cosine * local.y);
+        const auto local = corners[i] - .5f;
+        const glm::dvec2 position = (glm::dvec2(center)-glm::dvec2(cameraCenter) +
+            glm::dvec2(axisX)*double(local.x) + glm::dvec2(axisY)*double(local.y))/glm::dvec2(halfExtent);
+        if (!std::isfinite(position.x) || !std::isfinite(position.y) ||
+            std::abs(position.x)>std::numeric_limits<float>::max() || std::abs(position.y)>std::numeric_limits<float>::max())
+            throw std::invalid_argument("Sprite affine projection exceeds finite vertex coordinates");
         auto uv = glm::vec2(corners[i].x, 1.f - corners[i].y);
         if (flipX) uv.x = 1.f - uv.x;
         if (flipY) uv.y = 1.f - uv.y;
-        vertices[i] = {(position - cameraCenter) / halfExtent,
+        vertices[i] = {glm::vec2(position),
             glm::vec2(region) + uv * glm::vec2(region.z, region.w), tint, nearest ? 1.f : 0.f};
     }
     return vertices;
+}
+
+inline std::array<SpriteVertex, 4> MakeQuad(glm::vec2 center, glm::vec2 size, float radians,
+    glm::vec4 region, glm::vec4 tint, glm::vec2 halfExtent, glm::vec2 cameraCenter = {},
+    bool flipX = false, bool flipY = false, bool nearest = false) {
+    const float cosine = std::cos(radians), sine = std::sin(radians);
+    return MakeAffineQuad(center,{cosine*size.x,sine*size.x},{-sine*size.y,cosine*size.y},
+        region,tint,halfExtent,cameraCenter,flipX,flipY,nearest);
 }
 
 } // namespace Render::SpriteDetail

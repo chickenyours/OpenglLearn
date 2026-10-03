@@ -66,11 +66,12 @@ public:
         CreateUniformBufferDesc desc; desc.byteSize = bytes;
         return Create<UniformBufferSpec>([&](auto cb) { device_.async_CreateUniformBuffer(desc, cb); });
     }
-    auto Texture(std::uint32_t w, std::uint32_t h, RHITextureFormat format) {
+    auto Texture(std::uint32_t w, std::uint32_t h, RHITextureFormat format, std::uint32_t samples = 1) {
         CreateRHITextureSpec desc;
         desc.width = w; desc.height = h;
         desc.textureDataStoreType = desc.textureUseType = format;
         desc.mipmaps = false;
+        desc.samples = samples;
         desc.filterMode = format == RHITextureFormat::Depth32F ? RHIFilterMode::Nearest : RHIFilterMode::Linear;
         desc.addressMode = RHIAddressMode::ClampToEdge;
         return Create<RHITextureSpec>([&](auto cb) { device_.async_CreateTexture(desc, cb); });
@@ -82,7 +83,7 @@ public:
         CreateShaderSourceDesc desc{type, source.data(), source.size()};
         return Create<ShaderSourceSpec>([&](auto cb) { device_.async_CreateShaderSource(desc, cb); });
     }
-    auto FullscreenPipeline(const std::string& vertex, const std::string& fragment) {
+    auto FullscreenPipeline(const std::string& vertex, const std::string& fragment, bool depthCopy = false) {
         CreateGraphicShaderDesc desc;
         desc.vertexShaderSource = Source(ShaderSourceType::Vertex, vertex);
         desc.fragmentShaderSource = Source(ShaderSourceType::Fragment, fragment);
@@ -90,7 +91,8 @@ public:
         PipelineSpec spec;
         spec.shaderProgram = program;
         spec.expectVertexLayout = {{VertexFieldType::Vec2, VertexFieldType::Vec2}};
-        spec.depthTest = spec.depthWrite = false;
+        spec.depthTest = spec.depthWrite = depthCopy;
+        spec.depthCompare = CompareOp::Always;
         spec.cullMode = CullMode::None;
         return Create<PipelineSpec>([&](auto cb) { device_.async_CreatePipeline({spec}, cb); });
     }

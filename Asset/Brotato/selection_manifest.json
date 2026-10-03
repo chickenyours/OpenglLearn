@@ -1,0 +1,2577 @@
+{
+  "format_version": 1,
+  "source_scene": "Assets/Brotato.unity",
+  "source_scene_sha256": "d6e2108e2d0157d436abaca640e429b97ee54cdae8b4554d3d502b74a2de131c",
+  "weapons": [
+    {
+      "kind": "Wand",
+      "image": "select_wand",
+      "button_component_file_id": "1966261189",
+      "button_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj",
+      "weapon_game_object_file_id": "5178008817973169389",
+      "weapon_path": "Container/PlayerGo/ws/w1",
+      "weapon_active_self": false,
+      "player_relative_origin": [
+        0.013999999999999346,
+        -0.028999999999999915,
+        0.0
+      ],
+      "source_icon": "Assets/Sprite/wand_icon.asset",
+      "active_weapon_indices": [
+        0
+      ],
+      "size": [
+        0.8489713000000001,
+        0.8995858
+      ]
+    },
+    {
+      "kind": "Torch",
+      "image": "select_torch",
+      "button_component_file_id": "1902595707",
+      "button_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (1)",
+      "weapon_game_object_file_id": "5177833475171252234",
+      "weapon_path": "Container/PlayerGo/ws/w2",
+      "weapon_active_self": false,
+      "player_relative_origin": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "source_icon": "Assets/Sprite/torch_icon.asset",
+      "active_weapon_indices": [
+        1
+      ],
+      "size": [
+        0.9497325,
+        0.9497325
+      ]
+    },
+    {
+      "kind": "Laser",
+      "image": "select_laser",
+      "button_component_file_id": "1307450011",
+      "button_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (2)",
+      "weapon_game_object_file_id": "5177954861572163456",
+      "weapon_path": "Container/PlayerGo/ws/w3",
+      "weapon_active_self": false,
+      "player_relative_origin": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "source_icon": "Assets/Sprite/taser_icon.asset",
+      "active_weapon_indices": [
+        2
+      ],
+      "size": [
+        0.8584776,
+        0.6689713
+      ]
+    },
+    {
+      "kind": "Knife",
+      "image": "select_knife",
+      "button_component_file_id": "232146656",
+      "button_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (3)",
+      "weapon_game_object_file_id": "5178137463847283417",
+      "weapon_path": "Container/PlayerGo/ws/w4",
+      "weapon_active_self": false,
+      "player_relative_origin": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "source_icon": "Assets/Sprite/lightning_shiv_icon.asset",
+      "active_weapon_indices": [
+        3
+      ],
+      "size": [
+        0.7687967,
+        0.8089713000000001
+      ]
+    },
+    {
+      "kind": "Gun",
+      "image": "select_gun",
+      "button_component_file_id": "1994513103",
+      "button_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (4)",
+      "weapon_game_object_file_id": "5177195215132429949",
+      "weapon_path": "Container/PlayerGo/ws/w5",
+      "weapon_active_self": false,
+      "player_relative_origin": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "source_icon": "Assets/Sprite/smg_icon.asset",
+      "active_weapon_indices": [
+        4
+      ],
+      "size": [
+        0.8489713000000001,
+        0.8389713000000001
+      ]
+    },
+    {
+      "kind": "Burst",
+      "image": "select_burst",
+      "button_component_file_id": "1721886298",
+      "button_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (5)",
+      "weapon_game_object_file_id": "5177469814621149502",
+      "weapon_path": "Container/PlayerGo/ws/w6",
+      "weapon_active_self": false,
+      "player_relative_origin": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "source_icon": "Assets/Sprite/double_barrel_shotgun_icon.asset",
+      "active_weapon_indices": [
+        5
+      ],
+      "size": [
+        0.9392387999999999,
+        0.68910965
+      ]
+    }
+  ],
+  "difficulties": [
+    {
+      "id": "diff_0",
+      "name": "DIFFICULTY 0",
+      "image": "difficulty_0",
+      "size": [
+        0.5989713299999999,
+        0.7489713
+      ],
+      "button_component_file_id": "1250121155",
+      "selected_active_self": true,
+      "source_name": null,
+      "description": "The source binds diff_0.asset but has no difficulty name or modifiers."
+    }
+  ],
+  "buttons": [
+    {
+      "component_file_id": "98040273",
+      "game_object_file_id": "98040271",
+      "path": "Canvas/StartGame/DownUICharacter/NextBtn",
+      "scene_line": 10150,
+      "active_self": false,
+      "interactable": true,
+      "calls": [
+        {
+          "target_file_id": "492025373",
+          "target_path": "EventSystem/BtnClicked",
+          "target_type": "UnityEngine.AudioSource, UnityEngine",
+          "method": "Play",
+          "mode": 1,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "963640872",
+          "target_path": "Canvas/StartGame/CenterContent/Info/Character/Arrow",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "962444896",
+          "target_path": "Canvas/StartGame/DownUIWeapons",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1469822626",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1191732797",
+          "target_path": "Canvas/StartGame/DownUICharacter",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1566453593",
+          "target_path": "Canvas/StartGame/BackBtnOne",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "550234809",
+          "target_path": "Canvas/StartGame/BackBtnOneTwo",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "341855239",
+          "target_path": "Canvas/StartGame/DownUICharacter/ScroolView/Scroll View/Viewport/Content/------/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1626198410",
+          "target_path": "Canvas/StartGame/DownUICharacter/ScroolView/Scroll View/Viewport/Content/------/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "2035309875",
+          "target_path": "Canvas/StartGame/DownUICharacter/ScroolView/Scroll View/Viewport/Content/------/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "923204428",
+          "target_path": "Canvas/StartGame/DownUICharacter/ScroolView/Scroll View/Viewport/Content/------/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "565885032",
+          "target_path": "Canvas/StartGame/DownUICharacter/ScroolView/Scroll View/Viewport/Content/------/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "98040271",
+          "target_path": "Canvas/StartGame/DownUICharacter/NextBtn",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        }
+      ]
+    },
+    {
+      "component_file_id": "232146656",
+      "game_object_file_id": "232146654",
+      "path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (3)",
+      "scene_line": 24454,
+      "active_self": true,
+      "interactable": true,
+      "calls": [
+        {
+          "target_file_id": "1191156122",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP1",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1944869480",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP2",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1948175892",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP3",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "326324417",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP4",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1534970724",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP5",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1216999312",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP6",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "766271796",
+          "target_path": "Canvas/StartGame/DownUIWeapons/NextBtn",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1054122605",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "555558953",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (1)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "70972960",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (2)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1551927204",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (3)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "106111167",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (4)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "124017858",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (5)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5178008817973169389",
+          "target_path": "Container/PlayerGo/ws/w1",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5177833475171252234",
+          "target_path": "Container/PlayerGo/ws/w2",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5177954861572163456",
+          "target_path": "Container/PlayerGo/ws/w3",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5178137463847283417",
+          "target_path": "Container/PlayerGo/ws/w4",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5177195215132429949",
+          "target_path": "Container/PlayerGo/ws/w5",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5177469814621149502",
+          "target_path": "Container/PlayerGo/ws/w6",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        }
+      ]
+    },
+    {
+      "component_file_id": "237643319",
+      "game_object_file_id": "237643317",
+      "path": "Canvas/StartGame/BackBtnOneThree",
+      "scene_line": 25800,
+      "active_self": false,
+      "interactable": true,
+      "calls": [
+        {
+          "target_file_id": "492025373",
+          "target_path": "EventSystem/BtnClicked",
+          "target_type": "UnityEngine.AudioSource, UnityEngine",
+          "method": "Play",
+          "mode": 1,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "962444896",
+          "target_path": "Canvas/StartGame/DownUIWeapons",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1758763682",
+          "target_path": "Canvas/StartGame/DownUIDifficulty",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "550234809",
+          "target_path": "Canvas/StartGame/BackBtnOneTwo",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "237643317",
+          "target_path": "Canvas/StartGame/BackBtnOneThree",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "684460827",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListDifficulty",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        }
+      ]
+    },
+    {
+      "component_file_id": "314300806",
+      "game_object_file_id": "314300804",
+      "path": "Canvas/StartGame/DownUIDifficulty/MorePop",
+      "scene_line": 34853,
+      "active_self": true,
+      "interactable": true,
+      "calls": []
+    },
+    {
+      "component_file_id": "426016951",
+      "game_object_file_id": "426016949",
+      "path": "Canvas/StartGame/DownUIWeapons/MorePop",
+      "scene_line": 47230,
+      "active_self": true,
+      "interactable": true,
+      "calls": []
+    },
+    {
+      "component_file_id": "550234811",
+      "game_object_file_id": "550234809",
+      "path": "Canvas/StartGame/BackBtnOneTwo",
+      "scene_line": 62649,
+      "active_self": false,
+      "interactable": true,
+      "calls": [
+        {
+          "target_file_id": "492025373",
+          "target_path": "EventSystem/BtnClicked",
+          "target_type": "UnityEngine.AudioSource, UnityEngine",
+          "method": "Play",
+          "mode": 1,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1191732797",
+          "target_path": "Canvas/StartGame/DownUICharacter",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "962444896",
+          "target_path": "Canvas/StartGame/DownUIWeapons",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1566453593",
+          "target_path": "Canvas/StartGame/BackBtnOne",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "550234809",
+          "target_path": "Canvas/StartGame/BackBtnOneTwo",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1469822626",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        }
+      ]
+    },
+    {
+      "component_file_id": "766271798",
+      "game_object_file_id": "766271796",
+      "path": "Canvas/StartGame/DownUIWeapons/NextBtn",
+      "scene_line": 87139,
+      "active_self": false,
+      "interactable": true,
+      "calls": [
+        {
+          "target_file_id": "492025373",
+          "target_path": "EventSystem/BtnClicked",
+          "target_type": "UnityEngine.AudioSource, UnityEngine",
+          "method": "Play",
+          "mode": 1,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "684460827",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListDifficulty",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1758763682",
+          "target_path": "Canvas/StartGame/DownUIDifficulty",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "962444896",
+          "target_path": "Canvas/StartGame/DownUIWeapons",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "550234809",
+          "target_path": "Canvas/StartGame/BackBtnOneTwo",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "237643317",
+          "target_path": "Canvas/StartGame/BackBtnOneThree",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1054122605",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "555558953",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (1)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "70972960",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (2)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1551927204",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (3)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "106111167",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (4)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "124017858",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (5)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "766271796",
+          "target_path": "Canvas/StartGame/DownUIWeapons/NextBtn",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        }
+      ]
+    },
+    {
+      "component_file_id": "1250121155",
+      "game_object_file_id": "1250121153",
+      "path": "Canvas/StartGame/DownUIDifficulty/ScroolView/Scroll View/Viewport/Content/Obj",
+      "scene_line": 134476,
+      "active_self": true,
+      "interactable": true,
+      "calls": [
+        {
+          "target_file_id": "1851678244",
+          "target_path": "Canvas/StartGame/DownUIDifficulty/ScroolView/Scroll View/Viewport/Content/Obj/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "0",
+          "target_path": "<null>",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "0",
+          "target_path": "<null>",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "0",
+          "target_path": "<null>",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "0",
+          "target_path": "<null>",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1851594814",
+          "target_path": "Canvas/StartGame/CenterContent/Info/Character/Char1",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "308223085",
+          "target_path": "Canvas/StartGame/CenterContent/Info/Character/Char2",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "2030396588",
+          "target_path": "Canvas/StartGame/CenterContent/Info/Character/Char3",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "631438228",
+          "target_path": "Canvas/StartGame/CenterContent/Info/Character/Char4",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "934897904",
+          "target_path": "Canvas/StartGame/CenterContent/Info/Character/Char5",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "274082045",
+          "target_path": "Canvas/StartGame/CenterContent/Info/InfoLeft",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1701212945",
+          "target_path": "Canvas/StartGame/DownUIDifficulty/NextBtn",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        }
+      ]
+    },
+    {
+      "component_file_id": "1307450011",
+      "game_object_file_id": "1307450009",
+      "path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (2)",
+      "scene_line": 140446,
+      "active_self": true,
+      "interactable": true,
+      "calls": [
+        {
+          "target_file_id": "1191156122",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP1",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1944869480",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP2",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1948175892",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP3",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "326324417",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP4",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1534970724",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP5",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1216999312",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP6",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "766271796",
+          "target_path": "Canvas/StartGame/DownUIWeapons/NextBtn",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1054122605",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "555558953",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (1)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "70972960",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (2)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1551927204",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (3)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "106111167",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (4)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "124017858",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (5)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5178008817973169389",
+          "target_path": "Container/PlayerGo/ws/w1",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5177833475171252234",
+          "target_path": "Container/PlayerGo/ws/w2",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5177954861572163456",
+          "target_path": "Container/PlayerGo/ws/w3",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5178137463847283417",
+          "target_path": "Container/PlayerGo/ws/w4",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5177195215132429949",
+          "target_path": "Container/PlayerGo/ws/w5",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5177469814621149502",
+          "target_path": "Container/PlayerGo/ws/w6",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        }
+      ]
+    },
+    {
+      "component_file_id": "1566453595",
+      "game_object_file_id": "1566453593",
+      "path": "Canvas/StartGame/BackBtnOne",
+      "scene_line": 166773,
+      "active_self": true,
+      "interactable": true,
+      "calls": [
+        {
+          "target_file_id": "492025373",
+          "target_path": "EventSystem/BtnClicked",
+          "target_type": "UnityEngine.AudioSource, UnityEngine",
+          "method": "Play",
+          "mode": 1,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "481759739",
+          "target_path": "Canvas/StartGame",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        }
+      ]
+    },
+    {
+      "component_file_id": "1701212947",
+      "game_object_file_id": "1701212945",
+      "path": "Canvas/StartGame/DownUIDifficulty/NextBtn",
+      "scene_line": 179384,
+      "active_self": true,
+      "interactable": true,
+      "calls": [
+        {
+          "target_file_id": "492025373",
+          "target_path": "EventSystem/BtnClicked",
+          "target_type": "UnityEngine.AudioSource, UnityEngine",
+          "method": "Play",
+          "mode": 1,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1521232996",
+          "target_path": "GameManager",
+          "target_type": "GameManager, Assembly-CSharp",
+          "method": "StartGame",
+          "mode": 1,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1790424407",
+          "target_path": "Container",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1191732797",
+          "target_path": "Canvas/StartGame/DownUICharacter",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "759776414",
+          "target_path": "Container/ListEnemys/SpawnEnemysPos",
+          "target_type": "SpawnPosition, Assembly-CSharp",
+          "method": "StartSpawningS",
+          "mode": 1,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1758763682",
+          "target_path": "Canvas/StartGame/DownUIDifficulty",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1469822626",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "684460827",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListDifficulty",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1566453593",
+          "target_path": "Canvas/StartGame/BackBtnOne",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "550234809",
+          "target_path": "Canvas/StartGame/BackBtnOneTwo",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "237643317",
+          "target_path": "Canvas/StartGame/BackBtnOneThree",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1851594814",
+          "target_path": "Canvas/StartGame/CenterContent/Info/Character/Char1",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "308223085",
+          "target_path": "Canvas/StartGame/CenterContent/Info/Character/Char2",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "2030396588",
+          "target_path": "Canvas/StartGame/CenterContent/Info/Character/Char3",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "631438228",
+          "target_path": "Canvas/StartGame/CenterContent/Info/Character/Char4",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "934897904",
+          "target_path": "Canvas/StartGame/CenterContent/Info/Character/Char5",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1191156122",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP1",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1944869480",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP2",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1948175892",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP3",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "326324417",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP4",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1534970724",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP5",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1216999312",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP6",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        }
+      ]
+    },
+    {
+      "component_file_id": "1721886298",
+      "game_object_file_id": "1721886296",
+      "path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (5)",
+      "scene_line": 181767,
+      "active_self": true,
+      "interactable": true,
+      "calls": [
+        {
+          "target_file_id": "1191156122",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP1",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1944869480",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP2",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1948175892",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP3",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "326324417",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP4",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1534970724",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP5",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1216999312",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP6",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "766271796",
+          "target_path": "Canvas/StartGame/DownUIWeapons/NextBtn",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1054122605",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "555558953",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (1)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "70972960",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (2)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1551927204",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (3)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "106111167",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (4)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "124017858",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (5)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5178008817973169389",
+          "target_path": "Container/PlayerGo/ws/w1",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5177833475171252234",
+          "target_path": "Container/PlayerGo/ws/w2",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5177954861572163456",
+          "target_path": "Container/PlayerGo/ws/w3",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5178137463847283417",
+          "target_path": "Container/PlayerGo/ws/w4",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5177195215132429949",
+          "target_path": "Container/PlayerGo/ws/w5",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5177469814621149502",
+          "target_path": "Container/PlayerGo/ws/w6",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        }
+      ]
+    },
+    {
+      "component_file_id": "1902595707",
+      "game_object_file_id": "1902595705",
+      "path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (1)",
+      "scene_line": 199817,
+      "active_self": true,
+      "interactable": true,
+      "calls": [
+        {
+          "target_file_id": "1191156122",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP1",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1944869480",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP2",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1948175892",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP3",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "326324417",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP4",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1534970724",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP5",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1216999312",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP6",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "766271796",
+          "target_path": "Canvas/StartGame/DownUIWeapons/NextBtn",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1054122605",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "555558953",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (1)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "70972960",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (2)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1551927204",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (3)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "106111167",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (4)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "124017858",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (5)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5178008817973169389",
+          "target_path": "Container/PlayerGo/ws/w1",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5177833475171252234",
+          "target_path": "Container/PlayerGo/ws/w2",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5177954861572163456",
+          "target_path": "Container/PlayerGo/ws/w3",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5178137463847283417",
+          "target_path": "Container/PlayerGo/ws/w4",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5177195215132429949",
+          "target_path": "Container/PlayerGo/ws/w5",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5177469814621149502",
+          "target_path": "Container/PlayerGo/ws/w6",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        }
+      ]
+    },
+    {
+      "component_file_id": "1966261189",
+      "game_object_file_id": "1966261187",
+      "path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj",
+      "scene_line": 205908,
+      "active_self": true,
+      "interactable": true,
+      "calls": [
+        {
+          "target_file_id": "1191156122",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP1",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1944869480",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP2",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1948175892",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP3",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "326324417",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP4",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1534970724",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP5",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1216999312",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP6",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "766271796",
+          "target_path": "Canvas/StartGame/DownUIWeapons/NextBtn",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1054122605",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "555558953",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (1)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "70972960",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (2)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1551927204",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (3)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "106111167",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (4)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "124017858",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (5)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5178008817973169389",
+          "target_path": "Container/PlayerGo/ws/w1",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5177833475171252234",
+          "target_path": "Container/PlayerGo/ws/w2",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5177954861572163456",
+          "target_path": "Container/PlayerGo/ws/w3",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5178137463847283417",
+          "target_path": "Container/PlayerGo/ws/w4",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5177195215132429949",
+          "target_path": "Container/PlayerGo/ws/w5",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5177469814621149502",
+          "target_path": "Container/PlayerGo/ws/w6",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        }
+      ]
+    },
+    {
+      "component_file_id": "1994513103",
+      "game_object_file_id": "1994513101",
+      "path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (4)",
+      "scene_line": 208636,
+      "active_self": true,
+      "interactable": true,
+      "calls": [
+        {
+          "target_file_id": "1191156122",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP1",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1944869480",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP2",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1948175892",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP3",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "326324417",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP4",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1534970724",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP5",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1216999312",
+          "target_path": "Canvas/StartGame/CenterContent/Info/ListWeapon/WP6",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "766271796",
+          "target_path": "Canvas/StartGame/DownUIWeapons/NextBtn",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1054122605",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "555558953",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (1)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "70972960",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (2)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "1551927204",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (3)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "106111167",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (4)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "124017858",
+          "target_path": "Canvas/StartGame/DownUIWeapons/ScroolView/Scroll View/Viewport/Content/Obj (5)/Select",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5178008817973169389",
+          "target_path": "Container/PlayerGo/ws/w1",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5177833475171252234",
+          "target_path": "Container/PlayerGo/ws/w2",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5177954861572163456",
+          "target_path": "Container/PlayerGo/ws/w3",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5178137463847283417",
+          "target_path": "Container/PlayerGo/ws/w4",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5177195215132429949",
+          "target_path": "Container/PlayerGo/ws/w5",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": true,
+          "call_state": 2
+        },
+        {
+          "target_file_id": "5177469814621149502",
+          "target_path": "Container/PlayerGo/ws/w6",
+          "target_type": "UnityEngine.GameObject, UnityEngine",
+          "method": "SetActive",
+          "mode": 6,
+          "boolean": false,
+          "call_state": 2
+        }
+      ]
+    }
+  ],
+  "assets": [
+    {
+      "id": "select_wand",
+      "output": "select_wand.png",
+      "image_component_file_id": "1219830432",
+      "source_sprite": "Assets/Sprite/wand_icon.asset",
+      "source_sprite_guid": "99d6752b55189c345867792c92ab95c8",
+      "source_sprite_file_id": "21300000",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-weapons-dadc6bfe.png",
+      "source_sprite_sha256": "c8475b3729f9a20d4ec0a7f8d6e05d67d139d1a3ed678a05c3f87c98f48f02a3",
+      "source_texture_sha256": "9adda4689f9c0b81400b6b702670746394e9b871985eec9f2b6b1f7e05ec81b2",
+      "unity_rect_xywh": [
+        379.02676,
+        0.026751041,
+        84.89713,
+        89.95858
+      ],
+      "texture_guid": "a8c63da7e78651d41938707b3b17187d",
+      "unity_pivot_xy": [
+        0.49440125,
+        0.4888166
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        379,
+        934,
+        464,
+        1024
+      ],
+      "output_size_px": [
+        85,
+        90
+      ],
+      "output_sha256": "f995a87e7de3f72cc5792648cdd084863de314e139025d5bd4e64a8a07f88fc4"
+    },
+    {
+      "id": "select_torch",
+      "output": "select_torch.png",
+      "image_component_file_id": "1312293336",
+      "source_sprite": "Assets/Sprite/torch_icon.asset",
+      "source_sprite_guid": "91d3d61b1ca037447aeea41b189c0016",
+      "source_sprite_file_id": "21300000",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-weapons-dadc6bfe.png",
+      "source_sprite_sha256": "9b14aef559b495250569ec3b25760c0b8db0429b160820cc9ca884939108ff3f",
+      "source_texture_sha256": "9adda4689f9c0b81400b6b702670746394e9b871985eec9f2b6b1f7e05ec81b2",
+      "unity_rect_xywh": [
+        100.02675,
+        0.026751041,
+        94.97325,
+        94.97325
+      ],
+      "texture_guid": "a8c63da7e78651d41938707b3b17187d",
+      "unity_pivot_xy": [
+        0.49459448,
+        0.49459448
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        100,
+        928,
+        195,
+        1024
+      ],
+      "output_size_px": [
+        95,
+        96
+      ],
+      "output_sha256": "7f2074eaa74fe1cd2e79d31f9d47328498d996108336c1af37497131d499f6d7"
+    },
+    {
+      "id": "select_laser",
+      "output": "select_laser.png",
+      "image_component_file_id": "891394372",
+      "source_sprite": "Assets/Sprite/taser_icon.asset",
+      "source_sprite_guid": "dad658df854549843a37ec291fbdf436",
+      "source_sprite_file_id": "21300000",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-weapons-dadc6bfe.png",
+      "source_sprite_sha256": "e90ff67ee4305d9576f2de24cfc42246d39795a61a9f25c4ac5f4b2c0015809c",
+      "source_texture_sha256": "9adda4689f9c0b81400b6b702670746394e9b871985eec9f2b6b1f7e05ec81b2",
+      "unity_rect_xywh": [
+        872.0761,
+        314.02676,
+        85.84776,
+        66.89713
+      ],
+      "texture_guid": "a8c63da7e78651d41938707b3b17187d",
+      "unity_pivot_xy": [
+        0.5,
+        0.5227915
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        872,
+        643,
+        958,
+        710
+      ],
+      "output_size_px": [
+        86,
+        67
+      ],
+      "output_sha256": "1c0d5b39c234600e98b5a9b630284228351ca2890b0934621e690c180bcf93d5"
+    },
+    {
+      "id": "select_knife",
+      "output": "select_knife.png",
+      "image_component_file_id": "1680670503",
+      "source_sprite": "Assets/Sprite/lightning_shiv_icon.asset",
+      "source_sprite_guid": "537b8008927c4a448b5aebd0f7968708",
+      "source_sprite_file_id": "21300000",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-weapons-dadc6bfe.png",
+      "source_sprite_sha256": "fa17120fff8c0e614cbcbd9dd055d331ad3253c616c472e394c01e69e41265fd",
+      "source_texture_sha256": "9adda4689f9c0b81400b6b702670746394e9b871985eec9f2b6b1f7e05ec81b2",
+      "unity_rect_xywh": [
+        905.02673,
+        151.02675,
+        76.87967,
+        80.89713
+      ],
+      "texture_guid": "a8c63da7e78651d41938707b3b17187d",
+      "unity_pivot_xy": [
+        0.4679163,
+        0.48176306
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        905,
+        792,
+        982,
+        873
+      ],
+      "output_size_px": [
+        77,
+        81
+      ],
+      "output_sha256": "2a6f69d4e215622fc5cf61405e45dadb1aa1a826fc3b9d0bf04ed9fd094a8071"
+    },
+    {
+      "id": "select_gun",
+      "output": "select_gun.png",
+      "image_component_file_id": "226928953",
+      "source_sprite": "Assets/Sprite/smg_icon.asset",
+      "source_sprite_guid": "6abf1bd922b82314bab1c6746f45cf65",
+      "source_sprite_file_id": "21300000",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-weapons-dadc6bfe.png",
+      "source_sprite_sha256": "7bc75aba80fbc731e28209848a360a1752b9c26afe4c9c9142f516fe520b97a2",
+      "source_texture_sha256": "9adda4689f9c0b81400b6b702670746394e9b871985eec9f2b6b1f7e05ec81b2",
+      "unity_rect_xywh": [
+        549.0761,
+        0.026751041,
+        84.89713,
+        83.89713
+      ],
+      "texture_guid": "a8c63da7e78651d41938707b3b17187d",
+      "unity_pivot_xy": [
+        0.5173777,
+        0.5122135
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        549,
+        940,
+        634,
+        1024
+      ],
+      "output_size_px": [
+        85,
+        84
+      ],
+      "output_sha256": "3297b1aca28312881b1e27c16b82572b796f467d43d816a1a6f1a36a2a39dd13"
+    },
+    {
+      "id": "select_burst",
+      "output": "select_burst.png",
+      "image_component_file_id": "2105402450",
+      "source_sprite": "Assets/Sprite/double_barrel_shotgun_icon.asset",
+      "source_sprite_guid": "fda216d16f0496a49af05079616e88e5",
+      "source_sprite_file_id": "21300000",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-weapons-dadc6bfe.png",
+      "source_sprite_sha256": "f60b319e76b0ce37654c2225e9a76249452290d7a04001dfd75d0298872e2140",
+      "source_texture_sha256": "9adda4689f9c0b81400b6b702670746394e9b871985eec9f2b6b1f7e05ec81b2",
+      "unity_rect_xywh": [
+        720.0761,
+        175.01291,
+        93.92388,
+        68.910965
+      ],
+      "texture_guid": "a8c63da7e78651d41938707b3b17187d",
+      "unity_pivot_xy": [
+        0.48894787,
+        0.5367373
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        720,
+        780,
+        814,
+        849
+      ],
+      "output_size_px": [
+        94,
+        69
+      ],
+      "output_sha256": "bd679e23cb2cf72fb35292ef780c89cea17d0f1a93e3aee1246b472cd9568076"
+    },
+    {
+      "id": "difficulty_0",
+      "output": "difficulty_0.png",
+      "image_component_file_id": "1887865491",
+      "source_sprite": "Assets/Sprite/diff_0.asset",
+      "source_sprite_guid": "379421dc31740ab40afc325be3ab21bd",
+      "source_sprite_file_id": "21300000",
+      "source_texture": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png",
+      "source_sprite_sha256": "2cf8451cfaaa2b448ff9d6cf8571fa035a7c2f9100ae71647ce2b11662c65e81",
+      "source_texture_sha256": "1f8fdb6b5cab83bb59ee4d47ceb627f8942094753fbb3cacf7b3b38c1e3929c0",
+      "unity_rect_xywh": [
+        933.02673,
+        1685.0762,
+        59.897133,
+        74.89713
+      ],
+      "texture_guid": "e4dc1a1b598e2b347ac3f0c4e04753ab",
+      "unity_pivot_xy": [
+        0.51710737,
+        0.4929946
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        933,
+        288,
+        993,
+        363
+      ],
+      "output_size_px": [
+        60,
+        75
+      ],
+      "output_sha256": "686898a94ce8533844c4eadfda7936979c7cee40dae7607322a62bb745003e34"
+    }
+  ],
+  "rules": {
+    "selection": "Exactly one of w1..w6 is enabled; selecting another disables the other five.",
+    "weapon_default": "All six source weapon roots are inactive until a weapon button is clicked.",
+    "six_slot_status": "Weapons(1/6) is display-only; there is no six-slot equipment, duplication, sale or replacement logic.",
+    "weapon_next_initially_active": false,
+    "character_next_initially_active": false,
+    "difficulty_next_initially_active": true,
+    "difficulty": "Only one item is a Button. Its calls toggle UI GameObjects, including four null targets; there are no gameplay modifiers.",
+    "difficulty_default": "The only item's Select and Next are already active when the difficulty panel opens.",
+    "navigation": "Character Next -> weapon; weapon Next -> difficulty; difficulty Next -> StartGame, enable Container and StartSpawningS.",
+    "weapon_back": "Back buttons change page visibility but do not clear the active weapon. Weapon Next hides highlights and itself.",
+    "migration": "DIFFICULTY 0 is a readable label inferred from diff_0.asset, not an original text label; no multipliers are added."
+  },
+  "source_files": [
+    {
+      "path": "Assets/Brotato.unity",
+      "sha256": "d6e2108e2d0157d436abaca640e429b97ee54cdae8b4554d3d502b74a2de131c"
+    },
+    {
+      "path": "Assets/Scripts/BasePanelUI.cs",
+      "sha256": "fcad845ced8c83a2ee0886c270c55e651b2d3c3c3b3ff14d98af3d924e38ae54"
+    },
+    {
+      "path": "Assets/Scripts/BasePanelUI.cs.meta",
+      "sha256": "80a7b8f23b90ced7aa0240daddd14fe75f59b243a5121801a97e89f6a0c83681"
+    },
+    {
+      "path": "Assets/Scripts/BooleanManager.cs",
+      "sha256": "b15959b3117035da9073ee1d1570ccc47b0813ec9aaed1e61fa02f2f6644aae8"
+    },
+    {
+      "path": "Assets/Scripts/BooleanManager.cs.meta",
+      "sha256": "cd3459ee3c3c705fb3914c51b0bbb4e64a8049f96d815a7624315ab201c54087"
+    },
+    {
+      "path": "Assets/Scripts/CharacterSetter.cs",
+      "sha256": "37b1ea5f100c682fe330452549cfcaec1de808a4499d1b01e6e9f8a027c2b957"
+    },
+    {
+      "path": "Assets/Scripts/CharacterSetter.cs.meta",
+      "sha256": "e68c5710e67e6eef46c1fc481cc80cac8e20a8e44aa5784cc62f66fa210d9670"
+    },
+    {
+      "path": "Assets/Scripts/CompoenentManager.cs",
+      "sha256": "d276016000b72281481d44eeea2c7cb729199df8142a6897474642476a543db8"
+    },
+    {
+      "path": "Assets/Scripts/CompoenentManager.cs.meta",
+      "sha256": "ed57f3e6e743065cc196d7281c70e863cb1b5d1990f1a0f391766e6c9cbbf031"
+    },
+    {
+      "path": "Assets/Scripts/ContainerLogic.cs",
+      "sha256": "c36f4fd5e66f8000011662cb439835e26f90fa7a7f858a91e73ece8442b882fc"
+    },
+    {
+      "path": "Assets/Scripts/ContainerLogic.cs.meta",
+      "sha256": "184b5b76b25c48aa2b371cb50ca82573d94c55e55a62aa70b4391654d60fed8c"
+    },
+    {
+      "path": "Assets/Scripts/DataController.cs",
+      "sha256": "55ed2559c8fcfe9d6a856a24740c7a466a4f163d58bc9170b8b25f6b73e54ef2"
+    },
+    {
+      "path": "Assets/Scripts/DataController.cs.meta",
+      "sha256": "353d34be22097b07813aabbcbfaef37d3c32e58831966299141b2d38e85c9914"
+    },
+    {
+      "path": "Assets/Scripts/DestroyTime.cs",
+      "sha256": "2e017c8f04171ae90e22bbf656ecb08ce0f1ac13bbab5428b2aeed1279bea995"
+    },
+    {
+      "path": "Assets/Scripts/DestroyTime.cs.meta",
+      "sha256": "ee6878097e67c7a1250b77e97e8fc54b8e43cee85eedc36b13ac483e0bb21f58"
+    },
+    {
+      "path": "Assets/Scripts/EnemyNPC.cs",
+      "sha256": "05d114517a73942e87a05d677157a054af53c635070dcaac36dc8525caa69537"
+    },
+    {
+      "path": "Assets/Scripts/EnemyNPC.cs.meta",
+      "sha256": "417ce75def6b40641c2842f1d3480bba3919275b80aef239e6870e686be07874"
+    },
+    {
+      "path": "Assets/Scripts/GameManager.cs",
+      "sha256": "52c65a8ab0d21aaa905903d43cceca15f59f661ff70cb157693cdfd5d1c5d9b5"
+    },
+    {
+      "path": "Assets/Scripts/GameManager.cs.meta",
+      "sha256": "e15eb6826e152d7c9ff7f49c109148ba6bb083e7800443e78b588a69d082e1d1"
+    },
+    {
+      "path": "Assets/Scripts/GamePlayUI.cs",
+      "sha256": "f8d58d11f968a93986eff4d6a4ed296ca4d0f3c814fb4fba64ca6767641974c2"
+    },
+    {
+      "path": "Assets/Scripts/GamePlayUI.cs.meta",
+      "sha256": "08b2c647399a5e3c86b60d5b5d5e63cabe18c81e5a3b809901efe325eaa91d15"
+    },
+    {
+      "path": "Assets/Scripts/ItemSetter.cs",
+      "sha256": "c537508a38d5c8e45668a9a3c103833dd9d5d2a23889880975c445f54604b5ee"
+    },
+    {
+      "path": "Assets/Scripts/ItemSetter.cs.meta",
+      "sha256": "c86c9a75e5c242a41220473b78a0fc3436bc325c121921af3b3580052aa5f43e"
+    },
+    {
+      "path": "Assets/Scripts/LaserManager.cs",
+      "sha256": "72d479b6dcff60708836dbffac133ebbe2892d322a7e4580b49a1553a9da29d8"
+    },
+    {
+      "path": "Assets/Scripts/LaserManager.cs.meta",
+      "sha256": "2093382d9bc805ea0ba7504c6acd0070824a197db1318a59c3ab7cd055b00d28"
+    },
+    {
+      "path": "Assets/Scripts/LoadingComp.cs",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "Assets/Scripts/LoadingComp.cs.meta",
+      "sha256": "6c0d97c7b644708f14f11231e1acdb22113219ad2819bd24f955ca119815d7e0"
+    },
+    {
+      "path": "Assets/Scripts/LogoSetter.cs",
+      "sha256": "5946191677ac3fff28090b40a7f3c04a834e10fa3b65568f34f28d2322ea9509"
+    },
+    {
+      "path": "Assets/Scripts/LogoSetter.cs.meta",
+      "sha256": "77c093d74cb675e5725db59cf2e1cd314618e4c255d0bbdb08028a1d503f9e0b"
+    },
+    {
+      "path": "Assets/Scripts/PlayerController.cs",
+      "sha256": "3f9b63ac8a16cc70b52fb6066a488ba61e701e47924412d5af946a79bb9b0961"
+    },
+    {
+      "path": "Assets/Scripts/PlayerController.cs.meta",
+      "sha256": "8b8fb6bd1384777626eb253fbf9c8266b380fa8d286f5349b020108c8599665f"
+    },
+    {
+      "path": "Assets/Scripts/RemoveMissing.cs",
+      "sha256": "5010cd2dd262ded271a14841d4d39903826ebca32ab791ad52920560823bcf57"
+    },
+    {
+      "path": "Assets/Scripts/RemoveMissing.cs.meta",
+      "sha256": "9f17e0d324352f045606e8d59a907c5c93e8d76ba826f0ccec9c03b02412721b"
+    },
+    {
+      "path": "Assets/Scripts/SliderShow.cs",
+      "sha256": "e83fb5aa8221c4f814a0179166c90e9c0939c2633bcf92fa1dee57d5ea15ffc8"
+    },
+    {
+      "path": "Assets/Scripts/SliderShow.cs.meta",
+      "sha256": "f172528a375a9d987729888c66f6b74d7faace3e6a40bc5ea959d909b0cd5d5f"
+    },
+    {
+      "path": "Assets/Scripts/SpawnPosition.cs",
+      "sha256": "7c124782976ef3d4b6f236467eb5f9b7394de5922b6e69aec0bb5b056c5533ea"
+    },
+    {
+      "path": "Assets/Scripts/SpawnPosition.cs.meta",
+      "sha256": "c65df02d6385dd7a8b8a10e9420ebcd3dab638f70ed7fb781e3cfa4bbb8bf727"
+    },
+    {
+      "path": "Assets/Scripts/ToggleSettings.cs",
+      "sha256": "65ddb21eb3ae1725675d6a52313966b9736b1e35f01ef12badc52aad5e9f3543"
+    },
+    {
+      "path": "Assets/Scripts/ToggleSettings.cs.meta",
+      "sha256": "85425b2bf70661233d22e3caf2151b9620440fe06f57de48b6979160b543515d"
+    },
+    {
+      "path": "Assets/Scripts/UIManager.cs",
+      "sha256": "0793da5b056cb675e003d28fadbcbdc2cd3260252f4811eb1307c67ff621ac9e"
+    },
+    {
+      "path": "Assets/Scripts/UIManager.cs.meta",
+      "sha256": "bb57b049ce4d955ff0160cad2013e4e1988d8793fe35d9972fc948bdab5a5c95"
+    },
+    {
+      "path": "Assets/Scripts/w1.cs",
+      "sha256": "20b1ac41ea26456afbfd3dc3eade57404887a821335a51bb691bc521ff4aae9c"
+    },
+    {
+      "path": "Assets/Scripts/w1.cs.meta",
+      "sha256": "bebacbe57ed0b12493288280e908953d06eeabf28b79d4a9bc85a3fe46e3f6d9"
+    },
+    {
+      "path": "Assets/Scripts/w2.cs",
+      "sha256": "e2b8c3512abd3899960ea5f94abb95cbe3c485ed38285facdeabdc6cf981669b"
+    },
+    {
+      "path": "Assets/Scripts/w2.cs.meta",
+      "sha256": "0a441266d3e4125aac8d35aadd3af2ebb1b0847ce309ac381e53a8e8e688b131"
+    },
+    {
+      "path": "Assets/Scripts/w3.cs",
+      "sha256": "a4e71a946b259890de09c1ddc0378f080f6375d24b85cc79024a1020172f0207"
+    },
+    {
+      "path": "Assets/Scripts/w3.cs.meta",
+      "sha256": "0c4c0c3a1fad8a0b76493fd0938728d081c88aac1896020f31aaaa10323f8827"
+    },
+    {
+      "path": "Assets/Scripts/w4.cs",
+      "sha256": "0b8f30943ae44601acd0a65745e9619c2d0da3c456ec218aae5f0694691b8b68"
+    },
+    {
+      "path": "Assets/Scripts/w4.cs.meta",
+      "sha256": "dad603dfeb051e86b2a723502a4acd863ab6edd589a165bce11ff460931c0af0"
+    },
+    {
+      "path": "Assets/Scripts/w5.cs",
+      "sha256": "ba880b9d9f9c7a65210f1d0e912b4c24559c919dabecec99baa1597dc1078f50"
+    },
+    {
+      "path": "Assets/Scripts/w5.cs.meta",
+      "sha256": "1c55182b772cc46bc8d2458bd60b9adffa483e99dca5ebb742d79884cc7a8d8e"
+    },
+    {
+      "path": "Assets/Scripts/w6.cs",
+      "sha256": "e76ef4819753bf440b32b4036984ad7130b2269090cba376fd00ef01e6df6f2a"
+    },
+    {
+      "path": "Assets/Scripts/w6.cs.meta",
+      "sha256": "b0bd8a89b4ee9c5da0629d704a21562f10e71a868c93f67829bc159744bfc519"
+    },
+    {
+      "path": "Assets/Sprite/diff_0.asset",
+      "sha256": "2cf8451cfaaa2b448ff9d6cf8571fa035a7c2f9100ae71647ce2b11662c65e81"
+    },
+    {
+      "path": "Assets/Sprite/diff_0.asset.meta",
+      "sha256": "54c31f3688cce2f7d4d7f1f558c3a7b609c2cf21641c5574ffb72bfa1d8c3192"
+    },
+    {
+      "path": "Assets/Sprite/double_barrel_shotgun_icon.asset",
+      "sha256": "f60b319e76b0ce37654c2225e9a76249452290d7a04001dfd75d0298872e2140"
+    },
+    {
+      "path": "Assets/Sprite/double_barrel_shotgun_icon.asset.meta",
+      "sha256": "86549d1ef6b5eca5e8dd89065dec46c592ba8b8a7786331ff4ab21453ba01fe4"
+    },
+    {
+      "path": "Assets/Sprite/lightning_shiv_icon.asset",
+      "sha256": "fa17120fff8c0e614cbcbd9dd055d331ad3253c616c472e394c01e69e41265fd"
+    },
+    {
+      "path": "Assets/Sprite/lightning_shiv_icon.asset.meta",
+      "sha256": "e2d4fedc1230b93330344e70e22be88d2f43f0369d6dbc954c628e04beffc07e"
+    },
+    {
+      "path": "Assets/Sprite/smg_icon.asset",
+      "sha256": "7bc75aba80fbc731e28209848a360a1752b9c26afe4c9c9142f516fe520b97a2"
+    },
+    {
+      "path": "Assets/Sprite/smg_icon.asset.meta",
+      "sha256": "69f03e09b20b1458bfaf32c47f627db24b24d515d76722dbc11b3a453a76fccb"
+    },
+    {
+      "path": "Assets/Sprite/taser_icon.asset",
+      "sha256": "e90ff67ee4305d9576f2de24cfc42246d39795a61a9f25c4ac5f4b2c0015809c"
+    },
+    {
+      "path": "Assets/Sprite/taser_icon.asset.meta",
+      "sha256": "30a4a2d75b84232cd9d221b72f7de17aa9dad89fd66baaf8520a7b03d4bbb155"
+    },
+    {
+      "path": "Assets/Sprite/torch_icon.asset",
+      "sha256": "9b14aef559b495250569ec3b25760c0b8db0429b160820cc9ca884939108ff3f"
+    },
+    {
+      "path": "Assets/Sprite/torch_icon.asset.meta",
+      "sha256": "7bf936097f59866c4e8c2afe771ebc8efe9643beb68ef74465cf49c992f59f11"
+    },
+    {
+      "path": "Assets/Sprite/wand_icon.asset",
+      "sha256": "c8475b3729f9a20d4ec0a7f8d6e05d67d139d1a3ed678a05c3f87c98f48f02a3"
+    },
+    {
+      "path": "Assets/Sprite/wand_icon.asset.meta",
+      "sha256": "fd665720dad2608509ea9b3d4887ad831f8a50784ce2f8d07c3d44d7857f0da3"
+    },
+    {
+      "path": "Assets/Texture2D/sactx-0-1024x1024-ETC2-weapons-dadc6bfe.png",
+      "sha256": "9adda4689f9c0b81400b6b702670746394e9b871985eec9f2b6b1f7e05ec81b2"
+    },
+    {
+      "path": "Assets/Texture2D/sactx-0-1024x1024-ETC2-weapons-dadc6bfe.png.meta",
+      "sha256": "99231cdeb5efbad8800875515f4ae1790bf255a1387b628f9c4081802ef2a0d2"
+    },
+    {
+      "path": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png",
+      "sha256": "1f8fdb6b5cab83bb59ee4d47ceb627f8942094753fbb3cacf7b3b38c1e3929c0"
+    },
+    {
+      "path": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png.meta",
+      "sha256": "b5128a53f741856e844aa3ec9d8540d1cabada4c60e0e99f2788f969ba06fdb0"
+    }
+  ]
+}

@@ -3,7 +3,7 @@
   "source_project": "Unity2021_Botato",
   "source_scene": "Assets/Brotato.unity",
   "source_scene_sha256": "d6e2108e2d0157d436abaca640e429b97ee54cdae8b4554d3d502b74a2de131c",
-  "scope": "Playable slices 1-2: player, enemy, six source weapons, projectiles, laser, muzzle flash, collectible, ground, spawn marker",
+  "scope": "Playable slices 1-3: five characters, five authored maps, enemy, six source weapons, projectiles, laser, muzzle flash, collectible, ground, spawn marker",
   "operation": "RGBA crop of original art; no resampling or recoloring",
   "rect_convention": "Unity bottom-left xywh; output crop is Pillow top-left ltrb; outward rounding",
   "assets": [
@@ -606,6 +606,1898 @@
         0.96
       ],
       "output_sha256": "ba97aba011b756967e10415a7913c269bfbe750a19f06152b582d914b849dfbf"
+    },
+    {
+      "id": "character_crazy",
+      "output": "character_crazy.png",
+      "purpose": "Brotato.unity CharacterSetter selectable body",
+      "source_sprite": "Assets/Sprite/crazy_icon.asset",
+      "source_sprite_guid": "3124427cc484a214cab87a7de553aa8e",
+      "source_sprite_sha256": "911526b887b458912fc630aa8c734a5699bc01aa8fb397cba6a7a781b5f319f7",
+      "source_texture": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png",
+      "source_texture_sha256": "1f8fdb6b5cab83bb59ee4d47ceb627f8942094753fbb3cacf7b3b38c1e3929c0",
+      "unity_rect_xywh": [
+        627.0761,
+        1173.0762,
+        76.84776,
+        87.89713
+      ],
+      "texture_guid": "e4dc1a1b598e2b347ac3f0c4e04753ab",
+      "unity_pivot_xy": [
+        0.5065064,
+        0.49971917
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        627,
+        787,
+        704,
+        875
+      ],
+      "output_size_px": [
+        77,
+        88
+      ],
+      "unity_size_units": [
+        0.7684776,
+        0.8789713
+      ],
+      "output_sha256": "4388c94f73eaf6b4f0ed2155cb1a7eb2ddbccc2b792a4425f9bee9f3e950be2c"
+    },
+    {
+      "id": "character_ranger",
+      "output": "character_ranger.png",
+      "purpose": "Brotato.unity CharacterSetter selectable body",
+      "source_sprite": "Assets/Sprite/ranger_icon.asset",
+      "source_sprite_guid": "3ec1ed3e9cdc00e40ad7e2950211fa7b",
+      "source_sprite_sha256": "2efa1df2262832768de1166d753192f46792f29376b924b091e971ebd7525e0a",
+      "source_texture": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png",
+      "source_texture_sha256": "1f8fdb6b5cab83bb59ee4d47ceb627f8942094753fbb3cacf7b3b38c1e3929c0",
+      "unity_rect_xywh": [
+        0.07612038,
+        1326.0762,
+        77.84776,
+        87.89713
+      ],
+      "texture_guid": "e4dc1a1b598e2b347ac3f0c4e04753ab",
+      "unity_pivot_xy": [
+        0.5128456,
+        0.49971917
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        0,
+        634,
+        78,
+        722
+      ],
+      "output_size_px": [
+        78,
+        88
+      ],
+      "unity_size_units": [
+        0.7784776,
+        0.8789713
+      ],
+      "output_sha256": "1457f699547c127de8f2ddf7e9f076254a4bea461eae69721434bb07af5d5ead"
+    },
+    {
+      "id": "character_brawler",
+      "output": "character_brawler.png",
+      "purpose": "Brotato.unity CharacterSetter selectable body",
+      "source_sprite": "Assets/Sprite/brawler_icon.asset",
+      "source_sprite_guid": "6d7b24c525e7f0a47b76faff9b9fdfb5",
+      "source_sprite_sha256": "a93cb37312f4a64a03fcef51e600b6f2628a2234328829fe239924fa4e1a69a9",
+      "source_texture": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png",
+      "source_texture_sha256": "1f8fdb6b5cab83bb59ee4d47ceb627f8942094753fbb3cacf7b3b38c1e3929c0",
+      "unity_rect_xywh": [
+        81.07612,
+        1508.0762,
+        76.84776,
+        87.89713
+      ],
+      "texture_guid": "e4dc1a1b598e2b347ac3f0c4e04753ab",
+      "unity_pivot_xy": [
+        0.5065064,
+        0.49971917
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        81,
+        452,
+        158,
+        540
+      ],
+      "output_size_px": [
+        77,
+        88
+      ],
+      "unity_size_units": [
+        0.7684776,
+        0.8789713
+      ],
+      "output_sha256": "da17895de5c329b0e9105ccfefd5844882349fb508ea2de928c42bee0107fe2f"
+    },
+    {
+      "id": "character_mage",
+      "output": "character_mage.png",
+      "purpose": "Brotato.unity CharacterSetter selectable body",
+      "source_sprite": "Assets/Sprite/mage_icon.asset",
+      "source_sprite_guid": "3aef09033c0f58b419f5058556d0f5b3",
+      "source_sprite_sha256": "ff987ca8af02ed384ccd56f81997163fe59b262d1e37c09d61660e9d2a53d8ff",
+      "source_texture": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png",
+      "source_texture_sha256": "1f8fdb6b5cab83bb59ee4d47ceb627f8942094753fbb3cacf7b3b38c1e3929c0",
+      "unity_rect_xywh": [
+        0.07612038,
+        789.0,
+        86.92388,
+        91.97325
+      ],
+      "texture_guid": "e4dc1a1b598e2b347ac3f0c4e04753ab",
+      "unity_pivot_xy": [
+        0.4477927,
+        0.5218909
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        0,
+        1167,
+        88,
+        1259
+      ],
+      "output_size_px": [
+        88,
+        92
+      ],
+      "unity_size_units": [
+        0.8692388,
+        0.9197325
+      ],
+      "output_sha256": "94acbb29d621886d9c3f6c2b24bdaaf7b9d62d80e084269fdca281c3eaa409d0"
+    },
+    {
+      "id": "map_floor",
+      "output": "map_floor.png",
+      "purpose": "Brotato.unity shared tinted tiled map border and floor",
+      "source_sprite": "Assets/Sprite/tiles_outline.asset",
+      "source_sprite_guid": "ad3689d846db58d41baf8d71f6d3d90b",
+      "source_sprite_sha256": "863693fc72ebe5c39dfe3ad0a8b35c4454e3a9c033cf0fb81fa0913290937fab",
+      "source_texture": "Assets/Texture2D/tiles_outline.png",
+      "source_texture_sha256": "f61a7f216d2096cc2ac4fdf1c794dbbca54a6a99df2657e56f24aab2147aa340",
+      "unity_rect_xywh": [
+        0.026750982,
+        0.042907953,
+        511.94647,
+        511.93033
+      ],
+      "texture_guid": "335845be68d419041b7670191d46926e",
+      "unity_pivot_xy": [
+        0.50000006,
+        0.49998423
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.8097325,
+        0.7095708999999999,
+        0.8997322,
+        0.89973236
+      ],
+      "crop_top_left_ltrb": [
+        0,
+        0,
+        512,
+        512
+      ],
+      "output_size_px": [
+        512,
+        512
+      ],
+      "unity_size_units": [
+        5.1194647,
+        5.1193033
+      ],
+      "output_sha256": "396588002dff32e40eb2fcf2fba6a96d274a6592c6ed6d5b5d7523c404a1b48b"
+    },
+    {
+      "id": "map_tiles_1_9",
+      "output": "map_tiles_1_9.png",
+      "purpose": "Brotato.unity MapZEro authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_1_9.asset",
+      "source_sprite_guid": "11603933e7d11f14684d09cfded729b3",
+      "source_sprite_sha256": "21b2b0f65d0bc9d7e0103c1fdba97324920a70d2bedc91bb3438a281c34eab22",
+      "source_texture": "Assets/Texture2D/tiles_1.png",
+      "source_texture_sha256": "bcf909a88d855c3ea815c7a344ff07345f9c355c3fd95cb6d7d7dd55828e7d5b",
+      "unity_rect_xywh": [
+        0.0,
+        0.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "709db945517070242a4bfbfdd6b29276",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        0,
+        192,
+        64,
+        256
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "63e124c940fa3168f36a26d601865412bf206ca879b4e18a0be0da4a72150658"
+    },
+    {
+      "id": "map_tiles_1_2",
+      "output": "map_tiles_1_2.png",
+      "purpose": "Brotato.unity MapZEro authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_1_2.asset",
+      "source_sprite_guid": "0a0d6a8d0d70f4c4bad0d14ecb1caf5d",
+      "source_sprite_sha256": "841ec7096331afc049c48bb91cd1900dca85af4e0ad89b8e798911bef2ed6233",
+      "source_texture": "Assets/Texture2D/tiles_1.png",
+      "source_texture_sha256": "bcf909a88d855c3ea815c7a344ff07345f9c355c3fd95cb6d7d7dd55828e7d5b",
+      "unity_rect_xywh": [
+        128.0,
+        192.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "709db945517070242a4bfbfdd6b29276",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        128,
+        0,
+        192,
+        64
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "fb9bb17f3a8a20689020124de480ae7cc07aeb34c0a757d7f3f532f1f0626759"
+    },
+    {
+      "id": "map_tiles_1_4",
+      "output": "map_tiles_1_4.png",
+      "purpose": "Brotato.unity MapZEro authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_1_4.asset",
+      "source_sprite_guid": "5307d7ac6716ab34191f6362aff16903",
+      "source_sprite_sha256": "10bfb785d9d6db3a9a55337338949166fa80deb431903564699762d8b5591509",
+      "source_texture": "Assets/Texture2D/tiles_1.png",
+      "source_texture_sha256": "bcf909a88d855c3ea815c7a344ff07345f9c355c3fd95cb6d7d7dd55828e7d5b",
+      "unity_rect_xywh": [
+        64.0,
+        128.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "709db945517070242a4bfbfdd6b29276",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        64,
+        64,
+        128,
+        128
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "61d5230700cd942148418b743b646efecfa0a43353c2eed9ad2d669a1f6c2177"
+    },
+    {
+      "id": "map_tiles_1_1",
+      "output": "map_tiles_1_1.png",
+      "purpose": "Brotato.unity MapZEro authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_1_1.asset",
+      "source_sprite_guid": "3692aa5105699d240b6a45e1a0cf20f2",
+      "source_sprite_sha256": "38f7e3f663cb38c50c66ef627c969031a064dd756ae689d3057f47a82c19e820",
+      "source_texture": "Assets/Texture2D/tiles_1.png",
+      "source_texture_sha256": "bcf909a88d855c3ea815c7a344ff07345f9c355c3fd95cb6d7d7dd55828e7d5b",
+      "unity_rect_xywh": [
+        64.0,
+        192.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "709db945517070242a4bfbfdd6b29276",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        64,
+        0,
+        128,
+        64
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "4c1f7686941c683e411204ea27401d86a51213097c4d6436265bf31b38bb5755"
+    },
+    {
+      "id": "map_tiles_1_0",
+      "output": "map_tiles_1_0.png",
+      "purpose": "Brotato.unity MapZEro authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_1_0.asset",
+      "source_sprite_guid": "4b39cce5e0644a14fa16446fdad812f7",
+      "source_sprite_sha256": "2c4bf6b93a70f19f8a11e739e60ce56d5176d95fb2fa8ad2d38c1aa661b8c737",
+      "source_texture": "Assets/Texture2D/tiles_1.png",
+      "source_texture_sha256": "bcf909a88d855c3ea815c7a344ff07345f9c355c3fd95cb6d7d7dd55828e7d5b",
+      "unity_rect_xywh": [
+        0.0,
+        192.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "709db945517070242a4bfbfdd6b29276",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "5c01f80ef41871d8978a8e1f82e752e2b5dd5e5ee54a0c80af55b86d8e4549d1"
+    },
+    {
+      "id": "map_tiles_1_10",
+      "output": "map_tiles_1_10.png",
+      "purpose": "Brotato.unity MapZEro authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_1_10.asset",
+      "source_sprite_guid": "9f94f92a2bf69d44aa56982df995aecd",
+      "source_sprite_sha256": "d197d9e7734c0537d3a2a2c33b6bd8f82580022d23ba5dd47081fa9ff289959d",
+      "source_texture": "Assets/Texture2D/tiles_1.png",
+      "source_texture_sha256": "bcf909a88d855c3ea815c7a344ff07345f9c355c3fd95cb6d7d7dd55828e7d5b",
+      "unity_rect_xywh": [
+        64.0,
+        0.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "709db945517070242a4bfbfdd6b29276",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        64,
+        192,
+        128,
+        256
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "d920291695209681e60ce3c62fcd1e48474890dcb3321d3d5a30b31388372548"
+    },
+    {
+      "id": "map_tiles_1_8",
+      "output": "map_tiles_1_8.png",
+      "purpose": "Brotato.unity MapZEro authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_1_8.asset",
+      "source_sprite_guid": "9cd451fac51a5534aac102b8817a3d4e",
+      "source_sprite_sha256": "f31d21c97ecb10ee876ac1f8c7bbc6fb4fd0ac1f18ad276a2485ad0231411e3b",
+      "source_texture": "Assets/Texture2D/tiles_1.png",
+      "source_texture_sha256": "bcf909a88d855c3ea815c7a344ff07345f9c355c3fd95cb6d7d7dd55828e7d5b",
+      "unity_rect_xywh": [
+        128.0,
+        64.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "709db945517070242a4bfbfdd6b29276",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        128,
+        128,
+        192,
+        192
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "215a5b8600b102edf8555ec9ffafee9e4be31578e84f38f523cc43c2e104cd6f"
+    },
+    {
+      "id": "map_tiles_1_5",
+      "output": "map_tiles_1_5.png",
+      "purpose": "Brotato.unity MapZEro authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_1_5.asset",
+      "source_sprite_guid": "7bd68d9c19a0da549ba29aff000fa5e3",
+      "source_sprite_sha256": "996982009df8a9a586ea7a765c23167cb3f6616551a13653bba6eee3558610bd",
+      "source_texture": "Assets/Texture2D/tiles_1.png",
+      "source_texture_sha256": "bcf909a88d855c3ea815c7a344ff07345f9c355c3fd95cb6d7d7dd55828e7d5b",
+      "unity_rect_xywh": [
+        128.0,
+        128.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "709db945517070242a4bfbfdd6b29276",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        128,
+        64,
+        192,
+        128
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "8ef102838a766328fefa5b699ebba974913dca7e4d8ba930431f4facb56d4af0"
+    },
+    {
+      "id": "map_tiles_5_5",
+      "output": "map_tiles_5_5.png",
+      "purpose": "Brotato.unity MapOne authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_5_5.asset",
+      "source_sprite_guid": "41f376461812da142b81a5f5807a5856",
+      "source_sprite_sha256": "42612e8566472427643e30ec3e90572104aea0ef9941623d6866b55aa8b99e2b",
+      "source_texture": "Assets/Texture2D/tiles_5.png",
+      "source_texture_sha256": "1f5eccce3d81325de44b2048d580c3a6e80853b87d50b1f4c58cdd8ad4b326d5",
+      "unity_rect_xywh": [
+        128.0,
+        128.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "f1a01fe30711c3046a653e5ce216ac30",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        128,
+        64,
+        192,
+        128
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "3750b29e2667f1254189f88e81bcfb1d916c90abc0a5e26bf880ba482843d91f"
+    },
+    {
+      "id": "map_tiles_5_6",
+      "output": "map_tiles_5_6.png",
+      "purpose": "Brotato.unity MapOne authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_5_6.asset",
+      "source_sprite_guid": "3f3ab541cc5f91d49b6b548631290c8b",
+      "source_sprite_sha256": "0f2109b29ebb5b1daabc09de00db6154682463c8d662000e24eed28adc53f32b",
+      "source_texture": "Assets/Texture2D/tiles_5.png",
+      "source_texture_sha256": "1f5eccce3d81325de44b2048d580c3a6e80853b87d50b1f4c58cdd8ad4b326d5",
+      "unity_rect_xywh": [
+        0.0,
+        64.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "f1a01fe30711c3046a653e5ce216ac30",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        0,
+        128,
+        64,
+        192
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "33c197fdbc76034e2b4f834c834833e6848dba76778e061a4c75a82d95f78f5a"
+    },
+    {
+      "id": "map_tiles_5_9",
+      "output": "map_tiles_5_9.png",
+      "purpose": "Brotato.unity MapOne authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_5_9.asset",
+      "source_sprite_guid": "912d4ededa690cc44bfee28998036853",
+      "source_sprite_sha256": "4790616776b6c49f3496863c30017cc5a269362545b2e7e6792acb7a588940ed",
+      "source_texture": "Assets/Texture2D/tiles_5.png",
+      "source_texture_sha256": "1f5eccce3d81325de44b2048d580c3a6e80853b87d50b1f4c58cdd8ad4b326d5",
+      "unity_rect_xywh": [
+        0.0,
+        0.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "f1a01fe30711c3046a653e5ce216ac30",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        0,
+        192,
+        64,
+        256
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "4c0b486d987e15332aaef5693df590fa43d94535c84389bc48edb043a58915be"
+    },
+    {
+      "id": "map_tiles_5_0",
+      "output": "map_tiles_5_0.png",
+      "purpose": "Brotato.unity MapOne authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_5_0.asset",
+      "source_sprite_guid": "869bfb352ecbd2f449d246a8918b4b26",
+      "source_sprite_sha256": "7fb78ba3b9704c6dd9d510e29c6a24b7bf7e634199a0a1a7b28dd489b1a4da26",
+      "source_texture": "Assets/Texture2D/tiles_5.png",
+      "source_texture_sha256": "1f5eccce3d81325de44b2048d580c3a6e80853b87d50b1f4c58cdd8ad4b326d5",
+      "unity_rect_xywh": [
+        0.0,
+        192.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "f1a01fe30711c3046a653e5ce216ac30",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "36dccfebed73e5f71100fa90b8fa913409cad68d792183df1632281cbca2db4e"
+    },
+    {
+      "id": "map_tiles_5_7",
+      "output": "map_tiles_5_7.png",
+      "purpose": "Brotato.unity MapOne authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_5_7.asset",
+      "source_sprite_guid": "008a560added6bb40a396b46116b2031",
+      "source_sprite_sha256": "b775010f01349df71d834c444c9d3de1a3b0512b6aab8f17c952c1e3d98d98e0",
+      "source_texture": "Assets/Texture2D/tiles_5.png",
+      "source_texture_sha256": "1f5eccce3d81325de44b2048d580c3a6e80853b87d50b1f4c58cdd8ad4b326d5",
+      "unity_rect_xywh": [
+        64.0,
+        64.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "f1a01fe30711c3046a653e5ce216ac30",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        64,
+        128,
+        128,
+        192
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "98db66e8551db3c118c4f85a0d594e1d3b56fefedd2470250341ffb2977002d7"
+    },
+    {
+      "id": "map_tiles_5_8",
+      "output": "map_tiles_5_8.png",
+      "purpose": "Brotato.unity MapOne authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_5_8.asset",
+      "source_sprite_guid": "df6e78076db4a2840a7ea79cb3cd047f",
+      "source_sprite_sha256": "c191569d585c2febbd9f87d7040d1ebebe39b24ce214dba5c41730fac8f45373",
+      "source_texture": "Assets/Texture2D/tiles_5.png",
+      "source_texture_sha256": "1f5eccce3d81325de44b2048d580c3a6e80853b87d50b1f4c58cdd8ad4b326d5",
+      "unity_rect_xywh": [
+        128.0,
+        64.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "f1a01fe30711c3046a653e5ce216ac30",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        128,
+        128,
+        192,
+        192
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "de562f8b1630e09e0346fb99452f40332465a595e9efc527adbf936dcb75de9c"
+    },
+    {
+      "id": "map_tiles_5_1",
+      "output": "map_tiles_5_1.png",
+      "purpose": "Brotato.unity MapOne authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_5_1.asset",
+      "source_sprite_guid": "e56c7c3712dc22c4d9255738a4227785",
+      "source_sprite_sha256": "cf4b6c507f5e80eedf7235b4ea6bde678988e6d9d06d3f849b3d071eb17bc539",
+      "source_texture": "Assets/Texture2D/tiles_5.png",
+      "source_texture_sha256": "1f5eccce3d81325de44b2048d580c3a6e80853b87d50b1f4c58cdd8ad4b326d5",
+      "unity_rect_xywh": [
+        64.0,
+        192.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "f1a01fe30711c3046a653e5ce216ac30",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        64,
+        0,
+        128,
+        64
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "76c962b653205186d916845a22e3b82ee90f3f5a6b85761a659cb2545ab5ff36"
+    },
+    {
+      "id": "map_tiles_5_4",
+      "output": "map_tiles_5_4.png",
+      "purpose": "Brotato.unity MapOne authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_5_4.asset",
+      "source_sprite_guid": "8b29c219e8ed8854890b55f5207c0950",
+      "source_sprite_sha256": "6023715f25ae739e324d568fe6b43aff93a296e9a82aaf3e30b5429ccf593f0b",
+      "source_texture": "Assets/Texture2D/tiles_5.png",
+      "source_texture_sha256": "1f5eccce3d81325de44b2048d580c3a6e80853b87d50b1f4c58cdd8ad4b326d5",
+      "unity_rect_xywh": [
+        64.0,
+        128.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "f1a01fe30711c3046a653e5ce216ac30",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        64,
+        64,
+        128,
+        128
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "7d2a6f79dfb3ea8bd0b361375645e3f939a5f4213805880898d94aeff0959d99"
+    },
+    {
+      "id": "map_tiles_5_2",
+      "output": "map_tiles_5_2.png",
+      "purpose": "Brotato.unity MapOne authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_5_2.asset",
+      "source_sprite_guid": "5b7017c3eabdf0646a9187a279bb50bf",
+      "source_sprite_sha256": "cac7a531750d71ba096561dbb9f8b438b361f48249da0ce4fff0faac57ff12b6",
+      "source_texture": "Assets/Texture2D/tiles_5.png",
+      "source_texture_sha256": "1f5eccce3d81325de44b2048d580c3a6e80853b87d50b1f4c58cdd8ad4b326d5",
+      "unity_rect_xywh": [
+        128.0,
+        192.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "f1a01fe30711c3046a653e5ce216ac30",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        128,
+        0,
+        192,
+        64
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "757ac69582dae02c1766e6110740b7d1f3b4bc05f1d0cbeef6c73319feae8299"
+    },
+    {
+      "id": "map_tiles_5",
+      "output": "map_tiles_5.png",
+      "purpose": "Brotato.unity MapOne authored decoration",
+      "source_sprite": "Assets/Texture2D/tiles_5.png",
+      "source_sprite_guid": "f1a01fe30711c3046a653e5ce216ac30",
+      "source_sprite_sha256": "1f5eccce3d81325de44b2048d580c3a6e80853b87d50b1f4c58cdd8ad4b326d5",
+      "source_texture": "Assets/Texture2D/tiles_5.png",
+      "source_texture_sha256": "1f5eccce3d81325de44b2048d580c3a6e80853b87d50b1f4c58cdd8ad4b326d5",
+      "unity_rect_xywh": [
+        0.0,
+        0.0,
+        192.0,
+        256.0
+      ],
+      "texture_guid": "f1a01fe30711c3046a653e5ce216ac30",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        0,
+        0,
+        192,
+        256
+      ],
+      "output_size_px": [
+        192,
+        256
+      ],
+      "unity_size_units": [
+        1.92,
+        2.56
+      ],
+      "output_sha256": "1865860015ebcb2b2a261b599f0fe5e588d068be0b969451544734316c587e95"
+    },
+    {
+      "id": "map_tiles_5_3",
+      "output": "map_tiles_5_3.png",
+      "purpose": "Brotato.unity MapOne authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_5_3.asset",
+      "source_sprite_guid": "db9326bbee1f69a499361e7053e70854",
+      "source_sprite_sha256": "0141bca24a8b83450b8ffeefb05a09ecf89ba7999453362f82abda0507a06056",
+      "source_texture": "Assets/Texture2D/tiles_5.png",
+      "source_texture_sha256": "1f5eccce3d81325de44b2048d580c3a6e80853b87d50b1f4c58cdd8ad4b326d5",
+      "unity_rect_xywh": [
+        0.0,
+        128.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "f1a01fe30711c3046a653e5ce216ac30",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        0,
+        64,
+        64,
+        128
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "3060ab2831400074209b9b6861c95fdd12e66ba9416dd2e0bf17ae8e2b7cebd2"
+    },
+    {
+      "id": "map_tiles_4_5",
+      "output": "map_tiles_4_5.png",
+      "purpose": "Brotato.unity MapTwo authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_4_5.asset",
+      "source_sprite_guid": "65e80d7a752c41b498a77092649f2139",
+      "source_sprite_sha256": "2ca2138bf3d90428826203ecd02ee073fc7b5b5edb6989afe1867ef2cf72ea4d",
+      "source_texture": "Assets/Texture2D/tiles_4.png",
+      "source_texture_sha256": "5c8bebf0a9fbf8dac3ffff1bbb0002ea9e65cce6d5f6d1dce8b78e64b3b0168e",
+      "unity_rect_xywh": [
+        128.0,
+        128.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "f7a4c38115040524084498aac1a55f9c",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        128,
+        64,
+        192,
+        128
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "d43ce2402d1f387d48c4961e931731c3b4ce176bc289ec383bccdb564391faf9"
+    },
+    {
+      "id": "map_tiles_4_0",
+      "output": "map_tiles_4_0.png",
+      "purpose": "Brotato.unity MapTwo authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_4_0.asset",
+      "source_sprite_guid": "b7742478e393dcb42a4e48d943107e2a",
+      "source_sprite_sha256": "b3094a7a390ff38a6952df57ac1d30d5d3c1d9347b1d8b0e089c7976ce66c623",
+      "source_texture": "Assets/Texture2D/tiles_4.png",
+      "source_texture_sha256": "5c8bebf0a9fbf8dac3ffff1bbb0002ea9e65cce6d5f6d1dce8b78e64b3b0168e",
+      "unity_rect_xywh": [
+        0.0,
+        192.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "f7a4c38115040524084498aac1a55f9c",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "f5c95939b5795fa6df976b184a30b4a2d209a504c4d5a12237be8d4dd609e1c0"
+    },
+    {
+      "id": "map_tiles_4_1",
+      "output": "map_tiles_4_1.png",
+      "purpose": "Brotato.unity MapTwo authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_4_1.asset",
+      "source_sprite_guid": "1a732434c33177f45a593bf2ece07a25",
+      "source_sprite_sha256": "8bd373234ae1b722823b8c2c75cb343a681183bb4fe035c9e1ab2331b0dc9f2e",
+      "source_texture": "Assets/Texture2D/tiles_4.png",
+      "source_texture_sha256": "5c8bebf0a9fbf8dac3ffff1bbb0002ea9e65cce6d5f6d1dce8b78e64b3b0168e",
+      "unity_rect_xywh": [
+        64.0,
+        192.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "f7a4c38115040524084498aac1a55f9c",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        64,
+        0,
+        128,
+        64
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "a14ab5673705b82de76378afbe9d4f0ffab981477e921fc48685242ed1ec057c"
+    },
+    {
+      "id": "map_tiles_4_10",
+      "output": "map_tiles_4_10.png",
+      "purpose": "Brotato.unity MapTwo authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_4_10.asset",
+      "source_sprite_guid": "6664c0f613db6b44a876fa64194c2dab",
+      "source_sprite_sha256": "240a258dbe55cfe8a79612f65e84cbc5ad3dd0d5fbd18cb8ed6878f084b2a79f",
+      "source_texture": "Assets/Texture2D/tiles_4.png",
+      "source_texture_sha256": "5c8bebf0a9fbf8dac3ffff1bbb0002ea9e65cce6d5f6d1dce8b78e64b3b0168e",
+      "unity_rect_xywh": [
+        64.0,
+        0.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "f7a4c38115040524084498aac1a55f9c",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        64,
+        192,
+        128,
+        256
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "962186703320eda1d36a2bf5469cc14401ff5e5f36c9f07e86d3f94936f4109d"
+    },
+    {
+      "id": "map_tiles_4",
+      "output": "map_tiles_4.png",
+      "purpose": "Brotato.unity MapTwo authored decoration",
+      "source_sprite": "Assets/Texture2D/tiles_4.png",
+      "source_sprite_guid": "f7a4c38115040524084498aac1a55f9c",
+      "source_sprite_sha256": "5c8bebf0a9fbf8dac3ffff1bbb0002ea9e65cce6d5f6d1dce8b78e64b3b0168e",
+      "source_texture": "Assets/Texture2D/tiles_4.png",
+      "source_texture_sha256": "5c8bebf0a9fbf8dac3ffff1bbb0002ea9e65cce6d5f6d1dce8b78e64b3b0168e",
+      "unity_rect_xywh": [
+        0.0,
+        0.0,
+        192.0,
+        256.0
+      ],
+      "texture_guid": "f7a4c38115040524084498aac1a55f9c",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        0,
+        0,
+        192,
+        256
+      ],
+      "output_size_px": [
+        192,
+        256
+      ],
+      "unity_size_units": [
+        1.92,
+        2.56
+      ],
+      "output_sha256": "3b9bddf75fd0be9d9d4e5273e6ae7eb38f10dfb3156bd7a34209b145b9604be1"
+    },
+    {
+      "id": "map_tiles_3_0",
+      "output": "map_tiles_3_0.png",
+      "purpose": "Brotato.unity MapThree authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_3_0.asset",
+      "source_sprite_guid": "308e378a29bbcbb40b0957daa7762811",
+      "source_sprite_sha256": "03a9c4ee304031351f243e21cc445143bb58951da7a1e63580a1b3a3aac34f7a",
+      "source_texture": "Assets/Texture2D/tiles_3.png",
+      "source_texture_sha256": "5c9eab33a5c77bd1c9d2e62c97dbfde1c9789da31a81d42ec8af4a71536119d6",
+      "unity_rect_xywh": [
+        0.0,
+        192.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "dc36051230630b348a4b734220847162",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "cc86bcdaa77ce92fcd9586eb4ff250fb95a5ecc36bfc8897ab35c2dceeb0f820"
+    },
+    {
+      "id": "map_tiles_3_5",
+      "output": "map_tiles_3_5.png",
+      "purpose": "Brotato.unity MapThree authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_3_5.asset",
+      "source_sprite_guid": "289701561c8252140a0df425b8410879",
+      "source_sprite_sha256": "b88d6d362d7d917dac120a1a0d27fbec2a56a9689f92c2a94ba1d274081a7b95",
+      "source_texture": "Assets/Texture2D/tiles_3.png",
+      "source_texture_sha256": "5c9eab33a5c77bd1c9d2e62c97dbfde1c9789da31a81d42ec8af4a71536119d6",
+      "unity_rect_xywh": [
+        128.0,
+        128.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "dc36051230630b348a4b734220847162",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        128,
+        64,
+        192,
+        128
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "038ee6fb828bdb923477f6b9de030905e8474c8f05fedcb3d2d36d3a244a0946"
+    },
+    {
+      "id": "map_tiles_3_2",
+      "output": "map_tiles_3_2.png",
+      "purpose": "Brotato.unity MapThree authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_3_2.asset",
+      "source_sprite_guid": "548f31d5f00481b409f99781e8ee30c1",
+      "source_sprite_sha256": "36576e80930cae7eed84d3ec63653a77b99dc78c627a2fd750c294d436641486",
+      "source_texture": "Assets/Texture2D/tiles_3.png",
+      "source_texture_sha256": "5c9eab33a5c77bd1c9d2e62c97dbfde1c9789da31a81d42ec8af4a71536119d6",
+      "unity_rect_xywh": [
+        128.0,
+        192.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "dc36051230630b348a4b734220847162",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        128,
+        0,
+        192,
+        64
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "5a9e3f9fb2013ee099798535af0165b00e49d2e82cd243a414c5a6db2f9836bd"
+    },
+    {
+      "id": "map_tiles_3_10",
+      "output": "map_tiles_3_10.png",
+      "purpose": "Brotato.unity MapThree authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_3_10.asset",
+      "source_sprite_guid": "365bb1dfaac81784eb37b16c4f0d0ca1",
+      "source_sprite_sha256": "6d3191516a2a099f043bf5181ff2deee5ea56a0687b0a7ca14b67e2ce74245a6",
+      "source_texture": "Assets/Texture2D/tiles_3.png",
+      "source_texture_sha256": "5c9eab33a5c77bd1c9d2e62c97dbfde1c9789da31a81d42ec8af4a71536119d6",
+      "unity_rect_xywh": [
+        64.0,
+        0.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "dc36051230630b348a4b734220847162",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        64,
+        192,
+        128,
+        256
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "8ebfb6bf62e7ef6aafe24bea253f2a09f13815fe2525c920e5cee96da192d74a"
+    },
+    {
+      "id": "map_tiles_3_6",
+      "output": "map_tiles_3_6.png",
+      "purpose": "Brotato.unity MapThree authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_3_6.asset",
+      "source_sprite_guid": "9a412bb8669f84c48bc7f5ce06e12373",
+      "source_sprite_sha256": "82ff7b04980c2328e9469bf02e6e609ad131a3edc5ac8c5f4160ef1fe6d9a82f",
+      "source_texture": "Assets/Texture2D/tiles_3.png",
+      "source_texture_sha256": "5c9eab33a5c77bd1c9d2e62c97dbfde1c9789da31a81d42ec8af4a71536119d6",
+      "unity_rect_xywh": [
+        0.0,
+        64.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "dc36051230630b348a4b734220847162",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        0,
+        128,
+        64,
+        192
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "823e785541a689a9a7fadd7640c26c62175a089a1a60130bc2d8370cc5b57187"
+    },
+    {
+      "id": "map_tiles_3_1",
+      "output": "map_tiles_3_1.png",
+      "purpose": "Brotato.unity MapThree authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_3_1.asset",
+      "source_sprite_guid": "b65406c823a659b418ed97113516198c",
+      "source_sprite_sha256": "1f4bd19ac8b5a057d1eb333cd350c1ceb8e925c6a0e7753198d1f6320e003f2b",
+      "source_texture": "Assets/Texture2D/tiles_3.png",
+      "source_texture_sha256": "5c9eab33a5c77bd1c9d2e62c97dbfde1c9789da31a81d42ec8af4a71536119d6",
+      "unity_rect_xywh": [
+        64.0,
+        192.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "dc36051230630b348a4b734220847162",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        64,
+        0,
+        128,
+        64
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "0f2af8400847e8f8245122c4a231f89e5fb81c28daae62ee11be23320b16bb62"
+    },
+    {
+      "id": "map_tiles_3_11",
+      "output": "map_tiles_3_11.png",
+      "purpose": "Brotato.unity MapThree authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_3_11.asset",
+      "source_sprite_guid": "93eb2bd2f80f6fa4bbee3529584bad60",
+      "source_sprite_sha256": "7d92f11041a37a8ad125332f773720773f53eec1ad14bf8d428926a8413209cb",
+      "source_texture": "Assets/Texture2D/tiles_3.png",
+      "source_texture_sha256": "5c9eab33a5c77bd1c9d2e62c97dbfde1c9789da31a81d42ec8af4a71536119d6",
+      "unity_rect_xywh": [
+        128.0,
+        0.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "dc36051230630b348a4b734220847162",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        128,
+        192,
+        192,
+        256
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "58db641828639bdf6b0b88f38661835be23eb5d381a571fd31384e080aa7a2d5"
+    },
+    {
+      "id": "map_tiles_2_10",
+      "output": "map_tiles_2_10.png",
+      "purpose": "Brotato.unity MapFour authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_2_10.asset",
+      "source_sprite_guid": "4e802b7888e776e4c8fcce510b4c689f",
+      "source_sprite_sha256": "a02e299cf2b095e954e5e02a09d588964b89c1bc00f5663c1b9f21ad81eeae3e",
+      "source_texture": "Assets/Texture2D/tiles_2.png",
+      "source_texture_sha256": "76be3b932e7edba7113dec7c68d769d94d6fbbf1912f41763f172e6164006bbe",
+      "unity_rect_xywh": [
+        64.0,
+        0.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "8ec1435e8ac971240bac1af444f2cee0",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        64,
+        192,
+        128,
+        256
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "c4e82c2b815fb229d931a1af258266c53b3366e032fb9890c585722c130d5240"
+    },
+    {
+      "id": "map_tiles_2_0",
+      "output": "map_tiles_2_0.png",
+      "purpose": "Brotato.unity MapFour authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_2_0.asset",
+      "source_sprite_guid": "4410626f6557f7a4f8b6c4f479bdaab4",
+      "source_sprite_sha256": "dc86581f2f81cae86c25a6eb2cd48be1a0b7a9307aef680def75c9039a707d6a",
+      "source_texture": "Assets/Texture2D/tiles_2.png",
+      "source_texture_sha256": "76be3b932e7edba7113dec7c68d769d94d6fbbf1912f41763f172e6164006bbe",
+      "unity_rect_xywh": [
+        0.0,
+        192.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "8ec1435e8ac971240bac1af444f2cee0",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "d5dda0adeffde550fd69089e7b0d70bd7d7ec15cf14cbaff2f3f455f0a894f57"
+    },
+    {
+      "id": "map_tiles_2_5",
+      "output": "map_tiles_2_5.png",
+      "purpose": "Brotato.unity MapFour authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_2_5.asset",
+      "source_sprite_guid": "44317e3abfdadf140a094e75452709e0",
+      "source_sprite_sha256": "48c0fcca442bde5163b281c2a61c3dda4e046824a5075576b26a8ceb5b25db4f",
+      "source_texture": "Assets/Texture2D/tiles_2.png",
+      "source_texture_sha256": "76be3b932e7edba7113dec7c68d769d94d6fbbf1912f41763f172e6164006bbe",
+      "unity_rect_xywh": [
+        128.0,
+        128.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "8ec1435e8ac971240bac1af444f2cee0",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        128,
+        64,
+        192,
+        128
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "42b2560c68313c3ac48417356b2ce142751ed94e80d67df4a7270fadeae40a3e"
+    },
+    {
+      "id": "map_tiles_2_2",
+      "output": "map_tiles_2_2.png",
+      "purpose": "Brotato.unity MapFour authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_2_2.asset",
+      "source_sprite_guid": "280d1cab9f6a72a43abd863fa2584ac4",
+      "source_sprite_sha256": "38dbf3016de838eacc0c8638bdd22c254d3fe92b7f03d886be7d785e532b380d",
+      "source_texture": "Assets/Texture2D/tiles_2.png",
+      "source_texture_sha256": "76be3b932e7edba7113dec7c68d769d94d6fbbf1912f41763f172e6164006bbe",
+      "unity_rect_xywh": [
+        128.0,
+        192.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "8ec1435e8ac971240bac1af444f2cee0",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        128,
+        0,
+        192,
+        64
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "96f8ee2cecb5f105e7ecd6953bb15d12beb467046915e049bf3c333dd4ba797e"
+    },
+    {
+      "id": "map_tiles_2_7",
+      "output": "map_tiles_2_7.png",
+      "purpose": "Brotato.unity MapFour authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_2_7.asset",
+      "source_sprite_guid": "18bb4a815495c18418cb1c0275b4439c",
+      "source_sprite_sha256": "6a1a95f64deaf1482a4f4b904942401229bc06268017ac41ab62f43e155b4b49",
+      "source_texture": "Assets/Texture2D/tiles_2.png",
+      "source_texture_sha256": "76be3b932e7edba7113dec7c68d769d94d6fbbf1912f41763f172e6164006bbe",
+      "unity_rect_xywh": [
+        64.0,
+        64.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "8ec1435e8ac971240bac1af444f2cee0",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        64,
+        128,
+        128,
+        192
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "1813b426717ee3f8aa242a344ba6678309bd8060c4d50ec57a478f14681e4689"
+    },
+    {
+      "id": "map_tiles_2_4",
+      "output": "map_tiles_2_4.png",
+      "purpose": "Brotato.unity MapFour authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_2_4.asset",
+      "source_sprite_guid": "4324f4095da99eb4fb0d285354eaeb91",
+      "source_sprite_sha256": "02af92efa82f9b02d54de08fd2a11dc306bb2cb1d6f99f10bfad2302b88caa49",
+      "source_texture": "Assets/Texture2D/tiles_2.png",
+      "source_texture_sha256": "76be3b932e7edba7113dec7c68d769d94d6fbbf1912f41763f172e6164006bbe",
+      "unity_rect_xywh": [
+        64.0,
+        128.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "8ec1435e8ac971240bac1af444f2cee0",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        64,
+        64,
+        128,
+        128
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "60833fc1dcff3c660121a65d5c7d7e66925f3fc03986c3beb47e3d83ca518fd9"
+    },
+    {
+      "id": "map_tiles_2_1",
+      "output": "map_tiles_2_1.png",
+      "purpose": "Brotato.unity MapFour authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_2_1.asset",
+      "source_sprite_guid": "9ad231edd3770014080d6e98fbc57493",
+      "source_sprite_sha256": "23dfe5689c36714d7279feaa2f6df2d467ba6e9ddf4f7c8eba631091243e0880",
+      "source_texture": "Assets/Texture2D/tiles_2.png",
+      "source_texture_sha256": "76be3b932e7edba7113dec7c68d769d94d6fbbf1912f41763f172e6164006bbe",
+      "unity_rect_xywh": [
+        64.0,
+        192.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "8ec1435e8ac971240bac1af444f2cee0",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        64,
+        0,
+        128,
+        64
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "6e8365c9039063484e1213214f0a9c79b2195df8a94a2e13085c24e43148c6ad"
+    },
+    {
+      "id": "map_tiles_2_9",
+      "output": "map_tiles_2_9.png",
+      "purpose": "Brotato.unity MapFour authored decoration",
+      "source_sprite": "Assets/Sprite/tiles_2_9.asset",
+      "source_sprite_guid": "8ed289b14f9cd3644ae2112f9e5f5843",
+      "source_sprite_sha256": "76ee5d9a32c770eaf4c62753ed2f767c18d68a064d76d8eef9a299802a5409b9",
+      "source_texture": "Assets/Texture2D/tiles_2.png",
+      "source_texture_sha256": "76be3b932e7edba7113dec7c68d769d94d6fbbf1912f41763f172e6164006bbe",
+      "unity_rect_xywh": [
+        0.0,
+        0.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "8ec1435e8ac971240bac1af444f2cee0",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "border_units": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "crop_top_left_ltrb": [
+        0,
+        192,
+        64,
+        256
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "f6fe6684feb46a5ede71dc6dd194f1386a9469b3373a546753629e04f37eb7f7"
     }
   ]
 }

@@ -22,6 +22,7 @@ struct FrameSettings {
     int isolatedMaterial = -1;
     bool present = true;
     Render::MaterialPipelineSettings effects;
+    bool shadowStudy = false; // contact, grazing slope, thin caster and curved receiver
 };
 
 struct MaterialInfo {

@@ -49,7 +49,6 @@ target_include_directories(forest_fire_render PUBLIC
 set_target_properties(forest_fire_render PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
-target_link_directories(forest_fire_render PUBLIC ${FOREST_FIRE_ROOT}/lib/debug)
 target_link_libraries(forest_fire_render PUBLIC opengl32 glfw3 glad)
 
 add_executable(forest_fire_demo Test/main.cpp)

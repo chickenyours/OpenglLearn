@@ -132,6 +132,10 @@ int main() {
     assert(plane.vertices.size() == 4 && plane.indices.size() == 6);
     CheckVertexFrames(plane);
     CheckTriangles(plane, false);
+    const auto box = MaterialLab::MakeBox();
+    assert(box.vertices.size() == 24 && box.indices.size() == 36);
+    CheckVertexFrames(box);
+    CheckTriangles(box, true); // outward from center also holds for a convex box
     TestTextures();
     ExpectInvalid([] { MaterialLab::MakeSphere(1, 8); });
     ExpectInvalid([] { MaterialLab::MakeSphere(8, 2); });

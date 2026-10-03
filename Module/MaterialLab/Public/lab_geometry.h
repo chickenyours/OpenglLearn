@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -92,6 +93,23 @@ inline MeshData MakePlane() {
         {{ 1.0f, 0.0f, -1.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f}, {1.0f, 0.0f, 0.0f, 1.0f}},
         {{-1.0f, 0.0f, -1.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f}, {1.0f, 0.0f, 0.0f, 1.0f}}
     }, {0, 1, 2, 0, 2, 3}};
+}
+
+// Unit box spanning [-1,1], separate face vertices preserve hard normals.
+inline MeshData MakeBox() {
+    MeshData mesh;
+    const std::array<glm::vec3, 6> normals{{{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}}};
+    for (const auto& n : normals) {
+        const auto u = glm::normalize(glm::cross(std::abs(n.y) > 0.5f ? glm::vec3(0,0,1) : glm::vec3(0,1,0), n));
+        const auto v = glm::cross(n, u);
+        const auto start = static_cast<std::uint32_t>(mesh.vertices.size());
+        mesh.vertices.push_back({n-u-v, n, {0,0}, glm::vec4(u,1)});
+        mesh.vertices.push_back({n+u-v, n, {1,0}, glm::vec4(u,1)});
+        mesh.vertices.push_back({n+u+v, n, {1,1}, glm::vec4(u,1)});
+        mesh.vertices.push_back({n-u+v, n, {0,1}, glm::vec4(u,1)});
+        mesh.indices.insert(mesh.indices.end(), {start,start+1,start+2,start,start+2,start+3});
+    }
+    return mesh;
 }
 
 struct TexturePixels {

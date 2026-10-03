@@ -23,6 +23,7 @@ layout(std140, binding = 5) uniform PostProcessData {
     vec4 postScreen;
     vec4 postGrading;
     vec4 postMisc;
+    vec4 postBloomStability;
 };
 // Clamp at texel centers as well as using ClampToEdge samplers. This prevents
 // screen-space kernels from depending on any inherited texture address state.
@@ -30,12 +31,14 @@ vec2 SafeUV(sampler2D image, vec2 uv) {
     vec2 halfTexel = 0.5 / vec2(textureSize(image, 0));
     return clamp(uv, halfTexel, vec2(1.0) - halfTexel);
 }
-vec4 ReadImage(sampler2D image, vec2 uv) {
-    vec4 value = texture(image, SafeUV(image, uv));
+vec4 FiniteColor(vec4 value) {
     // External HDR materials can overflow RGBA16F. Keep NaN/Inf from spreading
     // through Bloom, tone mapping and display-space neighbourhood filters.
     value = mix(value, vec4(0.0), isnan(value));
     return clamp(value, vec4(-60000.0), vec4(60000.0));
+}
+vec4 ReadImage(sampler2D image, vec2 uv) {
+    return FiniteColor(texture(image, SafeUV(image, uv)));
 }
 vec3 SafeNormalize(vec3 value, vec3 fallbackValue) {
     float lengthSquared = dot(value, value);
@@ -55,6 +58,92 @@ vec3 ViewPosition(vec2 uv, float depth) {
 }
 )GLSL";
 }
+
+// The 13-tap footprint follows the Jimenez Bloom filter also used by Unity's
+// PostProcessing/Shaders/Sampling.hlsl. Karis weights are normalized here so a
+// uniform source stays constant; the adaptive cap affects local outliers only.
+// https://github.com/Unity-Technologies/PostProcessing/blob/v2/PostProcessing/Shaders/Sampling.hlsl
+// https://graphicrants.blogspot.com/2013/12/tone-mapping.html
+inline std::string BloomSampling() {
+    return R"GLSL(
+float BloomLuminance(vec3 color) { return dot(color, vec3(0.299, 0.587, 0.114)); }
+vec3 BloomThreshold(vec3 color) {
+    color = max(color, vec3(0.0));
+    float brightness = BloomLuminance(color);
+    float threshold = max(postBloom.x, 0.0);
+    float knee = threshold * clamp(postBloomStability.x, 0.0, 1.0);
+    float soft = clamp(brightness - threshold + knee, 0.0, 2.0 * knee);
+    soft = soft * soft / max(4.0 * knee, 1e-5);
+    return color * (max(soft, brightness - threshold) / max(brightness, 1e-5));
+}
+vec3 BloomTap(vec2 uv, bool firstLevel) {
+    if (!firstLevel) return max(ReadImage(inputTexture, uv).rgb, vec3(0.0));
+    // Evaluate the nonlinear threshold on source texels BEFORE interpolation.
+    // Thresholding the already reduced/blurred signal makes emitted energy
+    // depend on how the highlight straddles the destination pixel grid.
+    ivec2 size = textureSize(inputTexture, 0);
+    vec2 position = SafeUV(inputTexture, uv) * vec2(size) - 0.5;
+    ivec2 base = ivec2(floor(position));
+    vec2 fraction = fract(position);
+    vec3 row0 = mix(
+        BloomThreshold(FiniteColor(texelFetch(inputTexture, clamp(base, ivec2(0), size - 1), 0)).rgb),
+        BloomThreshold(FiniteColor(texelFetch(inputTexture, clamp(base + ivec2(1, 0), ivec2(0), size - 1), 0)).rgb), fraction.x);
+    vec3 row1 = mix(
+        BloomThreshold(FiniteColor(texelFetch(inputTexture, clamp(base + ivec2(0, 1), ivec2(0), size - 1), 0)).rgb),
+        BloomThreshold(FiniteColor(texelFetch(inputTexture, clamp(base + ivec2(1, 1), ivec2(0), size - 1), 0)).rgb), fraction.x);
+    return mix(row0, row1, fraction.y);
+}
+vec3 BloomPrefilter13(bool firstLevel) {
+    // One destination pixel spans two source texels in a regular mip chain.
+    // Derivatives retain that footprint for odd dimensions and 1-by-N images.
+    vec2 footprint = max(fwidth(vUV), 1.0 / vec2(textureSize(inputTexture, 0)));
+    vec3 colors[13];
+    float kernelWeights[13];
+    int tap = 0;
+    for (int y = -1; y <= 1; ++y) {
+        for (int x = -1; x <= 1; ++x) {
+            kernelWeights[tap] = x == 0 && y == 0 ? 0.125 :
+                                (x == 0 || y == 0 ? 0.0625 : 0.03125);
+            colors[tap++] = BloomTap(vUV + vec2(x, y) * footprint, firstLevel);
+        }
+    }
+    for (int y = -1; y <= 1; y += 2) {
+        for (int x = -1; x <= 1; x += 2) {
+            kernelWeights[tap] = 0.125;
+            colors[tap++] = BloomTap(vUV + vec2(x, y) * footprint * 0.5, firstLevel);
+        }
+    }
+    float sumLuminance = 0.0, largestLuminance = 0.0;
+    for (int i = 0; i < 13; ++i) {
+        float luminance = BloomLuminance(colors[i]);
+        sumLuminance += luminance;
+        largestLuminance = max(largestLuminance, luminance);
+    }
+    bool useKaris = firstLevel && postBloomStability.y > 0.0;
+    float range = max(postBloomStability.y, 1e-4);
+    // Leave the strongest sample out of the local reference so a lone firefly
+    // cannot raise its own cap. Broad or constant bright areas remain intact.
+    float localReference = max((sumLuminance - largestLuminance) / 12.0, 0.0);
+    float localCap = max(range, 4.0 * localReference);
+    vec3 total = vec3(0.0);
+    float totalWeight = 0.0;
+    for (int i = 0; i < 13; ++i) {
+        vec3 color = colors[i];
+        float weight = kernelWeights[i];
+        if (useKaris) {
+            float luminance = BloomLuminance(color);
+            color *= min(1.0, localCap / max(luminance, 1e-5));
+            // Scale channels together and divide by the accumulated weights:
+            // Karis suppression must not dim a spatially constant HDR field.
+            weight *= range / (range + BloomLuminance(color));
+        }
+        total += color * weight;
+        totalWeight += weight;
+    }
+    return total / max(totalWeight, 1e-12);
+}
+)GLSL";
+}
 }
 
 inline std::string FullscreenVertexShader() {
@@ -70,22 +159,34 @@ void main() {
 }
 
 inline std::string BloomExtractShader() {
-    return PostProcessDetail::FragmentPreamble() + R"GLSL(
+    return PostProcessDetail::FragmentPreamble() + PostProcessDetail::BloomSampling() + R"GLSL(
 void main() {
-    vec3 color = max(ReadImage(inputTexture, vUV).rgb, vec3(0.0));
-    float brightness = dot(color, vec3(0.299, 0.587, 0.114));
-    float threshold = max(postBloom.x, 0.0);
-    // A soft knee around the legacy luminance threshold avoids abrupt rings as
-    // highlights cross the cutoff. Bloom strength is applied once at composite.
-    float knee = max(threshold * 0.5, 1e-4);
-    float soft = clamp(brightness - threshold + knee, 0.0, 2.0 * knee);
-    soft = soft * soft / (4.0 * knee);
-    float contribution = max(soft, brightness - threshold) / max(brightness, 1e-5);
-    outColor = vec4(clamp(color * contribution, vec3(0.0), vec3(60000.0)), 1.0);
+    vec3 color = BloomPrefilter13(true);
+    outColor = vec4(clamp(color, vec3(0.0), vec3(60000.0)), 1.0);
 }
 )GLSL";
 }
 
+// Subsequent pyramid levels preserve the filtered radiance: no repeated
+// threshold, cap or Karis weighting. Run this into a smaller separate target.
+inline std::string BloomDownsampleShader() {
+    return PostProcessDetail::FragmentPreamble() + PostProcessDetail::BloomSampling() + R"GLSL(
+void main() {
+    outColor = vec4(clamp(BloomPrefilter13(false), vec3(0.0), vec3(60000.0)), 1.0);
+}
+)GLSL";
+}
+
+// Linear-HDR or already encoded display copy; applies no exposure/gamma.
+// ReadImage sanitizes external NaN/Inf and keeps RGBA16F writes finite.
+inline std::string CopyColorShader() {
+    return PostProcessDetail::FragmentPreamble() + R"GLSL(
+void main() { outColor = ReadImage(inputTexture, vUV); }
+)GLSL";
+}
+
+// For same-size horizontal/vertical blur. Use BloomDownsampleShader when the
+// target is smaller so both axes receive the same pre-decimation footprint.
 inline std::string GaussianBlurShader() {
     return PostProcessDetail::FragmentPreamble() + R"GLSL(
 void main() {
@@ -103,10 +204,13 @@ void main() {
 
 // Slot 0 is the smaller accumulated image; slot 1 is the larger current level.
 // The destination must be a separate image, never either sampled attachment.
+// Scatter blends normalized mip contributions, as in Unity's official Bloom
+// shader, so adding levels changes the halo distribution instead of its gain.
+// https://github.com/Unity-Technologies/Graphics/blob/master/Packages/com.unity.render-pipelines.universal/Shaders/PostProcessing/Bloom.shader
 inline std::string BloomUpsampleShader() {
     return PostProcessDetail::FragmentPreamble() + R"GLSL(
 void main() {
-    vec2 texel = 1.0 / vec2(textureSize(inputTexture, 0));
+    vec2 texel = clamp(postBloomStability.w, 0.5, 2.0) / vec2(textureSize(inputTexture, 0));
     vec3 upsampled = vec3(0.0);
     for (int y = -1; y <= 1; ++y) {
         for (int x = -1; x <= 1; ++x) {
@@ -114,9 +218,11 @@ void main() {
             upsampled += ReadImage(inputTexture, vUV + vec2(x, y) * texel).rgb * weight;
         }
     }
-    // The normalized tent contributes half as much at each coarser level;
-    // the user's Bloom strength is applied once by the HDR composite.
-    vec3 color = ReadImage(secondTexture, vUV).rgb + upsampled / 32.0;
+    // Unit-sum reconstruction avoids a bright, fine-mip-dominated core and
+    // the old geometric gain (1 + .5 + .25 + ...). Strength is independent of
+    // mip count and is still applied exactly once by the HDR composite.
+    vec3 color = mix(ReadImage(secondTexture, vUV).rgb, upsampled / 16.0,
+                     clamp(postBloomStability.z, 0.0, 1.0));
     outColor = vec4(clamp(color, vec3(0.0), vec3(60000.0)), 1.0);
 }
 )GLSL";
@@ -127,16 +233,24 @@ void main() {
 // no G-buffer or 1024-byte sample uniform is required. Output may be half-size.
 inline std::string SsaoShader() {
     return PostProcessDetail::FragmentPreamble() + R"GLSL(
+vec3 DepthPositionAtPixel(ivec2 pixel) {
+    ivec2 size = textureSize(sceneDepth, 0);
+    pixel = clamp(pixel, ivec2(0), size - ivec2(1));
+    vec2 uv = (vec2(pixel) + 0.5) / vec2(size);
+    float depth = texelFetch(sceneDepth, pixel, 0).r;
+    vec4 homogeneous = postInverseProjection * vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
+    return abs(homogeneous.w) > 1e-8 ? homogeneous.xyz / homogeneous.w : vec3(0.0, 0.0, -postMisc.y);
+}
 vec3 DepthNormal(vec2 uv, vec3 center) {
-    vec2 texel = 1.0 / vec2(textureSize(sceneDepth, 0));
-    vec2 leftUV = SafeUV(sceneDepth, uv - vec2(texel.x, 0.0));
-    vec2 rightUV = SafeUV(sceneDepth, uv + vec2(texel.x, 0.0));
-    vec2 downUV = SafeUV(sceneDepth, uv - vec2(0.0, texel.y));
-    vec2 upUV = SafeUV(sceneDepth, uv + vec2(0.0, texel.y));
-    vec3 left = ViewPosition(leftUV, ReadDepth(leftUV));
-    vec3 right = ViewPosition(rightUV, ReadDepth(rightUV));
-    vec3 down = ViewPosition(downUV, ReadDepth(downUV));
-    vec3 up = ViewPosition(upUV, ReadDepth(upUV));
+    // Half-resolution centers can land exactly on full-resolution texel
+    // boundaries. UV +/- texel followed by floor can then round back to the
+    // center (or two pixels away), producing a zero derivative and AO stripes.
+    // Offset integer pixels and reconstruct each selected texel's true center.
+    ivec2 pixel = DepthTexel(uv);
+    vec3 left = DepthPositionAtPixel(pixel + ivec2(-1, 0));
+    vec3 right = DepthPositionAtPixel(pixel + ivec2(1, 0));
+    vec3 down = DepthPositionAtPixel(pixel + ivec2(0, -1));
+    vec3 up = DepthPositionAtPixel(pixel + ivec2(0, 1));
     vec3 dx = abs(center.z - left.z) < abs(right.z - center.z) ? center - left : right - center;
     vec3 dy = abs(center.z - down.z) < abs(up.z - center.z) ? center - down : up - center;
     vec3 towardsCamera = SafeNormalize(-center, vec3(0.0, 0.0, 1.0));

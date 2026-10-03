@@ -14,6 +14,13 @@ set_target_properties(render_sprite2d PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${CMAK
 add_executable(sprite_batch_geometry_test ${CMAKE_CURRENT_LIST_DIR}/Test/sprite_batch_geometry_test.cpp)
 target_include_directories(sprite_batch_geometry_test PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/Module)
 add_test(NAME sprite_batch_geometry_test COMMAND sprite_batch_geometry_test)
+add_executable(sprite_animation_test ${CMAKE_CURRENT_LIST_DIR}/Test/sprite_animation_test.cpp)
+target_include_directories(sprite_animation_test PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/Module)
+add_test(NAME sprite_animation_test COMMAND sprite_animation_test)
 add_executable(sprite_batch_runtime_test ${CMAKE_CURRENT_LIST_DIR}/Test/sprite_batch_runtime_test.cpp)
 target_link_libraries(sprite_batch_runtime_test PRIVATE render_sprite2d)
 add_test(NAME sprite_batch_runtime_test COMMAND sprite_batch_runtime_test)
+
+add_executable(texture_update_test ${CMAKE_CURRENT_LIST_DIR}/Test/texture_update_test.cpp)
+target_link_libraries(texture_update_test PRIVATE render_sprite2d)
+add_test(NAME texture_update_test COMMAND texture_update_test)

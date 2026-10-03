@@ -2,6 +2,7 @@
 
 #include "module_base.h"
 #include "game_components.h"
+#include "game_events.h"
 #include "engine/ECS/Scene/scene.h"
 #include "engine/ECS/System/system_pipeline.h"
 #include <memory>
@@ -12,6 +13,7 @@
 namespace Brotato {
 class WaveSystem; class MovementSystem; class WeaponSystem;
 class ProjectileSystem; class ContactSystem; class PickupSystem;
+class PresentationSystem;
 
 // Main-thread simulation. Structural changes are committed after the pipeline.
 // The renderer only consumes value snapshots; no component pointer crosses a tick.
@@ -32,6 +34,12 @@ public:
     ECS::EntityHandle PlayerEntity() const { return player_; }
     ECS::EntityHandle WeaponEntity() const { return weapon_; }
     WeaponKind CurrentWeapon() const { return selected_; }
+    static constexpr std::size_t MaxPendingEvents = 256;
+    // Drain once after simulation on the owning thread; rendering never emits or
+    // consumes events. Epoch changes invalidate sounds from the previous world.
+    std::vector<GameEvent> DrainEvents();
+    std::uint64_t PresentationEpoch() const { return presentationEpoch_; }
+    std::uint64_t DroppedEventCount() const { return droppedEvents_; }
     const WeaponDefinition& Definition(WeaponKind kind) const { return config_.weapons.at(WeaponIndex(kind)); }
     bool EquipWeapon(WeaponKind kind);
     template<class T> T& Get(ECS::EntityHandle entity) {
@@ -47,6 +55,7 @@ public:
     void Revive();
     void SetPaused(bool paused);
     std::vector<DrawSprite> Extract();
+    std::vector<DrawDamageText> ExtractDamageText();
     // Scenario/editor seams; only call between ticks. Capacity exhaustion returns
     // an invalid EntityHandle, not an unbounded allocation.
     ECS::EntityHandle SpawnEnemy(glm::vec2 position, bool ready = false);
@@ -56,6 +65,7 @@ public:
 private:
     friend class WaveSystem; friend class MovementSystem; friend class WeaponSystem;
     friend class ProjectileSystem; friend class ContactSystem; friend class PickupSystem;
+    friend class PresentationSystem;
     void Validate() const;
     void HandleInput(Input input);
     void Step(Input input);
@@ -68,7 +78,16 @@ private:
     void Commit();
     void ClearTransient();
     void RefreshCounts();
-    void Kill(ECS::EntityHandle entity);
+    void Kill(ECS::EntityHandle entity, WeaponKind weapon);
+    void EmitEvent(GameEventKind kind, ECS::EntityHandle entity, glm::vec2 position,
+                   WeaponKind weapon = WeaponKind::Wand);
+    void ResetPresentation();
+    void Animate();
+    void ResetActorAnimation(ECS::EntityHandle entity, ActorClip clip);
+    void SampleActorAnimation(ECS::EntityHandle entity);
+    void AppendActorSprites(std::vector<DrawSprite>& result, ECS::EntityHandle entity, bool player);
+    void QueueHitEffects(ECS::EntityHandle entity);
+    void CommitEffects();
     bool AliveEnemy(ECS::EntityHandle entity);
     ECS::EntityHandle NearestEnemy(float range);
     void ResetWeapon(bool resetCooldowns);
@@ -83,14 +102,24 @@ private:
         int path = -1;
         float heading = 0;
     };
+    struct EffectCommand {
+        EffectKind kind;
+        glm::vec2 position, velocity{};
+        float size = 1;
+        int value = 1;
+        ECS::EntityHandle owner{0};
+    };
     Config config_;
     Statistics stats_;
     std::unique_ptr<ECS::Core::Scene> scene_;
-    ObjectWeakPtr<ECS::Core::ArchType> playerType_, weaponType_, enemyType_, projectileType_, pickupType_;
+    ObjectWeakPtr<ECS::Core::ArchType> playerType_, weaponType_, enemyType_, projectileType_, pickupType_, effectType_;
     ECS::EntityHandle player_{0}, weapon_{0};
     WeaponKind selected_ = WeaponKind::Wand;
-    std::vector<ECS::EntityHandle> enemies_, projectiles_, pickups_, retired_;
+    std::vector<ECS::EntityHandle> enemies_, projectiles_, pickups_, effects_, retired_;
     std::vector<SpawnCommand> pending_;
+    std::vector<GameEvent> events_;
+    std::vector<EffectCommand> pendingEffects_;
+    std::uint64_t presentationEpoch_ = 0, droppedEvents_ = 0;
     ECS::System::Pipeline pipeline_;
     ECS::System::Context context_;
     std::mt19937 random_;

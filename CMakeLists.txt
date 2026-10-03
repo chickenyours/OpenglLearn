@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.24)
 project(MyProject LANGUAGES C CXX)
 enable_testing()
 
@@ -6,20 +6,37 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 
-# 设置 Debug 构建类型和使用 /MDd
-set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
-foreach(flag_var CMAKE_C_FLAGS_DEBUG CMAKE_CXX_FLAGS_DEBUG)
-    string(REPLACE "/MD" "/MDd" ${flag_var} "${${flag_var}}")
-endforeach()
+# Keep plain `cmake -S . -B build` compatible with the existing Debug workflow.
+# Release presets use isolated outputs and rebuild every third-party library.
+if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type")
+endif()
+set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release RelWithDebInfo MinSizeRel)
+option(OPENGLLEARN_STATIC_RUNTIME "Statically link the MSVC C/C++ runtime" OFF)
+option(OPENGLLEARN_LEGACY_OUTPUT_LAYOUT "Keep legacy bin/ output for plain Debug builds" ON)
+set(OPENGLLEARN_OUTPUT_ROOT "${CMAKE_SOURCE_DIR}/output" CACHE PATH "Build and package output root")
+if(MSVC)
+    if(OPENGLLEARN_STATIC_RUNTIME)
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    else()
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+    endif()
+endif()
+if(OPENGLLEARN_LEGACY_OUTPUT_LAYOUT AND CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
+    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
+else()
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${OPENGLLEARN_OUTPUT_ROOT}/$<CONFIG>/bin")
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${OPENGLLEARN_OUTPUT_ROOT}/$<CONFIG>/bin")
+    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${OPENGLLEARN_OUTPUT_ROOT}/$<CONFIG>/lib")
+endif()
 
 # 全局 include / lib
 include_directories(${CMAKE_SOURCE_DIR}/include)
 include_directories(${CMAKE_SOURCE_DIR}/Engine/include)
 include_directories(${CMAKE_SOURCE_DIR}/Engine/include/engine)
-link_directories(${CMAKE_SOURCE_DIR}/lib/debug)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib/debug)
+include(cmake/Dependencies.cmake)
 
 # 添加子目录（重要）
 # add_subdirectory(engine)
@@ -30,3 +47,5 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib/debug)
 # add_subdirectory(${CMAKE_SOURCE_DIR}/Module/Render)
 # add_subdirectory(${CMAKE_SOURCE_DIR}/2D/Application)
 add_subdirectory(${CMAKE_SOURCE_DIR}/Module)
+include(cmake/PortablePackage.cmake)
+include(cmake/Packages.cmake)

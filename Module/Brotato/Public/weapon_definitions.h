@@ -10,7 +10,8 @@ enum class WeaponKind { Wand, Torch, Laser, Knife, Gun, Burst, Count };
 enum class AttackMode { Projectile, Thrust, SegmentedBeam, AuthoredBurst };
 enum class Image {
     Player, Enemy, Projectile, Material, Spawn, Weapon,
-    Torch, LaserWeapon, Knife, Gun, BurstWeapon, GunProjectile, BurstProjectile, LaserSegment, Muzzle
+    Torch, LaserWeapon, Knife, Gun, BurstWeapon, GunProjectile, BurstProjectile, LaserSegment, Muzzle,
+    PlayerLegLeft, PlayerLegRight, PlayerShadow, PlayerMark, HitParticle, PlayerBody
 };
 constexpr std::size_t WeaponCount = static_cast<std::size_t>(WeaponKind::Count);
 constexpr std::size_t WeaponIndex(WeaponKind kind) { return static_cast<std::size_t>(kind); }

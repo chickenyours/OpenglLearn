@@ -53,11 +53,21 @@ VoiceID Mixer::Play(std::shared_ptr<const Clip> clip,float gain,bool loop,float 
 }
 void Mixer::Stop(VoiceID id) { std::lock_guard lock(mutex_); std::erase_if(voices_,[=](const auto& v){return v.id==id;}); }
 void Mixer::StopAll() { std::lock_guard lock(mutex_); voices_.clear(); limiterGain_=1; }
+void Mixer::SetPaused(VoiceID id,bool paused) {
+    std::lock_guard lock(mutex_);
+    for(auto& voice:voices_) if(voice.id==id) { voice.paused=paused; break; }
+}
+bool Mixer::IsPlaying(VoiceID id) const {
+    std::lock_guard lock(mutex_);
+    return std::any_of(voices_.begin(),voices_.end(),[=](const auto& voice){return voice.id==id;});
+}
+std::size_t Mixer::ActiveVoices() const { std::lock_guard lock(mutex_); return voices_.size(); }
 void Mixer::SetVolume(float v) { std::lock_guard lock(mutex_); volume_=std::isfinite(v)?std::clamp(v,0.f,1.f):0; }
 void Mixer::Render(std::span<float> out,uint32_t rate) {
     std::lock_guard lock(mutex_); std::fill(out.begin(),out.end(),0);
     if(!rate) return;
     for(auto& v:voices_) {
+        if(v.paused) continue;
         const auto& c=*v.clip; const size_t frames=c.samples.size()/c.channels;
         for(size_t i=0;i+1<out.size();i+=2) {
             if(v.cursor>=frames) { if(!v.loop) break; v.cursor=std::fmod(v.cursor,double(frames)); }

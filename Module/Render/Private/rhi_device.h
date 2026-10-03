@@ -38,6 +38,7 @@ using RHICommands = RHICommandSystem<
     CreatePipelineCommand,
     DeletePipelineCommand,
     CreateTextureCommand,
+    UpdateTextureCommand,
     DeleteTextureCommand,
     BackDoorExecutionCommand,
     FrameCommands,
@@ -165,6 +166,9 @@ private:
             case 15:
                 ok = DispatchFrameCommand<RHICommand::SetRenderTarget>(
                     buffer, cursor, &IBackend::SetRenderTarget); break;
+            case 16:
+                ok = DispatchFrameCommand<RHICommand::ResolveRenderTarget>(
+                    buffer, cursor, &IBackend::ResolveRenderTarget); break;
             default:
                 break;
             }
@@ -223,6 +227,14 @@ private:
         ProcessCreateQueue<CreateUniformBufferCommand>(&IBackend::CreateUniformBuffer);
         ProcessDeleteQueue<DeleteUniformBufferCommand>(&IBackend::DeleteUniformBuffer);
         ProcessCreateQueue<CreateTextureCommand>(&IBackend::CreateTexture);
+        auto& textureUpdates = commandSystem_.GetQueue<UpdateTextureCommand>();
+        for (size_t n = 0; n < 8 && !textureUpdates.thread_IsConsumeQueueEmpty(); ++n) {
+            auto command = textureUpdates.thread_Pop();
+            const bool succeeded = backend_->UpdateTexture(command);
+            if (command.OnFinish) returnSystem.callbacks.push(
+                [callback = std::move(command.OnFinish), succeeded]() mutable { callback(succeeded); });
+            thread_ProcessNextFrame();
+        }
         ProcessCreateQueue<CreateRenderTargetCommand>(&IBackend::CreateRenderTarget);
         ProcessDeleteQueue<DeleteRenderTargetCommand>(&IBackend::DeleteRenderTarget);
         // A resource lease may retire many FBOs at once. Do not delete any of
@@ -514,7 +526,9 @@ public:
         command.OnFinish = std::move(callback);
         const auto bytesPerPixel = GetTextureFormatByteSize(spec.textureUseType);
         const std::uint64_t pixels = static_cast<std::uint64_t>(spec.width) * spec.height;
-        const bool validSize = bytesPerPixel != 0 && spec.width != 0 && spec.height != 0 &&
+        const bool validSize = IsValidTextureSampleCount(spec.samples) &&
+            (spec.samples == 1 || (!spec.mipmaps && !spec.data)) &&
+            bytesPerPixel != 0 && spec.width != 0 && spec.height != 0 &&
             spec.width <= static_cast<std::uint32_t>(std::numeric_limits<std::int32_t>::max()) &&
             spec.height <= static_cast<std::uint32_t>(std::numeric_limits<std::int32_t>::max()) &&
             pixels <= std::numeric_limits<std::size_t>::max() / bytesPerPixel;
@@ -531,6 +545,27 @@ public:
         DeleteTextureCallback callback = nullptr
     ) {
         threadAny_PushCommand(DeleteTextureCommand{handle, std::move(callback)});
+    }
+
+    void async_UpdateTexture(RenderResourceHandle<RHITextureSpec> handle,
+        const UpdateRHITextureDesc& desc, UpdateTextureCallback callback = nullptr) {
+        UpdateTextureCommand command;
+        command.handle = handle;
+        command.desc = desc;
+        command.desc.data = nullptr;
+        command.OnFinish = std::move(callback);
+        const auto bpp = GetTextureFormatByteSize(desc.format);
+        const std::uint64_t pixels = std::uint64_t(desc.width) * desc.height;
+        const bool valid = bpp && desc.width && desc.height && desc.data &&
+            desc.width <= std::uint32_t(std::numeric_limits<std::int32_t>::max()) &&
+            desc.height <= std::uint32_t(std::numeric_limits<std::int32_t>::max()) &&
+            pixels <= std::numeric_limits<std::size_t>::max() / bpp &&
+            desc.byteSize == pixels * bpp;
+        if (valid) {
+            command.data.resize(desc.byteSize);
+            std::memcpy(command.data.data(), desc.data, desc.byteSize);
+        } else command.desc.width = 0;
+        threadAny_PushCommand(std::move(command));
     }
 
     void async_CreateRenderTarget(const CreateRenderTargetDesc& desc,

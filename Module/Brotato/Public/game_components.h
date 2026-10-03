@@ -3,6 +3,8 @@
 #include "engine/ECS/Component/component_loader_registry.h"
 #include "engine/ECS/Entity/entity.h"
 #include "weapon_definitions.h"
+#include "content_catalog.h"
+#include "Render/Public/Sprite/sprite_animation.h"
 #include <glm/glm.hpp>
 #include <cstddef>
 #include <cstdint>
@@ -51,6 +53,22 @@ struct Projectile : Component<Projectile> {
     glm::vec2 origin{};
 };
 struct Pickup : Component<Pickup> { int value = 1; bool collected = false; };
+enum class ActorClip { PlayerIdle, PlayerMove, EnemyMove, EnemyDeath };
+struct ActorAnimation : Component<ActorAnimation> {
+    static constexpr std::size_t MaxNodes = 16;
+    ActorClip clip = ActorClip::PlayerIdle;
+    double time = 0;
+    std::array<Render::Animation::Pose, MaxNodes> nodes{};
+};
+enum class EffectKind { HitParticle, DamageText };
+struct Effect : Component<Effect> {
+    EffectKind kind = EffectKind::HitParticle;
+    double age = 0;
+    float lifetime = .5f, initialSize = 1;
+    int value = 1;
+    ECS::EntityHandle owner{0}; // Damage text belongs to the original corpse generation.
+    Render::Animation::Pose pose{};
+};
 
 inline void RegisterComponents() {
     static std::once_flag registered;
@@ -64,6 +82,8 @@ inline void RegisterComponents() {
         REGISTER_COMPONENT("brotato_enemy", Enemy);
         REGISTER_COMPONENT("brotato_projectile", Projectile);
         REGISTER_COMPONENT("brotato_pickup", Pickup);
+        REGISTER_COMPONENT("brotato_actor_animation", ActorAnimation);
+        REGISTER_COMPONENT("brotato_effect", Effect);
     });
 }
 
@@ -74,6 +94,9 @@ struct Input {
 };
 enum class State { Playing, Paused, WaveComplete, Dead };
 struct Config {
+    // Content indices are presentation choices, not character stat modifiers.
+    // GameModule requires a concrete map; SessionModule resolves RandomMap.
+    std::size_t character = 0, map = 0;
     glm::vec2 minimum{2.84f, -10.6f}, maximum{18.9f, 10.51f}, playerStart{10.80735f, -.1775364f};
     float playerSpeed = 5, enemySpeed = 2.3f;
     int initialHealth = 150, contactDamage = 10;
@@ -82,13 +105,13 @@ struct Config {
     float dropChance = .5f;
     float spawnWarning = 1.5f, deathDelay = 1.5f, waveSeconds = 20, waveIncrement = 7;
     std::uint32_t seed = 2026;
-    std::size_t maxEnemies = 256, maxProjectiles = 256, maxPickups = 512;
+    std::size_t maxEnemies = 256, maxProjectiles = 256, maxPickups = 512, maxEffects = 512;
     bool spawning = true, armed = true;
 };
 struct Statistics {
     std::uint64_t ticks = 0;
     int wave = 1, kills = 0, shots = 0;
-    std::size_t enemies = 0, projectiles = 0, pickups = 0, weapons = 0;
+    std::size_t enemies = 0, projectiles = 0, pickups = 0, weapons = 0, effects = 0;
     double remaining = 20;
 };
 struct DrawSprite {
@@ -97,6 +120,15 @@ struct DrawSprite {
     float angle = 0;
     glm::vec4 tint{1};
     bool flipX = false;
+    bool flipY = false;
+    glm::vec2 axisX{}, axisY{};
+    bool affine = false;
+};
+struct DrawDamageText {
+    int value = 1;
+    glm::vec2 position{};
+    float size = .24f;
+    glm::vec4 tint{1};
 };
 
 } // namespace Brotato

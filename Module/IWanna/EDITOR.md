@@ -70,6 +70,7 @@ Lua 的 `ctx:camera_fixed(x, y, zoom)` 和 `ctx:camera_follow(offsetX, offsetY, 
 - 矩形覆盖仅影响启用它的实例，其余陷阱仍使用蒙版；绿色是触发/检测区域，黄色是当前选中框。
 - 实例属性可在 Lua `on_trigger(ctx,event)` 中通过 `event.properties.speed` 等读取。
 - `floor_spike_trap`、`left_spike_trap` 和 `flying_spike_trap` 的触发范围使用现有检测框，可直接拖动或修改 `detectionX/Y/W/H`。`orientation` 控制尖刺攻击方向，`effectAnchor="$self"` 表示以机关自身为基座；使用外部锚点时填写其稳定 ID。伸缩时序、长度和随机飞刺轨道参数见 [SPIKE_TRAPS.md](SPIKE_TRAPS.md)。
+- `morph_spike_*` 提供十种普通外观、无预警的变形尖刺。启用该 Lua 模块的房间中，新增/复制实例会自动初始化；检测框只控制启动，伤害使用独立尖刺贴图蒙版。实例尺寸、旋转、`variant`、`scaleX/Y`、`speedScale`、`pivotX/Y` 与冷却均可调整，详见 [MORPH_SPIKES.md](MORPH_SPIKES.md)。
 
 使用项目原有英文字符渲染，界面和输入框支持 ASCII；显示字形转大写但保存保留大小写。磁盘扫描及房间 ID 使用 UTF-8，但非 ASCII 名称在当前界面中无法完整显示，推荐英文文件名。
 

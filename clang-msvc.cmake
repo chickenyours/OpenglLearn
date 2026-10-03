@@ -5,8 +5,11 @@ set(CMAKE_CXX_COMPILER "C:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang
 # 设置链接器路径（lld-link）
 set(CMAKE_LINKER       "C:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/bin/lld-link.exe")
 
-# 设置默认 CRT 类型（影响 msvcrtd.lib）
-set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDebugDLL")  # /MDd
+# Configuration-aware default. The root project can select a static runtime.
+# Never force /MDd into Release or override a standalone project's explicit CRT.
+if(NOT DEFINED CMAKE_MSVC_RUNTIME_LIBRARY)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+endif()
 
 set(CLANG_BUILTIN_INC "C:/Mydata/clang+llvm-20.1.8-x86_64-pc-windows-msvc/clang+llvm-20.1.8-x86_64-pc-windows-msvc/lib/clang/20/include")
 set(MSVC_INC          "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/include")

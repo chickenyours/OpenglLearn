@@ -247,31 +247,70 @@ void SpriteBatch2D::Quad(glm::vec2 center, glm::vec2 size, float radians, glm::v
     if (!state_ || !state_->begun || state_->flushed || state_->inFlight) return;
     if (!(size.x > 0 && size.y > 0) || !std::isfinite(size.x) || !std::isfinite(size.y) ||
         !std::isfinite(center.x) || !std::isfinite(center.y) || !std::isfinite(radians)) return;
-    const float radius = .5f * glm::length(size);
-    const auto relative = center - state_->cameraCenter;
-    if (relative.x + radius < -state_->halfExtent.x || relative.x - radius > state_->halfExtent.x ||
-        relative.y + radius < -state_->halfExtent.y || relative.y - radius > state_->halfExtent.y) return;
+    const float cosine = std::cos(radians), sine = std::sin(radians);
+    AffineQuad(center,{cosine*size.x,sine*size.x},{-sine*size.y,cosine*size.y},region,tint,flipX,flipY,nearest);
+}
+
+bool SpriteBatch2D::AffineQuad(glm::vec2 center, glm::vec2 axisX, glm::vec2 axisY, glm::vec4 region,
+    glm::vec4 tint, bool flipX, bool flipY, bool nearest) {
+    if (!state_ || !state_->begun || state_->flushed || state_->inFlight) return false;
+    if (!SpriteDetail::Finite(center) || !SpriteDetail::Finite(tint) || !SpriteDetail::ValidAffineBasis(axisX,axisY)) {
+        state_->Fail("Sprite affine transform and tint must be finite with a nonsingular basis");
+        return false;
+    }
+    // Exact AABB of the parallelogram. A circle derived from the original size
+    // would incorrectly cull sheared children near a view edge.
+    const glm::dvec2 extent=(glm::abs(glm::dvec2(axisX))+glm::abs(glm::dvec2(axisY)))*.5;
+    const auto relative=glm::dvec2(center)-glm::dvec2(state_->cameraCenter);
+    if (relative.x+extent.x < -state_->halfExtent.x || relative.x-extent.x > state_->halfExtent.x ||
+        relative.y+extent.y < -state_->halfExtent.y || relative.y-extent.y > state_->halfExtent.y) return true;
     if (state_->vertices.size() > std::numeric_limits<uint32_t>::max() - 4 ||
         state_->indices.size() > std::numeric_limits<uint32_t>::max() - 6) {
         state_->Fail("Sprite batch exceeded the RHI index range");
-        return;
+        return false;
     }
-    const auto vertices = SpriteDetail::MakeQuad(center, size, radians, region, tint,
-        state_->halfExtent, state_->cameraCenter, flipX, flipY, nearest);
-    const auto first = uint32_t(state_->vertices.size());
-    state_->vertices.insert(state_->vertices.end(), vertices.begin(), vertices.end());
-    for (uint32_t index : {0, 1, 2, 0, 2, 3}) state_->indices.push_back(first + index);
+    try {
+        const auto vertices = SpriteDetail::MakeAffineQuad(center,axisX,axisY,region,tint,
+            state_->halfExtent,state_->cameraCenter,flipX,flipY,nearest);
+        const auto first = uint32_t(state_->vertices.size());
+        state_->vertices.insert(state_->vertices.end(), vertices.begin(), vertices.end());
+        for (uint32_t index : {0, 1, 2, 0, 2, 3}) state_->indices.push_back(first + index);
+        return true;
+    } catch (const std::invalid_argument& error) {
+        state_->Fail(error.what());
+        return false;
+    }
 }
 
 bool SpriteBatch2D::Sprite(std::string_view name, glm::vec2 center, glm::vec2 size, float radians,
     glm::vec4 tint, bool flipX, bool flipY, int frame) {
+    return SpriteRegion(name, center, size, {0, 0, 1, 1}, radians, tint, flipX, flipY, frame);
+}
+
+bool SpriteBatch2D::SpriteAffine(std::string_view name, glm::vec2 center, glm::vec2 axisX, glm::vec2 axisY,
+    glm::vec4 tint, bool flipX, bool flipY, int frame) {
+    if (!state_ || !state_->begun || state_->flushed || state_->inFlight) return false;
+    const auto found=state_->frames.find(name);
+    if (found==state_->frames.end() || frame<0 || size_t(frame)>=found->second.size()) {
+        state_->Fail("Unknown sprite or frame: " + std::string(name));
+        return false;
+    }
+    return AffineQuad(center,axisX,axisY,found->second[frame],tint,flipX,flipY);
+}
+
+bool SpriteBatch2D::SpriteRegion(std::string_view name, glm::vec2 center, glm::vec2 size,
+    glm::vec4 normalizedRegion, float radians, glm::vec4 tint, bool flipX, bool flipY, int frame) {
     if (!state_ || !state_->begun || state_->flushed || state_->inFlight) return false;
     const auto found = state_->frames.find(name);
     if (found == state_->frames.end() || frame < 0 || size_t(frame) >= found->second.size()) {
         state_->Fail("Unknown sprite or frame: " + std::string(name));
         return false;
     }
-    Quad(center, size, radians, found->second[frame], tint, flipX, flipY);
+    if (!SpriteDetail::ValidRegion(normalizedRegion)) {
+        state_->Fail("Sprite region must be positive, finite and inside its frame");
+        return false;
+    }
+    Quad(center, size, radians, SpriteDetail::ComposeRegion(found->second[frame], normalizedRegion), tint, flipX, flipY);
     return true;
 }
 

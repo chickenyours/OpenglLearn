@@ -68,6 +68,28 @@ static void DeviceChecks() {
         std::cout<<"native silent device "<<rate<<"Hz: "<<stopped<<" frames, callbacks stopped after Close PASS\n";
     }
 }
+static void VoicePauseChecks() {
+    auto clip=std::make_shared<Audio::Clip>(); clip->channels=1; clip->sampleRate=48000;
+    clip->samples={.1f,.2f,.3f,.4f};
+    auto bed=std::make_shared<Audio::Clip>(); bed->channels=1; bed->samples={.01f};
+    Audio::Mixer mixer;
+    auto voice=mixer.Play(clip), music=mixer.Play(bed,1,true);
+    std::array<float,2> frame{};
+    Check(mixer.ActiveVoices()==2 && mixer.IsPlaying(voice));
+    mixer.Render(frame); Check(std::abs(frame[0]-.11f)<1e-6f);
+    mixer.SetPaused(voice,true);
+    for(int i=0;i<100;++i) { mixer.Render(frame); Check(frame[0]==.01f && frame[1]==.01f); }
+    Check(mixer.IsPlaying(voice) && mixer.IsPlaying(music));
+    mixer.SetPaused(voice,false);
+    mixer.Render(frame); Check(std::abs(frame[0]-.21f)<1e-6f);
+    mixer.Render(frame); Check(std::abs(frame[0]-.31f)<1e-6f);
+    mixer.Render(frame); Check(std::abs(frame[0]-.41f)<1e-6f);
+    Check(!mixer.IsPlaying(voice) && mixer.ActiveVoices()==1);
+    mixer.SetPaused(voice,true); // stale voice IDs are harmless.
+    mixer.SetPaused(music,true); mixer.Stop(music); mixer.Render(frame);
+    Check(frame[0]==0 && frame[1]==0 && mixer.ActiveVoices()==0);
+    std::cout<<"per-voice pause: cursor frozen, music continues, resume and stale IDs PASS\n";
+}
 int main(int argc,char** argv) {
     try {
     std::vector<uint8_t> wav={'R','I','F','F',40,0,0,0,'W','A','V','E','f','m','t',' ',16,0,0,0,
@@ -97,6 +119,7 @@ int main(int argc,char** argv) {
     for(size_t i=0;i<wav.size();++i) { bool threw=false; try { Audio::Clip::DecodeWav(std::span(wav).first(i)); } catch(const std::runtime_error&) {threw=true;} Check(threw); }
     wav[22]=3; bool threw=false; try { Audio::Clip::DecodeWav(wav); } catch(const std::runtime_error&) {threw=true;} Check(threw);
     StreamingChecks();
+    VoicePauseChecks();
     for(int i=1;i<argc;++i) {
         const std::string arg=argv[i];
         if(arg=="--device-test") DeviceChecks();

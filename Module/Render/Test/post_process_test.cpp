@@ -48,7 +48,9 @@ void TestValidation() {
         &PostProcessSettings::ssaoPower, &PostProcessSettings::exposure,
         &PostProcessSettings::gamma, &PostProcessSettings::saturation,
         &PostProcessSettings::contrast, &PostProcessSettings::vignette,
-        &PostProcessSettings::sharpenStrength
+        &PostProcessSettings::sharpenStrength, &PostProcessSettings::bloomSoftKnee,
+        &PostProcessSettings::bloomFireflyClamp, &PostProcessSettings::bloomScatter,
+        &PostProcessSettings::bloomRadius
     };
     for (const auto field : fields) {
         for (const float value : {std::numeric_limits<float>::quiet_NaN(),
@@ -65,11 +67,38 @@ void TestValidation() {
     settings.vignette = 1.01f;
     assert(!ValidatePostProcessSettings(settings));
     settings = {};
+    settings.bloomSoftKnee = 1.01f;
+    assert(!ValidatePostProcessSettings(settings));
+    settings = {};
+    settings.bloomFireflyClamp = 60001.0f;
+    assert(!ValidatePostProcessSettings(settings));
+    for (const float scatter : {-0.01f, 1.01f}) {
+        settings = {};
+        settings.bloomScatter = scatter;
+        assert(!ValidatePostProcessSettings(settings));
+    }
+    for (const float radius : {0.49f, 2.01f}) {
+        settings = {};
+        settings.bloomRadius = radius;
+        assert(!ValidatePostProcessSettings(settings));
+    }
+    for (const float scatter : {0.0f, 1.0f}) for (const float radius : {0.5f, 2.0f}) {
+        settings = {};
+        settings.bloomScatter = scatter;
+        settings.bloomRadius = radius;
+        assert(ValidatePostProcessSettings(settings));
+    }
+    settings = {};
+    settings.bloomSoftKnee = 1.0f;
+    settings.bloomFireflyClamp = 60000.0f;
+    assert(ValidatePostProcessSettings(settings));
+    settings = {};
     settings.exposure = settings.gamma = 0.0f;
     assert(!ValidatePostProcessSettings(settings));
     settings = {};
     settings.bloomThreshold = settings.bloomStrength = settings.ssaoBias = settings.saturation =
-        settings.contrast = settings.vignette = settings.sharpenStrength = 0.0f;
+        settings.contrast = settings.vignette = settings.sharpenStrength =
+        settings.bloomSoftKnee = settings.bloomFireflyClamp = 0.0f;
     assert(ValidatePostProcessSettings(settings, &error) && error.empty());
 }
 
@@ -80,11 +109,15 @@ float Read(const PostProcessConstants& constants, std::size_t byteOffset) {
 }
 
 void TestPacking() {
-    static_assert(sizeof(PostProcessConstants) == 224 && sizeof(PostProcessConstants) <= 256);
+    static_assert(sizeof(PostProcessConstants) == 240 && sizeof(PostProcessConstants) <= 256);
     PostProcessSettings settings;
     settings.bloomEnabled = false;
     settings.bloomThreshold = 1.25f;
     settings.bloomStrength = 0.3f;
+    settings.bloomSoftKnee = 0.75f;
+    settings.bloomFireflyClamp = 32.0f;
+    settings.bloomScatter = 0.9f;
+    settings.bloomRadius = 1.75f;
     settings.ssaoEnabled = false;
     settings.ssaoRadius = 0.7f;
     settings.ssaoBias = 0.01f;
@@ -108,8 +141,12 @@ void TestPacking() {
     assert(Read(block, 192) == 0.8f && Read(block, 196) == 1.1f);
     assert(Read(block, 200) == 0.25f && Read(block, 204) == 0.5f);
     assert(Read(block, 220) == 0.0f);
+    assert(Read(block, 224) == 0.75f && Read(block, 228) == 32.0f);
+    assert(Read(block, 232) == 0.9f && Read(block, 236) == 1.75f);
     const auto defaults = MakePostProcessConstants({});
     assert(defaults.ssao.w == 1.0f && defaults.misc.w == 1.0f && defaults.screen.w == 1.0f);
+    assert(defaults.bloomStability.x == 0.5f && defaults.bloomStability.y == 0.0f);
+    assert(defaults.bloomStability.z == 0.8f && defaults.bloomStability.w == 1.25f);
 }
 }
 

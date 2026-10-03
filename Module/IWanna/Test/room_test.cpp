@@ -13,7 +13,7 @@ int main(){try {
     auto enter=[&](const char* room){game.World()->RequestRoom(room,"left");tick(1);Check(game.World()->CurrentId()==room,"queued room transition");};
     Check(game.World()->CurrentId()=="movement","initial room");tick(30);
     // Play through room 1 with actual input/physics, not teleportation.
-    for(int n=0;n<1800 && game.World()->CurrentId()=="movement";++n)game.FixedTick({false,true,n%100==0||n%100==40});
+    for(int n=0;n<1800 && game.World()->CurrentId()=="movement";++n){int phase=n%100;game.FixedTick({false,true,phase==0||phase==40,false,false,phase<17||(phase>=40&&phase<57)});}
     Check(game.World()->CurrentId()=="traps","movement room is traversable through its exit");
     place(-68,20);tick(1);Check(game.World()->CurrentId()=="movement","return connection");tick(3);
     Check(game.World()->CurrentId()=="movement","arrival does not bounce between doors");

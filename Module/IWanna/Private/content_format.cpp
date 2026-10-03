@@ -20,7 +20,7 @@ Json::Value ExpandWorld(const std::filesystem::path& path){
         for(const auto& entry:std::filesystem::directory_iterator(dir))if(entry.is_regular_file()&&entry.path().filename().string().ends_with(suffix))paths.push_back(entry.path());std::sort(paths.begin(),paths.end());
         for(const auto& p:paths){auto data=Read(p);auto utf8=p.filename().u8string();std::string name(utf8.begin(),utf8.end());name.resize(name.size()-std::strlen(suffix));if(name.empty()||name=="$self")throw std::runtime_error("Invalid asset filename");
             if(std::string(field)=="prefabDirectory"){if(data["format"]!="IWANNA_PREFAB_1")throw std::runtime_error("Invalid prefab: "+p.string());world["prefabs"][name]=data;}
-            else {if(data["format"]!="IWANNA_ROOM_2")throw std::runtime_error("Invalid room: "+p.string());Json::Value item;item["id"]=name;auto relative=p.lexically_relative(root).generic_u8string();item["map"]=std::string(relative.begin(),relative.end());item["title"]=data.get("title",name);item["hint"]=data.get("hint","EDIT THIS ROOM");item["scriptLua"]=data.get("scriptLua","return {}");world["rooms"].append(item);}
+            else {if(data["format"]!="IWANNA_ROOM_2")throw std::runtime_error("Invalid room: "+p.string());if(data.isMember("script")&&data.isMember("scriptLua"))throw std::runtime_error("Room must use either script or scriptLua: "+p.string());Json::Value item;item["id"]=name;auto relative=p.lexically_relative(root).generic_u8string();item["map"]=std::string(relative.begin(),relative.end());item["title"]=data.get("title",name);item["hint"]=data.get("hint","EDIT THIS ROOM");if(data.isMember("script"))item["script"]=data["script"];else item["scriptLua"]=data.get("scriptLua","return {}");world["rooms"].append(item);}
         }
     }
     if(world["rooms"].empty())throw std::runtime_error("World needs at least one room");return world;
@@ -38,7 +38,7 @@ Json::Value ToTiled(const Json::Value& room){
     for(const auto& uid:room["entities"].getMemberNames()){
         const auto& e=room["entities"][uid];auto kind=e.get("kind","Entity").asString();if(kind!="Entity"&&kind!="Spawn"&&kind!="Label")throw std::runtime_error("Unknown entity kind: "+uid);
         if(e["position"].size()!=2)throw std::runtime_error("Entity position needs two numbers: "+uid);
-        Json::Value o;o["_nativeEntity"]=e;o["id"]=id++;o["class"]=kind;o["name"]=uid;o["rotation"]=0;float sx=kind=="Entity"?e["size"][0].asFloat():0,sy=kind=="Entity"?e["size"][1].asFloat():0;
+        Json::Value o;o["_nativeEntity"]=e;o["id"]=id++;o["class"]=kind;o["name"]=uid;if(e.isMember("rotation"))o["rotation"]=e["rotation"];float sx=kind=="Entity"?e["size"][0].asFloat():0,sy=kind=="Entity"?e["size"][1].asFloat():0;
         o["width"]=sx/unit*32;o["height"]=sy/unit*32;o["x"]=(e["position"][0].asFloat()-sx*.5f-g["origin"][0].asFloat())/unit*32;o["y"]=(e["position"][1].asFloat()-sy*.5f-g["origin"][1].asFloat())/unit*32;
         auto properties=e.get("properties",Json::Value(Json::objectValue));if(!properties.isObject())throw std::runtime_error("Entity properties must be an object: "+uid);
         for(const auto& key:properties.getMemberNames()){const auto& v=properties[key];if(!v.isString()&&!v.isBool()&&!v.isNumeric())throw std::runtime_error("Entity properties must be scalar: "+uid+"/"+key);}
@@ -54,7 +54,7 @@ Json::Value FromTiled(const Json::Value& map){
     for(const auto& l:map["layers"]){if(l["type"]=="tilelayer"){auto name=l.get("name","Terrain").asString();for(int i=0;i<int(l["data"].size());++i)room["tileLayers"][name][i/w][i%w]=l["data"][i];}
         else if(l["type"]=="objectgroup")for(const auto& o:l["objects"]){auto props=Properties(o);auto uid=props.get("uid","label_"+std::to_string(o["id"].asInt())).asString();if(room["entities"].isMember(uid))throw std::runtime_error("Duplicate entity ID: "+uid);auto e=o.get("_nativeEntity",Json::Value(Json::objectValue));e["kind"]=o.get("class",o.get("type","Entity"));
             e["position"][0]=p["originX"].asFloat()+(o["x"].asFloat()+o.get("width",0).asFloat()*.5f)*scale;e["position"][1]=p["originY"].asFloat()+(o["y"].asFloat()+o.get("height",0).asFloat()*.5f)*scale;
-            if(e["kind"]=="Entity"){e["prefab"]=props["prefab"];e["size"][0]=o["width"].asFloat()*scale;e["size"][1]=o["height"].asFloat()*scale;}props.removeMember("uid");props.removeMember("prefab");e["properties"]=props;room["entities"][uid]=e;}}
+            if(e["kind"]=="Entity"){e["prefab"]=props["prefab"];e["size"][0]=o["width"].asFloat()*scale;e["size"][1]=o["height"].asFloat()*scale;if(o.isMember("rotation"))e["rotation"]=o["rotation"];}props.removeMember("uid");props.removeMember("prefab");e["properties"]=props;room["entities"][uid]=e;}}
     if(!room.isMember("connections"))room["connections"]=Json::Value(Json::objectValue);return room;
 }
 }

@@ -20,7 +20,8 @@
         "checkpoint",
         "trigger",
         "exit",
-        "decoration"
+        "decoration",
+        "projectile"
       ]
     },
     "image": {
@@ -35,15 +36,61 @@
       "type": "number",
       "exclusiveMinimum": 0
     },
+    "rotation": {"type": "number", "minimum": -3600, "maximum": 3600},
     "visible": {
       "type": "boolean"
     },
+    "opacity": {"type": "number", "minimum": 0, "maximum": 1, "default": 1, "description": "Visual alpha only; collision is controlled independently."},
     "collide": {
       "type": "boolean"
     },
     "pixelArt": {
       "type": "boolean"
     },
+    "animation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "columns": {"type": "integer", "minimum": 1, "maximum": 64},
+        "rows": {"type": "integer", "minimum": 1, "maximum": 64},
+        "cellWidth": {"type": "integer", "minimum": 1, "maximum": 4096},
+        "cellHeight": {"type": "integer", "minimum": 1, "maximum": 4096},
+        "frames": {"type": "array", "minItems": 1, "maxItems": 1024, "items": {"type": "integer", "minimum": 0, "maximum": 1023}},
+        "duration": {"type": "number", "exclusiveMinimum": 0, "maximum": 60},
+        "loop": {"type": "boolean"}
+      },
+      "description": "Row-major sprite atlas. Duration is the entire sequence in seconds. Non-looping animations hold their last frame. Frame indices must fit columns*rows."
+    },
+    "receivesShots": {"type": "boolean"},
+    "group": {"type": "string"},
+    "event": {"type": "string"},
+    "wallGroup": {"type": "string"},
+    "spawnAnchor": {"type": "string"},
+    "spawnPrefab": {"type": "string"},
+    "effectAnchor": {"type": "string"},
+    "effectPrefab": {"type": "string"},
+    "effectWidth": {"type": "number", "minimum": 0.1, "maximum": 100},
+    "effectHeight": {"type": "number", "minimum": 0.1, "maximum": 100},
+    "effectRotation": {"type": "number", "minimum": -3600, "maximum": 3600},
+    "delay": {"type": "number", "minimum": 0, "maximum": 60},
+    "damageStart": {"type": "number", "minimum": 0, "maximum": 60},
+    "damageDuration": {"type": "number", "minimum": 0.01, "maximum": 60},
+    "visualDuration": {"type": "number", "minimum": 0.01, "maximum": 60},
+    "cooldown": {"type": "number", "minimum": 0, "maximum": 60},
+    "sound": {"type": "string"},
+    "duration": {"type": "number", "minimum": 0.05, "maximum": 5, "description": "Reactive block fade duration in seconds; default 0.5."},
+    "popMin": {"type": "number", "minimum": 0, "maximum": 40},
+    "popMax": {"type": "number", "minimum": 0, "maximum": 40},
+    "driftMin": {"type": "number", "minimum": 0, "maximum": 40},
+    "driftMax": {"type": "number", "minimum": 0, "maximum": 40},
+    "gravity": {"type": "number", "minimum": 0, "maximum": 200},
+    "step": {"type": "number", "minimum": 0.008333333333333333, "maximum": 0.1},
+    "minCount": {"type": "integer", "minimum": 1, "maximum": 128},
+    "maxCount": {"type": "integer", "minimum": 1, "maximum": 128},
+    "radius": {"type": "number", "minimum": 0, "maximum": 100},
+    "speed": {"type": "number", "minimum": 0, "maximum": 500},
+    "lifetime": {"type": "number", "minimum": 0.05, "maximum": 60},
+    "despawnAfter": {"type": "number", "exclusiveMinimum": 0, "maximum": 60},
     "detectionEnabled": {
       "type": "boolean"
     },

@@ -27,13 +27,16 @@ bool AlphaMask::Any(int l,int t,int r,int b) const {
     }return false;
 }
 void MaskLibrary::Attach(Sprite& s,const std::filesystem::path& path,int threshold) {
+    if(s.columns<1||s.rows<1||s.columns>64||s.rows>64||s.columns*s.rows>1024||s.cellWidth<0||s.cellHeight<0||s.frames.empty()||s.frames.size()>1024)
+        throw std::runtime_error("Invalid animation layout: "+s.image);
+    for(int frame:s.frames)if(frame<0||frame>=s.columns*s.rows)throw std::runtime_error("Invalid animation frame: "+s.image);
     std::string key=s.image+":"+std::to_string(s.columns)+":"+std::to_string(s.rows)+":"+std::to_string(s.cellWidth)+":"+std::to_string(s.cellHeight)+":"+std::to_string(threshold);
     if(auto found=entries_.find(key);found!=entries_.end()){s.masks=found->second.frames;return;}
     int w,h,n;auto raw=stbi_load((path/s.image).string().c_str(),&w,&h,&n,4);
     if(!raw) throw std::runtime_error("Mask image load failed: "+s.image);
     std::unique_ptr<unsigned char,decltype(&stbi_image_free)> pixels(raw,stbi_image_free);
     int cw=s.cellWidth?s.cellWidth:w/s.columns,ch=s.cellHeight?s.cellHeight:h/s.rows;
-    if(cw<1||ch<1||cw*s.columns>w||ch*s.rows>h)throw std::runtime_error("Mask frame dimensions invalid: "+s.image);
+    if(cw<1||ch<1||cw>w/s.columns||ch>h/s.rows)throw std::runtime_error("Mask frame dimensions invalid: "+s.image);
     auto frames=std::make_shared<std::vector<AlphaMask>>();
     for(int f=0;f<s.columns*s.rows;++f){
         AlphaMask m;m.width=cw;m.height=ch;m.stride=(cw+63)/64;m.minX=cw;m.minY=ch;m.bits.resize(size_t(m.stride)*ch);
@@ -51,7 +54,14 @@ void MaskLibrary::Export(const std::filesystem::path& directory) const {
         if(!stbi_write_png(file.string().c_str(),m.width,m.height,1,pixels.data(),m.width))throw std::runtime_error("Cannot export mask: "+file.string());
     }
 }
-int AnimationFrame(const Sprite& s){return s.frames[size_t(s.elapsed/std::max(s.duration,.001f)*s.frames.size())%s.frames.size()];}
+int AnimationFrame(const Sprite& s) {
+    if(s.frames.empty())return 0;
+    const double duration=std::isfinite(s.duration)?std::max(double(s.duration),.001):.001;
+    const double elapsed=std::isfinite(s.elapsed)?std::max(double(s.elapsed),0.0):0.0;
+    const double progress=s.loop?std::fmod(elapsed,duration)/duration:std::min(elapsed/duration,1.0);
+    const auto index=std::min(size_t(progress*s.frames.size()),s.frames.size()-1);
+    return s.frames[index];
+}
 namespace {
 struct Pose {
     const AlphaMask& mask;glm::vec2 origin,x,y,ix,iy,lo,hi;

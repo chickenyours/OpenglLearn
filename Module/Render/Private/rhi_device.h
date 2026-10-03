@@ -40,7 +40,11 @@ using RHICommands = RHICommandSystem<
     CreateTextureCommand,
     DeleteTextureCommand,
     BackDoorExecutionCommand,
-    FrameCommands
+    FrameCommands,
+    DeleteShaderSourceCommand,
+    DeleteShaderProgramCommand,
+    CreateRenderTargetCommand,
+    DeleteRenderTargetCommand
 >;
 
 class RHIDevice {
@@ -158,6 +162,9 @@ private:
             case 14:
                 ok = DispatchFrameCommand<RHICommand::DrawInstance>(
                     buffer, cursor, &IBackend::DrawInstance); break;
+            case 15:
+                ok = DispatchFrameCommand<RHICommand::SetRenderTarget>(
+                    buffer, cursor, &IBackend::SetRenderTarget); break;
             default:
                 break;
             }
@@ -216,12 +223,20 @@ private:
         ProcessCreateQueue<CreateUniformBufferCommand>(&IBackend::CreateUniformBuffer);
         ProcessDeleteQueue<DeleteUniformBufferCommand>(&IBackend::DeleteUniformBuffer);
         ProcessCreateQueue<CreateTextureCommand>(&IBackend::CreateTexture);
-        ProcessDeleteQueue<DeleteTextureCommand>(&IBackend::DeleteTexture);
+        ProcessCreateQueue<CreateRenderTargetCommand>(&IBackend::CreateRenderTarget);
+        ProcessDeleteQueue<DeleteRenderTargetCommand>(&IBackend::DeleteRenderTarget);
+        // A resource lease may retire many FBOs at once. Do not delete any of
+        // their attachments ahead of the next bounded slice of FBO deletes.
+        const auto& targetDeletes = commandSystem_.GetQueue<DeleteRenderTargetCommand>();
+        if (targetDeletes.thread_IsConsumeQueueEmpty() && !targetDeletes.HasPendingCommands())
+            ProcessDeleteQueue<DeleteTextureCommand>(&IBackend::DeleteTexture);
         ProcessCreateQueue<CreateShaderSourceCommand>(&IBackend::CreateShaderSource);
         ProcessCreateQueue<CreateGraphicShaderProgramCommand>(
             &IBackend::CreateGraphicShaderProgram);
         ProcessCreateQueue<CreatePipelineCommand>(&IBackend::CreatePipeline);
         ProcessDeleteQueue<DeletePipelineCommand>(&IBackend::DeletePipeline);
+        ProcessDeleteQueue<DeleteShaderProgramCommand>(&IBackend::DeleteShaderProgram);
+        ProcessDeleteQueue<DeleteShaderSourceCommand>(&IBackend::DeleteShaderSource);
 
         thread_ProcessNextFrame();
 
@@ -260,7 +275,6 @@ private:
                 std::chrono::steady_clock::now() - start).count());
             ++renderedFrames_;
             if (buffer) {
-                buffer->Reset();
                 frameCommandPool_.threadAny_Recycle(buffer);
             }
             if (command.OnFinish) {
@@ -324,7 +338,11 @@ public:
         }
     }
 
+    // The caller must stop frame/resource producers before shutdown. Release
+    // abandoned recording leases while synchronization and the render thread are
+    // still alive, so deletions enqueued by their destructors are drained below.
     void StopAndRelease() {
+        frameCommandPool_.DiscardUnsubmitted();
         {
             std::lock_guard<std::mutex> lock(waitMutex_);
             isRun_.store(false);
@@ -465,6 +483,20 @@ public:
         threadAny_PushCommand(CreatePipelineCommand{desc, std::move(callback)});
     }
 
+    void async_DeleteShaderSource(
+        RenderResourceHandle<ShaderSourceSpec> handle,
+        OnDeleteShaderFinish callback = nullptr
+    ) {
+        threadAny_PushCommand(DeleteShaderSourceCommand{handle, std::move(callback)});
+    }
+
+    void async_DeleteShaderProgram(
+        RenderResourceHandle<ShaderProgramSpec> handle,
+        OnDeleteShaderFinish callback = nullptr
+    ) {
+        threadAny_PushCommand(DeleteShaderProgramCommand{handle, std::move(callback)});
+    }
+
     void async_DeletePipeline(
         RenderResourceHandle<PipelineSpec> handle,
         OnDeletePipelineCommandFinish callback = nullptr
@@ -480,11 +512,15 @@ public:
         command.spec = spec;
         command.spec.data = nullptr;
         command.OnFinish = std::move(callback);
-        const uint64_t byteSize = static_cast<uint64_t>(spec.width) * spec.height *
-            GetTextureFormatByteSize(spec.textureUseType);
-        if (spec.data && byteSize > 0 &&
-            byteSize <= std::numeric_limits<size_t>::max()) {
-            command.data.resize(static_cast<size_t>(byteSize));
+        const auto bytesPerPixel = GetTextureFormatByteSize(spec.textureUseType);
+        const std::uint64_t pixels = static_cast<std::uint64_t>(spec.width) * spec.height;
+        const bool validSize = bytesPerPixel != 0 && spec.width != 0 && spec.height != 0 &&
+            spec.width <= static_cast<std::uint32_t>(std::numeric_limits<std::int32_t>::max()) &&
+            spec.height <= static_cast<std::uint32_t>(std::numeric_limits<std::int32_t>::max()) &&
+            pixels <= std::numeric_limits<std::size_t>::max() / bytesPerPixel;
+        if (!validSize) command.spec.width = 0; // Preserve asynchronous invalid-handle completion.
+        if (spec.data && validSize) {
+            command.data.resize(static_cast<std::size_t>(pixels * bytesPerPixel));
             std::memcpy(command.data.data(), spec.data, command.data.size());
         }
         threadAny_PushCommand(std::move(command));
@@ -495,6 +531,16 @@ public:
         DeleteTextureCallback callback = nullptr
     ) {
         threadAny_PushCommand(DeleteTextureCommand{handle, std::move(callback)});
+    }
+
+    void async_CreateRenderTarget(const CreateRenderTargetDesc& desc,
+        CreateRenderTargetCallback callback = nullptr) {
+        threadAny_PushCommand(CreateRenderTargetCommand{desc, std::move(callback)});
+    }
+
+    void async_DeleteRenderTarget(RenderResourceHandle<RenderTargetSpec> handle,
+        DeleteRenderTargetCallback callback = nullptr) {
+        threadAny_PushCommand(DeleteRenderTargetCommand{handle, std::move(callback)});
     }
 
     bool async_SubmitFrameCommands(
@@ -527,7 +573,6 @@ public:
         if (retired) {
             auto buffer = retired->buffer;
             if (buffer) {
-                buffer->Reset();
                 frameCommandPool_.threadAny_Recycle(buffer);
             }
             if (retired->OnFinish) returnSystem.callbacks.push(std::move(retired->OnFinish));

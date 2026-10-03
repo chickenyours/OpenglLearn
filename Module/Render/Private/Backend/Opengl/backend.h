@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cmath>
+#include <limits>
 #include <unordered_map>
 
 #include "Render/Private/Backend/backend.h"
@@ -27,6 +29,9 @@ private:
     RenderResourceHandle<PipelineSpec> currentPipeline;
     RenderResourceHandle<ShaderProgramSpec> currentShaderProgram;
     bool pipelineValid = false;
+    RenderResourceHandle<RenderTargetSpec> currentRenderTarget;
+    bool renderTargetValid = true;
+    std::unordered_map<std::uint32_t, RenderResourceHandle<RHITextureSpec>> boundTextures;
     // 顶点状态
     RenderResourceHandle<VertexBufferSpec> currentVertexBuffer;
     uint32_t vertexNum = 0; // 0 表示顶点缓冲区不合法
@@ -36,6 +41,23 @@ private:
     // 绘制状态
     GLenum topology = GL_TRIANGLES;
 private:
+    void InvalidateDrawState() {
+        currentPipeline = {};
+        currentShaderProgram = {};
+        pipelineValid = false;
+        currentVertexBuffer = {};
+        vertexNum = indexNum = 0;
+        isUseElementIndex = false;
+    }
+
+    void RejectRenderTarget(const char* message) {
+        LOG_ERROR("SetRenderTarget", message);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        currentRenderTarget = {};
+        renderTargetValid = false;
+        InvalidateDrawState();
+    }
+
     static size_t GetVertexDataTypeSize(VertexFieldType type) {
         switch (type) {
         case VertexFieldType::Byte:  return sizeof(std::uint8_t);
@@ -477,6 +499,7 @@ public:
     }
 
     virtual void SetBackgroundColor(const RHICommand::SetBackgroundColor& command) override {
+        if (!renderTargetValid) return;
         glClearColor(command.color.x,command.color.y,command.color.z,command.color.w);
         glClear(GL_COLOR_BUFFER_BIT);
     }
@@ -587,7 +610,7 @@ public:
         pipelineValid = true;
     }
     virtual void Draw(const RHICommand::Draw& command) override {
-        if (!pipelineValid || !vertexNum || command.instanceCount == 0 ||
+        if (!renderTargetValid || !pipelineValid || !vertexNum || command.instanceCount == 0 ||
             command.firstVertex >= vertexNum) return;
         const uint32_t available = vertexNum - command.firstVertex;
         const uint32_t requested = command.vertexCount == 0
@@ -617,23 +640,77 @@ public:
         Draw(draw);
     }
     virtual void DrawRect(const RHICommand::DrawRect&) override {
+        if (!renderTargetValid) return;
         glDrawArrays(GL_TRIANGLES, 0, 6);
     }
 
     virtual void BeginFrame(const RHICommand::BeginFrame& command) override {
         // A new frame is also a state-cache boundary. Resources may be streamed
         // independently, so stale handles must never leak across it.
-        currentPipeline = {};
-        currentShaderProgram = {};
-        pipelineValid = false;
-        currentVertexBuffer = {};
-        vertexNum = 0;
-        indexNum = 0;
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        glViewport(0, 0,
-            static_cast<GLsizei>(command.framebufferWidth),
-            static_cast<GLsizei>(command.framebufferHeight));
+        RHICommand::SetRenderTarget target;
+        target.width = command.framebufferWidth;
+        target.height = command.framebufferHeight;
+        target.clearFlags = command.clearFlags & ~RHICommand::ClearStencil;
+        target.clearColor = command.clearColor;
+        target.clearDepth = command.clearDepth;
+        SetRenderTarget(target);
+        if (renderTargetValid && (command.clearFlags & RHICommand::ClearStencil) != 0) {
+            glStencilMask(~0u);
+            glClearStencil(command.clearStencil);
+            glClear(GL_STENCIL_BUFFER_BIT);
+        }
+    }
+
+    virtual void SetRenderTarget(const RHICommand::SetRenderTarget& command) override {
+        if (command.width == 0 || command.height == 0 ||
+            command.width > static_cast<std::uint32_t>(std::numeric_limits<GLsizei>::max()) ||
+            command.height > static_cast<std::uint32_t>(std::numeric_limits<GLsizei>::max()) ||
+            (command.clearFlags & ~(RHICommand::ClearColor | RHICommand::ClearDepth)) != 0 ||
+            !std::isfinite(command.clearDepth) || command.clearDepth < 0.0f || command.clearDepth > 1.0f ||
+            !std::isfinite(command.clearColor.x) || !std::isfinite(command.clearColor.y) ||
+            !std::isfinite(command.clearColor.z) || !std::isfinite(command.clearColor.w)) {
+            RejectRenderTarget("invalid viewport or clear values");
+            return;
+        }
+        GLint maximumViewport[2]{};
+        glGetIntegerv(GL_MAX_VIEWPORT_DIMS, maximumViewport);
+        if (command.width > static_cast<std::uint32_t>(maximumViewport[0]) ||
+            command.height > static_cast<std::uint32_t>(maximumViewport[1])) {
+            RejectRenderTarget("viewport exceeds the device limit");
+            return;
+        }
+        const RenderTargetSpec* target = nullptr;
+        if (command.target.IsValid()) {
+            target = rhiContext_.resourcePool->renderTargetTable.Get(command.target);
+            if (!target || command.width > target->width || command.height > target->height ||
+                (target->color.IsValid() && !rhiContext_.resourcePool->TextureTable.Get(target->color)) ||
+                (target->depth.IsValid() && !rhiContext_.resourcePool->TextureTable.Get(target->depth))) {
+                RejectRenderTarget("invalid target, retired attachment, or oversized viewport");
+                return;
+            }
+        }
+        glBindFramebuffer(GL_FRAMEBUFFER, target ? target->rhi_id : 0);
+        if (target && glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+            RejectRenderTarget("framebuffer is incomplete");
+            return;
+        }
+        currentRenderTarget = command.target;
+        renderTargetValid = true;
+        if (target) {
+            for (auto& [slot, texture] : boundTextures) {
+                if (texture.IsValid() && (texture == target->color || texture == target->depth)) {
+                    glActiveTexture(GL_TEXTURE0 + slot);
+                    glBindTexture(GL_TEXTURE_2D, 0);
+                    texture = {};
+                }
+            }
+        }
+        InvalidateDrawState();
+        glViewport(0, 0, static_cast<GLsizei>(command.width), static_cast<GLsizei>(command.height));
+        glDepthRange(0.0, 1.0);
         glDisable(GL_SCISSOR_TEST);
+        glDisable(GL_FRAMEBUFFER_SRGB);
+        glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
         glDepthMask(GL_TRUE);
         GLbitfield mask = 0;
         if ((command.clearFlags & RHICommand::ClearColor) != 0) {
@@ -644,10 +721,6 @@ public:
         if ((command.clearFlags & RHICommand::ClearDepth) != 0) {
             glClearDepth(command.clearDepth);
             mask |= GL_DEPTH_BUFFER_BIT;
-        }
-        if ((command.clearFlags & RHICommand::ClearStencil) != 0) {
-            glClearStencil(command.clearStencil);
-            mask |= GL_STENCIL_BUFFER_BIT;
         }
         if (mask != 0) glClear(mask);
     }
@@ -675,10 +748,25 @@ public:
     }
 
     virtual void BindTexture(const RHICommand::BindTexture& command) override {
+        GLint units = 0;
+        glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &units);
+        if (command.slot >= static_cast<std::uint32_t>(units)) {
+            LOG_ERROR("BindTexture", "texture slot exceeds the device limit");
+            pipelineValid = false;
+            return;
+        }
         const RHITextureSpec* spec =
             rhiContext_.resourcePool->TextureTable.Get(command.texture);
+        if (const auto* target = rhiContext_.resourcePool->renderTargetTable.Get(currentRenderTarget)) {
+            if (command.texture.IsValid() && (command.texture == target->color || command.texture == target->depth)) {
+                LOG_ERROR("BindTexture", "cannot sample the active render target attachment");
+                spec = nullptr;
+                pipelineValid = false;
+            }
+        }
         glActiveTexture(GL_TEXTURE0 + command.slot);
         glBindTexture(GL_TEXTURE_2D, spec ? spec->rhi_id : 0);
+        boundTextures[command.slot] = spec ? command.texture : RenderResourceHandle<RHITextureSpec>{};
     }
 
     virtual void BindUniformBuffer(const RHICommand::BindUniformBuffer& command) override {
@@ -721,7 +809,7 @@ public:
     }
 
     virtual void DrawIndexed(const RHICommand::DrawIndexed& command) override {
-        if (!pipelineValid || !isUseElementIndex || indexNum == 0 ||
+        if (!renderTargetValid || !pipelineValid || !isUseElementIndex || indexNum == 0 ||
             command.instanceCount == 0 || command.firstIndex >= indexNum) return;
         const uint32_t available = indexNum - command.firstIndex;
         const uint32_t count = command.indexCount == 0
@@ -951,6 +1039,26 @@ public:
         return rhiContext_.resourcePool->shaderSourceTable.Add(spec);
     }
 
+    virtual void DeleteShaderSource(const DeleteShaderSourceCommand& command) override {
+        auto* spec = rhiContext_.resourcePool->shaderSourceTable.Get(command.handle);
+        if (!spec) return;
+        if (spec->rhi_id != 0) glDeleteShader(spec->rhi_id);
+        rhiContext_.resourcePool->shaderSourceTable.Remove(command.handle);
+    }
+
+    virtual void DeleteShaderProgram(const DeleteShaderProgramCommand& command) override {
+        auto* spec = rhiContext_.resourcePool->shaderProgramTable.Get(command.handle);
+        if (!spec) return;
+        if (currentShaderProgram == command.handle) {
+            glUseProgram(0);
+            currentShaderProgram = {};
+            currentPipeline = {};
+            pipelineValid = false;
+        }
+        if (spec->rhi_id != 0) glDeleteProgram(spec->rhi_id);
+        rhiContext_.resourcePool->shaderProgramTable.Remove(command.handle);
+    }
+
     bool CheckPipelineContent(const PipelineSpec& spec){
         return spec.shaderProgram.IsValid() && rhiContext_.resourcePool->shaderProgramTable.Contains(spec.shaderProgram);
     }
@@ -965,6 +1073,10 @@ public:
     virtual void DeletePipeline(const DeletePipelineCommand& command) override {
         if(!command.handle.IsValid()) return;
         rhiContext_.resourcePool->PipelineTable.Remove(command.handle);
+        if (currentPipeline == command.handle) {
+            currentPipeline = {};
+            pipelineValid = false;
+        }
     }
 
     static GLint ToOpenGLInternalFormat(RHITextureFormat format) {
@@ -977,6 +1089,10 @@ public:
         return GL_RGB32F;
     case RHITextureFormat::RGBA32F:
         return GL_RGBA32F;
+    case RHITextureFormat::RGBA16F:
+        return GL_RGBA16F;
+    case RHITextureFormat::Depth32F:
+        return GL_DEPTH_COMPONENT32F;
     default:
         LOG_ERROR("ToOpenGLInternalFormat", "unknown texture format");
         return 0;
@@ -991,7 +1107,10 @@ public:
 
         case RHITextureFormat::RGBA8:
         case RHITextureFormat::RGBA32F:
+        case RHITextureFormat::RGBA16F:
             return GL_RGBA;
+        case RHITextureFormat::Depth32F:
+            return GL_DEPTH_COMPONENT;
 
         default:
             LOG_ERROR("ToOpenGLPixelFormat", "unknown texture format");
@@ -1007,6 +1126,8 @@ public:
 
         case RHITextureFormat::RGB32F:
         case RHITextureFormat::RGBA32F:
+        case RHITextureFormat::RGBA16F:
+        case RHITextureFormat::Depth32F:
             return GL_FLOAT;
 
         default:
@@ -1077,7 +1198,11 @@ public:
     ) override {
         const CreateRHITextureSpec& createSpec = command.spec;
 
-        if (createSpec.width == 0 || createSpec.height == 0) {
+        GLint maxTextureSize = 0;
+        glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTextureSize);
+        if (createSpec.width == 0 || createSpec.height == 0 ||
+            createSpec.width > static_cast<std::uint32_t>(maxTextureSize) ||
+            createSpec.height > static_cast<std::uint32_t>(maxTextureSize)) {
             LOG_ERROR("CreateTexture", "invalid texture size");
             return {};
         }
@@ -1096,6 +1221,14 @@ public:
             return {};
         }
 
+        const auto bytesPerPixel = GetTextureFormatByteSize(createSpec.textureUseType);
+        const std::uint64_t pixels = static_cast<std::uint64_t>(createSpec.width) * createSpec.height;
+        if (IsDepthFormat(createSpec.textureDataStoreType) != IsDepthFormat(createSpec.textureUseType) ||
+            (!command.data.empty() && command.data.size() != pixels * bytesPerPixel)) {
+            LOG_ERROR("CreateTexture", "incompatible storage/upload formats or data size");
+            return {};
+        }
+
         GLuint texture = 0;
         glGenTextures(1, &texture);
 
@@ -1104,6 +1237,8 @@ public:
             return {};
         }
 
+        GLint oldTextureBinding = 0;
+        glGetIntegerv(GL_TEXTURE_BINDING_2D, &oldTextureBinding);
         glBindTexture(GL_TEXTURE_2D, texture);
 
         // 避免 RGB8 在 width 不是 4 字节对齐时上传错位。
@@ -1134,10 +1269,10 @@ public:
         glTexParameteri(
             GL_TEXTURE_2D,
             GL_TEXTURE_MIN_FILTER,
-            ToOpenGLMinFilter(
+            createSpec.mipmaps ? ToOpenGLMinFilter(
                 createSpec.filterMode,
                 createSpec.mipmapMode
-            )
+            ) : ToOpenGLMagFilter(createSpec.filterMode)
         );
 
         glTexParameteri(
@@ -1152,21 +1287,26 @@ public:
             ToOpenGLAddressMode(createSpec.addressMode)
         );
 
-        // 当前 RHITextureSpec 有 mipmapMode，但没有 enableMipMap 字段。
-        // 所以这里默认为纹理生成 mipmap，保证 GL_TEXTURE_MIN_FILTER 使用 mipmap 时纹理完整。
-        glGenerateMipmap(GL_TEXTURE_2D);
+        if (IsDepthFormat(createSpec.textureDataStoreType)) {
+            // Shader PCF samples ordinary depth values, not sampler2DShadow.
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
+            const GLfloat border[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+            glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, border);
+        }
+        if (createSpec.mipmaps) glGenerateMipmap(GL_TEXTURE_2D);
+        else glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
 
         GLenum error = glGetError();
         if (error != GL_NO_ERROR) {
             LOG_ERROR("CreateTexture", "OpenGL texture creation failed");
 
-            glBindTexture(GL_TEXTURE_2D, 0);
+            glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(oldTextureBinding));
             glDeleteTextures(1, &texture);
 
             return {};
         }
 
-        glBindTexture(GL_TEXTURE_2D, 0);
+        glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(oldTextureBinding));
 
         RHITextureSpec rhiSpec{};
         rhiSpec.width = createSpec.width;
@@ -1177,6 +1317,7 @@ public:
         rhiSpec.mipmapMode = createSpec.mipmapMode;
         rhiSpec.addressMode = createSpec.addressMode;
         rhiSpec.rhi_id = texture;
+        rhiSpec.mipmaps = createSpec.mipmaps;
 
         RenderResourceHandle<RHITextureSpec> handle =
             rhiContext_.resourcePool->TextureTable.Add(rhiSpec);
@@ -1200,14 +1341,72 @@ public:
             return;
         }
 
+        if (const auto* target = rhiContext_.resourcePool->renderTargetTable.Get(currentRenderTarget)) {
+            if (target->color == command.handle || target->depth == command.handle)
+                RejectRenderTarget("active render target attachment deleted");
+        }
+
         GLuint texture = static_cast<GLuint>(spec->rhi_id);
 
         if (texture != 0) {
             glDeleteTextures(1, &texture);
         }
+        for (auto& [slot, bound] : boundTextures) if (bound == command.handle) bound = {};
 
         rhiContext_.resourcePool->TextureTable.Remove(command.handle);
 
+    }
+
+    virtual RenderResourceHandle<RenderTargetSpec> CreateRenderTarget(
+        const CreateRenderTargetCommand& command) override {
+        const auto& desc = command.desc;
+        const auto* color = rhiContext_.resourcePool->TextureTable.Get(desc.color);
+        const auto* depth = rhiContext_.resourcePool->TextureTable.Get(desc.depth);
+        if ((desc.color.IsValid() && !color) || (desc.depth.IsValid() && !depth) ||
+            !AreRenderTargetAttachmentsCompatible(color, depth)) {
+            LOG_ERROR("CreateRenderTarget", "invalid formats, dimensions, mipmaps, or attachment handles");
+            return {};
+        }
+        GLint oldDraw = 0, oldRead = 0;
+        glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &oldDraw);
+        glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &oldRead);
+        GLuint framebuffer = 0;
+        glGenFramebuffers(1, &framebuffer);
+        if (!framebuffer) return {};
+        glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+        if (color) glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, color->rhi_id, 0);
+        if (depth) glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depth->rhi_id, 0);
+        glDrawBuffer(color ? GL_COLOR_ATTACHMENT0 : GL_NONE);
+        glReadBuffer(color ? GL_COLOR_ATTACHMENT0 : GL_NONE);
+        const bool complete = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, static_cast<GLuint>(oldDraw));
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, static_cast<GLuint>(oldRead));
+        if (!complete) {
+            LOG_ERROR("CreateRenderTarget", "OpenGL framebuffer is incomplete");
+            glDeleteFramebuffers(1, &framebuffer);
+            return {};
+        }
+        const auto* sizeSource = color ? color : depth;
+        RenderTargetSpec spec;
+        spec.width = sizeSource->width;
+        spec.height = sizeSource->height;
+        spec.rhi_id = framebuffer;
+        spec.color = desc.color;
+        spec.depth = desc.depth;
+        return rhiContext_.resourcePool->renderTargetTable.Add(spec);
+    }
+
+    virtual void DeleteRenderTarget(const DeleteRenderTargetCommand& command) override {
+        auto* target = rhiContext_.resourcePool->renderTargetTable.Get(command.handle);
+        if (!target) return;
+        if (currentRenderTarget == command.handle) {
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            currentRenderTarget = {};
+            renderTargetValid = false;
+            InvalidateDrawState();
+        }
+        if (target->rhi_id) glDeleteFramebuffers(1, &target->rhi_id);
+        rhiContext_.resourcePool->renderTargetTable.Remove(command.handle);
     }
 };
 

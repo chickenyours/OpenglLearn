@@ -1,0 +1,11 @@
+{
+  "format": "IWANNA_PREFAB_1",
+  "pixelArt": true,
+  "role": "hazard",
+  "image": "demo_spike.png",
+  "width": 1,
+  "height": 9,
+  "collide": false,
+  "visible": true,
+  "opacity": 1
+}

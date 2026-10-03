@@ -32,6 +32,8 @@ private:
     std::vector<Voice> voices_;
     VoiceID next_ = 1;
     float volume_ = 1;
+    // Stereo-linked peak limiter: instant attenuation, gradual 50ms recovery.
+    float limiterGain_ = 1;
 };
 // A host can supply any platform's output callback. Close must join all callbacks.
 class Output {

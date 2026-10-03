@@ -1,15 +1,34 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "IWanna independent room asset",
+  "$defs": {
+    "boundaryRange": {
+      "description": "Half-open [min,max) in world Y on left/right, world X on top/bottom. min < max; segments must lie on their room edge and must not overlap.",
+      "type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2
+    },
+    "boundarySegment": {
+      "oneOf": [
+        {"type": "object", "required": ["range", "action"], "properties": {
+          "range": {"$ref": "#/$defs/boundaryRange"},
+          "action": {"enum": ["death", "ignore"]}
+        }, "additionalProperties": false},
+        {"type": "object", "required": ["range", "action", "room"], "properties": {
+          "range": {"$ref": "#/$defs/boundaryRange"},
+          "action": {"const": "transfer"},
+          "room": {"type": "string", "minLength": 1},
+          "spawn": {"type": "string", "minLength": 1},
+          "position": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2}
+        }, "anyOf": [{"required": ["spawn"]}, {"required": ["position"]}], "additionalProperties": false}
+      ]
+    }
+  },
   "type": "object",
   "required": [
     "format",
     "grid",
     "palette",
     "tileLayers",
-    "entities",
-    "connections",
-    "scriptLua"
+    "entities"
   ],
   "properties": {
     "format": {
@@ -23,6 +42,19 @@
     },
     "scriptLua": {
       "type": "string"
+    },
+    "script": {"type": "string", "minLength": 1},
+    "camera": {
+      "type": "object",
+      "properties": {
+        "mode": {"enum": ["fixed", "follow"]},
+        "position": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
+        "offset": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
+        "zoom": {"type": "number", "minimum": 0.05, "maximum": 8},
+        "followSpeed": {"type": "number", "minimum": 0, "maximum": 60},
+        "clampToRoom": {"type": "boolean"}
+      },
+      "additionalProperties": false
     },
     "grid": {
       "type": "object",
@@ -118,8 +150,16 @@
           "prefab": {
             "type": "string"
           },
+          "rotation": {
+            "type": "number",
+            "minimum": -3600,
+            "maximum": 3600
+          },
           "properties": {
             "type": "object",
+            "properties": {
+              "opacity": {"type": "number", "minimum": 0, "maximum": 1}
+            },
             "additionalProperties": {
               "type": [
                 "string",
@@ -145,6 +185,25 @@
               ]
             }
           }
+        ]
+      }
+    },
+    "boundaries": {
+      "type": "object",
+      "propertyNames": {"enum": ["left", "right", "top", "bottom"]},
+      "additionalProperties": {
+        "oneOf": [
+          {"type": "object", "required": ["action"], "properties": {
+            "action": {"enum": ["death", "ignore"]},
+            "segments": {"type": "array", "items": {"$ref": "#/$defs/boundarySegment"}}
+          }, "additionalProperties": false},
+          {"type": "object", "required": ["action", "room"], "properties": {
+            "action": {"const": "transfer"},
+            "room": {"type": "string", "minLength": 1},
+            "spawn": {"type": "string", "minLength": 1},
+            "position": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
+            "segments": {"type": "array", "items": {"$ref": "#/$defs/boundarySegment"}}
+          }, "anyOf": [{"required": ["spawn"]}, {"required": ["position"]}], "additionalProperties": false}
         ]
       }
     },
@@ -177,5 +236,6 @@
         "additionalProperties": false
       }
     }
-  }
+  },
+  "oneOf": [{"required": ["script"]}, {"required": ["scriptLua"]}]
 }

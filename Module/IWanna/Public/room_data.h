@@ -2,6 +2,8 @@
 #include "game_components.h"
 #include <filesystem>
 #include <map>
+#include <optional>
+#include <vector>
 namespace IWanna {
 struct RoomObject {
     std::string id,prefab,event,destinationRoom,destinationSpawn;
@@ -19,7 +21,20 @@ struct RoomDefinition {
     std::filesystem::path script;
     std::string scriptLua;bool inlineScript=false;
     glm::vec2 origin{},extent{};
-    struct Connection {std::string room,spawn;};
+    Camera camera;
+    struct BoundaryTarget {
+        enum class Action { Death, Ignore, Transfer } action=Action::Death;
+        std::string room,spawn;
+        std::optional<glm::vec2> position;
+    };
+    struct BoundarySegment : BoundaryTarget {
+        // Half-open world Y range on left/right, world X range on top/bottom.
+        glm::vec2 range{};
+    };
+    struct BoundaryRule : BoundaryTarget {std::vector<BoundarySegment> segments;};
+    std::map<std::string,BoundaryRule> boundaries;
+    // Transfer-only topology view; segment keys are e.g. "right[0]".
+    struct Connection {std::string room,spawn;std::optional<glm::vec2> position;};
     std::map<std::string,Connection> connections;
     std::vector<RoomObject> objects;
     std::vector<RoomLabel> labels;

@@ -7,7 +7,9 @@ namespace Render{
         RGB8,
         RGBA8,
         RGB32F,
-        RGBA32F
+        RGBA32F,
+        RGBA16F, // 16-bit float storage; CPU uploads use 32-bit floats.
+        Depth32F
     };
 
 
@@ -35,8 +37,14 @@ namespace Render{
         case RHITextureFormat::RGBA8: return 4;
         case RHITextureFormat::RGB32F: return 12;
         case RHITextureFormat::RGBA32F: return 16;
+        case RHITextureFormat::RGBA16F: return 16;
+        case RHITextureFormat::Depth32F: return 4;
         }
         return 0;
+    }
+
+    inline bool IsDepthFormat(RHITextureFormat format) {
+        return format == RHITextureFormat::Depth32F;
     }
 
     struct RHITextureSpec
@@ -49,6 +57,7 @@ namespace Render{
         RHIMipmapMode mipmapMode = RHIMipmapMode::Nearest;
         RHIAddressMode addressMode = RHIAddressMode::Repeat;
         uint32_t rhi_id = 0;
+        bool mipmaps = true;
     };
 
     struct CreateRHITextureSpec{
@@ -60,5 +69,6 @@ namespace Render{
         RHIMipmapMode mipmapMode = RHIMipmapMode::Nearest;
         RHIAddressMode addressMode = RHIAddressMode::Repeat;
         const void* data = nullptr;
+        bool mipmaps = true;
     };
 }

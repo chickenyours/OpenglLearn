@@ -1,0 +1,13 @@
+{
+  "format": "IWANNA_PREFAB_1",
+  "role": "solid",
+  "pixelArt": true,
+  "image": "terrain_moss_00.png",
+  "width": 2.5,
+  "height": 2.5,
+  "collide": true,
+  "visible": false,
+  "opacity": 1,
+  "event": "reveal_hidden_wall",
+  "sound": "Block Change"
+}

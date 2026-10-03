@@ -1,6 +1,8 @@
 #include <cassert>
 #include <cstddef>
 #include <cstring>
+#include <memory>
+#include <utility>
 #include <vector>
 
 #include "engine/ECS/Scene/scene.h"
@@ -219,7 +221,55 @@ int main() {
         assert(renderWorld.Consume(snapshot));
         assert(snapshot.items.size() == 1);
         assert(snapshot.items[0].draw.indexCount == 0 && snapshot.items[0].draw.firstIndex == 0);
+        assert(!snapshot.items[0].material);
+        assert(snapshot.items[0].pipeline == terrainSettings.pipelines[0]);
+        assert(snapshot.items[0].texture == terrainSettings.atlas);
     }
+
+    // A ready material takes precedence over legacy handles, and remains valid
+    // even when that legacy pipeline is absent. These are synthetic RHI handles:
+    // the lifetime sentinel tests extraction ownership without creating a GPU.
+    using namespace Render::Material;
+    MaterialTemplateDesc materialDesc;
+    materialDesc.name = "TerrainExtractionTest";
+    materialDesc.textures = {{"atlas", 0, true}};
+    auto materialTemplate = MaterialTemplate::Create(std::move(materialDesc));
+    auto materialAsset = MaterialAsset::Create(materialTemplate);
+    auto lifetime = std::make_shared<int>(0);
+    std::weak_ptr<const void> weakLifetime = lifetime;
+    MaterialPassResources resources;
+    resources.expectedTemplate = materialTemplate;
+    resources.pipeline = {42, 0};
+    resources.textures = {{0, {43, 0}}};
+    resources.lifetime = lifetime;
+    auto material = MaterialSnapshot::Create(MaterialInstance(materialAsset), resources);
+    assert(material);
+    terrainSettings.materials[0] = material;
+    for(bool withLegacyPipeline : {true, false}) {
+        terrainSettings.pipelines[0] = withLegacyPipeline
+            ? Render::RenderResourceHandle<Render::PipelineSpec>{2, 0}
+            : Render::RenderResourceHandle<Render::PipelineSpec>{};
+        assert(extract.Tick(context));
+        Render::RenderFrame snapshot;
+        assert(renderWorld.Consume(snapshot));
+        assert(snapshot.items.size() == 1);
+        const auto& item = snapshot.items[0];
+        assert(item.material == material);
+        assert(item.material->Pipeline() == resources.pipeline);
+        assert(!item.pipeline.IsValid() && !item.texture.IsValid());
+        assert(item.layer == Render::RenderLayer::Opaque);
+        assert(item.draw.indexCount == 0);
+    }
+    assert(extract.Tick(context));
+    Render::RenderFrame retained;
+    assert(renderWorld.Consume(retained));
+    terrainSettings.materials = {};
+    material.reset();
+    resources.lifetime.reset();
+    lifetime.reset();
+    assert(!weakLifetime.expired()); // the published draw still owns its resources
+    retained.items.clear();
+    assert(weakLifetime.expired());
     extract.Stop(context);
     pipeline.Stop(context);
     return 0;

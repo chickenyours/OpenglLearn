@@ -1,0 +1,15 @@
+{
+  "format": "IWANNA_PREFAB_1",
+  "pixelArt": true,
+  "role": "hazard",
+  "image": "trap_laser_atlas.png",
+  "width": 3.2,
+  "height": 8,
+  "collide": false,
+  "animation": {
+    "columns": 8,
+    "rows": 1,
+    "duration": 0.4,
+    "loop": true
+  }
+}

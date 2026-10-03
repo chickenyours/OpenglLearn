@@ -45,6 +45,13 @@ public:
     bool Failed() const { return failed_; }
     Render::RenderResourceHandle<Render::RHITextureSpec> Handle() const { return handle_; }
 
+    // Transfers the single deletion responsibility to a material resource lease.
+    Render::RenderResourceHandle<Render::RHITextureSpec> TakeHandle() {
+        const auto result = handle_;
+        handle_ = {};
+        return result;
+    }
+
     void Shutdown() {
         if (handle_.IsValid()) {
             device_->async_DeleteTexture(handle_);

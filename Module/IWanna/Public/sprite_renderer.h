@@ -11,9 +11,11 @@ public:
     explicit SpriteRenderer(ObjectWeakPtr<Render::RHIDevice> device):device_(device){}
     void Initialize(const std::filesystem::path& assets,const std::vector<EntityView>& entities,const std::vector<Sprite>& animations);
     bool Ready() const;
-    void Draw(Render::RHIFrameEncoder&,const std::vector<DrawSprite>& sprites,bool clear=true);
+    void Draw(Render::RHIFrameEncoder&,const std::vector<DrawSprite>& sprites,bool clear=true,const Camera* camera=nullptr);
     void Text(Render::RHIFrameEncoder&,const std::string&,glm::vec2,float,glm::vec4);
+    void TextWorld(Render::RHIFrameEncoder&,const std::string&,glm::vec2,float,glm::vec4,const Camera&);
     void Rect(Render::RHIFrameEncoder&,glm::vec2,glm::vec2,glm::vec4);
+    void Line(Render::RHIFrameEncoder&,glm::vec2,glm::vec2,float,glm::vec4);
     void Flush(Render::RHIFrameEncoder&);
     void Submit(ObjectWeakPtr<Render::RHIFrameCommandBuffer>,std::function<void()>);
     void Shutdown();

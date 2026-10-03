@@ -6,6 +6,7 @@
 #include "Render/Public/RHICommand/FrameCommand/rhi_frame_encoder.h"
 #include "Render/Public/RHICommand/rhi_shader_command.h"
 #include "Render/Public/RHICommand/rhi_texture_command.h"
+#include "Render/Public/RHICommand/rhi_render_target_command.h"
 
 namespace Render{
     struct FrameCommands{

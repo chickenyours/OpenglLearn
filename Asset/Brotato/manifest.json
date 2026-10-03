@@ -1,0 +1,611 @@
+{
+  "format_version": 1,
+  "source_project": "Unity2021_Botato",
+  "source_scene": "Assets/Brotato.unity",
+  "source_scene_sha256": "d6e2108e2d0157d436abaca640e429b97ee54cdae8b4554d3d502b74a2de131c",
+  "scope": "Playable slices 1-2: player, enemy, six source weapons, projectiles, laser, muzzle flash, collectible, ground, spawn marker",
+  "operation": "RGBA crop of original art; no resampling or recoloring",
+  "rect_convention": "Unity bottom-left xywh; output crop is Pillow top-left ltrb; outward rounding",
+  "assets": [
+    {
+      "id": "player",
+      "output": "player.png",
+      "purpose": "CharacterSetter selectable Well-Rounded body",
+      "source_sprite": "Assets/Sprite/well_rounded_icon.asset",
+      "source_sprite_guid": "02152e3445d9f1549acc81d5371c09c9",
+      "source_sprite_sha256": "04a7073a340069e7b5fdc375c093ecbe9626ebd23145d7a3dc8eb14846036770",
+      "source_texture": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png",
+      "source_texture_sha256": "1f8fdb6b5cab83bb59ee4d47ceb627f8942094753fbb3cacf7b3b38c1e3929c0",
+      "unity_rect_xywh": [
+        251.07611,
+        1467.0762,
+        76.84776,
+        87.89713
+      ],
+      "texture_guid": "e4dc1a1b598e2b347ac3f0c4e04753ab",
+      "unity_pivot_xy": [
+        0.5065064,
+        0.49971917
+      ],
+      "pixels_per_unit": 100.0,
+      "crop_top_left_ltrb": [
+        251,
+        493,
+        328,
+        581
+      ],
+      "output_size_px": [
+        77,
+        88
+      ],
+      "unity_size_units": [
+        0.7684776,
+        0.8789713
+      ],
+      "output_sha256": "14b5b319b5f21de569b09475d140056f415f84cf342fad0ae71aab21a9236cc0"
+    },
+    {
+      "id": "enemy",
+      "output": "enemy.png",
+      "purpose": "Assets/AI/NpcGo.prefab base enemy",
+      "source_sprite": "Assets/Sprite/40001.asset",
+      "source_sprite_guid": "c92a87de007fdfc4990c7d18eacd80fc",
+      "source_sprite_sha256": "648287ce567803923aee15a2e887c9840959175b5d84f211051c79c08c27a8ad",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-entites-72974441.png",
+      "source_texture_sha256": "9d1b3cc1278c2d285471cb5d6a4fd6b30798c3459ef7f9f8afff7280bfd505be",
+      "unity_rect_xywh": [
+        618.0429,
+        289.0761,
+        76.880974,
+        89.84776
+      ],
+      "texture_guid": "2ce410849c8ff764ca760f4f7f5ae13a",
+      "unity_pivot_xy": [
+        0.49371243,
+        0.5333898
+      ],
+      "pixels_per_unit": 100.0,
+      "crop_top_left_ltrb": [
+        618,
+        645,
+        695,
+        735
+      ],
+      "output_size_px": [
+        77,
+        90
+      ],
+      "unity_size_units": [
+        0.7688097399999999,
+        0.8984776
+      ],
+      "output_sha256": "877ca6693ba7eff19e4c9819b27bacb0795e6748aaa1d6eb18550596f3cde1da"
+    },
+    {
+      "id": "weapon",
+      "output": "weapon.png",
+      "purpose": "Brotato.unity w1 / Weaponwand",
+      "source_sprite": "Assets/Sprite/wand.asset",
+      "source_sprite_guid": "d7c70dd51ca00964a9fcd858209eb927",
+      "source_sprite_sha256": "2a3c75fbd9b380f4ce90ca69194d11bd9660ba45fa1fe4d72c6aab02b2aabb54",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-weapons-dadc6bfe.png",
+      "source_texture_sha256": "9adda4689f9c0b81400b6b702670746394e9b871985eec9f2b6b1f7e05ec81b2",
+      "unity_rect_xywh": [
+        60.051315,
+        705.0761,
+        108.87257,
+        23.880972
+      ],
+      "texture_guid": "a8c63da7e78651d41938707b3b17187d",
+      "unity_pivot_xy": [
+        0.51389146,
+        0.5202418
+      ],
+      "pixels_per_unit": 100.0,
+      "crop_top_left_ltrb": [
+        60,
+        295,
+        169,
+        319
+      ],
+      "output_size_px": [
+        109,
+        24
+      ],
+      "unity_size_units": [
+        1.0887257,
+        0.23880972
+      ],
+      "output_sha256": "b64b061134cc0b626b0b67e0f12a3c5aa8e29aae0d2efaa230d5d12f1e2d076a"
+    },
+    {
+      "id": "bullet",
+      "output": "bullet.png",
+      "purpose": "w1 bullet_wand - Copy.prefab projectile",
+      "source_sprite": "Assets/Sprite/bullet_wand.asset",
+      "source_sprite_guid": "b8a7726ef2250d84c870b15b57aabd70",
+      "source_sprite_sha256": "662930ef7e54d93b16442702c436c1cd4a406376e7418b9faa6fd101f8c95b84",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-projectiles-cc582037.png",
+      "source_texture_sha256": "0d344e2e553cd7d2e23e8f9d6be9b1900e60650a06d81d8013116be78c479a60",
+      "unity_rect_xywh": [
+        501.05637,
+        827.0761,
+        47.867508,
+        48.847755
+      ],
+      "texture_guid": "685116be2efeee943b70a0ca1715215a",
+      "unity_pivot_xy": [
+        0.5002063,
+        0.48976415
+      ],
+      "pixels_per_unit": 100.0,
+      "crop_top_left_ltrb": [
+        501,
+        148,
+        549,
+        197
+      ],
+      "output_size_px": [
+        48,
+        49
+      ],
+      "unity_size_units": [
+        0.47867508000000003,
+        0.48847755
+      ],
+      "output_sha256": "e1524161d353455c463256cf7caae64868651f8c2cb5863e0e514147c913fd7d"
+    },
+    {
+      "id": "material",
+      "output": "material.png",
+      "purpose": "Addition.prefab default collectible sprite",
+      "source_sprite": "Assets/Sprite/harvesting_icon.asset",
+      "source_sprite_guid": "d7dad2becdd16df4c9718e2f488a7c97",
+      "source_sprite_sha256": "6e61e60f7d8ae2ce27ebb31f5ffc3d419caef078a8e628e87e9fa856987ee4b6",
+      "source_texture": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png",
+      "source_texture_sha256": "1f8fdb6b5cab83bb59ee4d47ceb627f8942094753fbb3cacf7b3b38c1e3929c0",
+      "unity_rect_xywh": [
+        922.0761,
+        1348.0762,
+        67.84776,
+        71.84776
+      ],
+      "texture_guid": "e4dc1a1b598e2b347ac3f0c4e04753ab",
+      "unity_pivot_xy": [
+        0.51473886,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "crop_top_left_ltrb": [
+        922,
+        628,
+        990,
+        700
+      ],
+      "output_size_px": [
+        68,
+        72
+      ],
+      "unity_size_units": [
+        0.6784775999999999,
+        0.7184775999999999
+      ],
+      "output_sha256": "a5c6ca2bc9d32a1b4be88b8fba03eb60a6bb3ad1c669bf49a54c404226e56372"
+    },
+    {
+      "id": "floor",
+      "output": "floor.png",
+      "purpose": "First map ground tile",
+      "source_sprite": "Assets/Sprite/tiles_1_0.asset",
+      "source_sprite_guid": "4b39cce5e0644a14fa16446fdad812f7",
+      "source_sprite_sha256": "2c4bf6b93a70f19f8a11e739e60ce56d5176d95fb2fa8ad2d38c1aa661b8c737",
+      "source_texture": "Assets/Texture2D/tiles_1.png",
+      "source_texture_sha256": "bcf909a88d855c3ea815c7a344ff07345f9c355c3fd95cb6d7d7dd55828e7d5b",
+      "unity_rect_xywh": [
+        0.0,
+        192.0,
+        64.0,
+        64.0
+      ],
+      "texture_guid": "709db945517070242a4bfbfdd6b29276",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "crop_top_left_ltrb": [
+        0,
+        0,
+        64,
+        64
+      ],
+      "output_size_px": [
+        64,
+        64
+      ],
+      "unity_size_units": [
+        0.64,
+        0.64
+      ],
+      "output_sha256": "5c01f80ef41871d8978a8e1f82e752e2b5dd5e5ee54a0c80af55b86d8e4549d1"
+    },
+    {
+      "id": "spawn",
+      "output": "spawn.png",
+      "purpose": "NpcGo.prefab spawn telegraph",
+      "source_sprite": "Assets/Sprite/entity_birth.asset",
+      "source_sprite_guid": "c25ed9ccc9cedf64da24981295d2c70d",
+      "source_sprite_sha256": "0d445d471a5efbdc0a6da2da3922d395d5e731124c0450221b34051de25fe0c9",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-entites-72974441.png",
+      "source_texture_sha256": "9d1b3cc1278c2d285471cb5d6a4fd6b30798c3459ef7f9f8afff7280bfd505be",
+      "unity_rect_xywh": [
+        0.051317215,
+        240.07611,
+        213.92194,
+        210.89713
+      ],
+      "texture_guid": "2ce410849c8ff764ca760f4f7f5ae13a",
+      "unity_pivot_xy": [
+        0.5233156,
+        0.4927705
+      ],
+      "pixels_per_unit": 100.0,
+      "crop_top_left_ltrb": [
+        0,
+        573,
+        214,
+        784
+      ],
+      "output_size_px": [
+        214,
+        211
+      ],
+      "unity_size_units": [
+        2.1392194,
+        2.1089713
+      ],
+      "output_sha256": "ca24eec37769eb518d37b967080852871564e113eec2bd999a86d6ade8ceebf0"
+    },
+    {
+      "id": "weapon_torch",
+      "output": "weapon_torch.png",
+      "purpose": "Brotato.unity w2 / Weapontorch; melee box",
+      "source_sprite": "Assets/Sprite/torch.asset",
+      "source_sprite_guid": "61ce3a2a448457d459ca9a03ce0ae43f",
+      "source_sprite_sha256": "a46d1453ce0b1e06d5b53938f0fdaa44531875bfe2fa6acaaad274bdc7deff8e",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-weapons-dadc6bfe.png",
+      "source_texture_sha256": "9adda4689f9c0b81400b6b702670746394e9b871985eec9f2b6b1f7e05ec81b2",
+      "unity_rect_xywh": [
+        406.02676,
+        528.0761,
+        99.9465,
+        28.897127
+      ],
+      "texture_guid": "a8c63da7e78651d41938707b3b17187d",
+      "unity_pivot_xy": [
+        0.5,
+        0.55105406
+      ],
+      "pixels_per_unit": 100.0,
+      "crop_top_left_ltrb": [
+        406,
+        467,
+        506,
+        496
+      ],
+      "output_size_px": [
+        100,
+        29
+      ],
+      "unity_size_units": [
+        0.999465,
+        0.28897127
+      ],
+      "output_sha256": "eb47ead042729bf9810ab0838606b4cdd60c7fe3624b2d61ff5d541d7540b01a"
+    },
+    {
+      "id": "weapon_laser",
+      "output": "weapon_laser.png",
+      "purpose": "Brotato.unity w3 / WeaponGun; six laser segments",
+      "source_sprite": "Assets/Sprite/taser.asset",
+      "source_sprite_guid": "1e91b39005a9ae64fb0571366a6661c9",
+      "source_sprite_sha256": "3f83a83f53dfc82ab24270a94a2f42b9ecc5c87fee4676bdc056c9e5aff85918",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-weapons-dadc6bfe.png",
+      "source_texture_sha256": "9adda4689f9c0b81400b6b702670746394e9b871985eec9f2b6b1f7e05ec81b2",
+      "unity_rect_xywh": [
+        67.07612,
+        784.02673,
+        58.880974,
+        38.897125
+      ],
+      "texture_guid": "a8c63da7e78651d41938707b3b17187d",
+      "unity_pivot_xy": [
+        0.61011016,
+        0.79628634
+      ],
+      "pixels_per_unit": 100.0,
+      "crop_top_left_ltrb": [
+        67,
+        201,
+        126,
+        240
+      ],
+      "output_size_px": [
+        59,
+        39
+      ],
+      "unity_size_units": [
+        0.58880974,
+        0.38897125000000005
+      ],
+      "output_sha256": "9335fe49068101cafee6801cc1e1e88ce81974e0a5f3aaa410d9d8bf5ed4549a"
+    },
+    {
+      "id": "weapon_knife",
+      "output": "weapon_knife.png",
+      "purpose": "Brotato.unity w4 / shiv; melee box",
+      "source_sprite": "Assets/Sprite/lightning_shiv.asset",
+      "source_sprite_guid": "eaf7449c6dd0d444e98334d07017c62d",
+      "source_sprite_sha256": "3e90015d6e29ceeaec214288d64c8cdb1457551bb153e14e0e8eab0ddc05c4b6",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-weapons-dadc6bfe.png",
+      "source_texture_sha256": "9adda4689f9c0b81400b6b702670746394e9b871985eec9f2b6b1f7e05ec81b2",
+      "unity_rect_xywh": [
+        385.02676,
+        611.004,
+        70.89713,
+        21.919838
+      ],
+      "texture_guid": "a8c63da7e78651d41938707b3b17187d",
+      "unity_pivot_xy": [
+        0.5779254,
+        0.547265
+      ],
+      "pixels_per_unit": 100.0,
+      "crop_top_left_ltrb": [
+        385,
+        391,
+        456,
+        413
+      ],
+      "output_size_px": [
+        71,
+        22
+      ],
+      "unity_size_units": [
+        0.7089713000000001,
+        0.21919838
+      ],
+      "output_sha256": "32ee546e397b396807ea4c8d6810ba5b9b418fe5435275992e80caf5f032fd6a"
+    },
+    {
+      "id": "weapon_gun",
+      "output": "weapon_gun.png",
+      "purpose": "Brotato.unity w5 / WeaponGun; BulletA projectile",
+      "source_sprite": "Assets/Sprite/smg.asset",
+      "source_sprite_guid": "0116fa85f8de2824fbec0f6f68e3e8e7",
+      "source_sprite_sha256": "7d7a11a833d12e9537e46aa1e9dc17bfdfc7fe1a9bacbb0e63e3a4e0f9d2bdb2",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-weapons-dadc6bfe.png",
+      "source_texture_sha256": "9adda4689f9c0b81400b6b702670746394e9b871985eec9f2b6b1f7e05ec81b2",
+      "unity_rect_xywh": [
+        644.0429,
+        451.0761,
+        68.93034,
+        46.847755
+      ],
+      "texture_guid": "a8c63da7e78651d41938707b3b17187d",
+      "unity_pivot_xy": [
+        0.5361513,
+        0.7668218
+      ],
+      "pixels_per_unit": 100.0,
+      "crop_top_left_ltrb": [
+        644,
+        526,
+        713,
+        573
+      ],
+      "output_size_px": [
+        69,
+        47
+      ],
+      "unity_size_units": [
+        0.6893034,
+        0.46847755
+      ],
+      "output_sha256": "6dfe6785cc9c19f9bd42bc8b9a884342a7d3fb07d6e9c20f0478a71bbfea0af2"
+    },
+    {
+      "id": "weapon_burst",
+      "output": "weapon_burst.png",
+      "purpose": "Brotato.unity w6 / WeaponGun; SpawnMove four-pellet animation",
+      "source_sprite": "Assets/Sprite/double_barrel_shotgun.asset",
+      "source_sprite_guid": "3d4f96fc53aa94247972d6573e76b626",
+      "source_sprite_sha256": "bf2a9a23b5d225ac3130e00d24d1d29e3b0eda343b09fa8af3eb24ed97a02aef",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-weapons-dadc6bfe.png",
+      "source_texture_sha256": "9adda4689f9c0b81400b6b702670746394e9b871985eec9f2b6b1f7e05ec81b2",
+      "unity_rect_xywh": [
+        530.02673,
+        484.0761,
+        90.9465,
+        35.880974
+      ],
+      "texture_guid": "a8c63da7e78651d41938707b3b17187d",
+      "unity_pivot_xy": [
+        0.47251132,
+        0.7782364
+      ],
+      "pixels_per_unit": 100.0,
+      "crop_top_left_ltrb": [
+        530,
+        504,
+        621,
+        540
+      ],
+      "output_size_px": [
+        91,
+        36
+      ],
+      "unity_size_units": [
+        0.909465,
+        0.35880974000000004
+      ],
+      "output_sha256": "376bafb8614e2f3168c595bc358c78d403d1734a6afd70a72f56e58e4cc2c0e5"
+    },
+    {
+      "id": "projectile_gun",
+      "output": "projectile_gun.png",
+      "purpose": "Assets/PrefabInstance/BulletA.prefab SpriteRenderer",
+      "source_sprite": "Assets/Texture2D/sactx-0-1024x1024-ETC2-projectiles-cc582037.png.meta",
+      "source_sprite_guid": "685116be2efeee943b70a0ca1715215a",
+      "source_sprite_sha256": "c2015241d8b982800e352bd0a18fdf55db81e26a01d31db4e07799ded85ab646",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-projectiles-cc582037.png",
+      "source_texture_sha256": "0d344e2e553cd7d2e23e8f9d6be9b1900e60650a06d81d8013116be78c479a60",
+      "unity_rect_xywh": [
+        766.0,
+        284.0,
+        102.0,
+        40.0
+      ],
+      "texture_guid": "685116be2efeee943b70a0ca1715215a",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "source_sprite_file_id": -1909389404,
+      "source_sprite_kind": "TextureImporter sub-sprite",
+      "crop_top_left_ltrb": [
+        766,
+        700,
+        868,
+        740
+      ],
+      "output_size_px": [
+        102,
+        40
+      ],
+      "unity_size_units": [
+        1.02,
+        0.4
+      ],
+      "output_sha256": "82339c58aceb4fbb87bf7e0564315d3e18b11c9c1e88f0c840a030174653da18"
+    },
+    {
+      "id": "projectile_burst",
+      "output": "projectile_burst.png",
+      "purpose": "Assets/PrefabInstance/SpawnMove.prefab four BulletB SpriteRenderers",
+      "source_sprite": "Assets/Texture2D/sactx-0-1024x1024-ETC2-projectiles-cc582037.png.meta",
+      "source_sprite_guid": "685116be2efeee943b70a0ca1715215a",
+      "source_sprite_sha256": "c2015241d8b982800e352bd0a18fdf55db81e26a01d31db4e07799ded85ab646",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-projectiles-cc582037.png",
+      "source_texture_sha256": "0d344e2e553cd7d2e23e8f9d6be9b1900e60650a06d81d8013116be78c479a60",
+      "unity_rect_xywh": [
+        766.0,
+        284.0,
+        102.0,
+        40.0
+      ],
+      "texture_guid": "685116be2efeee943b70a0ca1715215a",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "source_sprite_file_id": -1909389404,
+      "source_sprite_kind": "TextureImporter sub-sprite",
+      "crop_top_left_ltrb": [
+        766,
+        700,
+        868,
+        740
+      ],
+      "output_size_px": [
+        102,
+        40
+      ],
+      "unity_size_units": [
+        1.02,
+        0.4
+      ],
+      "output_sha256": "82339c58aceb4fbb87bf7e0564315d3e18b11c9c1e88f0c840a030174653da18"
+    },
+    {
+      "id": "laser_segment",
+      "output": "laser_segment.png",
+      "purpose": "Brotato.unity w3 six nested Laser SpriteRenderers",
+      "source_sprite": "Assets/Texture2D/sactx-0-1024x1024-ETC2-projectiles-cc582037.png.meta",
+      "source_sprite_guid": "685116be2efeee943b70a0ca1715215a",
+      "source_sprite_sha256": "c2015241d8b982800e352bd0a18fdf55db81e26a01d31db4e07799ded85ab646",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-projectiles-cc582037.png",
+      "source_texture_sha256": "0d344e2e553cd7d2e23e8f9d6be9b1900e60650a06d81d8013116be78c479a60",
+      "unity_rect_xywh": [
+        624.0,
+        376.0,
+        132.0,
+        56.0
+      ],
+      "texture_guid": "685116be2efeee943b70a0ca1715215a",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "source_sprite_file_id": 1101925732,
+      "source_sprite_kind": "TextureImporter sub-sprite",
+      "crop_top_left_ltrb": [
+        624,
+        592,
+        756,
+        648
+      ],
+      "output_size_px": [
+        132,
+        56
+      ],
+      "unity_size_units": [
+        1.32,
+        0.56
+      ],
+      "output_sha256": "49a8a4c771bea691b869b05de7ce0b9ddffedb8af9eeb7db8ddf68ea57b5227d"
+    },
+    {
+      "id": "muzzle_flash",
+      "output": "muzzle_flash.png",
+      "purpose": "Brotato.unity w5 and w6 Shoot / BulletAnim",
+      "source_sprite": "Assets/Texture2D/sactx-0-1024x1024-ETC2-projectiles-cc582037.png.meta",
+      "source_sprite_guid": "685116be2efeee943b70a0ca1715215a",
+      "source_sprite_sha256": "c2015241d8b982800e352bd0a18fdf55db81e26a01d31db4e07799ded85ab646",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-projectiles-cc582037.png",
+      "source_texture_sha256": "0d344e2e553cd7d2e23e8f9d6be9b1900e60650a06d81d8013116be78c479a60",
+      "unity_rect_xywh": [
+        484.0,
+        104.0,
+        100.0,
+        96.0
+      ],
+      "texture_guid": "685116be2efeee943b70a0ca1715215a",
+      "unity_pivot_xy": [
+        0.5,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "source_sprite_file_id": 904847731,
+      "source_sprite_kind": "TextureImporter sub-sprite",
+      "crop_top_left_ltrb": [
+        484,
+        824,
+        584,
+        920
+      ],
+      "output_size_px": [
+        100,
+        96
+      ],
+      "unity_size_units": [
+        1.0,
+        0.96
+      ],
+      "output_sha256": "ba97aba011b756967e10415a7913c269bfbe750a19f06152b582d914b849dfbf"
+    }
+  ]
+}

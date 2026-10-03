@@ -21,8 +21,17 @@ GameConfig GameConfig::Load(const std::filesystem::path& path) {
     c.physics.doubleJumpSpeed=number(p,"doubleJumpSpeed",1,100);c.physics.gravity=number(p,"gravity",1,500);
     c.physics.maxFallSpeed=number(p,"maxFallSpeed",1,200);c.physics.fixedStep=1/number(p,"fixedHz",30,480);
     c.physics.maxSubstepDistance=number(p,"maxSubstepDistance",.005f,.1f);
+    if(p.isMember("jumpHoldSeconds"))c.physics.jumpHoldSeconds=number(p,"jumpHoldSeconds",0,.5f);
+    if(p.isMember("jumpHoldGravityScale"))c.physics.jumpHoldGravityScale=number(p,"jumpHoldGravityScale",0,1);
+    if(p.isMember("jumpReleaseMultiplier"))c.physics.jumpReleaseMultiplier=number(p,"jumpReleaseMultiplier",0,1);
     c.alphaThreshold=integer(root["collision"],"alphaThreshold",1,255);
     auto& player=root["player"];c.playerSize={number(player,"width",.5f,10),number(player,"height",.5f,10)};
+    // Older projects without a scale get the same smaller default character.
+    if(player.isMember("scale")) {
+        const auto& scale=player["scale"];
+        if(!scale.isObject())throw std::runtime_error("player.scale must be an object with x and y");
+        c.playerScale={number(scale,"x",.1f,4),number(scale,"y",.1f,4)};
+    }
     if(!player["facesLeftInSource"].isBool()) throw std::runtime_error("facesLeftInSource must be boolean");
     c.facesLeft=player["facesLeftInSource"].asBool();
     // Optional for compatibility with previously saved gameplay configs.
@@ -42,7 +51,8 @@ GameConfig GameConfig::Load(const std::filesystem::path& path) {
         c.character.recoveryDistance=number(contact,"recoveryDistance",.01f,1);
         if(contact.isMember("wallSlide"))c.character.wallSlide=number(contact,"wallSlide",0,.2f);
     }
-    if(2*c.character.skin>=std::min(c.playerSize.x*c.character.sizeRatio.x,c.playerSize.y*c.character.sizeRatio.y))
+    const auto scaled=c.ScaledPlayerSize();
+    if(2*c.character.skin>=std::min(scaled.x*c.character.sizeRatio.x,scaled.y*c.character.sizeRatio.y))
         throw std::runtime_error("contact skin must be smaller than half the player body");
     auto animation=[&](const char* name) {
         const auto& v=player[name];Sprite s;
@@ -51,6 +61,27 @@ GameConfig GameConfig::Load(const std::filesystem::path& path) {
         s.columns=integer(v,"columns",1,64);s.cellWidth=integer(v,"cellWidth",1,2048);s.cellHeight=integer(v,"cellHeight",1,2048);
         s.duration=number(v,"duration",.05f,10);s.frames.clear();for(int i=0;i<s.columns;++i) s.frames.push_back(i);return s;
     };
-    c.idle=animation("idle");c.run=animation("run");c.jump=animation("jump");return c;
+    c.idle=animation("idle");c.run=animation("run");c.jump=animation("jump");
+    const auto& shot=player["shooting"];
+    if(!shot.isNull()) {
+        if(!shot.isObject())throw std::runtime_error("player.shooting must be an object");
+        if(shot.isMember("enabled")) {
+            if(!shot["enabled"].isBool())throw std::runtime_error("shooting.enabled must be boolean");
+            c.shooting.enabled=shot["enabled"].asBool();
+        }
+        if(shot.isMember("image")) {
+            c.shooting.sprite.image=shot["image"].asString();
+            if(c.shooting.sprite.image.empty()||std::filesystem::path(c.shooting.sprite.image).filename().string()!=c.shooting.sprite.image)
+                throw std::runtime_error("shooting.image must be a filename");
+        }
+        if(shot.isMember("width"))c.shooting.size.x=number(shot,"width",.05f,5);
+        if(shot.isMember("height"))c.shooting.size.y=number(shot,"height",.05f,5);
+        if(shot.isMember("speed"))c.shooting.speed=number(shot,"speed",1,500);
+        if(shot.isMember("cooldown"))c.shooting.cooldown=number(shot,"cooldown",.03f,5);
+        if(shot.isMember("lifetime"))c.shooting.lifetime=number(shot,"lifetime",.05f,10);
+        if(shot.isMember("muzzleXRatio"))c.shooting.muzzleOffset.x=number(shot,"muzzleXRatio",0,.12f);
+        if(shot.isMember("muzzleYRatio"))c.shooting.muzzleOffset.y=number(shot,"muzzleYRatio",-.3f,.3f);
+    }
+    return c;
 }
 }

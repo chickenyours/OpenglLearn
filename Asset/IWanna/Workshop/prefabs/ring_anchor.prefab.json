@@ -1,0 +1,9 @@
+{
+  "format": "IWANNA_PREFAB_1",
+  "pixelArt": true,
+  "role": "decoration",
+  "image": "demo_ring_anchor.png",
+  "width": 2.2,
+  "height": 2.2,
+  "collide": false
+}

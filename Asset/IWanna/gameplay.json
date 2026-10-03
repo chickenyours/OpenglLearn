@@ -4,6 +4,9 @@
     "runSpeed": 18.0,
     "jumpSpeed": 50.0,
     "doubleJumpSpeed": 35.0,
+    "jumpHoldSeconds": 0.22,
+    "jumpHoldGravityScale": 0.45,
+    "jumpReleaseMultiplier": 0.55,
     "gravity": 150.0,
     "maxFallSpeed": 65.0,
     "fixedHz": 120,
@@ -18,7 +21,9 @@
   "player": {
     "width": 4.8,
     "height": 3.6,
+    "scale": { "x": 0.75, "y": 0.75 },
     "facesLeftInSource": true,
+    "shooting": { "enabled": true, "image": "demo_bullet.png", "width": 0.7, "height": 0.28, "speed": 80, "cooldown": 0.15, "lifetime": 1.8, "muzzleXRatio": 0.08, "muzzleYRatio": -0.05 },
     "idle": { "image": "player_idle.png", "columns": 4, "cellWidth": 128, "cellHeight": 96, "duration": 0.6 },
     "run": { "image": "player_run.png", "columns": 5, "cellWidth": 128, "cellHeight": 96, "duration": 0.45 },
     "jump": { "image": "player_jump.png", "columns": 2, "cellWidth": 128, "cellHeight": 96, "duration": 0.4 }

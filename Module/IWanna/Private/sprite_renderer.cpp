@@ -1,4 +1,6 @@
 #include "IWanna/Public/sprite_renderer.h"
+#include "IWanna/Public/camera_math.h"
+#include "IWanna/Public/alpha_mask.h"
 #include "IWanna/Public/stroke_font.h"
 #include <stb_image.h>
 #include <cmath>
@@ -13,8 +15,17 @@ constexpr int Border=8;
 void SpriteRenderer::Initialize(const std::filesystem::path& assets,const std::vector<EntityView>& entities,const std::vector<Sprite>& animations) {
     static_assert(sizeof(Vertex)==9*sizeof(float),"RHI vertex layout must remain tightly packed");
     std::map<std::string,const Sprite*> definitions;
-    for(const auto& view:entities) definitions.emplace(view.sprite->image,view.sprite);
-    for(const auto& sprite:animations) definitions.emplace(sprite.image,&sprite);
+    auto registerSprite=[&](const Sprite& sprite) {
+        if(sprite.columns<1||sprite.rows<1||sprite.columns>64||sprite.rows>64||sprite.columns*sprite.rows>1024||sprite.cellWidth<0||sprite.cellHeight<0||sprite.frames.empty()||sprite.frames.size()>1024)
+            throw std::runtime_error("Invalid animation layout: "+sprite.image);
+        for(int frame:sprite.frames)if(frame<0||frame>=sprite.columns*sprite.rows)throw std::runtime_error("Invalid animation frame: "+sprite.image);
+        auto [found,inserted]=definitions.emplace(sprite.image,&sprite);
+        const auto& previous=*found->second;
+        if(!inserted&&(previous.columns!=sprite.columns||previous.rows!=sprite.rows||previous.cellWidth!=sprite.cellWidth||previous.cellHeight!=sprite.cellHeight))
+            throw std::runtime_error("Conflicting animation layouts for image: "+sprite.image);
+    };
+    for(const auto& view:entities)registerSprite(*view.sprite);
+    for(const auto& sprite:animations)registerSprite(sprite);
     std::vector<Tile> tiles;
     for(auto [name,s]:definitions) {
         int w,h,channels;auto path=assets/"images"/name;
@@ -22,7 +33,7 @@ void SpriteRenderer::Initialize(const std::filesystem::path& assets,const std::v
         if(!data) throw std::runtime_error("Image decode failed: "+path.string());
         std::unique_ptr<unsigned char,decltype(&stbi_image_free)> owner(data,stbi_image_free);
         int cw=s->cellWidth?s->cellWidth:w/s->columns,ch=s->cellHeight?s->cellHeight:h/s->rows;
-        if(cw<1 || ch<1 || cw*s->columns>w || ch*s->rows>h) throw std::runtime_error("Invalid animation cells: "+name);
+        if(cw<1 || ch<1 || cw>w/s->columns || ch>h/s->rows) throw std::runtime_error("Invalid animation cells: "+name);
         textures_[name].frames.resize(s->columns*s->rows);
         for(int i=0;i<s->columns*s->rows;++i) {
             Tile tile{name,i,cw,ch};tile.pixels.resize(size_t(cw)*ch*4);
@@ -97,13 +108,13 @@ void SpriteRenderer::Quad(glm::vec2 pos,glm::vec2 size,float angle,glm::vec4 uv,
     }
     for(uint32_t i:{0,1,2,0,2,3}) indices_.push_back(first+i);
 }
-void SpriteRenderer::Draw(Render::RHIFrameEncoder&,const std::vector<DrawSprite>& sprites,bool clear) {
+void SpriteRenderer::Draw(Render::RHIFrameEncoder&,const std::vector<DrawSprite>& sprites,bool clear,const Camera* camera) {
     if(clear){vertices_.clear();indices_.clear();}
     for(const auto& draw:sprites) {
-        const auto& t=draw.transform;const auto& s=draw.sprite;
+        auto t=camera?CameraProject(*camera,draw.transform):draw.transform;const auto& s=draw.sprite;
         float radius=.5f*glm::length(t.size);
         if(t.position.x+radius < -75 || t.position.x-radius>75 || t.position.y+radius < -42.1875f || t.position.y-radius>42.1875f) continue;
-        int index=s.frames[size_t(s.elapsed/std::max(s.duration,.001f)*s.frames.size())%s.frames.size()];
+        int index=AnimationFrame(s);
         auto uv=textures_.at(s.image).frames.at(index);
         if(s.flipX) {uv.x+=uv.z;uv.z=-uv.z;}if(s.flipY) {uv.y+=uv.w;uv.w=-uv.w;}
         const float angle=t.rotation*.01745329252f;
@@ -111,11 +122,15 @@ void SpriteRenderer::Draw(Render::RHIFrameEncoder&,const std::vector<DrawSprite>
             auto size=t.size;size.x/=s.repeatX;
             float offset=-t.size.x*.5f+(repeat+.5f)*size.x;
             auto position=t.position+glm::vec2(std::cos(angle),std::sin(angle))*offset;
-            Quad(position,size,angle,uv,glm::vec4(1),s.pixelArt?-1.f:0.f);
+            Quad(position,size,angle,uv,glm::vec4(1,1,1,std::clamp(s.opacity,0.f,1.f)),s.pixelArt?-1.f:0.f);
         }
     }
 }
 void SpriteRenderer::Rect(Render::RHIFrameEncoder&,glm::vec2 pos,glm::vec2 size,glm::vec4 color) {Quad(pos,size,0,textures_.at("white").frames[0],color);}
+void SpriteRenderer::Line(Render::RHIFrameEncoder&,glm::vec2 a,glm::vec2 b,float thickness,glm::vec4 color){
+    auto delta=b-a;float length=glm::length(delta);if(length<1e-5f)return;
+    Quad((a+b)*.5f,{length,thickness},std::atan2(delta.y,delta.x),textures_.at("white").frames[0],color);
+}
 void SpriteRenderer::Text(Render::RHIFrameEncoder&,const std::string& text,glm::vec2 pos,float pixel,glm::vec4 color) {
     const float start=pos.x;
     for(char ch:text) {
@@ -126,6 +141,9 @@ void SpriteRenderer::Text(Render::RHIFrameEncoder&,const std::string& text,glm::
         if(g>=0) Quad(pos+glm::vec2(2,3)*pixel,glm::vec2(6,8)*pixel,0,textures_.at("font").frames[g],color,1);
         pos.x+=6*pixel;
     }
+}
+void SpriteRenderer::TextWorld(Render::RHIFrameEncoder& frame,const std::string& text,glm::vec2 pos,float pixel,glm::vec4 color,const Camera& camera) {
+    Text(frame,text,CameraProject(camera,pos),pixel*camera.zoom,color);
 }
 void SpriteRenderer::Flush(Render::RHIFrameEncoder& frame) {
     frame.BindPipeline(pipeline_);frame.BindMesh(mesh_);frame.BindTexture(atlas_,0);

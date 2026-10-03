@@ -1,6 +1,7 @@
 #pragma once
 #include "IWanna/Public/game_module.h"
 #include "IWanna/Public/collision.h"
+#include "IWanna/Public/transform_math.h"
 
 namespace IWanna {
 class InputSystem final : public ECS::System::System {
@@ -16,17 +17,22 @@ public:
         if(g.GetState()!=State::Playing) return;
         auto id=g.PlayerEntity();auto& velocity=g.Get<Motion>(id).velocity;auto& player=g.Get<Player>(id);
         velocity.x=(int(g.input.right)-int(g.input.left))*g.rules.runSpeed;
+        if(velocity.x)player.facingLeft=velocity.x<0;
         if(velocity.x) g.Get<Sprite>(id).flipX=g.FacesLeft()?(velocity.x>0):(velocity.x<0);
+        // Walking off a ledge or spawning in midair consumes the ground jump.
+        // Only a grounded takeoff may use both jumps in the same airtime.
+        if(!player.grounded && player.jumps==0)player.jumps=1;
         if(g.input.jump && player.jumps<2) {
             velocity.y=-(player.jumps==0?g.rules.jumpSpeed:g.rules.doubleJumpSpeed);
-            ++player.jumps;player.grounded=false;g.Sound(player.jumps==1?"jump1":"jump2");
+            ++player.jumps;player.grounded=false;player.jumpHoldRemaining=g.rules.jumpHoldSeconds;player.jumpJustStarted=true;
+            g.Sound(player.jumps==1?"jump1":"jump2");
         }
         g.SelectPlayerAnimation();
     }
 };
 class PhysicsSystem final : public ECS::System::System {
     static Transform Detection(const EntityView& view) {
-        auto t=*view.transform;if(view.collider->detectionBox){t.position+=view.collider->detectionOffset;t.size=view.collider->detectionSize;}return t;
+        auto t=*view.transform;if(view.collider->detectionBox){t.position+=RotateOffset(view.collider->detectionOffset,t.rotation);t.size=view.collider->detectionSize;}return t;
     }
     std::vector<const EntityView*> solids_,triggers_,moving_;
 public:
@@ -42,6 +48,7 @@ public:
         solids_.clear();triggers_.clear();moving_.clear();
         for(const auto& view:g.Views()) {
             if(view.id==player)continue;
+            if(view.behavior->role==Role::Projectile)continue;
             if(view.behavior->role==Role::Hazard || view.motion->velocity!=glm::vec2(0))moving_.push_back(&view);
             if(!view.collider->enabled)continue;
             (view.behavior->role==Role::Solid?solids_:triggers_).push_back(&view);
@@ -57,12 +64,18 @@ public:
             }
             return nullptr;
         };
+        auto touchSolid=[&](const EntityView* contact) {
+            if(contact&&(!contact->behavior->target.empty()||!contact->behavior->event.empty()))g.Touch(contact->id);
+        };
         // Resolve a small existing penetration before casting either axis.
         // The previous solver assumed a clear start, so any overlap could stop
         // BOTH axes indefinitely. Prefer the shortest clear correction and do
         // not turn it into velocity (in particular, no wall-climbing impulse).
         auto recover=[&] {
-            if(!solidHit())return;
+            const auto* overlap=solidHit();if(!overlap)return;
+            // This is an actual overlap before correction. The directional
+            // probes below must never generate gameplay contact events.
+            touchSolid(overlap);
             const auto start=t.position;float best=settings.recoveryDistance+settings.skin;
             glm::vec2 correction{};
             for(auto direction:{glm::vec2(-1,0),glm::vec2(1,0),glm::vec2(0,-1),glm::vec2(0,1)}) {
@@ -111,7 +124,18 @@ public:
             return nullptr;
         };
         const float dt=float(GetContext()->deltaSeconds);
-        velocity.y=std::min(velocity.y+g.rules.gravity*dt,g.rules.maxFallSpeed);
+        if(velocity.y<0 && p.jumpHoldRemaining>0 && !g.input.jumpHeld && !p.jumpJustStarted){
+            velocity.y*=g.rules.jumpReleaseMultiplier;p.jumpHoldRemaining=0;
+        }
+        float gravityStep=g.rules.gravity*dt;
+        if(velocity.y<0 && p.jumpHoldRemaining>0 && g.input.jumpHeld){
+            const float held=std::min(p.jumpHoldRemaining,dt);
+            gravityStep=g.rules.gravity*(held*g.rules.jumpHoldGravityScale+(dt-held));
+            p.jumpHoldRemaining-=held;
+        }
+        velocity.y=std::min(velocity.y+gravityStep,g.rules.maxFallSpeed);
+        if(velocity.y>=0)p.jumpHoldRemaining=0;
+        p.jumpJustStarted=false;
         p.grounded=false;
         float remaining=dt;
         while(remaining>1e-7f && g.GetState()==State::Playing) {
@@ -128,6 +152,10 @@ public:
                 const auto start=t.position;
                 const auto* contact=castAxis(axis,displacement);
                 if(!contact)continue;
+                // Record the real attempted movement's contact even when the
+                // solver subsequently steps over or slides around the edge.
+                // castAxis itself stays side-effect free for trial paths.
+                touchSolid(contact);
                 // A tiny side protrusion must not become a shelf while falling
                 // beside a wall. Permit a bounded sideways correction, never
                 // vertical lift, and verify both the lateral and vertical path.
@@ -157,17 +185,16 @@ public:
                             t.position=start;t.position.y-=lift;if(solidHit())break;
                             t.position.x+=displacement;
                             if(solidHit())continue;
-                            if(castAxis(1,lift+settings.groundSnap)) {
-                                stepped=true;p.grounded=true;velocity.y=0;break;
+                            if(const auto* landing=castAxis(1,lift+settings.groundSnap)) {
+                                stepped=true;p.grounded=true;velocity.y=0;touchSolid(landing);break;
                             }
                         }
                     }
                     if(stepped)continue;
                     t.position=stopped;
                 }
-                if(axis==1 && displacement>0) {p.grounded=true;p.jumps=0;}
+                if(axis==1) {p.jumpHoldRemaining=0;if(displacement>0){p.grounded=true;p.jumps=0;}}
                 velocity[axis]=0;
-                if(!contact->behavior->target.empty()||!contact->behavior->event.empty())g.Touch(contact->id);
             }
             bool killed=false;
             const auto body=g.PlayerBody();
@@ -178,9 +205,8 @@ public:
                 g.Touch(view->id);
             }
             const bool boundary=!killed&&g.IsRoomGame()&&g.World()->CrossBoundary(t.position);
-            bool outside=t.position.y>45 || t.position.x < -100 || t.position.x>100;
-            if(g.IsRoomGame()){const auto& room=g.World()->Current();outside=t.position.y>room.origin.y+room.extent.y||t.position.x<room.origin.x||t.position.x>room.origin.x+room.extent.x;}
-            if(killed || (!boundary&&outside))g.Kill();
+            bool outside=!g.IsRoomGame()&&(t.position.y>45 || t.position.x < -100 || t.position.x>100);
+            if(killed || outside)g.Kill();
             if(boundary)remaining=0;
         }
         if(g.GetState()==State::Playing && (wasGrounded||p.grounded) && velocity.y>=0 && settings.groundSnap>0) {
@@ -190,8 +216,8 @@ public:
             while(left>1e-6f) {
                 const float distance=std::min(left,g.rules.maxSubstepDistance);left-=distance;
                 if(const auto* contact=castAxis(1,distance)) {
-                    landed=true;p.grounded=true;p.jumps=0;velocity.y=0;
-                    if(!contact->behavior->target.empty()||!contact->behavior->event.empty())g.Touch(contact->id);
+                    landed=true;p.grounded=true;p.jumps=0;p.jumpHoldRemaining=0;velocity.y=0;
+                    touchSolid(contact);
                     break;
                 }
             }
@@ -211,12 +237,70 @@ public:
         // happens before the next physics tick, never after collision checks.
     }
 };
+class ProjectileSystem final : public ECS::System::System {
+    struct Target {const EntityView* view;Transform detection;glm::vec2 lo,hi;};
+    std::vector<Target> targets_;
+public:
+    ProjectileSystem():System("IWanna.Projectiles") {
+        Writes<Transform>();Writes<Collider>();Writes<Sprite>();Writes<Lifetime>();Reads<Motion>();Reads<Behavior>();Reads<ShotReceiver>();
+    }
+    void OnTick() override {
+        auto& g=*GetContext()->GetService<GameModule>();
+        if(!g.World()||g.GetState()!=State::Playing)return;
+        const float dt=float(GetContext()->deltaSeconds);
+        targets_.clear();
+        for(const auto& v:g.Views()) {
+            if(!v.collider->enabled||v.behavior->role==Role::Projectile||v.behavior->role==Role::Player)continue;
+            if(v.behavior->role!=Role::Solid&&!v.receiver->enabled)continue;
+            auto t=*v.transform;
+            if(v.collider->detectionBox){t.position+=RotateOffset(v.collider->detectionOffset,t.rotation);t.size=v.collider->detectionSize;}
+            const float angle=t.rotation*.01745329252f,cs=std::abs(std::cos(angle)),sn=std::abs(std::sin(angle));
+            const glm::vec2 half=glm::vec2(cs*t.size.x+sn*t.size.y,sn*t.size.x+cs*t.size.y)*.5f;
+            targets_.push_back({&v,t,t.position-half,t.position+half});
+        }
+        for(const auto& v:g.Views()) {
+            if(v.behavior->role==Role::Projectile&&v.collider->enabled) {
+                auto& t=*v.transform;const glm::vec2 start=t.position;
+                const float alive=v.lifetime->remaining<0?dt:std::min(dt,v.lifetime->remaining);
+                const glm::vec2 delta=v.motion->velocity*std::max(0.f,alive);
+                const auto half=t.size*.5f;
+                const auto lo=glm::min(start,start+delta)-half,hi=glm::max(start,start+delta)+half;
+                std::vector<const Target*> candidates;
+                // Broad phase runs once per projectile/tick, not at every small cast step.
+                for(const auto& target:targets_)if(lo.x<target.hi.x&&hi.x>target.lo.x&&lo.y<target.hi.y&&hi.y>target.lo.y)candidates.push_back(&target);
+                const float step=std::min(g.rules.maxSubstepDistance,std::min(t.size.x,t.size.y)*.25f);
+                const int steps=std::max(1,int(std::ceil(glm::length(delta)/step)));
+                bool stopped=false;
+                // Test the muzzle before advancing, so a nearby wall cannot be skipped.
+                for(int n=0;n<=steps&&!stopped;++n) {
+                    t.position=start+delta*(float(n)/steps);
+                    // Opaque solids occlude receivers at the same sample position.
+                    for(int pass=0;pass<2&&!stopped;++pass)for(const auto* target:candidates) {
+                        const auto& other=*target->view;
+                        if(!other.collider->enabled||(other.behavior->role==Role::Solid)!=(pass==0))continue;
+                        if(!MaskOverlap(t,RectangleMask(),target->detection,other.collider->detectionBox?RectangleMask():*other.sprite))continue;
+                        if(other.receiver->enabled)g.World()->Hit(other.id,v.id);
+                        g.World()->Retire(v.id);stopped=true;break;
+                    }
+                }
+            }
+            if(v.lifetime->remaining>=0) {
+                v.lifetime->remaining=std::max(0.f,v.lifetime->remaining-dt);
+                if(v.lifetime->remaining==0)g.World()->Retire(v.id);
+            }
+        }
+    }
+};
 class AnimationSystem final : public ECS::System::System {
 public:
     AnimationSystem():System("IWanna.Animation",ECS::System::Phase::PreUpdate) {Writes<Sprite>();}
     void OnTick() override {
         auto& g=*GetContext()->GetService<GameModule>();
-        for(const auto& view:g.Views()) {auto& s=*view.sprite;if(s.frames.size()>1)s.elapsed=std::fmod(s.elapsed+float(GetContext()->deltaSeconds),std::max(s.duration,.001f));}
+        for(const auto& view:g.Views()) {
+            auto& s=*view.sprite;if(s.frames.size()<2)continue;
+            const float duration=std::max(s.duration,.001f),next=s.elapsed+float(GetContext()->deltaSeconds);
+            s.elapsed=s.loop?std::fmod(next,duration):std::min(next,duration);
+        }
     }
 };
 }

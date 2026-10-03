@@ -38,6 +38,10 @@ static void TestMasks() {
 }
 static void TestPhysics() {
     GameModule game(IWANNA_ASSETS);Check(game.Startup(),game.Error().c_str());
+    auto tuning=GameConfig::Load(std::filesystem::path(IWANNA_ASSETS)/"gameplay.json");
+    Check(tuning.playerScale==glm::vec2(.75f,.75f),"recommended player scale is configured");
+    Check(game.Get<Transform>(game.PlayerEntity()).size==tuning.ScaledPlayerSize(),"player render transform uses XY scale");
+    Check(game.PlayerBody().size==tuning.ScaledPlayerSize()*tuning.character.sizeRatio,"player collision body scales with sprite");
     // Keep regression trajectories deterministic while allowing users to tune JSON.
     game.rules=Rules{};
     for(auto id:game.Entities())game.Get<Collider>(id).enabled=false;
@@ -50,10 +54,19 @@ static void TestPhysics() {
     Check(game.Get<Player>(player).grounded,"mask floor landing");float ground=t.position.y;
     for(int n=0;n<120;++n){game.FixedTick({false,true});Check(std::abs(t.position.y-ground)<.02f && v.y>=0,"walking cannot generate lift");}
     Check(t.position.x>17.9f,"walking maintains configured speed");
-    game.FixedTick({false,false,true});float apex=t.position.y;
-    for(int n=0;n<180;++n){game.FixedTick({});apex=std::min(apex,t.position.y);}
-    Check(ground-apex>15.1f && ground-apex<15.8f,"recommended single jump height");
+    game.FixedTick({false,false,true,false,false,true});float apex=t.position.y;
+    for(int n=0;n<180;++n){game.FixedTick({false,false,false,false,false,true});apex=std::min(apex,t.position.y);}
+    const float heldHeight=ground-apex;
+    Check(heldHeight>21.f && heldHeight<23.f,"held jump reaches configured full height");
     Check(game.Get<Player>(player).grounded,"jump returns to floor");
+    game.FixedTick({false,false,true,false,false,true});float tapApex=t.position.y;
+    for(int n=0;n<180;++n){game.FixedTick({});tapApex=std::min(tapApex,t.position.y);}
+    Check(ground-tapApex>4.f && ground-tapApex<6.f && heldHeight>ground-tapApex+12.f,"releasing jump makes a shorter arc");
+    Check(game.Get<Player>(player).grounded,"short jump returns to floor");
+    game.FixedTick({false,false,true});Check(game.Get<Player>(player).jumps==1,"grounded first jump");
+    game.FixedTick({false,false,true});Check(game.Get<Player>(player).jumps==2,"grounded takeoff retains one air jump");
+    game.FixedTick({false,false,true});Check(game.Get<Player>(player).jumps==2,"grounded takeoff rejects third jump");
+    for(int n=0;n<180;++n)game.FixedTick({});Check(game.Get<Player>(player).grounded&&game.Get<Player>(player).jumps==0,"landing replenishes two jumps");
     // Move the same solid overhead; an upward collision must cancel ascent.
     ft.position={t.position.x,ground-5};ft.size={100,1};
     game.FixedTick({false,false,true});bool stopped=false;
@@ -69,7 +82,7 @@ static void TestPhysics() {
     for(int n=0;n<45;++n)route.FixedTick({false,true});
     for(int n=0;n<180;++n) {
         auto pos=route.Get<Transform>(rp).position;
-        route.FixedTick({false,pos.x < (pos.y < -1.6f ? -58.5f : -63.f),n==0 || n==66});
+        route.FixedTick({false,pos.x < (pos.y < -1.6f ? -58.5f : -63.f),n==0 || n==66,false,false,n<30||(n>=66&&n<96)});
     }
     Check(route.GetState()==State::Playing && route.Get<Player>(rp).grounded && route.Get<Transform>(rp).position.y<0,"original high platform reachable");
 }
@@ -126,6 +139,8 @@ static void TestCharacterContacts() {
     for(int n=0;n<100;++n)game.FixedTick({});
     for(int n=0;n<40;++n)game.FixedTick({false,true});
     Check(!game.Get<Player>(player).grounded && v.y>0 && t.position.y>groundedY+.5f,"walk off edge without hovering");
+    game.FixedTick({false,false,true});Check(game.Get<Player>(player).jumps==2&&v.y<0,"ledge fall allows one air jump");
+    game.FixedTick({false,false,true});Check(game.Get<Player>(player).jumps==2,"ledge fall rejects another jump");
     // Hazards still use their alpha mask, tested against the inner body only.
     clear();place({0,0});auto hazard=tile(0,{1.7f,0},{.2f,.2f});game.Get<Behavior>(hazard).role=Role::Hazard;
     game.FixedTick({});Check(game.GetState()==State::Playing,"cape area alone does not hit hazard");
@@ -155,12 +170,16 @@ int main() {
         }
         int sounds=0;game.playSound=[&](const auto&){++sounds;};
         auto player=game.PlayerEntity();
-        auto resetAir=[&] {game.Restart();game.Get<Transform>(player).position={0,-65};};
+        auto resetAir=[&] {game.Restart();game.Get<Transform>(player).position={0,-65};auto& p=game.Get<Player>(player);p.grounded=false;p.jumps=0;};
         resetAir();game.FixedTick({false,false,true});
-        Check(game.Get<Player>(player).jumps==1,"first jump");
-        game.FixedTick({false,false,true});Check(game.Get<Player>(player).jumps==2,"second jump");
+        Check(game.Get<Player>(player).jumps==2,"falling player uses only air jump");
         float vy=game.Get<Motion>(player).velocity.y;game.FixedTick({false,false,true});
-        Check(game.Get<Player>(player).jumps==2 && game.Get<Motion>(player).velocity.y>vy,"reject third jump");
+        Check(game.Get<Player>(player).jumps==2 && game.Get<Motion>(player).velocity.y>vy,"reject second jump after falling");
+        resetAir();game.FixedTick({false,false,true,false,false,true});
+        Check(game.Get<Player>(player).jumpHoldRemaining>0,"air jump opens hold window");
+        game.FixedTick({});Check(game.Get<Player>(player).jumpHoldRemaining==0,"release closes hold window");
+        game.FixedTick({false,false,true,false,false,true});
+        Check(game.Get<Player>(player).jumps==2 && game.Get<Player>(player).jumpHoldRemaining==0,"falling player has no second air jump");
         resetAir();auto x=game.Get<Transform>(player).position.x;game.FixedTick({false,true});
         Check(game.Get<Transform>(player).position.x>x,"right movement");game.FixedTick({true,true});
         Check(game.Get<Motion>(player).velocity.x==0,"opposing input cancels");
@@ -183,7 +202,7 @@ int main() {
         Check(corpse,"victory displays death history");game.Restart();Check(game.Get<Collider>(game.Find("gg")).enabled,"goal restart");
         // Fixed-step accumulator preserves a short jump edge until a tick occurs.
         resetAir();game.Advance(.001,{false,false,true});Check(game.Get<Player>(player).jumps==0,"substep queued");
-        game.Advance(.01,{});Check(game.Get<Player>(player).jumps==1,"queued jump consumed");
+        game.Advance(.01,{});Check(game.Get<Player>(player).jumps==2,"queued air jump consumed");
         // A real map floor catches a high downward velocity; no tunneling.
         game.Restart();auto& t=game.Get<Transform>(player);t.position={-62.5f,22};game.Get<Motion>(player).velocity={0,150};
         for(int n=0;n<12;++n) game.FixedTick({});

@@ -1,0 +1,15 @@
+{
+  "format": "IWANNA_PREFAB_1",
+  "pixelArt": true,
+  "role": "hazard",
+  "image": "trap_explosion_atlas.png",
+  "width": 8,
+  "height": 8,
+  "collide": false,
+  "animation": {
+    "columns": 6,
+    "rows": 4,
+    "duration": 1.0,
+    "loop": false
+  }
+}

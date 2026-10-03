@@ -1,0 +1,135 @@
+{
+  "format": "IWANNA_TRAP_ASSETS_1",
+  "generator": "tools/build_iwanna_delayed_trap_assets.py",
+  "sources": {
+    "laserSheet": {
+      "file": "Lasers.png",
+      "sha256": "0932dffdd6ea16c6b45fd91cae0c29a86ebab692181d1b270c8bfb17e450b763"
+    },
+    "explosionArchive": {
+      "file": "爆炸特效.zip",
+      "sha256": "b72cca57e12ec16e5dae4c3a36f859334d413e8c2618f70122fc8e536b30d2e3"
+    },
+    "laserSound": {
+      "file": "Laser.wav",
+      "sha256": "a484248488073bcccb28d44f704f648af40da32b9d5244011da5700dad16b44d"
+    },
+    "explosionSound": {
+      "file": "Boom.mp3",
+      "sha256": "eeece729a6f2ba61e051b5d984ad86b0f303818277852ad20a3dca32cea2b453"
+    }
+  },
+  "explosionBake": "PNG layers composed offline; original Spine project is preserved in the extraction folder.",
+  "animations": {
+    "explosion": {
+      "image": "trap_explosion_atlas.png",
+      "columns": 6,
+      "rows": 4,
+      "frames": 24,
+      "cellWidth": 192,
+      "cellHeight": 192,
+      "duration": 1.0,
+      "loop": false,
+      "framesPerSecond": 24,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "sha256": "9a85d89958471044e76c60aaf780bf3c6850e2bbd359181584f7488e42e372d2"
+    },
+    "laser": {
+      "image": "trap_laser_atlas.png",
+      "columns": 8,
+      "rows": 1,
+      "frames": 8,
+      "cellWidth": 128,
+      "cellHeight": 320,
+      "duration": 0.4,
+      "loop": true,
+      "framesPerSecond": 20,
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "sourceRectangles": [
+        [
+          262,
+          257,
+          385,
+          557
+        ],
+        [
+          385,
+          208,
+          492,
+          507
+        ],
+        [
+          493,
+          205,
+          592,
+          507
+        ],
+        [
+          592,
+          205,
+          674,
+          496
+        ],
+        [
+          262,
+          557,
+          382,
+          853
+        ],
+        [
+          382,
+          557,
+          488,
+          854
+        ],
+        [
+          491,
+          507,
+          591,
+          799
+        ],
+        [
+          591,
+          498,
+          674,
+          799
+        ]
+      ],
+      "frameOrder": [
+        0,
+        4,
+        1,
+        5,
+        2,
+        6,
+        3,
+        7
+      ],
+      "sha256": "2478de75967a85ef9da71a0d29d3cbed82e6fbf9df884243dfbfb5c3479bc0ef"
+    }
+  },
+  "audio": {
+    "trap_laser": {
+      "file": "trap_laser.wav",
+      "format": "PCM16",
+      "sampleRate": 44100,
+      "channels": 1,
+      "duration": 0.4852607709750567,
+      "sha256": "edfad07c074707bbe5663603381e9eabd08eb17e456c0eea698ed2409d2b2d5e"
+    },
+    "trap_explosion": {
+      "file": "trap_explosion.wav",
+      "format": "PCM16",
+      "sampleRate": 44100,
+      "channels": 1,
+      "duration": 3.061224489795918,
+      "sha256": "78f84fcc1ef6d7471bac5917a0fe068a121c1586206c03ea36f22c49ad5ca8c9"
+    }
+  }
+}

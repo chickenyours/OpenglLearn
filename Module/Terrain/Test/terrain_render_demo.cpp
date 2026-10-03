@@ -16,7 +16,10 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <memory>
+#include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include <glad/glad.h>
@@ -32,6 +35,8 @@
 #include "ApplicationWindow/module.h"
 #include "Render/module.h"
 #include "Render/Private/rhi_mesh_upload_queue.h"
+#include "Render/Private/Material/rhi_material_resources.h"
+#include "Render/Public/Material/material_runtime.h"
 #include "Render/Public/Pipeline/render_pipeline.h"
 #include "Render/Public/Pipeline/render_world.h"
 #include "Render/Public/RHIResourceType/Buffer/uniform_buffer.h"
@@ -98,6 +103,10 @@ layout(std140, binding = 0) uniform ViewData {
 };
 
 layout(binding = 0) uniform sampler2D uAtlas;
+layout(std140, binding = 2) uniform MaterialData {
+    vec4 baseColor;
+    vec4 surfaceParameters; // ambient, diffuse, fog near, fog far
+};
 
 in vec3 vWorldPosition;
 in vec3 vNormal;
@@ -110,14 +119,14 @@ void main() {
     const vec3 sky = vec3(0.44, 0.68, 0.90);
     vec3 n = normalize(vNormal);
     vec3 lightDirection = normalize(vec3(0.42, 0.86, 0.28));
-    float light = 0.34 + 0.66 * max(dot(n, lightDirection), 0.0);
+    float light = surfaceParameters.x + surfaceParameters.y * max(dot(n, lightDirection), 0.0);
 
     // Atlas sample, tinted by the per-face vertex color (future biome tint).
-    vec3 albedo = texture(uAtlas, vTexCoord).rgb * vColor;
+    vec3 albedo = texture(uAtlas, vTexCoord).rgb * vColor * baseColor.rgb;
     vec3 color = albedo * light;
 
     float d = distance(vWorldPosition, uCameraPosition.xyz);
-    float fog = smoothstep(250.0, 400.0, d);
+    float fog = smoothstep(surfaceParameters.z, surfaceParameters.w, d);
     color = mix(color, sky, fog);
 
     FragColor = vec4(color, 1.0);
@@ -133,6 +142,10 @@ layout(std140, binding = 0) uniform ViewData {
 };
 
 layout(binding = 0) uniform sampler2D uAtlas;
+layout(std140, binding = 2) uniform MaterialData {
+    vec4 baseColor;
+    vec4 surfaceParameters; // alpha min, alpha max, Fresnel exponent, reflection weight
+};
 
 in vec3 vWorldPosition;
 in vec3 vNormal;
@@ -148,16 +161,16 @@ void main() {
     float light = 0.40 + 0.60 * max(dot(n, lightDirection), 0.0);
 
     vec3 viewDirection = normalize(uCameraPosition.xyz - vWorldPosition);
-    float fresnel = pow(1.0 - max(dot(n, viewDirection), 0.0), 3.0);
+    float fresnel = pow(1.0 - max(dot(n, viewDirection), 0.0), surfaceParameters.z);
 
-    vec3 albedo = texture(uAtlas, vTexCoord).rgb * vColor;
-    vec3 color = mix(albedo * light, sky, fresnel * 0.6);
+    vec3 albedo = texture(uAtlas, vTexCoord).rgb * vColor * baseColor.rgb;
+    vec3 color = mix(albedo * light, sky, fresnel * surfaceParameters.w);
 
     float d = distance(vWorldPosition, uCameraPosition.xyz);
     float fog = smoothstep(62.0, 88.0, d);
     color = mix(color, sky, fog);
 
-    float alpha = mix(0.60, 0.92, fresnel);
+    float alpha = mix(surfaceParameters.x, surfaceParameters.y, fresnel) * baseColor.a;
     alpha = mix(alpha, 1.0, fog);
 
     FragColor = vec4(color, alpha);
@@ -379,7 +392,8 @@ private:
     bool programRequested_ = false;
 };
 
-// Owns the uniforms and the two terrain pipelines (opaque + translucent water).
+// Creates one terrain pass. Material snapshots share ownership of its GPU
+// program, pipeline and parameter buffer until the final queued frame releases it.
 class TerrainGpu {
 public:
     TerrainGpu(Render::RHIDevice* device,
@@ -392,6 +406,41 @@ public:
           translucent_(translucent) {}
 
     void Start() {
+        using namespace Render::Material;
+        MaterialTemplateDesc materialDesc;
+        materialDesc.name = translucent_ ? "TerrainWater" : "TerrainSurface";
+        materialDesc.domain = Domain::Surface;
+        ParameterDesc baseColor;
+        baseColor.name = "baseColor";
+        baseColor.type = ParameterType::Vec4;
+        baseColor.defaultValue = glm::vec4(1.0f);
+        baseColor.displayName = "Base color tint";
+        baseColor.group = "Appearance";
+        baseColor.min = 0.0f;
+        baseColor.perObject = true;
+        ParameterDesc surface;
+        surface.name = "surfaceParameters";
+        surface.type = ParameterType::Vec4;
+        surface.defaultValue = translucent_ ? glm::vec4(0.60f, 0.92f, 3.0f, 0.6f)
+                                           : glm::vec4(0.34f, 0.66f, 250.0f, 400.0f);
+        surface.displayName = translucent_ ? "Alpha min/max, Fresnel power, reflection"
+                                          : "Ambient, diffuse, fog near/far";
+        surface.group = translucent_ ? "Water surface" : "Terrain surface";
+        surface.min = 0.0f;
+        materialDesc.parameters = {baseColor, surface};
+        materialDesc.textures = {{"atlas", 0, true}};
+        auto materialTemplate = MaterialTemplate::Create(std::move(materialDesc), &error_);
+        materialAsset_ = MaterialAsset::Create(materialTemplate, {}, &error_);
+        if (!materialAsset_) { failed_ = true; return; }
+
+        Render::CreateUniformBufferDesc material{};
+        material.byteSize = static_cast<std::uint32_t>(materialTemplate->ByteSize());
+        material.usage = Render::BufferUsage::Dynamic;
+        device_->async_CreateUniformBuffer(material, [this](auto handle) {
+            materialUniform_ = handle;
+            if (!handle.IsValid()) failed_ = true;
+        });
+
         Render::CreateUniformBufferDesc view{};
         view.byteSize = static_cast<std::uint32_t>(sizeof(Render::ViewConstants));
         view.usage = Render::BufferUsage::Dynamic;
@@ -446,7 +495,8 @@ public:
     bool Ready() const {
         return pipeline_.IsValid()
             && viewUniform_.IsValid()
-            && objectUniform_.IsValid();
+            && objectUniform_.IsValid()
+            && materialUniform_.IsValid();
     }
 
     bool Failed() const { return failed_; }
@@ -461,11 +511,48 @@ public:
         return objectUniform_;
     }
 
-    void Shutdown() {
-        if (pipeline_.IsValid()) {
-            device_->async_DeletePipeline(pipeline_);
-            pipeline_ = {};
+    std::shared_ptr<const Render::Material::MaterialSnapshot> CreateMaterial(
+        Render::RenderResourceHandle<Render::RHITextureSpec> atlas,
+        std::shared_ptr<const void> atlasLifetime) {
+        using namespace Render::Material;
+        if (!Ready() || !atlas.IsValid() || !atlasLifetime) return nullptr;
+        if (!materialLifetime_) {
+            OwnedMaterialResources owned;
+            owned.pipelines = {pipeline_};
+            owned.uniformBuffers = {materialUniform_};
+            owned.programs = {shaderProgram_};
+            owned.sources = {vertexShader_, fragmentShader_};
+            owned.dependencies = {std::move(atlasLifetime)};
+            materialLifetime_ = RetainMaterialResources(*device_, std::move(owned));
         }
+        MaterialPassResources resources;
+        resources.expectedTemplate = materialAsset_->Parameters().GetTemplate();
+        resources.pipeline = pipeline_;
+        resources.parameterBuffer = materialUniform_;
+        resources.parameterBufferBytes = static_cast<std::uint32_t>(
+            materialAsset_->Parameters().GetTemplate()->ByteSize());
+        resources.parameterBinding = 2;
+        resources.textures = {{0, atlas}};
+        resources.lifetime = materialLifetime_;
+        return MaterialSnapshot::Create(MaterialInstance(materialAsset_), std::move(resources), {}, &error_);
+    }
+
+    const std::string& Error() const { return error_; }
+
+    void Shutdown() {
+        if (materialLifetime_) {
+            materialLifetime_.reset();
+        } else {
+            if (pipeline_.IsValid()) device_->async_DeletePipeline(pipeline_);
+            if (materialUniform_.IsValid()) device_->async_DeleteUniformBuffer(materialUniform_);
+            if (shaderProgram_.IsValid()) device_->async_DeleteShaderProgram(shaderProgram_);
+            if (vertexShader_.IsValid()) device_->async_DeleteShaderSource(vertexShader_);
+            if (fragmentShader_.IsValid()) device_->async_DeleteShaderSource(fragmentShader_);
+        }
+        pipeline_ = {};
+        materialUniform_ = {};
+        shaderProgram_ = {};
+        vertexShader_ = fragmentShader_ = {};
         if (viewUniform_.IsValid()) {
             device_->async_DeleteUniformBuffer(viewUniform_);
             viewUniform_ = {};
@@ -532,6 +619,10 @@ private:
     Render::RenderResourceHandle<Render::PipelineSpec> pipeline_{};
     Render::RenderResourceHandle<Render::UniformBufferSpec> viewUniform_{};
     Render::RenderResourceHandle<Render::UniformBufferSpec> objectUniform_{};
+    Render::RenderResourceHandle<Render::UniformBufferSpec> materialUniform_{};
+    std::shared_ptr<const Render::Material::MaterialAsset> materialAsset_;
+    std::shared_ptr<const void> materialLifetime_;
+    std::string error_;
     bool programRequested_ = false;
     bool failed_ = false;
 };
@@ -700,6 +791,25 @@ int main(int argc, char** argv) {
         return 4;
     }
 
+    Terrain::System::RenderSettings terrainSettings{};
+    terrainSettings.atlas = atlas.TakeHandle();
+    Render::Material::OwnedMaterialResources atlasResources;
+    atlasResources.textures = {terrainSettings.atlas};
+    auto atlasLifetime = Render::Material::RetainMaterialResources(*device, std::move(atlasResources));
+    terrainSettings.materials[0] = gpu.CreateMaterial(terrainSettings.atlas, atlasLifetime);
+    terrainSettings.materials[2] = waterGpu.CreateMaterial(terrainSettings.atlas, atlasLifetime);
+    if (!terrainSettings.materials[0] || !terrainSettings.materials[2]) {
+        std::cerr << "Failed to initialize terrain materials: " << gpu.Error() << ' ' << waterGpu.Error() << '\n';
+        terrainSettings.materials = {};
+        gpu.Shutdown();
+        waterGpu.Shutdown();
+        atlasLifetime.reset();
+        callbackSystem.OnEnd();
+        renderModule.Shutdown();
+        windowModule.Shutdown();
+        return 4;
+    }
+
     // The job pool must exist before any Scene is constructed.
     ECS::Core::ECSKernel kernel;
     kernel.Init();
@@ -750,11 +860,6 @@ int main(int argc, char** argv) {
 
     CrosshairGpu crosshair(device, &uploader);
     crosshair.Start();
-
-    Terrain::System::RenderSettings terrainSettings{};
-    terrainSettings.pipelines[0] = gpu.Pipeline();
-    terrainSettings.pipelines[2] = waterGpu.Pipeline();
-    terrainSettings.atlas = atlas.Handle();
 
     ECS::System::Pipeline pipeline;
     pipeline.Add<Terrain::System::StreamingSystem>(chunkArchetype);
@@ -883,13 +988,21 @@ int main(int argc, char** argv) {
 
         pipeline.Tick(context);
 
+        if (!frameService.recordSucceeded) {
+            std::cerr << "Failed to record terrain material frame.\n";
+            frame.Cancel();
+            break;
+        }
+
         if (!frame.End(true)) {
             std::cerr << "Failed to end frame.\n";
+            frame.Cancel();
             break;
         }
 
         if (!device->async_SubmitLatestFrameCommands(frame.GetCommandBuffer())) {
             std::cerr << "Failed to submit frame.\n";
+            frame.Cancel();
             break;
         }
 
@@ -909,9 +1022,16 @@ int main(int argc, char** argv) {
     callbackSystem.OnTick();
     callbackSystem.OnEnd();
 
+    terrainSettings.materials = {};
+    // Release any CPU publication before RHIDevice shutdown. Submitted command
+    // buffers retain their own snapshots until the render thread consumes them.
+    {
+        Render::RenderFrame pending;
+        renderWorld.Consume(pending);
+    }
     gpu.Shutdown();
     waterGpu.Shutdown();
-    atlas.Shutdown();
+    atlasLifetime.reset();
 
     int smokeErrors = 0;
     if(smokeTest) {

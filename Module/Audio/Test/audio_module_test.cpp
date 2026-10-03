@@ -1,10 +1,75 @@
 #include "Audio/Public/audio_module.h"
+#include "Audio/Private/pcm_conversion.h"
+#include <algorithm>
 #include <array>
+#include <atomic>
+#include <chrono>
 #include <cmath>
 #include <iostream>
+#include <limits>
+#include <numbers>
+#include <source_location>
 #include <stdexcept>
-static void Check(bool v) { if(!v) throw std::runtime_error("audio test failed"); }
-int main() {
+#include <thread>
+static void Check(bool v,const std::source_location& at=std::source_location::current()) {
+    if(!v) throw std::runtime_error("audio test failed at line "+std::to_string(at.line()));
+}
+static void StreamingChecks() {
+    auto tone=std::make_shared<Audio::Clip>(); tone->channels=2; tone->sampleRate=44100;
+    for(size_t i=0;i<4410;++i) {
+        float sample=.8f*std::sin(2*std::numbers::pi_v<float>*440*float(i)/44100);
+        tone->samples.push_back(sample); tone->samples.push_back(sample*.5f);
+    }
+    Audio::Mixer whole,chunked;
+    for(auto* mixer:{&whole,&chunked}) { mixer->Play(tone,1,true); mixer->Play(tone,1,true); }
+    std::vector<float> expected(48000),actual(expected.size()); whole.Render(expected);
+    // Exercise arbitrary callback lengths across both a source loop and rate
+    // conversion boundaries; a backend can batch several completed buffers.
+    const std::array<size_t,7> sizes={2,1024,4096,62,2048,128,358};
+    size_t offset=0,step=0;
+    while(offset<actual.size()) {
+        size_t count=std::min(sizes[step++%sizes.size()],actual.size()-offset);
+        chunked.Render(std::span(actual).subspan(offset,count)); offset+=count;
+    }
+    size_t nearCeiling=0;
+    for(size_t i=0;i<expected.size();i+=2) {
+        Check(expected[i]==actual[i] && expected[i+1]==actual[i+1]);
+        Check(std::isfinite(actual[i]) && std::abs(actual[i])<=1);
+        Check(std::abs(actual[i+1]-.5f*actual[i])<.000001f);
+        if(i>4800 && std::abs(actual[i])>.999f) ++nearCeiling;
+    }
+    // A hard clip of this 1.6-peak tone saturates ~57% of its samples. The
+    // limiter should retain an ordinary waveform after its initial attack.
+    Check(nearCeiling<expected.size()/20);
+    std::cout<<"overlapping 1.6-peak tone: "<<nearCeiling<<" near-full-scale samples in "<<expected.size()/2<<" frames\n";
+    chunked.StopAll(); chunked.Play(tone); std::array<float,200> normal{}; chunked.Render(normal,44100);
+    for(size_t i=0;i<normal.size();++i) Check(normal[i]==tone->samples[i]);
+    using Audio::Detail::ToPcm16;
+    Check(ToPcm16(0)==0 && ToPcm16(1)==32767 && ToPcm16(-1)==-32767);
+    Check(ToPcm16(2)==32767 && ToPcm16(-2)==-32767);
+    Check(ToPcm16(std::numeric_limits<float>::quiet_NaN())==0 && ToPcm16(std::numeric_limits<float>::infinity())==0);
+    // Quantization must not introduce a block-edge jump or asymmetric DC bias.
+    for(float sample:{-.75f,-.01f,.01f,.75f}) {
+        Check(ToPcm16(-sample)==-ToPcm16(sample));
+        Check(std::abs(float(ToPcm16(sample))/32767-sample)<=.5f/32767);
+    }
+}
+static void DeviceChecks() {
+    auto output=Audio::CreateNativeOutput();
+    for(uint32_t rate:{48000u,44100u}) {
+        std::atomic<size_t> frames{}; std::string error;
+        Check(output->Open(rate,[&](std::span<float> pcm) {
+            std::fill(pcm.begin(),pcm.end(),0.f); frames+=pcm.size()/2;
+        },error));
+        std::this_thread::sleep_for(std::chrono::milliseconds(220)); output->Close();
+        const auto stopped=frames.load(); Check(stopped>=size_t(rate)/10);
+        std::this_thread::sleep_for(std::chrono::milliseconds(30)); Check(frames==stopped);
+        output->Close();
+        std::cout<<"native silent device "<<rate<<"Hz: "<<stopped<<" frames, callbacks stopped after Close PASS\n";
+    }
+}
+int main(int argc,char** argv) {
+    try {
     std::vector<uint8_t> wav={'R','I','F','F',40,0,0,0,'W','A','V','E','f','m','t',' ',16,0,0,0,
         1,0,1,0,0x80,0xbb,0,0,0,0x77,1,0,2,0,16,0,'d','a','t','a',4,0,0,0,0,0x40,0,0xc0};
     auto clip=Audio::Clip::DecodeWav(wav); Check(clip->samples.size()==2); Check(clip->samples[0]==.5f && clip->samples[1]==-.5f);
@@ -31,5 +96,17 @@ int main() {
     mixer.StopAll();mixer.SetVolume(1);mixer.Play(stereo);mixer.Render(out);Check(out[0]==.25f && out[1]==-.75f && out[2]==0);
     for(size_t i=0;i<wav.size();++i) { bool threw=false; try { Audio::Clip::DecodeWav(std::span(wav).first(i)); } catch(const std::runtime_error&) {threw=true;} Check(threw); }
     wav[22]=3; bool threw=false; try { Audio::Clip::DecodeWav(wav); } catch(const std::runtime_error&) {threw=true;} Check(threw);
-    std::cout<<"audio: PCM8/16/24/32, float32, malformed/truncated WAV, stereo, resampling, pan, loop, stop, clipping PASS\n";
+    StreamingChecks();
+    for(int i=1;i<argc;++i) {
+        const std::string arg=argv[i];
+        if(arg=="--device-test") DeviceChecks();
+        else if(arg=="--wav-dir" && i+1<argc) {
+            for(const auto& item:std::filesystem::directory_iterator(argv[++i])) if(item.path().extension()==".wav") {
+                auto asset=Audio::Clip::LoadWav(item.path()); Check(!asset->samples.empty());
+                std::cout<<item.path().filename().string()<<": "<<asset->sampleRate<<"Hz, "<<asset->channels<<"ch decoded PASS\n";
+            }
+        } else throw std::runtime_error("unknown audio test argument");
+    }
+    std::cout<<"audio: WAV formats, stereo/resampling/loop, callback-block continuity, linked peak limiter, finite PCM conversion PASS\n";
+    } catch(const std::exception& error) { std::cerr<<error.what()<<'\n'; return 1; }
 }

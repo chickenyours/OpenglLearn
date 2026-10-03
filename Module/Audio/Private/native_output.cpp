@@ -1,4 +1,5 @@
 #include "Audio/Public/audio_module.h"
+#include "pcm_conversion.h"
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -22,34 +23,63 @@ namespace {
 #if defined(_WIN32)
 class NativeOutput final : public Output {
     HWAVEOUT device_{}; std::thread worker_; std::atomic_bool stop_{false};
-    std::array<WAVEHDR,3> headers_{};
-    std::array<std::array<int16_t,1024>,3> buffers_{};
+    HANDLE completed_{};
+    // 85ms at the module's 48kHz rate: enough queue depth for a delayed game
+    // thread without increasing the amount of work in each device callback.
+    static constexpr size_t bufferCount=4, samplesPerBuffer=2048;
+    std::array<WAVEHDR,bufferCount> headers_{};
+    std::array<std::array<int16_t,samplesPerBuffer>,bufferCount> buffers_{};
+    bool Fill(size_t index,Pull& pull,std::span<float> pcm) {
+        std::fill(pcm.begin(),pcm.end(),0.f);
+        pull(pcm);
+        for(size_t j=0;j<pcm.size();++j) buffers_[index][j]=Detail::ToPcm16(pcm[j]);
+        return waveOutWrite(device_,&headers_[index],sizeof(WAVEHDR))==MMSYSERR_NOERROR;
+    }
 public:
     ~NativeOutput() override { Close(); }
     bool Open(uint32_t rate,Pull pull,std::string& error) override {
         Close(); WAVEFORMATEX fmt{}; fmt.wFormatTag=WAVE_FORMAT_PCM; fmt.nChannels=2; fmt.nSamplesPerSec=rate;
         fmt.wBitsPerSample=16; fmt.nBlockAlign=4; fmt.nAvgBytesPerSec=rate*4;
-        if(waveOutOpen(&device_,WAVE_MAPPER,&fmt,0,0,CALLBACK_NULL)!=MMSYSERR_NOERROR) { device_=nullptr; error="waveOut: no available audio device"; return false; }
-        for(size_t i=0;i<3;++i) {
+        if(!pull || rate<1000 || rate>384000) { error="waveOut: invalid sample rate or callback"; return false; }
+        completed_=CreateEventW(nullptr,FALSE,FALSE,nullptr);
+        if(!completed_) { error="waveOut: cannot create completion event"; return false; }
+        if(waveOutOpen(&device_,WAVE_MAPPER,&fmt,reinterpret_cast<DWORD_PTR>(completed_),0,CALLBACK_EVENT)!=MMSYSERR_NOERROR) { device_=nullptr; error="waveOut: no available audio device"; Close(); return false; }
+        // Queue a full preroll before starting playback; the first submitted
+        // block must not start while later blocks are still being prepared.
+        if(waveOutPause(device_)!=MMSYSERR_NOERROR) { error="waveOut: pause failed"; Close(); return false; }
+        for(size_t i=0;i<bufferCount;++i) {
             auto& h=headers_[i]; h={}; h.lpData=reinterpret_cast<char*>(buffers_[i].data()); h.dwBufferLength=sizeof(buffers_[i]);
             if(waveOutPrepareHeader(device_,&h,sizeof(h))!=MMSYSERR_NOERROR) { error="waveOut: buffer preparation failed"; Close(); return false; }
         }
-        stop_=false;
-        worker_=std::thread([this,pull=std::move(pull)] {
-            std::array<float,1024> pcm{};
-            while(!stop_) {
-                for(size_t i=0;i<3;++i) if(!(headers_[i].dwFlags&WHDR_INQUEUE)) {
-                    pull(pcm);
-                    for(size_t j=0;j<pcm.size();++j) buffers_[i][j]=int16_t(std::clamp(pcm[j],-1.f,1.f)*32767);
-                    if(waveOutWrite(device_,&headers_[i],sizeof(WAVEHDR))!=MMSYSERR_NOERROR) { stop_=true; break; }
-                }
-                std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        std::array<float,samplesPerBuffer> preroll{};
+        try {
+            for(size_t i=0;i<bufferCount;++i) if(!Fill(i,pull,preroll)) {
+                error="waveOut: initial buffer submission failed"; Close(); return false;
             }
-        }); return true;
+        } catch(...) { error="waveOut: audio callback failed"; Close(); return false; }
+        stop_=false;
+        worker_=std::thread([this,pull=std::move(pull)]() mutable {
+            SetThreadPriority(GetCurrentThread(),THREAD_PRIORITY_HIGHEST);
+            std::array<float,samplesPerBuffer> pcm{};
+            size_t next=0;
+            while(!stop_) {
+                // An auto-reset event can coalesce several completions. Drain
+                // every completed block in submission order before sleeping.
+                if(WaitForSingleObject(completed_,INFINITE)!=WAIT_OBJECT_0) { stop_=true; break; }
+                while(!stop_ && (headers_[next].dwFlags&WHDR_DONE) && !(headers_[next].dwFlags&WHDR_INQUEUE)) {
+                    try { if(!Fill(next,pull,pcm)) { stop_=true; break; } }
+                    catch(...) { stop_=true; break; }
+                    next=(next+1)%bufferCount;
+                }
+            }
+        });
+        if(waveOutRestart(device_)!=MMSYSERR_NOERROR) { error="waveOut: playback start failed"; Close(); return false; }
+        return true;
     }
     void Close() override {
-        stop_=true; if(worker_.joinable()) worker_.join();
+        stop_=true; if(completed_) SetEvent(completed_); if(worker_.joinable()) worker_.join();
         if(device_) { waveOutReset(device_); for(auto& h:headers_) if(h.dwFlags&WHDR_PREPARED) waveOutUnprepareHeader(device_,&h,sizeof(h)); waveOutClose(device_); device_=nullptr; }
+        if(completed_) { CloseHandle(completed_); completed_=nullptr; }
     }
 };
 #elif defined(__APPLE__)
@@ -90,7 +120,7 @@ public:
         stop_=false; worker_=std::thread([this,pull=std::move(pull)] {
             std::array<float,1024> pcm{}; std::array<int16_t,1024> bytes{};
             while(!stop_) {
-                pull(pcm); for(size_t i=0;i<pcm.size();++i) bytes[i]=int16_t(std::clamp(pcm[i],-1.f,1.f)*32767);
+                pull(pcm); for(size_t i=0;i<pcm.size();++i) bytes[i]=Detail::ToPcm16(pcm[i]);
                 size_t offset=0;
                 while(offset<sizeof(bytes) && !stop_) {
                     auto n=write(fd_,reinterpret_cast<char*>(bytes.data())+offset,sizeof(bytes)-offset);

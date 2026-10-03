@@ -1,5 +1,7 @@
 # AI / Agent 内容编辑规范
 
+Prefab 的完整工作流、现有 C++ / Lua 接口和生物 AI / Boss 扩展契约见 [PREFAB_API.md](../../../Module/IWanna/PREFAB_API.md)。
+
 ## 入口与文件边界
 
 编辑 `Asset/IWanna/Workshop`，而不是 `bin/IWanna` 的构建副本。
@@ -12,6 +14,8 @@
 资源 ID 取完整文件名移除对应后缀，区分大小写。推荐 `[a-z0-9_-]+`；复制文件即产生新资源，不要向文件内部添加需要全局唯一的房间 ID。仅扫描目录第一层；`.trash`、备份和临时文件不会加载。
 
 实体键在房间内唯一；`player` 保留。实体重排不改变脚本引用。房间文件复制保留内部实体 ID，因此房间内的 Lua 仍可以按原 ID 找到目标。引用其他房间保持原目标；需要复制后指向自身时，门或边界的目标房间使用 `$self`。
+
+房间根级可选 `camera`，例如 `"camera":{"mode":"follow","offset":[0,0],"zoom":2,"followSpeed":8,"clampToRoom":true}`。固定舞台视角使用 `"mode":"fixed","position":[0,0]`；未填写时默认固定视角并自动适配整间房。运行时 Lua 可调用 `ctx:camera_fixed(x,y,zoom)` 或 `ctx:camera_follow(offsetX,offsetY,zoom,followSpeed)`。摄像机坐标、尺寸与房间实体统一使用世界单位。
 
 ## 房间格式
 
@@ -28,22 +32,22 @@
   "entities": {
     "left": {"kind":"Spawn", "position":[-2.5,-2.5], "properties":{}},
     "apple_01": {
-      "kind":"Entity", "prefab":"apple", "position":[2,-2], "size":[3,3],
+      "kind":"Entity", "prefab":"apple", "position":[2,-2], "size":[3,3], "rotation":90,
       "properties":{"event":"drop", "speed":20, "detectionEnabled":true, "detectionX":0, "detectionY":0, "detectionW":2, "detectionH":2}
     }
   },
-  "connections": {"right":{"room":"gallery","spawn":"left"}},
+  "boundaries": {"right":{"action":"transfer","room":"gallery","spawn":"left","position":[-10,5]}, "bottom":{"action":"death"}, "top":{"action":"ignore"}},
   "scriptLua": "return {}"
 }
 ```
 
-坐标全部为世界单位，x 向右、y 向下；Entity 的 position 是中心，size 是宽高。Spawn 与 Label 是点。GID 0 为空格，其余整数引用 palette；图片文件位于共用 `IWanna/images`。房间复制共用图片资源，不把图片重复打包。
+坐标全部为世界单位，x 向右、y 向下；Entity 的 position 是中心，size 是宽高，rotation 是绕中心的角度（度，正值顺时针，范围 ±3600）。省略实例 rotation 时继承 Prefab 顶层 rotation，默认 0。贴图、蒙版和局部检测框一同旋转；Lua `ctx:set_rotation("apple_01",90)` 可实时修改。Spawn 与 Label 是点。GID 0 为空格，其余整数引用 palette；图片文件位于共用 `IWanna/images`。房间复制共用图片资源，不把图片重复打包。
 
 kind=Entity 必须引用已存在 prefab；kind=Label 的 properties 包含 text，可选 textScale；kind=Spawn 的实体键就是出生点 ID。
 
 properties 是键值对象，值支持字符串、数字、布尔值。保留字段：event、visible、collide、destinationRoom、destinationSpawn、detectionEnabled/X/Y/W/H。其他自定义标量在 Lua 触发事件中以 event.properties 暴露。模板默认值与实例 properties 合并，实例优先。未知的房间/实体元数据字段会在编辑器保存时保留，可将说明放在 metadata 中；不要把结构化对象放进运行时 properties。
 
-scriptLua 内嵌在房间资源中，必须返回回调表。JSON 文件编辑时通过标准 JSON 序列化处理换行和引号。没有外部 Lua 文件依赖，复制房间文件即可携带规则。脚本可用 API 和限制继承 `Module/Scripting/README.md`、`Asset/IWanna/Showcase/README.md`。
+房间规则使用 `scriptLua` 内嵌源码，或用 `script` 指向项目根目录下的独立 `.lua` 文件，二者不能同时出现。两种脚本都必须返回回调表。独立内容项目推荐 `"script":"scripts/room_01.lua"`，开发者直接编辑 Lua 后重启游戏即可生效；复制房间 JSON 时也要复制脚本或明确共享脚本。脚本可用 API 和限制继承 `Module/Scripting/README.md`、`Asset/IWanna/Showcase/README.md`。
 
 ## 预制体格式
 
@@ -67,9 +71,9 @@ role 支持 solid/hazard/checkpoint/trigger/exit/decoration。预制体默认检
 
 ## 拓扑与删除
 
-connections 只允许 left/right/top/bottom，目标为显式 room/spawn。不通过房间坐标推断邻居，不在目录排序中推断连接。出口 prefab role=exit，目标由实例 properties 指定。
+`boundaries` 的键只允许 left/right/top/bottom；每条规则的 action 为 `transfer`、`death` 或 `ignore`。transfer 指定目标 `room` 和 `spawn` 或 `position`（也可同时指定；position 是目标房间内的角色中心坐标）；`room` 可以写 `$self`。没有显式规则的边界默认死亡。旧版 `connections` 仍按 transfer 读取，`boundaries` 同名规则优先；新增内容使用 `boundaries`。不通过房间坐标或目录排序推断邻居。出口 prefab role=exit，目标由实例 properties 指定。
 
-删除文件之前检查其他房间的 connections 和 exit 实例；还需检查脚本中的 ctx:change_room 字符串（动态脚本引用无法静态推断）。删除起始房间需更新 world.json 的 startRoom/startSpawn。编辑器内删除会检查静态入边并保留文件到 .trash；Agent 操作建议同样移入 .trash。
+删除文件之前检查其他房间的 boundaries、旧 connections 和 exit 实例；还需检查脚本中的 ctx:change_room 字符串（动态脚本引用无法静态推断）。删除起始房间需更新 world.json 的 startRoom/startSpawn。编辑器内删除会检查静态入边并保留文件到 .trash；Agent 操作建议同样移入 .trash。
 
 ## 建议的编辑流程
 

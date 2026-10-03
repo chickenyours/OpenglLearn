@@ -25,12 +25,17 @@ namespace Render{
             // shader
             virtual RenderResourceHandle<ShaderProgramSpec> CreateGraphicShaderProgram(const CreateGraphicShaderProgramCommand& command) = 0;
             virtual RenderResourceHandle<ShaderSourceSpec> CreateShaderSource(const CreateShaderSourceCommand& command) = 0;
+            // Defaults preserve source compatibility for external backends.
+            virtual void DeleteShaderSource(const DeleteShaderSourceCommand&) {}
+            virtual void DeleteShaderProgram(const DeleteShaderProgramCommand&) {}
             // pipeline
             virtual RenderResourceHandle<PipelineSpec> CreatePipeline(const CreatePipelineCommand&) = 0;
             virtual void DeletePipeline(const DeletePipelineCommand&) = 0;
             // texture
             virtual RenderResourceHandle<RHITextureSpec> CreateTexture(const CreateTextureCommand&) = 0;
             virtual void DeleteTexture(const DeleteTextureCommand&) = 0;
+            virtual RenderResourceHandle<RenderTargetSpec> CreateRenderTarget(const CreateRenderTargetCommand&) { return {}; }
+            virtual void DeleteRenderTarget(const DeleteRenderTargetCommand&) {}
             // frame
             virtual void SetBackgroundColor(const RHICommand::SetBackgroundColor& command) = 0;
             virtual void Flip(const RHICommand::Flip& command) = 0;
@@ -40,6 +45,7 @@ namespace Render{
             virtual void DrawInstance(const RHICommand::DrawInstance& command) = 0;
             virtual void DrawRect(const RHICommand::DrawRect& command) = 0;
             virtual void BeginFrame(const RHICommand::BeginFrame& command) = 0;
+            virtual void SetRenderTarget(const RHICommand::SetRenderTarget&) {}
             virtual void EndFrame(const RHICommand::EndFrame& command) = 0;
             virtual void SetViewport(const RHICommand::SetViewport& command) = 0;
             virtual void SetScissor(const RHICommand::SetScissor& command) = 0;

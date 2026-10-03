@@ -52,7 +52,7 @@ VoiceID Mixer::Play(std::shared_ptr<const Clip> clip,float gain,bool loop,float 
     const auto id=next_++; voices_.push_back({id,std::move(clip),0,std::clamp(gain,0.f,4.f),std::clamp(pan,-1.f,1.f),loop}); return id;
 }
 void Mixer::Stop(VoiceID id) { std::lock_guard lock(mutex_); std::erase_if(voices_,[=](const auto& v){return v.id==id;}); }
-void Mixer::StopAll() { std::lock_guard lock(mutex_); voices_.clear(); }
+void Mixer::StopAll() { std::lock_guard lock(mutex_); voices_.clear(); limiterGain_=1; }
 void Mixer::SetVolume(float v) { std::lock_guard lock(mutex_); volume_=std::isfinite(v)?std::clamp(v,0.f,1.f):0; }
 void Mixer::Render(std::span<float> out,uint32_t rate) {
     std::lock_guard lock(mutex_); std::fill(out.begin(),out.end(),0);
@@ -67,13 +67,26 @@ void Mixer::Render(std::span<float> out,uint32_t rate) {
                 const size_t sc=ch%c.channels;
                 float s=c.samples[a*c.channels+sc]*(1-t)+c.samples[b*c.channels+sc]*t;
                 if(!std::isfinite(s)) s=0;
+                else s=std::clamp(s,-1.f,1.f);
                 out[i+ch]+=s*v.gain*(ch==0?1-std::max(v.pan,0.f):1+std::min(v.pan,0.f));
             }
             v.cursor+=double(c.sampleRate)/rate;
         }
     }
     std::erase_if(voices_,[](const auto& v){return !v.loop && v.cursor>=v.clip->samples.size()/v.clip->channels;});
-    for(float& s:out) s=std::clamp(s*volume_,-1.f,1.f);
+    // Apply one gain to both channels. Hard clipping each sample used to turn
+    // overlapping loud effects into sustained square-wave-like distortion.
+    // Keep normal-level audio unchanged; recover smoothly after a loud peak.
+    // The envelope advances per frame, so output does not depend on block size.
+    const float recovery=1.f-std::exp(-1.f/(.05f*rate));
+    for(size_t i=0;i+1<out.size();i+=2) {
+        const float left=out[i]*volume_, right=out[i+1]*volume_;
+        const float peak=std::max(std::abs(left),std::abs(right));
+        const float ceiling=peak>1.f?1.f/peak:1.f;
+        limiterGain_=std::min(ceiling,limiterGain_+(1.f-limiterGain_)*recovery);
+        out[i]=std::clamp(left*limiterGain_,-1.f,1.f);
+        out[i+1]=std::clamp(right*limiterGain_,-1.f,1.f);
+    }
 }
 AudioModule::AudioModule(std::unique_ptr<Output> output):output_(std::move(output)){}
 bool AudioModule::Startup() {

@@ -24,6 +24,7 @@
 #include "engine/ECS/Query/query.h"
 #include "engine/ECS/System/system.h"
 #include "Render/Public/Pipeline/mesh_upload_queue.h"
+#include "Render/Public/Material/material_runtime.h"
 #include "Render/Public/Pipeline/render_world.h"
 #include "Render/Public/Pipeline/render_pipeline.h"
 #include "Render/Public/Pipeline/view_frustum.h"
@@ -948,6 +949,8 @@ private:
 struct RenderSettings {
     std::array<Render::RenderResourceHandle<Render::PipelineSpec>, 3> pipelines;
     Render::RenderResourceHandle<Render::RHITextureSpec> atlas;
+    // Optional per-layer materials. Legacy pipeline/atlas callers remain valid.
+    std::array<std::shared_ptr<const Render::Material::MaterialSnapshot>, 3> materials;
 };
 
 class RenderExtractSystem final : public ECS::System::System {
@@ -973,9 +976,13 @@ public:
                 if(frame && !frustum.Intersects(origin, origin + extent)) continue;
                 for(std::size_t layer = 0; layer < renders[i].layers.size(); ++layer) {
                     const GpuSubmesh& gpu = renders[i].layers[layer];
-                    if(!gpu.handle.IsValid() || gpu.indexCount == 0 || !settings->pipelines[layer].IsValid()) continue;
+                    const auto& material = settings->materials[layer];
+                    if(!gpu.handle.IsValid() || gpu.indexCount == 0 ||
+                       (!material && !settings->pipelines[layer].IsValid())) continue;
                     Render::RenderItem item{};
-                    item.mesh = gpu.handle; item.pipeline = settings->pipelines[layer]; item.texture = settings->atlas;
+                    item.mesh = gpu.handle;
+                    if(material) item.material = material;
+                    else { item.pipeline = settings->pipelines[layer]; item.texture = settings->atlas; }
                     item.model = glm::translate(glm::mat4(1.0f), origin);
                     // This handle is updated in place on the render thread.
                     // A queued frame may outlive a shrink/grow upload, so draw
@@ -988,7 +995,8 @@ public:
                         const auto delta = origin + extent * 0.5f - glm::vec3(frame->view.cameraPosition);
                         item.viewDepth = glm::dot(delta, delta);
                     }
-                    item.sortKey = (static_cast<std::uint64_t>(item.pipeline.id) << 32u) | item.texture.id;
+                    const auto pipeline = material ? material->Pipeline() : item.pipeline;
+                    item.sortKey = (static_cast<std::uint64_t>(pipeline.id) << 32u) | settings->atlas.id;
                     world->Add(std::move(item));
                 }
             }

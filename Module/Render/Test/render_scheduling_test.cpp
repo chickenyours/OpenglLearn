@@ -13,6 +13,7 @@ struct RHIDeviceTestAccess {
         device.commandSystem_.thread_SwitchQueues();
         device.thread_ProcessCurrentQueue();
     }
+    static void PumpFrame(RHIDevice& device) { device.thread_ProcessNextFrame(); }
     static bool Pending(RHIDevice& device) {
         return device.latestFrame_.has_value() || !device.commandSystem_.thread_empty() || device.commandSystem_.hasPendingCommands();
     }
@@ -27,6 +28,18 @@ public:
     Render::RHIDevice& device;
     int creates = 0, updates = 0, frames = 0, createsAtFrame = -1;
     uint64_t lastFrameIndex = 0;
+    int shaderSourceDeletes = 0, shaderProgramDeletes = 0;
+    std::function<void()> onFrame;
+    Render::RHICommand::UpdateUniformBuffer lastUniformUpdate{};
+    void DeleteShaderSource(const Render::DeleteShaderSourceCommand&) override {
+        ++shaderSourceDeletes;
+    }
+    void DeleteShaderProgram(const Render::DeleteShaderProgramCommand&) override {
+        ++shaderProgramDeletes;
+    }
+    void UpdateUniformBuffer(const Render::RHICommand::UpdateUniformBuffer& command) override {
+        lastUniformUpdate = command;
+    }
     Render::RenderResourceHandle<Render::VertexBufferSpec> CreateVertexBuffer(
         const Render::CreateVertexBufferCommand&) override {
         ++creates;
@@ -45,6 +58,7 @@ public:
         ++frames;
         lastFrameIndex = command.frameIndex;
         createsAtFrame = creates;
+        if (onFrame) onFrame();
     }
     void EndFrame(const Render::RHICommand::EndFrame&) override {}
 };
@@ -86,10 +100,230 @@ void TestUniformStreaming() {
     glad_glBufferData = oldData;
     glad_glBufferSubData = oldSubData;
 }
+
+std::vector<GLuint> deletedSources, deletedPrograms, usedPrograms;
+void APIENTRY FakeDeleteShader(GLuint shader) { deletedSources.push_back(shader); }
+void APIENTRY FakeDeleteProgram(GLuint program) { deletedPrograms.push_back(program); }
+void APIENTRY FakeUseProgram(GLuint program) { usedPrograms.push_back(program); }
+void APIENTRY FakeEnum(GLenum) {}
+void APIENTRY FakeEnumPair(GLenum, GLenum) {}
+void APIENTRY FakeBool(GLboolean) {}
+
+void TestShaderDeletion() {
+    auto oldDeleteShader = glad_glDeleteShader;
+    auto oldDeleteProgram = glad_glDeleteProgram;
+    auto oldUseProgram = glad_glUseProgram;
+    auto oldPolygonMode = glad_glPolygonMode;
+    auto oldFrontFace = glad_glFrontFace;
+    auto oldCullFace = glad_glCullFace;
+    auto oldEnable = glad_glEnable;
+    auto oldDisable = glad_glDisable;
+    auto oldDepthMask = glad_glDepthMask;
+    auto oldDepthFunc = glad_glDepthFunc;
+    auto oldBlendFunc = glad_glBlendFunc;
+    glad_glDeleteShader = FakeDeleteShader;
+    glad_glDeleteProgram = FakeDeleteProgram;
+    glad_glUseProgram = FakeUseProgram;
+    glad_glPolygonMode = FakeEnumPair;
+    glad_glFrontFace = FakeEnum;
+    glad_glCullFace = FakeEnum;
+    glad_glEnable = FakeEnum;
+    glad_glDisable = FakeEnum;
+    glad_glDepthMask = FakeBool;
+    glad_glDepthFunc = FakeEnum;
+    glad_glBlendFunc = FakeEnumPair;
+
+    Render::RHIResourcePool pool;
+    Render::OpenglBackend backend({&pool});
+    auto source = pool.shaderSourceTable.Add({Render::ShaderSourceType::Vertex, 41});
+    backend.DeleteShaderSource({source, {}});
+    assert(!pool.shaderSourceTable.Contains(source));
+    auto replacementSource = pool.shaderSourceTable.Add({Render::ShaderSourceType::Vertex, 42});
+    assert(replacementSource.id == source.id && replacementSource.version != source.version);
+    backend.DeleteShaderSource({source, {}});
+    assert(deletedSources == std::vector<GLuint>{41});
+    assert(pool.shaderSourceTable.Contains(replacementSource));
+
+    auto program = pool.shaderProgramTable.Add({Render::ShaderProgramType::Graphics, 51});
+    Render::PipelineSpec pipelineSpec{};
+    pipelineSpec.shaderProgram = program;
+    auto pipeline = pool.PipelineTable.Add(pipelineSpec);
+    backend.SetPipeline({pipeline});
+    assert(usedPrograms.back() == 51);
+    backend.DeleteShaderProgram({program, {}});
+    assert(!pool.shaderProgramTable.Contains(program) && usedPrograms.back() == 0);
+    auto replacementProgram = pool.shaderProgramTable.Add({Render::ShaderProgramType::Graphics, 52});
+    assert(replacementProgram.id == program.id && replacementProgram.version != program.version);
+    backend.DeleteShaderProgram({program, {}});
+    assert(deletedPrograms == std::vector<GLuint>{51});
+    const auto beforeStaleBind = usedPrograms.size();
+    backend.SetPipeline({pipeline});
+    assert(usedPrograms.size() == beforeStaleBind + 1 && usedPrograms.back() == 0);
+    pipelineSpec.shaderProgram = replacementProgram;
+    auto replacementPipeline = pool.PipelineTable.Add(pipelineSpec);
+    backend.SetPipeline({replacementPipeline});
+    assert(usedPrograms.back() == 52);
+    backend.DeletePipeline({replacementPipeline, {}});
+    const auto beforeDeletedPipelineBind = usedPrograms.size();
+    backend.SetPipeline({replacementPipeline});
+    assert(usedPrograms.size() == beforeDeletedPipelineBind + 1 && usedPrograms.back() == 0);
+
+    glad_glDeleteShader = oldDeleteShader;
+    glad_glDeleteProgram = oldDeleteProgram;
+    glad_glUseProgram = oldUseProgram;
+    glad_glPolygonMode = oldPolygonMode;
+    glad_glFrontFace = oldFrontFace;
+    glad_glCullFace = oldCullFace;
+    glad_glEnable = oldEnable;
+    glad_glDisable = oldDisable;
+    glad_glDepthMask = oldDepthMask;
+    glad_glDepthFunc = oldDepthFunc;
+    glad_glBlendFunc = oldBlendFunc;
+}
+
+void TestFrameOwnership() {
+    Render::RHIDevice device;
+    auto* backend = new RecordingBackend(device);
+    Render::RHIDeviceTestAccess::Install(device, backend);
+    int destroyed = 0, deferred = 0;
+    auto makeOwner = [&] {
+        return std::shared_ptr<const void>(new int(1), [&](const void* value) {
+            delete static_cast<const int*>(value);
+            ++destroyed;
+            // Both queue and pool reentry must run without either mutex held.
+            device.async_ExecuteCode([&] { ++deferred; });
+            auto temporary = device.BeginFrame({});
+            assert(temporary.Cancel());
+        });
+    };
+
+    auto owner = makeOwner();
+    std::weak_ptr<const void> weak = owner;
+    auto frame = device.BeginFrame({});
+    assert(!frame.KeepAlive({}));
+    assert(frame.KeepAlive(owner));
+    assert(frame.End(false));
+    assert(!frame.KeepAlive(owner));
+    assert(device.async_SubmitFrameCommands(frame.GetCommandBuffer()));
+    assert(!frame.Cancel());
+    owner.reset();
+    assert(!weak.expired());
+    backend->onFrame = [&] { assert(!weak.expired()); };
+    Render::RHIDeviceTestAccess::PumpFrame(device);
+    backend->onFrame = {};
+    assert(weak.expired() && destroyed == 1);
+
+    // Retiring a latest frame cannot release a resource still used by FIFO work.
+    owner = makeOwner();
+    weak = owner;
+    auto reliable = device.BeginFrame({});
+    assert(reliable.KeepAlive(owner) && reliable.End(false));
+    assert(device.async_SubmitFrameCommands(reliable.GetCommandBuffer()));
+    auto latest = device.BeginFrame({});
+    assert(latest.KeepAlive(owner) && latest.End(false));
+    assert(device.async_SubmitLatestFrameCommands(latest.GetCommandBuffer()));
+    owner.reset();
+    auto newest = device.BeginFrame({});
+    assert(newest.End(false));
+    assert(device.async_SubmitLatestFrameCommands(newest.GetCommandBuffer()));
+    assert(!weak.expired() && destroyed == 1);
+    backend->onFrame = [&] { assert(!weak.expired()); };
+    Render::RHIDeviceTestAccess::PumpFrame(device);
+    backend->onFrame = {};
+    assert(weak.expired() && destroyed == 2);
+    Render::RHIDeviceTestAccess::PumpFrame(device);
+    assert(!latest.Cancel()); // its buffer has already been retired/reused
+
+    // Superseding the only owner exercises reentry from the submitter thread.
+    owner = makeOwner();
+    auto superseded = device.BeginFrame({});
+    assert(superseded.KeepAlive(owner) && superseded.End(false));
+    assert(device.async_SubmitLatestFrameCommands(superseded.GetCommandBuffer()));
+    owner.reset();
+    auto successor = device.BeginFrame({});
+    assert(successor.End(false));
+    assert(device.async_SubmitLatestFrameCommands(successor.GetCommandBuffer()));
+    assert(destroyed == 3);
+    Render::RHIDeviceTestAccess::PumpFrame(device);
+
+    owner = makeOwner();
+    auto cancelled = device.BeginFrame({});
+    assert(cancelled.KeepAlive(owner));
+    owner.reset();
+    assert(cancelled.Cancel() && destroyed == 4);
+    assert(!cancelled.Cancel() && !cancelled.Draw());
+    auto active = device.BeginFrame({});
+    assert(!cancelled.Cancel() && !frame.Cancel());
+    assert(active.End(false) && active.Cancel()); // ended, but not submitted
+
+    const auto allocated = device.GetRHIFrameCommandBufferPool()->GetAllocatedBufferCount();
+    for (int i = 0; i < 100; ++i) {
+        auto discarded = device.BeginFrame({});
+        assert(discarded.Cancel());
+    }
+    assert(device.GetRHIFrameCommandBufferPool()->GetAllocatedBufferCount() == allocated);
+
+    std::array<std::byte, 256> bytes;
+    bytes.fill(std::byte{17});
+    auto uniformFrame = device.BeginFrame({});
+    assert(!uniformFrame.UpdateUniformBufferBytes({1, 0}, nullptr, 4));
+    assert(!uniformFrame.UpdateUniformBufferBytes({1, 0}, bytes.data(), 0));
+    assert(!uniformFrame.UpdateUniformBufferBytes({1, 0}, bytes.data(), 257));
+    assert(uniformFrame.UpdateUniformBufferBytes({1, 0}, bytes.data(), 256, 16));
+    bytes.fill(std::byte{23}); // the command owns its copied payload
+    assert(uniformFrame.End(false));
+    assert(device.async_SubmitFrameCommands(uniformFrame.GetCommandBuffer()));
+    Render::RHIDeviceTestAccess::PumpFrame(device);
+    assert(backend->lastUniformUpdate.size == 256 && backend->lastUniformUpdate.offset == 16);
+    assert(backend->lastUniformUpdate.data[255] == std::byte{17});
+
+    int deletionCallbacks = 0;
+    device.async_DeleteShaderSource({1, 0}, [&] { ++deletionCallbacks; });
+    device.async_DeleteShaderProgram({1, 0}, [&] { ++deletionCallbacks; });
+    for (int i = 0; i < 8 && Render::RHIDeviceTestAccess::Pending(device); ++i)
+        Render::RHIDeviceTestAccess::Pump(device);
+    while (auto callback = device.returnSystem.callbacks.try_pop()) (*callback)();
+    assert(backend->shaderSourceDeletes == 1 && backend->shaderProgramDeletes == 1);
+    assert(deletionCallbacks == 2 && deferred == 4);
+    assert(!Render::RHIDeviceTestAccess::Pending(device));
+}
+
+void TestStopDiscardsUnsubmittedFrames() {
+    Render::RHIDevice device;
+    auto* backend = new RecordingBackend(device);
+    Render::RHIDeviceTestAccess::Install(device, backend);
+    int released = 0, deletionCallbacks = 0;
+    auto pin = std::shared_ptr<const void>(new int(7), [&](const void* value) {
+        delete static_cast<const int*>(value);
+        ++released;
+        // Shutdown must drop the recording pin before stopping the consumer or
+        // destroying its mutex/condition variable. This enqueue must remain safe.
+        assert(device.IsRunning());
+        device.async_DeleteShaderProgram({7, 0}, [&] { ++deletionCallbacks; });
+    });
+    std::weak_ptr<const void> weak = pin;
+    auto abandoned = device.BeginFrame({});
+    assert(abandoned.KeepAlive(pin));
+    pin.reset();
+    assert(!weak.expired());
+    device.StopAndRelease(); // intentionally no Cancel/End/Submit
+    assert(weak.expired() && released == 1);
+    assert(!abandoned.IsRecording() && !abandoned.Cancel());
+    assert(!device.IsRunning() && Render::RHIDeviceTestAccess::Pending(device));
+    // The fake device has no worker; pump what the real stop loop drains.
+    Render::RHIDeviceTestAccess::Pump(device);
+    while (auto callback = device.returnSystem.callbacks.try_pop()) (*callback)();
+    assert(backend->shaderProgramDeletes == 1 && deletionCallbacks == 1);
+    device.StopAndRelease();
+    assert(released == 1 && !Render::RHIDeviceTestAccess::Pending(device));
+}
 }
 
 int main() {
     TestUniformStreaming();
+    TestShaderDeletion();
+    TestFrameOwnership();
+    TestStopDiscardsUnsubmittedFrames();
     // Move-only payload and partial double-buffer consumption must preserve FIFO.
     Render::ThreadSafeConsumeQueue<std::unique_ptr<int>> queue;
     queue.threadAny_Push(std::make_unique<int>(1));

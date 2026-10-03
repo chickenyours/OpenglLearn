@@ -1,0 +1,22 @@
+{
+  "format": "IWANNA_PREFAB_1",
+  "pixelArt": true,
+  "role": "trigger",
+  "image": "demo_ring_plate.png",
+  "width": 2.5,
+  "height": 0.9,
+  "collide": true,
+  "event": "apple_ring",
+  "detectionEnabled": true,
+  "detectionX": 0,
+  "detectionY": -0.55,
+  "detectionW": 2.3,
+  "detectionH": 1.1,
+  "spawnAnchor": "ring_center",
+  "spawnPrefab": "ring_apple",
+  "minCount": 12,
+  "maxCount": 24,
+  "radius": 2.5,
+  "speed": 15,
+  "lifetime": 2.4
+}

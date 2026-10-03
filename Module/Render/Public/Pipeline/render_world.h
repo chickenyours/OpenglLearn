@@ -8,6 +8,8 @@
 
 #include <glm/glm.hpp>
 
+#include "Render/Public/Material/material_runtime.h"
+
 #include "Render/Public/RHICommand/FrameCommand/rhi_frame_command.h"
 #include "Render/Public/RHIResourceType/Buffer/uniform_buffer.h"
 #include "Render/Public/RHIResourceType/Buffer/vertex_buffer.h"
@@ -18,6 +20,7 @@
 namespace Render {
 
 enum class RenderLayer : std::uint8_t { Opaque, Cutout, Transparent, Overlay };
+enum class RenderOrder : std::uint8_t { Scene, Submission };
 
 struct RenderItem {
     RenderResourceHandle<VertexBufferSpec> mesh;
@@ -28,6 +31,19 @@ struct RenderItem {
     RenderLayer layer = RenderLayer::Opaque;
     std::uint64_t sortKey = 0;
     float viewDepth = 0.0f;
+    // Optional upper-layer material. Legacy pipeline/texture packets still work.
+    std::shared_ptr<const Material::MaterialSnapshot> material;
+    RenderOrder order = RenderOrder::Scene;
+    bool castsShadows = true;
+    bool visibleInReflections = true;
+
+    RenderResourceHandle<PipelineSpec> EffectivePipeline() const {
+        return material ? material->Pipeline() : pipeline;
+    }
+    bool PreservesSubmissionOrder() const {
+        return order == RenderOrder::Submission ||
+            (material && material->GetDomain() == Material::Domain::Sprite);
+    }
 };
 
 struct RenderFrame {
@@ -46,7 +62,7 @@ public:
     }
 
     bool Add(RenderItem item) {
-        if(!item.mesh.IsValid() || !item.pipeline.IsValid()) return false;
+        if(!item.mesh.IsValid() || !item.EffectivePipeline().IsValid()) return false;
         building_.items.push_back(std::move(item));
         return true;
     }

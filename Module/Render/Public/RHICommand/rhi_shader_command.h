@@ -20,4 +20,14 @@ namespace Render{
         std::string source;
         OnCreateShaderSourceFinish OnFinish;
     };
+
+    using OnDeleteShaderFinish = std::function<void()>;
+    struct DeleteShaderSourceCommand {
+        RenderResourceHandle<ShaderSourceSpec> handle;
+        OnDeleteShaderFinish OnFinish;
+    };
+    struct DeleteShaderProgramCommand {
+        RenderResourceHandle<ShaderProgramSpec> handle;
+        OnDeleteShaderFinish OnFinish;
+    };
 }

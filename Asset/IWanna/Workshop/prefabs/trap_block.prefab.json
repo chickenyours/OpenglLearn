@@ -1,0 +1,20 @@
+{
+  "format": "IWANNA_PREFAB_1",
+  "role": "solid",
+  "pixelArt": true,
+  "image": "terrain_ember_alt_15.png",
+  "width": 2.5,
+  "height": 2.5,
+  "collide": true,
+  "visible": true,
+  "opacity": 1,
+  "event": "break_trap_block",
+  "sound": "Break",
+  "duration": 0.5,
+  "popMin": 5,
+  "popMax": 7,
+  "driftMin": 1,
+  "driftMax": 3,
+  "gravity": 45,
+  "step": 0.016666666666666666
+}

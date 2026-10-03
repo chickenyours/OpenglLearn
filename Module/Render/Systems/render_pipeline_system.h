@@ -40,7 +40,8 @@ public:
         if(world == nullptr || service == nullptr || service->encoder == nullptr) return;
 
         RenderFrame frame;
-        if(world->Consume(frame)) pipeline_.Record(*service->encoder, frame, service->view);
+        if(world->Consume(frame))
+            service->recordSucceeded = pipeline_.Record(*service->encoder, frame, service->view);
     }
 
 private:

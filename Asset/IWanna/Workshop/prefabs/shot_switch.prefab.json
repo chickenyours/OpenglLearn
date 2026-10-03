@@ -1,0 +1,12 @@
+{
+  "format": "IWANNA_PREFAB_1",
+  "pixelArt": true,
+  "role": "trigger",
+  "image": "demo_shot_switch.png",
+  "width": 2.5,
+  "height": 2.5,
+  "collide": true,
+  "receivesShots": true,
+  "event": "open_gate",
+  "wallGroup": "tiles:ShotGate"
+}

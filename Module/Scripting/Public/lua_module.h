@@ -6,6 +6,9 @@
 #include <set>
 #include <map>
 #include <variant>
+#include <functional>
+#include <optional>
+#include <utility>
 struct lua_State;
 struct lua_Debug;
 namespace Scripting {
@@ -13,6 +16,10 @@ struct Command {
     std::string operation,id,text;
     double x=0,y=0;
     bool enabled=false;
+    double zoom=1,followSpeed=-1;
+    std::string anchor;
+    int minCount=12,maxCount=24;
+    double radius=1.5,speed=15,lifetime=3,phase=0;
 };
 struct Event {std::string callback,name,id,phase;std::map<std::string,std::variant<double,bool,std::string>> properties;};
 // One VM per active room. C++ retains ownership of simulation and entity memory.
@@ -29,6 +36,9 @@ public:
     void Tick(double dt);
     std::vector<Command> TakeCommands();
     const std::string& Error() const {return error_;}
+    // Read-only host query. No ECS or math-library types cross the module boundary.
+    using Position=std::pair<double,double>;
+    std::function<std::optional<Position>(const std::string&)> queryPosition;
 private:
     lua_State* state_=nullptr;
     int module_=-1;

@@ -1,0 +1,79 @@
+{
+  "format": "IWANNA_WORLD_1",
+  "startRoom": "movement",
+  "startSpawn": "left",
+  "prefabs": {
+    "platform": {
+      "role": "solid",
+      "image": "terrain_01.png",
+      "width": 2.5,
+      "height": 2.5
+    },
+    "apple": {
+      "role": "hazard",
+      "image": "demo_apple.png",
+      "width": 3,
+      "height": 3
+    },
+    "spike": {
+      "role": "hazard",
+      "image": "demo_spike.png",
+      "width": 2.5,
+      "height": 2.5
+    },
+    "door": {
+      "role": "exit",
+      "image": "demo_door.png",
+      "width": 5,
+      "height": 10
+    },
+    "checkpoint": {
+      "role": "checkpoint",
+      "image": "checkpoint_idle.png",
+      "width": 4,
+      "height": 4.8
+    },
+    "trigger": {
+      "role": "trigger",
+      "image": "demo_white.png",
+      "width": 5,
+      "height": 5,
+      "visible": false
+    },
+    "sensor": {
+      "role": "decoration",
+      "image": "demo_sensor.png",
+      "width": 5,
+      "height": 0.8
+    },
+    "orb": {
+      "role": "decoration",
+      "image": "demo_orb.png",
+      "width": 3,
+      "height": 3
+    }
+  },
+  "rooms": [
+    {
+      "id": "movement",
+      "map": "rooms/movement.tmj",
+      "script": "scripts/movement.lua",
+      "title": "01  MOVEMENT LAB",
+      "hint": "WALK THE JOINTS   JUMP THE STEPS   USE THE DOOR"
+    },
+    {
+      "id": "traps",
+      "map": "rooms/traps.tmj",
+      "script": "scripts/traps.lua",
+      "title": "02  TRAP LAB",
+      "hint": "WATCH THE SENSOR   SAVE FIRST   R RESETS ALL TRAPS"
+    },
+    {
+      "id": "gallery",
+      "map": "rooms/gallery.tmj",
+      "script": "scripts/gallery.lua",
+      "title": "03  EVENT GALLERY",
+      "hint": "TRIGGER AN ORB   WATCH IT EXPIRE   LOOP BACK TO ROOM 01"
+    }
+  ]
+}

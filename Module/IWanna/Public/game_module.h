@@ -28,6 +28,8 @@ public:
     ECS::EntityID Find(const std::string& name);
     template<class T> T& Get(ECS::EntityID id) {return *scene_->GetActiveComponent<T>(id).Get();}
     ECS::EntityID PlayerEntity() const {return player_;}
+    const Camera& ActiveCamera() {return Get<Camera>(player_);}
+    void UpdateCamera(bool instant=false);
     const std::vector<ECS::EntityID>& Entities() const {return entities_;}
     const std::vector<EntityView>& Views() const {return views_;}
     State GetState() const {return state_;}
@@ -44,7 +46,7 @@ public:
     }
     void SelectPlayerAnimation();
     std::vector<Sprite> AnimationAssets() const {
-        std::vector<Sprite> result{config_.idle,config_.run,config_.jump};
+        std::vector<Sprite> result{config_.idle,config_.run,config_.jump,config_.shooting.sprite};
         if(world_){auto sprites=world_->Sprites();result.insert(result.end(),sprites.begin(),sprites.end());}return result;
     }
     bool IsRoomGame() const {return world_!=nullptr;}

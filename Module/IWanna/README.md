@@ -5,10 +5,11 @@
 在 OpenglLearn 根目录运行 `build.bat`，然后运行 `run_iwanna.bat`（或 `bin/iwanna_game.exe`）。
 默认窗口为 **1920×1080**，16:9 等比显示。地形现使用规则 TileMap，编辑方法见 [瓦片地图与像素素材](../../Asset/IWanna/TILEMAP.md)。
 
-另有独立的 **Tiled + Lua 房间演示**：运行根目录 `run_iwanna_showcase.bat`，体验相连的移动测试、陷阱和事件展示房间。新房间使用稳定对象 uid、会话存档和安全阶段命令队列；制作方法与脚本 API 见 [Showcase/README.md](../../Asset/IWanna/Showcase/README.md)。原启动脚本仍进入旧关卡。
+另有独立的 **房间资源 + Lua 演示**：运行根目录 `run_iwanna_showcase.bat`，体验移动测试、陷阱和事件展示房间。当前数据位于 `Asset/IWanna/Workshop`，房间使用稳定对象 ID、会话存档和安全阶段命令队列；制作方法见 [编辑器说明](EDITOR.md) 与 [Prefab 接口](PREFAB_API.md)。原启动脚本仍进入旧关卡。
+要建立完全独立的内容项目，运行 `bin/iwanna_project.exe new <新目录>`；生成的目录有 Lua、房间、预制体、素材及游戏/编辑器启动脚本。内容开发无需重新编译，见 [项目工作流](PROJECT_WORKFLOW.md)。
 `build.bat` 可从其他工作目录调用；配置或编译失败会返回非零退出码。
 
-- A / D：左右移动；J：跳跃，可二段跳。方向键、空格也可使用。
+- A / D：左右移动；空格或 J：轻点小跳、按住跳得更高，松开提前收短。触地起跳后可再空中跳一次；直接落空时仅有一次空中补跳。方向键也可左右移动。
 - R：从最近存档点复活，同时复位苹果陷阱和消失平台；通关后仍可重试。
 - Esc：退出。失去焦点时不读取游戏按键。
 - `--mute`：关闭音频设备；`--assets <目录>`：加载另一份关卡资源目录。
@@ -26,16 +27,19 @@
 | physics 字段 | 推荐值 | 作用 |
 | --- | ---: | --- |
 | runSpeed | 18 | 水平速度，世界单位/秒 |
-| jumpSpeed | 56 | 首跳向上初速度，填写正数 |
-| doubleJumpSpeed | 52 | 二段跳向上初速度，替换当时的竖直速度 |
-| gravity | 100 | 向下加速度，世界单位/秒² |
+| jumpSpeed | 50 | 首跳向上初速度，填写正数 |
+| doubleJumpSpeed | 35 | 二段跳向上初速度，替换当时的竖直速度 |
+| gravity | 150 | 常规向下加速度，世界单位/秒² |
+| jumpHoldSeconds | 0.22 | 每次起跳后，按住跳跃键可延长上升的时间窗口（秒） |
+| jumpHoldGravityScale | 0.45 | 按住期间上升重力的倍率；越小越容易跳高 |
+| jumpReleaseMultiplier | 0.55 | 提前松键时保留的上升速度比例；越小短跳越低 |
 | maxFallSpeed | 65 | 最大下落速度 |
 | fixedHz | 120 | 每秒物理更新次数 |
 | maxSubstepDistance | 0.025 | 每个碰撞子步的最大相对移动距离 |
 
-首跳理论高度约 `jumpSpeed² / (2 × gravity)`，推荐值约 15.68，离地到顶点约 0.56 秒；接近顶点时二段跳可累计上升约 29.2。固定步长积分的实际高度略低。推荐值兼顾原关卡约 27.5 的高平台落差，单次高度显著低于旧参数的 93.75。增加重力会缩短滞空时间；降低跳跃速度会降低高度，但过低会使原关卡的高平台无法到达。
+轻点跳跃键时，松键会在上升阶段削减一次速度；按住则在 `jumpHoldSeconds` 内使用较低的上升重力，时间到后恢复正常重力。二段跳重新开启同样的时间窗口。只有触地会补满两次跳跃额度；走出平台、从空中出生或下落时，地面跳额度立即失效。当前推荐值下，首跳轻点约为 2–3 世界单位，按满约为 14 世界单位；具体高度受固定步长和接触面影响。这个设计参考[《泰拉瑞亚》官方维基描述的跳跃持续时间与松键提前结束机制](https://terraria.wiki.gg/wiki/Movement_speed)，并非复制其像素速度。提高 `jumpHoldSeconds` 或降低 `jumpHoldGravityScale` 会增大长短跳差异；降低 `jumpReleaseMultiplier` 会让短跳更低。
 
-`player` 可调整显示尺寸、动画帧数和整段动画时长。当前帧画布为 128×96，世界尺寸 4.8×3.6，脚底对齐。上表是历史推荐值，实际运行以你编辑的 JSON 为准；此次接触求解修改保留了当前首跳 50、二段跳 35、重力 150。
+`player` 可调整显示尺寸、动画帧数和整段动画时长。当前帧画布为 128×96，世界尺寸 4.8×3.6，脚底对齐。实际运行以你编辑的 JSON 为准；旧 JSON 没有三个新字段时使用表中的默认值。
 
 人物现在使用固定的身体内矩形，与动画帧和朝向无关，披风、武器不参与判定。`collision.playerBody` 相对于完整贴图尺寸定义，人物缩放时判定框同步缩放：
 
@@ -145,11 +149,24 @@ ctest --test-dir build --output-on-failure
 bin/iwanna_game.exe --smoke-test --capture bin/iwanna_smoke.png
 bin/render_scheduling_test.exe
 bin/iwanna_game.exe --benchmark 90 --mute --metrics bin/iwanna_metrics.csv
+bin/iwanna_route_replay.exe path/to/project/world.json path/to/project/CAMPAIGN_ROUTE_CHECK.json
 ```
 
 测试覆盖蒙版透明空洞、亚像素重叠、翻转/旋转/非均匀缩放、动画切帧、位集边界、平地移动不升空、推荐首跳高度、顶头停止、最大落速，以及提取数量、二段跳/第三跳拒绝、高速落地、苹果机关、消失平台、存档、重复死亡、复活重置、通关死亡轨迹、短输入保留、音频解码和模块重启。
 接触回归另外覆盖：双向跨越高低地砖接缝、左右墙面按键/无按键下滑、浅层嵌入恢复、靠墙移动不爬升、不恢复空中跳跃次数、离开平台不悬浮、披风区域无伤害及身体命中陷阱。轨迹回归使用固定物理测试参数，不强制 JSON 保持历史推荐值。
 GPU 冒烟使用实际 ApplicationWindow + Render，等待帧完成后在渲染线程读取截图并检查 GL 错误。
+`iwanna_route_replay` 对项目路线证据逐段执行真实 ECS 物理跳跃，同时验证 Lua 压板、定时关闭和直冲苹果陷阱；作者修改房间后可重新生成证据并重放。
 Windows 已构建运行；整个宿主项目仍使用原有 Windows 工具链/库，未宣称整个游戏已在其他系统通过构建。
 
 性能对比、测试口径与原始 CSV 见 [Benchmarks/README.md](Benchmarks/README.md)。
+
+## Prefab 接口
+
+房间游戏新增 Z / K 按住连射，参数位于 `gameplay.json` 的 `player.shooting`。
+`ShotReceiver` 触发 Lua `on_hit`，`set_group_enabled` 可移除整层墙格；
+`spawn_radial` / `spawn_radial_at` 可在世界坐标或圆心实例处随机生成等角度弹环。
+`Lifetime` 自动清理子弹和临时陷阱，重生与切换房间恢复资源默认状态。
+`iwanna_combat_test` 覆盖薄墙阻挡、射击开关、连射限速、方向、苹果环与重置；
+追加项目路径参数可验证 MyIwana 实际机关的开门通行和撤退路线。
+
+Prefab 的资源、实例、ECS 生命周期和后续生物 AI / Boss 扩展契约见 [PREFAB_API.md](PREFAB_API.md)。

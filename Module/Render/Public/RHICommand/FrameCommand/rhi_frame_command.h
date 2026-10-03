@@ -125,6 +125,14 @@ struct DrawIndexed {
     uint32_t firstInstance = 0;
 };
 
+struct SetRenderTarget {
+    RenderResourceHandle<RenderTargetSpec> target; // Invalid selects the window framebuffer.
+    uint32_t width = 1, height = 1;
+    uint8_t clearFlags = ClearNone;
+    glm::vec4 clearColor{0.0f, 0.0f, 0.0f, 1.0f};
+    float clearDepth = 1.0f;
+};
+
 // Existing command ids stay stable (0..5). New commands are appended so old
 // captured buffers and tests remain readable.
 using FrameCommandsSet = CommandTable<
@@ -142,7 +150,8 @@ using FrameCommandsSet = CommandTable<
     BindUniformBuffer,
     UpdateUniformBuffer,
     DrawIndexed,
-    DrawInstance
+    DrawInstance,
+    SetRenderTarget
 >;
 
 } // namespace Render::RHICommand

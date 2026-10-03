@@ -13,5 +13,6 @@ namespace Render{
             ResourceTable<ShaderProgramSpec> shaderProgramTable;
             ResourceTable<PipelineSpec> PipelineTable;
             ResourceTable<RHITextureSpec> TextureTable;
+            ResourceTable<RenderTargetSpec> renderTargetTable;
     };
 }

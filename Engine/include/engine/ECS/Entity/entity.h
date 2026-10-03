@@ -1,7 +1,6 @@
 #pragma once
 
 #include "engine/ECS/data_type.h"
-#include "engine/ECS/Scene/scene.h"
 
 #include "engine/ECS/Context/context.h"
 

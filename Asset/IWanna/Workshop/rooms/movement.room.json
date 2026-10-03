@@ -1,36 +1,212 @@
 {
-  "format": "IWANNA_ROOM_2",
-  "title": "01  MOVEMENT LAB",
-  "hint": "WALK THE JOINTS   JUMP THE STEPS   USE THE DOOR",
-  "grid": {
-    "width": 60,
-    "height": 34,
-    "tileSize": 2.5,
-    "origin": [
+  "connections" : {},
+  "entities" :
+  {
+    "checkpoint" :
+    {
+      "kind" : "Entity",
+      "position" :
+      [
+        -49.0,
+        20.100002288818359
+      ],
+      "prefab" : "checkpoint",
+      "properties" : {},
+      "size" :
+      [
+        4.0,
+        4.8000001907348633
+      ]
+    },
+    "label_5" :
+    {
+      "kind" : "Label",
+      "position" :
+      [
+        -67.0,
+        12.0
+      ],
+      "properties" :
+      {
+        "text" : "FLAT JOINTS",
+        "textScale" : 0.29999999999999999
+      }
+    },
+    "label_6" :
+    {
+      "kind" : "Label",
+      "position" :
+      [
+        -28.0,
+        9.0
+      ],
+      "properties" :
+      {
+        "text" : "SMALL STEPS",
+        "textScale" : 0.29999999999999999
+      }
+    },
+    "label_7" :
+    {
+      "kind" : "Label",
+      "position" :
+      [
+        10.0,
+        -5.0
+      ],
+      "properties" :
+      {
+        "text" : "WALL SLIDE",
+        "textScale" : 0.29999999999999999
+      }
+    },
+    "label_8" :
+    {
+      "kind" : "Label",
+      "position" :
+      [
+        -46.475921630859375,
+        9.2732391357421875
+      ],
+      "properties" :
+      {
+        "text" : "NEXT ROOM",
+        "textScale" : 0.29999999999999999
+      }
+    },
+    "left" :
+    {
+      "kind" : "Spawn",
+      "position" :
+      [
+        -61.0,
+        20.700000762939453
+      ],
+      "properties" : {}
+    },
+    "right" :
+    {
+      "kind" : "Spawn",
+      "position" :
+      [
+        57.0,
+        20.700000762939453
+      ],
+      "properties" : {}
+    },
+    "spike_13" :
+    {
+      "kind" : "Entity",
+      "position" :
+      [
+        -28.785747528076172,
+        21.324478149414062
+      ],
+      "prefab" : "spike",
+      "properties" : {},
+      "size" :
+      [
+        2.5,
+        2.5
+      ]
+    },
+    "spike_14" :
+    {
+      "kind" : "Entity",
+      "position" :
+      [
+        -33.75,
+        20.797134399414062
+      ],
+      "prefab" : "spike",
+      "properties" : {},
+      "rotation" : 60.0,
+      "size" :
+      [
+        2.5,
+        2.5
+      ]
+    },
+    "spike_15" :
+    {
+      "kind" : "Entity",
+      "position" :
+      [
+        -31.25,
+        21.25
+      ],
+      "prefab" : "spike",
+      "properties" : {},
+      "size" :
+      [
+        2.5,
+        2.5
+      ]
+    },
+    "to_traps" :
+    {
+      "kind" : "Entity",
+      "position" :
+      [
+        67.0,
+        17.5
+      ],
+      "prefab" : "door",
+      "properties" :
+      {
+        "collide" : true,
+        "destinationRoom" : "traps",
+        "destinationSpawn" : "left",
+        "detectionEnabled" : true,
+        "detectionH" : 10.0,
+        "detectionW" : 5.0,
+        "detectionX" : 0.0,
+        "detectionY" : 0.0
+      },
+      "size" :
+      [
+        5.0,
+        10.0
+      ]
+    }
+  },
+  "format" : "IWANNA_ROOM_2",
+  "grid" :
+  {
+    "height" : 34,
+    "origin" :
+    [
       -75.0,
       -42.5
-    ]
+    ],
+    "tileSize" : 2.5,
+    "width" : 60
   },
-  "palette": {
-    "1": "terrain_00.png",
-    "2": "terrain_01.png",
-    "3": "terrain_02.png",
-    "4": "terrain_03.png",
-    "5": "terrain_04.png",
-    "6": "terrain_05.png",
-    "7": "terrain_06.png",
-    "8": "terrain_07.png",
-    "9": "terrain_08.png",
-    "10": "terrain_09.png",
-    "11": "terrain_10.png",
-    "12": "terrain_11.png",
-    "13": "terrain_12.png",
-    "14": "terrain_13.png",
-    "15": "terrain_14.png",
-    "16": "terrain_15.png"
+  "hint" : "WALK THE JOINTS   JUMP THE STEPS   USE THE DOOR",
+  "palette" :
+  {
+    "1" : "terrain_00.png",
+    "10" : "terrain_09.png",
+    "11" : "terrain_10.png",
+    "12" : "terrain_11.png",
+    "13" : "terrain_12.png",
+    "14" : "terrain_13.png",
+    "15" : "terrain_14.png",
+    "16" : "terrain_15.png",
+    "2" : "terrain_01.png",
+    "3" : "terrain_02.png",
+    "4" : "terrain_03.png",
+    "5" : "terrain_04.png",
+    "6" : "terrain_05.png",
+    "7" : "terrain_06.png",
+    "8" : "terrain_07.png",
+    "9" : "terrain_08.png"
   },
-  "tileLayers": {
-    "Terrain": [
+  "scriptLua" : "return {\n    on_enter = function(ctx, event)\n        ctx:message(\"A D MOVE   J DOUBLE JUMP   R RESTART AT CHECKPOINT\")\n    end,\n    on_checkpoint = function(ctx, event)\n        ctx:message(\"CHECKPOINT SAVED   ROOM TRAPS RESET ON R\")\n    end,\n    on_reset = function(ctx, event)\n        ctx:message(\"ROOM RESET   CHECKPOINT RETAINED\")\n    end\n}\n",
+  "tileLayers" :
+  {
+    "Terrain" :
+    [
       [
         0,
         0,
@@ -2141,142 +2317,5 @@
       ]
     ]
   },
-  "entities": {
-    "left": {
-      "kind": "Spawn",
-      "position": [
-        -61.0,
-        20.700000000000003
-      ],
-      "properties": {}
-    },
-    "right": {
-      "kind": "Spawn",
-      "position": [
-        57.0,
-        20.700000000000003
-      ],
-      "properties": {}
-    },
-    "checkpoint": {
-      "kind": "Entity",
-      "position": [
-        -49.0,
-        20.1
-      ],
-      "properties": {},
-      "prefab": "checkpoint",
-      "size": [
-        4.0,
-        4.8
-      ]
-    },
-    "to_traps": {
-      "kind": "Entity",
-      "position": [
-        66.99999809265137,
-        17.5
-      ],
-      "properties": {
-        "destinationRoom": "traps",
-        "destinationSpawn": "left",
-        "detectionEnabled": true,
-        "collide": true,
-        "detectionX": 0.0,
-        "detectionY": 0.0,
-        "detectionW": 5.0,
-        "detectionH": 10.0
-      },
-      "prefab": "door",
-      "size": [
-        5.0,
-        10.0
-      ]
-    },
-    "label_5": {
-      "kind": "Label",
-      "position": [
-        -67.0,
-        12.0
-      ],
-      "properties": {
-        "text": "FLAT JOINTS",
-        "textScale": 0.3
-      }
-    },
-    "label_6": {
-      "kind": "Label",
-      "position": [
-        -28.0,
-        9.0
-      ],
-      "properties": {
-        "text": "SMALL STEPS",
-        "textScale": 0.3
-      }
-    },
-    "label_7": {
-      "kind": "Label",
-      "position": [
-        10.0,
-        -5.0
-      ],
-      "properties": {
-        "text": "WALL SLIDE",
-        "textScale": 0.3
-      }
-    },
-    "label_8": {
-      "kind": "Label",
-      "position": [
-        -46.47592067718506,
-        9.273238182067871
-      ],
-      "properties": {
-        "text": "NEXT ROOM",
-        "textScale": 0.3
-      }
-    },
-    "spike_13": {
-      "kind": "Entity",
-      "position": [
-        -28.78574848175049,
-        21.324477195739746
-      ],
-      "properties": {},
-      "prefab": "spike",
-      "size": [
-        2.5,
-        2.5
-      ]
-    },
-    "spike_14": {
-      "kind": "Entity",
-      "position": [
-        -33.75714063644409,
-        21.284642219543457
-      ],
-      "properties": {},
-      "prefab": "spike",
-      "size": [
-        2.5,
-        2.5
-      ]
-    },
-    "spike_15": {
-      "kind": "Entity",
-      "position": [
-        -31.310853958129883,
-        21.313939094543457
-      ],
-      "properties": {},
-      "prefab": "spike",
-      "size": [
-        2.5,
-        2.5
-      ]
-    }
-  },
-  "connections": {},
-  "scriptLua": "return {\n    on_enter = function(ctx, event)\n        ctx:message(\"A D MOVE   J DOUBLE JUMP   R RESTART AT CHECKPOINT\")\n    end,\n    on_checkpoint = function(ctx, event)\n        ctx:message(\"CHECKPOINT SAVED   ROOM TRAPS RESET ON R\")\n    end,\n    on_reset = function(ctx, event)\n        ctx:message(\"ROOM RESET   CHECKPOINT RETAINED\")\n    end\n}\n"
+  "title" : "01  MOVEMENT LAB"
 }

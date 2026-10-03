@@ -1,5 +1,6 @@
 #include "IWanna/Public/game_module.h"
 #include "IWanna/Systems/game_systems.h"
+#include "IWanna/Public/camera_math.h"
 #include <fstream>
 #include <iomanip>
 #include <sstream>
@@ -8,8 +9,9 @@
 
 namespace IWanna {
 GameModule::GameModule(std::filesystem::path assets,std::filesystem::path config,std::filesystem::path world):assets_(std::move(assets)),configPath_(std::move(config)),worldPath_(std::move(world)) {
-    pipeline_.Add<AnimationSystem>();pipeline_.Add<InputSystem>();pipeline_.Add<PhysicsSystem>();
+    pipeline_.Add<AnimationSystem>();pipeline_.Add<InputSystem>();pipeline_.Add<PhysicsSystem>();pipeline_.Add<ProjectileSystem>();
     pipeline_.RunBefore<AnimationSystem,InputSystem>();
+    pipeline_.RunBefore<PhysicsSystem,ProjectileSystem>();
 }
 bool GameModule::Startup() {
     if(started_) return true;
@@ -19,6 +21,7 @@ bool GameModule::Startup() {
         masks_.Attach(config_.idle,assets_/"images",config_.alphaThreshold);
         masks_.Attach(config_.run,assets_/"images",config_.alphaThreshold);
         masks_.Attach(config_.jump,assets_/"images",config_.alphaThreshold);
+        masks_.Attach(config_.shooting.sprite,assets_/"images",config_.alphaThreshold);
         if(!worldPath_.empty()) {
             world_=std::make_unique<RoomWorld>(*this);world_->Load(worldPath_);
             context_.scene=scene_.get();context_.SetService(this);started_=pipeline_.Start(context_);
@@ -28,7 +31,8 @@ bool GameModule::Startup() {
         auto desc=scene_->CreateArchTypeDescription();
         desc->AddComponentArray<Transform>();desc->AddComponentArray<Motion>();desc->AddComponentArray<Sprite>();
         desc->AddComponentArray<Collider>();desc->AddComponentArray<Behavior>();desc->AddComponentArray<Player>();
-        desc->AddComponentArray<TileCell>();
+        desc->AddComponentArray<TileCell>();desc->AddComponentArray<Camera>();
+        desc->AddComponentArray<ShotReceiver>();desc->AddComponentArray<Lifetime>();
         archetype_=scene_->CreateArchType(desc,64);
         std::ifstream file(assets_/"level.txt"); std::string line;
         if(!std::getline(file,line) || line!="IWANNA_LEVEL_1") throw std::runtime_error("Cannot read IWANNA_LEVEL_1");
@@ -61,7 +65,7 @@ bool GameModule::Startup() {
         if(!player_ || !run_ || !deathTemplate_) throw std::runtime_error("Missing player/animation/death template");
         LoadTileMap();
         Get<Sprite>(player_)=config_.idle;Get<Sprite>(run_)=config_.run;Get<Sprite>(run_).visible=false;
-        Get<Transform>(player_).size=config_.playerSize;Get<Transform>(run_).size=config_.playerSize;
+        Get<Transform>(player_).size=config_.ScaledPlayerSize();Get<Transform>(run_).size=config_.ScaledPlayerSize();
         for(auto id:entities_) masks_.Attach(Get<Sprite>(id),assets_/"images",config_.alphaThreshold);
         // The last x template is also the original death-count icon.
         Get<Sprite>(deathTemplate_).visible=true;
@@ -79,15 +83,27 @@ void GameModule::Shutdown() {
 void GameModule::Advance(double seconds,Input next) {
     if(!started_ || !std::isfinite(seconds) || seconds<0) return;
     if(!std::isfinite(rules.fixedStep) || rules.fixedStep<=0) throw std::invalid_argument("fixedStep must be finite and positive");
-    pending_.left=next.left;pending_.right=next.right;pending_.jump|=next.jump;pending_.restart|=next.restart;pending_.any|=next.any;
+    pending_.left=next.left;pending_.right=next.right;pending_.jump|=next.jump;pending_.restart|=next.restart;pending_.any|=next.any;pending_.jumpHeld=next.jumpHeld;
+    pending_.shoot|=next.shoot;pending_.shootHeld=next.shootHeld;
     accumulator_+=std::min(seconds,.25);
-    while(accumulator_>=rules.fixedStep) {FixedTick(pending_);pending_.jump=pending_.restart=pending_.any=false;accumulator_-=rules.fixedStep;}
+    while(accumulator_>=rules.fixedStep) {FixedTick(pending_);pending_.jump=pending_.restart=pending_.any=pending_.shoot=false;accumulator_-=rules.fixedStep;}
 }
 void GameModule::FixedTick(Input next) {
     if(!started_)return;
-    if(world_){if(next.restart)world_->RequestReset();world_->BeginTick();next.restart=false;}
+    if(world_){if(next.restart)world_->RequestReset();world_->BeginTick();next.restart=false;world_->Shoot(next,rules.fixedStep);}
     input=next;context_.deltaSeconds=rules.fixedStep;++context_.frameIndex;pipeline_.Tick(context_);
     if(world_)world_->EndTick(rules.fixedStep);
+    UpdateCamera();
+}
+void GameModule::UpdateCamera(bool instant) {
+    if(!player_||!scene_)return;
+    auto& camera=Get<Camera>(player_);
+    auto target=camera.mode==Camera::Mode::FollowPlayer?Get<Transform>(player_).position+camera.offset:camera.position;
+    if(world_&&camera.clampToRoom) {
+        const auto& room=world_->Current();target=CameraClamp(target,room.origin,room.extent,camera.zoom);
+    }
+    if(instant||camera.mode==Camera::Mode::Fixed||camera.followSpeed<=0)camera.center=target;
+    else camera.center=glm::mix(camera.center,target,1.f-std::exp(-camera.followSpeed*rules.fixedStep));
 }
 ECS::EntityID GameModule::Find(const std::string& name) {if(world_)return world_->Find(name);for(auto id:entities_) if(Get<Behavior>(id).name==name) return id;return 0;}
 void GameModule::Restart() {
@@ -147,6 +163,6 @@ void GameModule::SelectPlayerAnimation() {
 }
 void GameModule::RebuildViews() {
     views_.clear();views_.reserve(entities_.size());
-    for(auto id:entities_) views_.push_back({id,&Get<Transform>(id),&Get<Motion>(id),&Get<Sprite>(id),&Get<Collider>(id),&Get<Behavior>(id),&Get<Player>(id)});
+    for(auto id:entities_) views_.push_back({id,&Get<Transform>(id),&Get<Motion>(id),&Get<Sprite>(id),&Get<Collider>(id),&Get<Behavior>(id),&Get<Player>(id),&Get<ShotReceiver>(id),&Get<Lifetime>(id)});
 }
 }

@@ -1,0 +1,390 @@
+{
+  "format_version": 1,
+  "scope": "Original art for newly designed enemy roles and boss; these roles are not recovered source AI.",
+  "assets": [
+    {
+      "image": "enemy_fast",
+      "source_sprite": "Assets/Sprite/40002.asset",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-entites-72974441.png",
+      "sprite_guid": "3c06820f765a1184dbca57e3472e82c5",
+      "inputs": [
+        {
+          "path": "Assets/Sprite/40002.asset",
+          "sha256": "258021ffe5fa0cdfd746403ba5d2c1067a2ab3e57ba73fb3b6530c496b80bf83"
+        },
+        {
+          "path": "Assets/Sprite/40002.asset.meta",
+          "sha256": "de4d01f649a82d5aa575fcb4a181d7eee1083bc47f9d3a5efd21c76f624698d1"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-1024x1024-ETC2-entites-72974441.png",
+          "sha256": "9d1b3cc1278c2d285471cb5d6a4fd6b30798c3459ef7f9f8afff7280bfd505be"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-1024x1024-ETC2-entites-72974441.png.meta",
+          "sha256": "bfc89b58f2f9f102375deba24a7daf4d6f4c41b5d5846acbfab7171fbe3ac085"
+        }
+      ],
+      "unity_rect_xywh": [
+        438.02676,
+        783.0761,
+        89.9465,
+        88.84776
+      ],
+      "texture_guid": "2ce410849c8ff764ca760f4f7f5ae13a",
+      "unity_pivot_xy": [
+        0.4444114,
+        0.5506484
+      ],
+      "pixels_per_unit": 100.0,
+      "size": [
+        0.899465,
+        0.8884776
+      ],
+      "crop_top_left_ltrb": [
+        438,
+        152,
+        528,
+        241
+      ],
+      "output": "enemy_fast.png",
+      "output_sha256": "a39bc8d9f2f9f53bff53ed3526b97571583feaeb4e5ed69f3d8766722a939625"
+    },
+    {
+      "image": "enemy_armored",
+      "source_sprite": "Assets/Sprite/40003.asset",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-entites-72974441.png",
+      "sprite_guid": "ef6677781b3dcb346ac86e6c2e6c555e",
+      "inputs": [
+        {
+          "path": "Assets/Sprite/40003.asset",
+          "sha256": "cc1d33c8bab244b058893ccf876726e8f8b80a0b22df3c156788b3ac16957cc4"
+        },
+        {
+          "path": "Assets/Sprite/40003.asset.meta",
+          "sha256": "1122ae407436949bfa0f64fa4bdbe2b0f53a75f1dcdbee72d5db2aa9283a9dac"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-1024x1024-ETC2-entites-72974441.png",
+          "sha256": "9d1b3cc1278c2d285471cb5d6a4fd6b30798c3459ef7f9f8afff7280bfd505be"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-1024x1024-ETC2-entites-72974441.png.meta",
+          "sha256": "bfc89b58f2f9f102375deba24a7daf4d6f4c41b5d5846acbfab7171fbe3ac085"
+        }
+      ],
+      "unity_rect_xywh": [
+        451.0761,
+        686.0761,
+        86.91791,
+        92.84776
+      ],
+      "texture_guid": "2ce410849c8ff764ca760f4f7f5ae13a",
+      "unity_pivot_xy": [
+        0.51685417,
+        0.52692574
+      ],
+      "pixels_per_unit": 100.0,
+      "size": [
+        0.8691791000000001,
+        0.9284775999999999
+      ],
+      "crop_top_left_ltrb": [
+        451,
+        245,
+        538,
+        338
+      ],
+      "output": "enemy_armored.png",
+      "output_sha256": "a38d9b1896ab9d4a3b1b8e613c99fd35fd83e18f4b365e1e256cadf0486491b4"
+    },
+    {
+      "image": "enemy_ranged",
+      "source_sprite": "Assets/Sprite/40004.asset",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-entites-72974441.png",
+      "sprite_guid": "9f74791cd33a6b74c85d1ff74f28cdb1",
+      "inputs": [
+        {
+          "path": "Assets/Sprite/40004.asset",
+          "sha256": "334988eb4d208be91257328642b45a77dbf9bd2352b8e429f8040db4cd550a09"
+        },
+        {
+          "path": "Assets/Sprite/40004.asset.meta",
+          "sha256": "62a116d179b7e5f3abc67f5feaf85101c131080b6169637ebbb00107bc2bb060"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-1024x1024-ETC2-entites-72974441.png",
+          "sha256": "9d1b3cc1278c2d285471cb5d6a4fd6b30798c3459ef7f9f8afff7280bfd505be"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-1024x1024-ETC2-entites-72974441.png.meta",
+          "sha256": "bfc89b58f2f9f102375deba24a7daf4d6f4c41b5d5846acbfab7171fbe3ac085"
+        }
+      ],
+      "unity_rect_xywh": [
+        701.01294,
+        100.07612,
+        90.96034,
+        87.89713
+      ],
+      "texture_guid": "2ce410849c8ff764ca760f4f7f5ae13a",
+      "unity_pivot_xy": [
+        0.5055729,
+        0.54522693
+      ],
+      "pixels_per_unit": 100.0,
+      "size": [
+        0.9096034000000001,
+        0.8789713
+      ],
+      "crop_top_left_ltrb": [
+        701,
+        836,
+        792,
+        924
+      ],
+      "output": "enemy_ranged.png",
+      "output_sha256": "538e16f985de3229c3690485149b9751d4d4fbbad13970e7329d747fd12d10af"
+    },
+    {
+      "image": "enemy_charger",
+      "source_sprite": "Assets/Sprite/40005.asset",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-entites-72974441.png",
+      "sprite_guid": "1a86f9eb699bd5e4abd457d5bd943fe9",
+      "inputs": [
+        {
+          "path": "Assets/Sprite/40005.asset",
+          "sha256": "f52e4e1780e7a7d85570e085558419763a08da9edaead70f65e75a6928cb4e93"
+        },
+        {
+          "path": "Assets/Sprite/40005.asset.meta",
+          "sha256": "daa29c65bad7cb473d0725d61cf353779f7a8837583e4f1e83ed1caeddcf6937"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-1024x1024-ETC2-entites-72974441.png",
+          "sha256": "9d1b3cc1278c2d285471cb5d6a4fd6b30798c3459ef7f9f8afff7280bfd505be"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-1024x1024-ETC2-entites-72974441.png.meta",
+          "sha256": "bfc89b58f2f9f102375deba24a7daf4d6f4c41b5d5846acbfab7171fbe3ac085"
+        }
+      ],
+      "unity_rect_xywh": [
+        431.02676,
+        134.07613,
+        99.9465,
+        112.84776
+      ],
+      "texture_guid": "2ce410849c8ff764ca760f4f7f5ae13a",
+      "unity_pivot_xy": [
+        0.48999465,
+        0.5044308
+      ],
+      "pixels_per_unit": 100.0,
+      "size": [
+        0.999465,
+        1.1284775999999999
+      ],
+      "crop_top_left_ltrb": [
+        431,
+        777,
+        531,
+        890
+      ],
+      "output": "enemy_charger.png",
+      "output_sha256": "6aecf4fff6086e9071ca770f95cbb62c738e2c90a94bb7d44850902c6c196f64"
+    },
+    {
+      "image": "enemy_elite",
+      "source_sprite": "Assets/Sprite/40006.asset",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-entites-72974441.png",
+      "sprite_guid": "0bc828461ff8c2c46a24ff9b70f18f54",
+      "inputs": [
+        {
+          "path": "Assets/Sprite/40006.asset",
+          "sha256": "a2abc74ab5bf6b83071f817050c2463b54fefa9ca94728d50a17e7af69983f51"
+        },
+        {
+          "path": "Assets/Sprite/40006.asset.meta",
+          "sha256": "f23576c6e919f256d3bcbdc677618306a43d455b88308112c816d55a91ed44f8"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-1024x1024-ETC2-entites-72974441.png",
+          "sha256": "9d1b3cc1278c2d285471cb5d6a4fd6b30798c3459ef7f9f8afff7280bfd505be"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-1024x1024-ETC2-entites-72974441.png.meta",
+          "sha256": "bfc89b58f2f9f102375deba24a7daf4d6f4c41b5d5846acbfab7171fbe3ac085"
+        }
+      ],
+      "unity_rect_xywh": [
+        309.05133,
+        780.0761,
+        124.94272,
+        150.84775
+      ],
+      "texture_guid": "2ce410849c8ff764ca760f4f7f5ae13a",
+      "unity_pivot_xy": [
+        0.5078222,
+        0.533146
+      ],
+      "pixels_per_unit": 100.0,
+      "size": [
+        1.2494272,
+        1.5084775
+      ],
+      "crop_top_left_ltrb": [
+        309,
+        93,
+        434,
+        244
+      ],
+      "output": "enemy_elite.png",
+      "output_sha256": "9be5498a72368f7b2dca74a1725a9c05a2d87fd5d1407bdc61e287926ed75b8b"
+    },
+    {
+      "image": "enemy_boss",
+      "source_sprite": "Assets/Sprite/40020.asset",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-entites-72974441.png",
+      "sprite_guid": "9b5b4409865f8c841aeeea6a044df35b",
+      "inputs": [
+        {
+          "path": "Assets/Sprite/40020.asset",
+          "sha256": "b26042f15040ec356cb4c1bff46d8b3a874f35050b78282019e421434518aae4"
+        },
+        {
+          "path": "Assets/Sprite/40020.asset.meta",
+          "sha256": "37f248b8fec498b6b1e5a98ede289856a3a2da4b54b6ca0a177efda1c60bc243"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-1024x1024-ETC2-entites-72974441.png",
+          "sha256": "9d1b3cc1278c2d285471cb5d6a4fd6b30798c3459ef7f9f8afff7280bfd505be"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-1024x1024-ETC2-entites-72974441.png.meta",
+          "sha256": "bfc89b58f2f9f102375deba24a7daf4d6f4c41b5d5846acbfab7171fbe3ac085"
+        }
+      ],
+      "unity_rect_xywh": [
+        187.02675,
+        455.0761,
+        167.89713,
+        177.84775
+      ],
+      "texture_guid": "2ce410849c8ff764ca760f4f7f5ae13a",
+      "unity_pivot_xy": [
+        0.47632295,
+        0.62370133
+      ],
+      "pixels_per_unit": 100.0,
+      "size": [
+        1.6789713,
+        1.7784775
+      ],
+      "crop_top_left_ltrb": [
+        187,
+        391,
+        355,
+        569
+      ],
+      "output": "enemy_boss.png",
+      "output_sha256": "7f167e8f1aa0e7e6a022793b71390b08c6edbad358797d0606f4485eb100a554"
+    },
+    {
+      "image": "enemy_healer",
+      "source_sprite": "Assets/Sprite/40007.asset",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-entites-72974441.png",
+      "sprite_guid": "bfd7ee4b73987284797079b59fc4ff19",
+      "inputs": [
+        {
+          "path": "Assets/Sprite/40007.asset",
+          "sha256": "87971058e9a75c215b787442ae0ad234cb8d9390c07bd9a0f598b35615000f02"
+        },
+        {
+          "path": "Assets/Sprite/40007.asset.meta",
+          "sha256": "793689ba39c84fb828077fb6260a22113f1cf12a784067356cabc136f1500a26"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-1024x1024-ETC2-entites-72974441.png",
+          "sha256": "9d1b3cc1278c2d285471cb5d6a4fd6b30798c3459ef7f9f8afff7280bfd505be"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-1024x1024-ETC2-entites-72974441.png.meta",
+          "sha256": "bfc89b58f2f9f102375deba24a7daf4d6f4c41b5d5846acbfab7171fbe3ac085"
+        }
+      ],
+      "unity_rect_xywh": [
+        701.0761,
+        0.0,
+        90.84776,
+        95.97325
+      ],
+      "texture_guid": "2ce410849c8ff764ca760f4f7f5ae13a",
+      "unity_pivot_xy": [
+        0.5055037,
+        0.5209785
+      ],
+      "pixels_per_unit": 100.0,
+      "size": [
+        0.9084775999999999,
+        0.9597324999999999
+      ],
+      "crop_top_left_ltrb": [
+        701,
+        928,
+        792,
+        1024
+      ],
+      "output": "enemy_healer.png",
+      "output_sha256": "103336154f210582efbab13c50edce10542052f0613e04c6e6d341baba49bd08"
+    },
+    {
+      "image": "enemy_summoner",
+      "source_sprite": "Assets/Sprite/40008.asset",
+      "source_texture": "Assets/Texture2D/sactx-0-1024x1024-ETC2-entites-72974441.png",
+      "sprite_guid": "ed760ec580f795e47b87fef0f16f6abf",
+      "inputs": [
+        {
+          "path": "Assets/Sprite/40008.asset",
+          "sha256": "e046ce3d7ae92f132354d6f1643788893d05548e89654919923c1b58dcf4f1d9"
+        },
+        {
+          "path": "Assets/Sprite/40008.asset.meta",
+          "sha256": "6eb17f159038a519e35c39c746ef4c19a1d4e92d613146a9dc9cb782b80235f9"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-1024x1024-ETC2-entites-72974441.png",
+          "sha256": "9d1b3cc1278c2d285471cb5d6a4fd6b30798c3459ef7f9f8afff7280bfd505be"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-1024x1024-ETC2-entites-72974441.png.meta",
+          "sha256": "bfc89b58f2f9f102375deba24a7daf4d6f4c41b5d5846acbfab7171fbe3ac085"
+        }
+      ],
+      "unity_rect_xywh": [
+        359.0761,
+        434.0761,
+        94.89713,
+        143.89713
+      ],
+      "texture_guid": "2ce410849c8ff764ca760f4f7f5ae13a",
+      "unity_pivot_xy": [
+        0.50500876,
+        0.48592967
+      ],
+      "pixels_per_unit": 100.0,
+      "size": [
+        0.9489713000000001,
+        1.4389713
+      ],
+      "crop_top_left_ltrb": [
+        359,
+        446,
+        454,
+        590
+      ],
+      "output": "enemy_summoner.png",
+      "output_sha256": "a421d5c11ba733ec0114991e08edfbfd9aaa8c53606a5d9d1199bce3e824eb6a"
+    }
+  ]
+}

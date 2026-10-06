@@ -1,0 +1,486 @@
+{
+  "format_version": 1,
+  "scope": "Original item art; rewards, passive effects and shop economy are newly designed, not recovered source behavior.",
+  "assets": [
+    {
+      "image": "item_lens",
+      "source_sprite": "Assets/Sprite/lens_icon.asset",
+      "source_texture": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png",
+      "sprite_guid": "f55d0a13167921646bc38fc4f5f066ff",
+      "inputs": [
+        {
+          "path": "Assets/Sprite/lens_icon.asset",
+          "sha256": "0a027a722e58a7fd8e535fbb8e24a37dfe27b1437e06317183aad13678be11c9"
+        },
+        {
+          "path": "Assets/Sprite/lens_icon.asset.meta",
+          "sha256": "8510f70053a3b9267bd0232a580f8cee678e090f2bb2fe660a0c2aa9846e8690"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png",
+          "sha256": "1f8fdb6b5cab83bb59ee4d47ceb627f8942094753fbb3cacf7b3b38c1e3929c0"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png.meta",
+          "sha256": "b5128a53f741856e844aa3ec9d8540d1cabada4c60e0e99f2788f969ba06fdb0"
+        }
+      ],
+      "unity_rect_xywh": [
+        1171.0267,
+        541.0761,
+        66.89713,
+        60.897133
+      ],
+      "texture_guid": "e4dc1a1b598e2b347ac3f0c4e04753ab",
+      "unity_pivot_xy": [
+        0.50784314,
+        0.5242263
+      ],
+      "pixels_per_unit": 100.0,
+      "size": [
+        0.6689713,
+        0.6089713299999999
+      ],
+      "crop_top_left_ltrb": [
+        1171,
+        1446,
+        1238,
+        1507
+      ],
+      "output": "item_lens.png",
+      "output_sha256": "d63f1de05cd90cb3c1c56b3b3d56fe3b944ada9e6f804f75eaecc35df31f2d3b"
+    },
+    {
+      "image": "item_coffee",
+      "source_sprite": "Assets/Sprite/coffee_icon.asset",
+      "source_texture": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png",
+      "sprite_guid": "73250755d0662a74191de423af72b8d3",
+      "inputs": [
+        {
+          "path": "Assets/Sprite/coffee_icon.asset",
+          "sha256": "db10d0cb83bd83f73122e9c4d616b9de5188726aadcd396c259909b771a4b145"
+        },
+        {
+          "path": "Assets/Sprite/coffee_icon.asset.meta",
+          "sha256": "4eb18ee8e16a4fc460ead2f0174ac04731370d16b7c99f620d3389bfacf0321e"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png",
+          "sha256": "1f8fdb6b5cab83bb59ee4d47ceb627f8942094753fbb3cacf7b3b38c1e3929c0"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png.meta",
+          "sha256": "b5128a53f741856e844aa3ec9d8540d1cabada4c60e0e99f2788f969ba06fdb0"
+        }
+      ],
+      "unity_rect_xywh": [
+        689.0761,
+        1513.0267,
+        74.84776,
+        83.89713
+      ],
+      "texture_guid": "e4dc1a1b598e2b347ac3f0c4e04753ab",
+      "unity_pivot_xy": [
+        0.46659887,
+        0.5002942
+      ],
+      "pixels_per_unit": 100.0,
+      "size": [
+        0.7484776,
+        0.8389713000000001
+      ],
+      "crop_top_left_ltrb": [
+        689,
+        451,
+        764,
+        535
+      ],
+      "output": "item_coffee.png",
+      "output_sha256": "15a04edbe4655501bc50f747ec239874cb5b074f93c6140ba4986d87a7c061fe"
+    },
+    {
+      "image": "item_beanie",
+      "source_sprite": "Assets/Sprite/beanie_icon.asset",
+      "source_texture": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png",
+      "sprite_guid": "4287c90360eacbd43a98c26e98b9b86b",
+      "inputs": [
+        {
+          "path": "Assets/Sprite/beanie_icon.asset",
+          "sha256": "4e5e553c4130770a79ff2d5579fa88a08d95814dcfe6b484fabbc5ae9a266b3a"
+        },
+        {
+          "path": "Assets/Sprite/beanie_icon.asset.meta",
+          "sha256": "fbecae907f4edbacc881f070be59eab31018fc5e3ea8c43b932c643a49fdc34a"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png",
+          "sha256": "1f8fdb6b5cab83bb59ee4d47ceb627f8942094753fbb3cacf7b3b38c1e3929c0"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png.meta",
+          "sha256": "b5128a53f741856e844aa3ec9d8540d1cabada4c60e0e99f2788f969ba06fdb0"
+        }
+      ],
+      "unity_rect_xywh": [
+        424.02676,
+        1558.0762,
+        84.9465,
+        75.84776
+      ],
+      "texture_guid": "e4dc1a1b598e2b347ac3f0c4e04753ab",
+      "unity_pivot_xy": [
+        0.505886,
+        0.5
+      ],
+      "pixels_per_unit": 100.0,
+      "size": [
+        0.849465,
+        0.7584776
+      ],
+      "crop_top_left_ltrb": [
+        424,
+        414,
+        509,
+        490
+      ],
+      "output": "item_beanie.png",
+      "output_sha256": "c04721b41e48a788c62a62125b497c61a0dc31dece0a14e9a69d3a9e67700506"
+    },
+    {
+      "image": "item_vest",
+      "source_sprite": "Assets/Sprite/leather_vest_icon.asset",
+      "source_texture": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png",
+      "sprite_guid": "43419714d49b4c449b63adbe12b3fc29",
+      "inputs": [
+        {
+          "path": "Assets/Sprite/leather_vest_icon.asset",
+          "sha256": "819077864bd45b880f59032ecea6568a353aaf073538170876a552a1051da03a"
+        },
+        {
+          "path": "Assets/Sprite/leather_vest_icon.asset.meta",
+          "sha256": "a8dacd675a657832f8c34dde7e96504a699e4748379643d90d5323e4b24a4169"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png",
+          "sha256": "1f8fdb6b5cab83bb59ee4d47ceb627f8942094753fbb3cacf7b3b38c1e3929c0"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png.meta",
+          "sha256": "b5128a53f741856e844aa3ec9d8540d1cabada4c60e0e99f2788f969ba06fdb0"
+        }
+      ],
+      "unity_rect_xywh": [
+        0.026750565,
+        1778.013,
+        75.93034,
+        85.910965
+      ],
+      "texture_guid": "e4dc1a1b598e2b347ac3f0c4e04753ab",
+      "unity_pivot_xy": [
+        0.48693645,
+        0.48872793
+      ],
+      "pixels_per_unit": 100.0,
+      "size": [
+        0.7593034,
+        0.8591096500000001
+      ],
+      "crop_top_left_ltrb": [
+        0,
+        184,
+        76,
+        270
+      ],
+      "output": "item_vest.png",
+      "output_sha256": "65fa58203008c2921d5269eb2f71d7977607f2f47b76e847fce42eb5b5755dfa"
+    },
+    {
+      "image": "item_plant",
+      "source_sprite": "Assets/Sprite/plant_icon.asset",
+      "source_texture": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png",
+      "sprite_guid": "13224e4e3b58da049913f0f2ad27c1fd",
+      "inputs": [
+        {
+          "path": "Assets/Sprite/plant_icon.asset",
+          "sha256": "48458ee7dad33b2e82ee3d929442aca872b0203ead1dbef98e1722c5f8960381"
+        },
+        {
+          "path": "Assets/Sprite/plant_icon.asset.meta",
+          "sha256": "163899333b8755ae0253a7d665b56a778176d41970e6609929fc510af811843c"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png",
+          "sha256": "1f8fdb6b5cab83bb59ee4d47ceb627f8942094753fbb3cacf7b3b38c1e3929c0"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png.meta",
+          "sha256": "b5128a53f741856e844aa3ec9d8540d1cabada4c60e0e99f2788f969ba06fdb0"
+        }
+      ],
+      "unity_rect_xywh": [
+        262.02676,
+        1739.0762,
+        88.93034,
+        70.84776
+      ],
+      "texture_guid": "e4dc1a1b598e2b347ac3f0c4e04753ab",
+      "unity_pivot_xy": [
+        0.48322368,
+        0.52117217
+      ],
+      "pixels_per_unit": 100.0,
+      "size": [
+        0.8893034,
+        0.7084775999999999
+      ],
+      "crop_top_left_ltrb": [
+        262,
+        238,
+        351,
+        309
+      ],
+      "output": "item_plant.png",
+      "output_sha256": "b39cb1469711682c15d486d2315b0574592fcfaaf5b716c389aaff7c16455811"
+    },
+    {
+      "image": "item_cake",
+      "source_sprite": "Assets/Sprite/cake_icon.asset",
+      "source_texture": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png",
+      "sprite_guid": "b5ee671c3081ba3448ba7206b79d2e39",
+      "inputs": [
+        {
+          "path": "Assets/Sprite/cake_icon.asset",
+          "sha256": "210f71ec6941c4f67bcea15da2031b504c183d8c1fe506c216909237635afa5c"
+        },
+        {
+          "path": "Assets/Sprite/cake_icon.asset.meta",
+          "sha256": "79ce63e06f3381295879cf3aec3568567c7e116840da5414e118ff4387583dc8"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png",
+          "sha256": "1f8fdb6b5cab83bb59ee4d47ceb627f8942094753fbb3cacf7b3b38c1e3929c0"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png.meta",
+          "sha256": "b5128a53f741856e844aa3ec9d8540d1cabada4c60e0e99f2788f969ba06fdb0"
+        }
+      ],
+      "unity_rect_xywh": [
+        1027.0762,
+        256.0761,
+        81.84776,
+        64.89713
+      ],
+      "texture_guid": "e4dc1a1b598e2b347ac3f0c4e04753ab",
+      "unity_pivot_xy": [
+        0.52443564,
+        0.52273315
+      ],
+      "pixels_per_unit": 100.0,
+      "size": [
+        0.8184775999999999,
+        0.6489713
+      ],
+      "crop_top_left_ltrb": [
+        1027,
+        1727,
+        1109,
+        1792
+      ],
+      "output": "item_cake.png",
+      "output_sha256": "811648793df5cab1921142cc9547ca19b9e028aadfb209d109aa63e31e11d7ec"
+    },
+    {
+      "image": "item_bandana",
+      "source_sprite": "Assets/Sprite/bandana_icon.asset",
+      "source_texture": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png",
+      "sprite_guid": "80ba34d3c974029449c142b0328e4afa",
+      "inputs": [
+        {
+          "path": "Assets/Sprite/bandana_icon.asset",
+          "sha256": "42fe02d0064e3ad0376a2268adae5a2ac850e15922a5b03dabfafc49ab92b60d"
+        },
+        {
+          "path": "Assets/Sprite/bandana_icon.asset.meta",
+          "sha256": "18e42806c4b56d9ac5d83f790e340416f4bf7c2f3e229872f037cb89b40a62be"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png",
+          "sha256": "1f8fdb6b5cab83bb59ee4d47ceb627f8942094753fbb3cacf7b3b38c1e3929c0"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png.meta",
+          "sha256": "b5128a53f741856e844aa3ec9d8540d1cabada4c60e0e99f2788f969ba06fdb0"
+        }
+      ],
+      "unity_rect_xywh": [
+        584.0761,
+        904.05414,
+        87.89713,
+        81.91913
+      ],
+      "texture_guid": "e4dc1a1b598e2b347ac3f0c4e04753ab",
+      "unity_pivot_xy": [
+        0.52247304,
+        0.47541854
+      ],
+      "pixels_per_unit": 100.0,
+      "size": [
+        0.8789713,
+        0.8191913
+      ],
+      "crop_top_left_ltrb": [
+        584,
+        1062,
+        672,
+        1144
+      ],
+      "output": "item_bandana.png",
+      "output_sha256": "4ebfafae1b0250fa23200326a73c4cffed7ca0218596ae0a50e462a668c03995"
+    },
+    {
+      "image": "item_bat",
+      "source_sprite": "Assets/Sprite/bat_icon.asset",
+      "source_texture": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png",
+      "sprite_guid": "6dae44cdb048f0748913602c5473c055",
+      "inputs": [
+        {
+          "path": "Assets/Sprite/bat_icon.asset",
+          "sha256": "06ea2937cf2c254e7018426798df08e364b5ba5262a43bf8f8faa50eb3c55ace"
+        },
+        {
+          "path": "Assets/Sprite/bat_icon.asset.meta",
+          "sha256": "db4d68ebe6224025586b69aa1eced827b964ea9daaae37fb6748b0773344f1c0"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png",
+          "sha256": "1f8fdb6b5cab83bb59ee4d47ceb627f8942094753fbb3cacf7b3b38c1e3929c0"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png.meta",
+          "sha256": "b5128a53f741856e844aa3ec9d8540d1cabada4c60e0e99f2788f969ba06fdb0"
+        }
+      ],
+      "unity_rect_xywh": [
+        1378.0267,
+        295.02676,
+        48.897133,
+        80.89713
+      ],
+      "texture_guid": "e4dc1a1b598e2b347ac3f0c4e04753ab",
+      "unity_pivot_xy": [
+        0.53118145,
+        0.50648576
+      ],
+      "pixels_per_unit": 100.0,
+      "size": [
+        0.48897133,
+        0.8089713000000001
+      ],
+      "crop_top_left_ltrb": [
+        1378,
+        1672,
+        1427,
+        1753
+      ],
+      "output": "item_bat.png",
+      "output_sha256": "ff5a6cd74c4b8cd2b985523cdb70010f3964fe3a39d47cc1149b62ca5e57447f"
+    },
+    {
+      "image": "item_sunglasses",
+      "source_sprite": "Assets/Sprite/sunglasses_icon.asset",
+      "source_texture": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png",
+      "sprite_guid": "19751190c78b0c644ad4d8620ac08e67",
+      "inputs": [
+        {
+          "path": "Assets/Sprite/sunglasses_icon.asset",
+          "sha256": "b7f6aa37eb775722a8bd886dcd6feb3e2f442554c53c3bbfafdb6156886504bf"
+        },
+        {
+          "path": "Assets/Sprite/sunglasses_icon.asset.meta",
+          "sha256": "0748675659fbf30dffaa620349aefed2910edc80f3ecdc1012ba89e846fc6857"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png",
+          "sha256": "1f8fdb6b5cab83bb59ee4d47ceb627f8942094753fbb3cacf7b3b38c1e3929c0"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png.meta",
+          "sha256": "b5128a53f741856e844aa3ec9d8540d1cabada4c60e0e99f2788f969ba06fdb0"
+        }
+      ],
+      "unity_rect_xywh": [
+        1592.0762,
+        158.07613,
+        77.89713,
+        36.847755
+      ],
+      "texture_guid": "e4dc1a1b598e2b347ac3f0c4e04753ab",
+      "unity_pivot_xy": [
+        0.4996831,
+        0.5678468
+      ],
+      "pixels_per_unit": 100.0,
+      "size": [
+        0.7789713,
+        0.36847755
+      ],
+      "crop_top_left_ltrb": [
+        1592,
+        1853,
+        1670,
+        1890
+      ],
+      "output": "item_sunglasses.png",
+      "output_sha256": "4ca4cba7b400000a8ea7c01e375405e0fef35d9bbe3f4b325f76ddeb64fe60e4"
+    },
+    {
+      "image": "item_sausage",
+      "source_sprite": "Assets/Sprite/scared_sausage_icon.asset",
+      "source_texture": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png",
+      "sprite_guid": "fa9d7f07824b638419f0b417312e56d7",
+      "inputs": [
+        {
+          "path": "Assets/Sprite/scared_sausage_icon.asset",
+          "sha256": "35596e65f7d2447194336165aca0e65d8bde622f5bb043e913fd36d3dd718017"
+        },
+        {
+          "path": "Assets/Sprite/scared_sausage_icon.asset.meta",
+          "sha256": "05e556af2c92d97a835de8ea60633ecdf226170fb2288eb6909c92fbf00af4f4"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png",
+          "sha256": "1f8fdb6b5cab83bb59ee4d47ceb627f8942094753fbb3cacf7b3b38c1e3929c0"
+        },
+        {
+          "path": "Assets/Texture2D/sactx-0-2048x2048-ETC2-item-af044758.png.meta",
+          "sha256": "b5128a53f741856e844aa3ec9d8540d1cabada4c60e0e99f2788f969ba06fdb0"
+        }
+      ],
+      "unity_rect_xywh": [
+        216.05637,
+        199.07613,
+        94.86751,
+        90.887596
+      ],
+      "texture_guid": "e4dc1a1b598e2b347ac3f0c4e04753ab",
+      "unity_pivot_xy": [
+        0.50537455,
+        0.5162847
+      ],
+      "pixels_per_unit": 100.0,
+      "size": [
+        0.9486751,
+        0.90887596
+      ],
+      "crop_top_left_ltrb": [
+        216,
+        1758,
+        311,
+        1849
+      ],
+      "output": "item_sausage.png",
+      "output_sha256": "39dda21cfe03196d59d90d99683a520059a28e9ac28b7ef9f1bae2c17cd29d70"
+    }
+  ]
+}

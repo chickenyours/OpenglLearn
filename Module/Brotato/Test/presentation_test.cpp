@@ -241,7 +241,7 @@ void TestMuzzleFlashAuthoredHermiteFade() {
     const float u = (.054166667f - .05f) / (.06666667f - .05f);
     const float expected = 1 - u * u * (3 - 2 * u);
     Near(flash.tint.a, expected, 2e-6, "muzzle flash alpha uses source Hermite fade instead of a linear approximation");
-    Near(flash.position.y, game.Get<Transform>(game.WeaponEntity()).position.y + .025, 1e-6, "muzzle flash preserves its authored y offset");
+    Near(flash.position.y, game.Get<Transform>(game.WeaponEntity()).position.y - .024, 1e-6, "muzzle flash preserves both fire-point and authored y offsets");
     const auto remaining = weapon.flash;
     (void)game.Extract(); Near(weapon.flash, remaining, 1e-12, "flash extraction never advances the weapon timer");
 }

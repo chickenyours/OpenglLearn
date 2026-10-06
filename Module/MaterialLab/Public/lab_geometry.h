@@ -119,7 +119,7 @@ struct TexturePixels {
 
 enum class TexturePattern : std::uint8_t {
     White, FlatNormal, CopperAlbedo, CheckerAlbedo, BumpedNormal,
-    Metallic, Roughness, AmbientOcclusion
+    Metallic, Roughness, AmbientOcclusion, WaterNormal, WaterFlow
 };
 
 // Color patterns contain display/sRGB values; normal and scalar maps are linear
@@ -128,7 +128,7 @@ enum class TexturePattern : std::uint8_t {
 inline TexturePixels MakeTexture(TexturePattern pattern, std::uint32_t size = 128) {
     if (size == 0 || size > 4096)
         throw std::invalid_argument("Texture size must be between 1 and 4096");
-    if (static_cast<std::uint8_t>(pattern) > static_cast<std::uint8_t>(TexturePattern::AmbientOcclusion))
+    if (static_cast<std::uint8_t>(pattern) > static_cast<std::uint8_t>(TexturePattern::WaterFlow))
         throw std::invalid_argument("Unknown material lab texture pattern");
     TexturePixels texture{size, size, std::vector<std::uint8_t>(std::size_t(size) * size * 4)};
     for (std::uint32_t y = 0; y < size; ++y) {
@@ -161,6 +161,13 @@ inline TexturePixels MakeTexture(TexturePattern pattern, std::uint32_t size = 12
                 color = glm::normalize(glm::vec3(-du, -dv, 1.0f)) * 0.5f + 0.5f;
                 break;
             }
+            case TexturePattern::WaterNormal: {
+                float du=.07f*std::cos(a*2+b)+.025f*std::cos(a-b*2);
+                float dv=.035f*std::cos(a*2+b)-.05f*std::cos(a-b*2);
+                color=glm::normalize(glm::vec3(-du,-dv,1.f))*.5f+.5f;break;
+            }
+            case TexturePattern::WaterFlow:
+                color={.5f+.18f*std::sin(b),.5f+.12f*std::cos(a),.5f};break;
             case TexturePattern::Metallic: color = glm::vec3(1.0f); break;
             case TexturePattern::Roughness: color = glm::vec3(0.38f + 0.12f * wave + 0.025f * grain); break;
             case TexturePattern::AmbientOcclusion: color = glm::vec3(0.86f + 0.14f * (wave * 0.5f + 0.5f)); break;

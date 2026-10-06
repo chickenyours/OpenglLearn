@@ -1,5 +1,6 @@
 #include "Brotato/Public/game_audio.h"
 #include "Brotato/Public/game_module.h"
+#include "Brotato/Public/expanded_gameplay.h"
 #include <array>
 #include <cmath>
 #include <filesystem>
@@ -118,6 +119,20 @@ void EpochRunAndHome(GameAudio& audio) {
     Check(audio.GameVoiceCount()==0,"next wave never replays old queue");
     audio.Sync(nullptr,0);
 }
+void LevelUpPause(Audio::Mixer& mixer,GameAudio& audio) {
+    GameModule game(ExpandedGameplay(Quiet())); Start(game); audio.Sync(&game,45);
+    KillWithProjectile(game,Position(game)+glm::vec2(4,0)); audio.Sync(&game,45);
+    Check(audio.GameVoiceCount()==1,"level-up setup owns one game voice");
+    game.Get<Player>(game.PlayerEntity()).experience=8; game.FixedTick(); audio.Sync(&game,45);
+    Check(game.GetState()==State::LevelUp,"level-up setup opened the choice panel");
+    std::array<float,4096> block{};
+    for(int i=0;i<25;++i) mixer.Render(block);
+    Check(audio.GameVoiceCount()==1 && audio.MusicPlaying(),"upgrade freezes gameplay audio while music continues");
+    Check(game.SelectUpgrade(game.Get<Growth>(game.PlayerEntity()).choices[0]),"choose upgrade"); audio.Click(); audio.Sync(&game,45);
+    for(int i=0;i<25;++i) mixer.Render(block);
+    Check(audio.GameVoiceCount()==0,"choosing resumes the retained sound cursor");
+    audio.Sync(nullptr,0);
+}
 void BoundsAndOwnership(const std::filesystem::path& root,Audio::Mixer& mixer,GameAudio& audio) {
     auto foreign=mixer.Play(Audio::Clip::LoadWav(root/"Audio/material.wav"),.1f,true);
     GameModule game(Quiet()); Start(game); audio.Sync(&game,50);
@@ -134,6 +149,32 @@ void BoundsAndOwnership(const std::filesystem::path& root,Audio::Mixer& mixer,Ga
     audio.Click(); audio.Sync(&game,51);
     Check(mixer.ActiveVoices()==0,"unloaded bridge is safely silent");
 }
+void ShopCleanup(GameAudio& audio) {
+    auto c=ExpandedGameplay(Quiet());c.waveSeconds=.05f;c.waveIncrement=0;
+    GameModule game(c);Start(game);audio.Sync(&game,47);
+    KillWithProjectile(game,Position(game)+glm::vec2(4,0));audio.Sync(&game,47);
+    Check(audio.GameVoiceCount()>0,"shop setup owns a combat sound");
+    Tick(game,8);audio.Sync(&game,47);
+    Check(game.GetState()==State::Shop&&audio.GameVoiceCount()==0&&audio.MusicPlaying(),"shop retires combat tails while preserving music");
+    audio.Click();game.NextWave();audio.Sync(&game,47);
+    Check(audio.GameVoiceCount()==0&&audio.MusicPlaying(),"leaving shop never resumes old combat audio");
+    audio.Sync(nullptr,0);
+}
+void ResultCleanup(GameAudio& audio) {
+    for(bool winning:{true,false}){
+        auto c=ExpandedGameplay(Quiet());c.encounters=false; // This audio fixture exercises immediate objective/result transitions.
+        c.campaignWaves=1;c.waveSeconds=.15f;c.waveIncrement=0;c.spawning=winning;c.spawnWarning=0;c.contactDamage=0;
+        GameModule game(c);Start(game);audio.Sync(&game,winning?81:82);
+        if(winning){
+            game.FixedTick();ECS::EntityHandle boss(0);
+            {Query<BossBrain> q;q.Refresh(*game.Scene());for(auto chunk:q)if(chunk.count)boss=chunk.Entity(0,*game.Scene());}
+            Check(game.Scene()->IsAlive(boss),"audio result objective spawned");const auto bullet=game.SpawnProjectile(game.Get<Transform>(boss).position,{});game.Get<Damage>(bullet).amount=100000;game.FixedTick();
+        } else KillWithProjectile(game,Position(game)+glm::vec2(4,0));
+        audio.Sync(&game,winning?81:82);Check(audio.GameVoiceCount()>0,"result setup plays actual combat sound");Tick(game,25);audio.Sync(&game,winning?81:82);
+        Check(game.GetState()==(winning?State::Victory:State::Defeat)&&audio.GameVoiceCount()==0&&audio.MusicPlaying(),"result retires combat tails and preserves music");
+        game.Restart();audio.Sync(&game,winning?81:82);Check(audio.GameVoiceCount()==0,"result restart never resumes old game voices");audio.Sync(nullptr,0);
+    }
+}
 }
 int main(int argc,char** argv) {
     try {
@@ -145,7 +186,10 @@ int main(int argc,char** argv) {
         KillAndPickup(audio); std::cout<<"[PASS] enemy, torch, pickup source semantics\n";
         PauseDeathAndRevive(mixer,audio); std::cout<<"[PASS] pause cursor, UI, death and revive lifecycle\n";
         EpochRunAndHome(audio); std::cout<<"[PASS] restart, new serial, home and wave cleanup\n";
+        LevelUpPause(mixer,audio); std::cout<<"[PASS] level-up freezes and resumes game voices\n";
+        ShopCleanup(audio); std::cout<<"[PASS] shop keeps music and retires combat tails\n";
+        ResultCleanup(audio); std::cout<<"[PASS] victory defeat and result restart audio cleanup\n";
         BoundsAndOwnership(root,mixer,audio); std::cout<<"[PASS] voice cap, module ownership and missing assets\n";
-        std::cout<<"Brotato audio: 6 offline groups passed (no subjective listening claim)\n";
+        std::cout<<"Brotato audio: 9 offline groups passed (no subjective listening claim)\n";
     } catch(const std::exception& error) { std::cerr<<error.what()<<'\n'; return 1; }
 }

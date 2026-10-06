@@ -33,7 +33,7 @@ T Read(const ParameterBlock& block, std::string_view name, std::size_t component
 void CheckSchemaAndDefaults() {
     const auto schema = MakePbrTemplate();
     assert(schema && schema->Desc().domain == Domain::Surface);
-    assert(schema->ByteSize() == 112 && schema->ByteSize() % 16 == 0);
+    assert(schema->ByteSize() == 208 && schema->ByteSize() % 16 == 0);
     const char* names[] = {
         "baseColor", "metallic", "roughness", "ao", "normalScale", "useNormalMap",
         "useMetallicMap", "useRoughnessMap", "useAoMap", "baseColorIsSRGB", "uvTransform",
@@ -46,7 +46,7 @@ void CheckSchemaAndDefaults() {
         ParameterType::Bool, ParameterType::Bool, ParameterType::Vec4,
         ParameterType::Vec4, ParameterType::Float, ParameterType::Float
     };
-    assert(schema->Desc().parameters.size() == std::size(names));
+    assert(schema->Desc().parameters.size() == std::size(names) + 13);
     for (std::size_t i = 0; i < std::size(names); ++i) {
         assert(schema->FindParameter(names[i]));
         assert(schema->FindParameter(names[i])->type == types[i]);
@@ -76,11 +76,12 @@ void CheckSchemaAndDefaults() {
     for (std::size_t i = 52; i < 64; ++i) assert(defaults.Bytes()[i] == std::byte{0});
 
     const char* textureNames[] = {"albedoMap", "normalMap", "metallicMap", "roughnessMap", "aoMap"};
-    assert(schema->Desc().textures.size() == 5);
+    assert(schema->Desc().textures.size() == 8);
     for (std::size_t i = 0; i < 5; ++i) {
         const auto& slot = schema->Desc().textures[i];
         assert(slot.name == textureNames[i] && slot.slot == i && slot.required);
     }
+    for (std::size_t i = 5; i < 8; ++i) assert(!schema->Desc().textures[i].required);
     // Lights/camera/exposure belong to pass/view buffers, not each material.
     assert(!schema->FindParameter("exposure"));
     assert(!schema->FindParameter("lightPositions"));
@@ -179,6 +180,7 @@ void CheckPassAndShaderInterface() {
     for (std::size_t i = 0; i < 4; ++i) {
         assert(pass.lightPositions[i].w == 1.0f);
         assert(pass.lightColors[i].x == 100.0f && pass.lightColors[i].y == 100.0f && pass.lightColors[i].z == 100.0f);
+        assert(pass.lightColors[i].w == 0.0f); // Legacy ideal points keep their exact default.
     }
     assert(pass.ambientAndExposure.x == 0.03f && pass.ambientAndExposure.w == 1.0f);
     assert(pass.outputOptions.x == 0.2f && pass.outputOptions.y == 2.2f && pass.outputOptions.z == 1.0f);

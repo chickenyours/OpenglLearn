@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <string>
 #include <glm/glm.hpp>
+#include "weapon_geometry_catalog.h"
 
 namespace Brotato {
 enum class WeaponKind { Wand, Torch, Laser, Knife, Gun, Burst, Count };
@@ -11,7 +12,8 @@ enum class AttackMode { Projectile, Thrust, SegmentedBeam, AuthoredBurst };
 enum class Image {
     Player, Enemy, Projectile, Material, Spawn, Weapon,
     Torch, LaserWeapon, Knife, Gun, BurstWeapon, GunProjectile, BurstProjectile, LaserSegment, Muzzle,
-    PlayerLegLeft, PlayerLegRight, PlayerShadow, PlayerMark, HitParticle, PlayerBody
+    PlayerLegLeft, PlayerLegRight, PlayerShadow, PlayerMark, HitParticle, PlayerBody, EnemyFast, EnemyArmored,
+    EnemyRanged, EnemyCharger, EnemyElite, EnemyProjectile, EnemyBoss, EnemyHealer, EnemySummoner
 };
 constexpr std::size_t WeaponCount = static_cast<std::size_t>(WeaponKind::Count);
 constexpr std::size_t WeaponIndex(WeaponKind kind) { return static_cast<std::size_t>(kind); }
@@ -26,6 +28,8 @@ struct WeaponDefinition {
     // A circle is a capsule with halfLength == 0. The axis follows sprite angle.
     float radius = .22f, halfLength = 0, hitOffset = 0;
     float segmentSeconds = .02f, animationSeconds = .25f;
+    int damage = 1;
+    float knockback = 0, splashRadius = 0;
 };
 
 inline std::array<WeaponDefinition, WeaponCount> DefaultWeapons() {
@@ -50,17 +54,11 @@ inline std::array<WeaponDefinition, WeaponCount> DefaultWeapons() {
     burst.attackImage = Image::BurstProjectile; burst.size = {.91f, .36f}; burst.attackSize = {1.02f, .40f};
     burst.cooldown = .8f; burst.range = 10.5f; burst.speed = 0; burst.gravity = 0; burst.lifetime = .15f;
     burst.radius = .105f; burst.halfLength = .225f;
+    for (std::size_t index = 0; index < WeaponCount; ++index) {
+        result[index].size = SourceWeaponGeometry[index].body.size;
+        if (result[index].mode == AttackMode::Projectile || result[index].mode == AttackMode::AuthoredBurst)
+            result[index].attackSize = SourceWeaponGeometry[index].projectile.size;
+    }
     return result;
 }
-
-// Scene-local centers already include the 0.78787 laser hierarchy scale.
-inline constexpr std::array<float, 6> LaserCenters{.687f, 1.10200028f, 1.48100018f, 1.96100044f, 2.50900048f, 2.93300049f};
-struct BurstPath { glm::vec2 start, end; float angle; };
-// MoveGun.anim has zero endpoint tangents: cubic Hermite == smoothstep.
-inline const std::array<BurstPath, 4> BurstPaths{{
-    {{.317f, -.135f}, {3.146f, -.796f}, -.4038328f},
-    {{.313f, .096f}, {3.076f, .555f}, .4038328f},
-    {{.228f, -.328f}, {3.233f, -1.744f}, -.6540272f},
-    {{.233f, .238f}, {3.148f, 1.519f}, .6540272f}
-}};
 } // namespace Brotato

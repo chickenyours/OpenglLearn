@@ -78,7 +78,17 @@ namespace ECS::Core{
         template <typename ComponentT>
         EntityComponentHandle<ComponentT> GetActiveComponent(EntityID entity);
 
+        // Main-thread borrowed access, valid only until the next structural
+        // change. Missing components and expired handles are ordinary misses.
+        template <typename ComponentT>
+        ComponentT* TryGetComponent(EntityHandle entity);
+
         bool IsAlive(EntityHandle entity) const;
+
+        // Resolve a live row ID into a generation-checked handle for this Scene.
+        // The returned handle is invalid when the ID has already been retired.
+        EntityHandle GetEntityHandle(EntityID entity) const;
+        EntityHandle GetEntityHandle(EntityID entity, const ArchType* expectedArchetype) const;
 
         std::vector<ArchType*> GetArchTypes() const;
         uint64_t GetArchTypeVersion() const noexcept { return archtypeVersion_; }

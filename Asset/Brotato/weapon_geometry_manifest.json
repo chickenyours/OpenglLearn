@@ -1,0 +1,2217 @@
+{
+  "format_version": 1,
+  "source_scene": "Assets/Brotato.unity",
+  "coordinate_rule": "World XY. Runtime rotation overrides the bound rotator world quaternion; descendants retain authored transforms. Initial pose retains reflected XY basis.",
+  "weapons": [
+    {
+      "kind": "Wand",
+      "script_file_id": "5178008817973169390",
+      "script_owner": {
+        "path": "Container/PlayerGo/ws/w1",
+        "game_object_file_id": "5178008817973169389",
+        "transform_file_id": "5175013700035311817",
+        "scene_line": 233652,
+        "local_position": [
+          -0.014,
+          0.0,
+          -0.029
+        ],
+        "local_rotation_xyzw": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "local_scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "rotation_root": {
+        "path": "Container/PlayerGo/ws/w1/Weaponwand/Weapons",
+        "game_object_file_id": "2388268981037888892",
+        "transform_file_id": "2392028246213130501",
+        "scene_line": 225175,
+        "local_position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "local_rotation_xyzw": [
+          0.6823697,
+          -0.18539572,
+          0.18539572,
+          0.6823697
+        ],
+        "local_scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "script_offset": [
+        0.013999999999999346,
+        -0.028999999999999915
+      ],
+      "root_offset": [
+        0.013999999999999346,
+        -0.028999999999999915
+      ],
+      "idle_angle": 0.5305800265120333,
+      "idle_reflected": false,
+      "body": {
+        "geometry": {
+          "offset": [
+            0.22,
+            0.0
+          ],
+          "axis_x": [
+            0.9995903788887617,
+            0.02861947646310418
+          ],
+          "axis_y": [
+            -0.02861947646310417,
+            0.9995903788887616
+          ],
+          "size": [
+            1.0887257,
+            0.23880972
+          ],
+          "pivot": [
+            0.51389146,
+            0.5202418
+          ]
+        },
+        "renderer_file_id": "2581443426652942611",
+        "transform": {
+          "path": "Container/PlayerGo/ws/w1/Weaponwand/Weapons/Weapons_Ain/Guns_All/Guns",
+          "game_object_file_id": "2387224220358715047",
+          "transform_file_id": "2392019104150089334",
+          "scene_line": 225159,
+          "local_position": [
+            0.22,
+            0.0,
+            0.0
+          ],
+          "local_rotation_xyzw": [
+            0.0,
+            0.0,
+            0.014311204,
+            0.9998976
+          ],
+          "local_scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "source_sprite": "Assets/Sprite/wand.asset",
+        "sprite_reference": "{fileID: 21300000, guid: d7c70dd51ca00964a9fcd858209eb927, type: 2}",
+        "sprite_metadata": {
+          "unity_rect_xywh": [
+            60.051315,
+            705.0761,
+            108.87257,
+            23.880972
+          ],
+          "texture_guid": "a8c63da7e78651d41938707b3b17187d",
+          "unity_pivot_xy": [
+            0.51389146,
+            0.5202418
+          ],
+          "pixels_per_unit": 100.0,
+          "border_units": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "fire_point": [
+        0.6928062492143842,
+        0.013537012367048276
+      ],
+      "projectile": {
+        "geometry": {
+          "offset": [
+            0.0,
+            0.0
+          ],
+          "axis_x": [
+            1.0,
+            0.0
+          ],
+          "axis_y": [
+            0.0,
+            1.0
+          ],
+          "size": [
+            0.47867508000000003,
+            0.48847755
+          ],
+          "pivot": [
+            0.5002063,
+            0.48976415
+          ]
+        },
+        "renderer_file_id": "2278298503606595674",
+        "transform": {
+          "path": "bullet_wand - Copy/Square",
+          "game_object_file_id": "2278298503606595672",
+          "transform_file_id": "2278298503606595675",
+          "scene_line": 20,
+          "local_position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "local_rotation_xyzw": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "local_scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "source_sprite": "Assets/Sprite/bullet_wand.asset",
+        "sprite_reference": "{fileID: 21300000, guid: b8a7726ef2250d84c870b15b57aabd70, type: 2}",
+        "sprite_metadata": {
+          "unity_rect_xywh": [
+            501.05637,
+            827.0761,
+            47.867508,
+            48.847755
+          ],
+          "texture_guid": "685116be2efeee943b70a0ca1715215a",
+          "unity_pivot_xy": [
+            0.5002063,
+            0.48976415
+          ],
+          "pixels_per_unit": 100.0,
+          "border_units": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "muzzle": null,
+      "muzzle_parent": [
+        0.0,
+        0.0
+      ],
+      "muzzle_parent_x": [
+        1.0,
+        0.0
+      ],
+      "muzzle_parent_y": [
+        0.0,
+        1.0
+      ],
+      "fire_transform": {
+        "path": "Container/PlayerGo/ws/w1/Weaponwand/Weapons/Weapons_Ain/Guns_All/Guns/Particles",
+        "game_object_file_id": "2388308199670676142",
+        "transform_file_id": "2390710631820915902",
+        "scene_line": 225144,
+        "local_position": [
+          0.473,
+          0.0,
+          0.0
+        ],
+        "local_rotation_xyzw": [
+          -0.0,
+          -0.0,
+          -0.0,
+          1.0
+        ],
+        "local_scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "kind": "Torch",
+      "script_file_id": "5177833475171252235",
+      "script_owner": {
+        "path": "Container/PlayerGo/ws/w2",
+        "game_object_file_id": "5177833475171252234",
+        "transform_file_id": "5175052699921963979",
+        "scene_line": 233668,
+        "local_position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "local_rotation_xyzw": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "local_scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "rotation_root": {
+        "path": "Container/PlayerGo/ws/w2/Weapontorch/Weapons",
+        "game_object_file_id": "2907481336231176789",
+        "transform_file_id": "2906032106644126812",
+        "scene_line": 227667,
+        "local_position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "local_rotation_xyzw": [
+          0.5,
+          -0.5,
+          0.5,
+          0.5
+        ],
+        "local_scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "script_offset": [
+        0.0,
+        0.0
+      ],
+      "root_offset": [
+        0.0,
+        0.0
+      ],
+      "idle_angle": 1.5707963267948966,
+      "idle_reflected": true,
+      "body": {
+        "geometry": {
+          "offset": [
+            0.22,
+            0.05
+          ],
+          "axis_x": [
+            1.0,
+            0.0
+          ],
+          "axis_y": [
+            0.0,
+            1.0
+          ],
+          "size": [
+            0.999465,
+            0.28897127
+          ],
+          "pivot": [
+            0.5,
+            0.55105406
+          ]
+        },
+        "renderer_file_id": "3073936688346710076",
+        "transform": {
+          "path": "Container/PlayerGo/ws/w2/Weapontorch/Weapons/Weapons_Ain/Guns_All/Guns",
+          "game_object_file_id": "2908369437843462870",
+          "transform_file_id": "2906261802894472271",
+          "scene_line": 227683,
+          "local_position": [
+            0.22,
+            0.05,
+            0.0
+          ],
+          "local_rotation_xyzw": [
+            -0.0,
+            -0.0,
+            -0.0,
+            1.0
+          ],
+          "local_scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "source_sprite": "Assets/Sprite/torch.asset",
+        "sprite_reference": "{fileID: 21300000, guid: 61ce3a2a448457d459ca9a03ce0ae43f, type: 2}",
+        "sprite_metadata": {
+          "unity_rect_xywh": [
+            406.02676,
+            528.0761,
+            99.9465,
+            28.897127
+          ],
+          "texture_guid": "a8c63da7e78651d41938707b3b17187d",
+          "unity_pivot_xy": [
+            0.5,
+            0.55105406
+          ],
+          "pixels_per_unit": 100.0,
+          "border_units": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "fire_point": [
+        0.0,
+        0.0
+      ],
+      "projectile": null,
+      "muzzle": null,
+      "muzzle_parent": [
+        0.0,
+        0.0
+      ],
+      "muzzle_parent_x": [
+        1.0,
+        0.0
+      ],
+      "muzzle_parent_y": [
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "kind": "Laser",
+      "script_file_id": "5177954861572163457",
+      "script_owner": {
+        "path": "Container/PlayerGo/ws/w3",
+        "game_object_file_id": "5177954861572163456",
+        "transform_file_id": "5174789339204385741",
+        "scene_line": 233507,
+        "local_position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "local_rotation_xyzw": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "local_scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "rotation_root": {
+        "path": "Container/PlayerGo/ws/w3/WeaponGun/Weapons",
+        "game_object_file_id": "7585648969777410928",
+        "transform_file_id": "7588293538793059391",
+        "scene_line": 235149,
+        "local_position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "local_rotation_xyzw": [
+          0.5,
+          -0.5,
+          0.5,
+          0.5
+        ],
+        "local_scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "script_offset": [
+        0.0,
+        0.0
+      ],
+      "root_offset": [
+        0.0,
+        0.0
+      ],
+      "idle_angle": 1.5707963267948966,
+      "idle_reflected": true,
+      "body": {
+        "geometry": {
+          "offset": [
+            0.22,
+            0.05
+          ],
+          "axis_x": [
+            1.0,
+            0.0
+          ],
+          "axis_y": [
+            0.0,
+            1.0
+          ],
+          "size": [
+            0.58880974,
+            0.38897125000000005
+          ],
+          "pivot": [
+            0.61011016,
+            0.79628634
+          ]
+        },
+        "renderer_file_id": "7760088267158986658",
+        "transform": {
+          "path": "Container/PlayerGo/ws/w3/WeaponGun/Weapons/Weapons_Ain/Guns_All/Guns",
+          "game_object_file_id": "7585338688993961015",
+          "transform_file_id": "7588170179894018154",
+          "scene_line": 235101,
+          "local_position": [
+            0.22,
+            0.05,
+            0.0
+          ],
+          "local_rotation_xyzw": [
+            -0.0,
+            -0.0,
+            -0.0,
+            1.0
+          ],
+          "local_scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "source_sprite": "Assets/Sprite/taser.asset",
+        "sprite_reference": "{fileID: 21300000, guid: 1e91b39005a9ae64fb0571366a6661c9, type: 2}",
+        "sprite_metadata": {
+          "unity_rect_xywh": [
+            67.07612,
+            784.02673,
+            58.880974,
+            38.897125
+          ],
+          "texture_guid": "a8c63da7e78651d41938707b3b17187d",
+          "unity_pivot_xy": [
+            0.61011016,
+            0.79628634
+          ],
+          "pixels_per_unit": 100.0,
+          "border_units": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "fire_point": [
+        0.0,
+        0.0
+      ],
+      "projectile": null,
+      "muzzle": null,
+      "muzzle_parent": [
+        0.0,
+        0.0
+      ],
+      "muzzle_parent_x": [
+        1.0,
+        0.0
+      ],
+      "muzzle_parent_y": [
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "kind": "Knife",
+      "script_file_id": "5178137463847283418",
+      "script_owner": {
+        "path": "Container/PlayerGo/ws/w4",
+        "game_object_file_id": "5178137463847283417",
+        "transform_file_id": "5174240487406611890",
+        "scene_line": 233178,
+        "local_position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "local_rotation_xyzw": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "local_scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "rotation_root": {
+        "path": "Container/PlayerGo/ws/w4/WeaponGun/Weapons",
+        "game_object_file_id": "1246593612",
+        "transform_file_id": "1246593613",
+        "scene_line": 133601,
+        "local_position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "local_rotation_xyzw": [
+          0.5,
+          -0.5,
+          0.5,
+          0.5
+        ],
+        "local_scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "script_offset": [
+        0.0,
+        0.0
+      ],
+      "root_offset": [
+        0.0,
+        0.0
+      ],
+      "idle_angle": 1.5707963267948966,
+      "idle_reflected": true,
+      "body": {
+        "geometry": {
+          "offset": [
+            0.22,
+            0.0
+          ],
+          "axis_x": [
+            1.0,
+            0.0
+          ],
+          "axis_y": [
+            0.0,
+            1.0
+          ],
+          "size": [
+            0.7089713000000001,
+            0.21919838
+          ],
+          "pivot": [
+            0.5779254,
+            0.547265
+          ]
+        },
+        "renderer_file_id": "1411004191",
+        "transform": {
+          "path": "Container/PlayerGo/ws/w4/WeaponGun/Weapons/Weapons_Ain/Guns_All/Guns",
+          "game_object_file_id": "1411004189",
+          "transform_file_id": "1411004190",
+          "scene_line": 151776,
+          "local_position": [
+            0.22,
+            0.0,
+            0.0
+          ],
+          "local_rotation_xyzw": [
+            -0.0,
+            -0.0,
+            -0.0,
+            1.0
+          ],
+          "local_scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "source_sprite": "Assets/Sprite/lightning_shiv.asset",
+        "sprite_reference": "{fileID: 21300000, guid: eaf7449c6dd0d444e98334d07017c62d, type: 2}",
+        "sprite_metadata": {
+          "unity_rect_xywh": [
+            385.02676,
+            611.004,
+            70.89713,
+            21.919838
+          ],
+          "texture_guid": "a8c63da7e78651d41938707b3b17187d",
+          "unity_pivot_xy": [
+            0.5779254,
+            0.547265
+          ],
+          "pixels_per_unit": 100.0,
+          "border_units": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "fire_point": [
+        0.0,
+        0.0
+      ],
+      "projectile": null,
+      "muzzle": null,
+      "muzzle_parent": [
+        0.0,
+        0.0
+      ],
+      "muzzle_parent_x": [
+        1.0,
+        0.0
+      ],
+      "muzzle_parent_y": [
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "kind": "Gun",
+      "script_file_id": "5177195215132429950",
+      "script_owner": {
+        "path": "Container/PlayerGo/ws/w5",
+        "game_object_file_id": "5177195215132429949",
+        "transform_file_id": "5174274401214046322",
+        "scene_line": 233198,
+        "local_position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "local_rotation_xyzw": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "local_scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "rotation_root": {
+        "path": "Container/PlayerGo/ws/w5/WeaponGun/Weapons",
+        "game_object_file_id": "1426552901",
+        "transform_file_id": "1426552902",
+        "scene_line": 153263,
+        "local_position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "local_rotation_xyzw": [
+          0.5,
+          -0.5,
+          0.5,
+          0.5
+        ],
+        "local_scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "script_offset": [
+        0.0,
+        0.0
+      ],
+      "root_offset": [
+        0.0,
+        0.0
+      ],
+      "idle_angle": 1.5707963267948966,
+      "idle_reflected": true,
+      "body": {
+        "geometry": {
+          "offset": [
+            0.22,
+            0.0
+          ],
+          "axis_x": [
+            1.0,
+            0.0
+          ],
+          "axis_y": [
+            0.0,
+            1.0
+          ],
+          "size": [
+            0.6893034,
+            0.46847755
+          ],
+          "pivot": [
+            0.5361513,
+            0.7668218
+          ]
+        },
+        "renderer_file_id": "56099330",
+        "transform": {
+          "path": "Container/PlayerGo/ws/w5/WeaponGun/Weapons/Weapons_Ain/Guns_All/Guns",
+          "game_object_file_id": "56099328",
+          "transform_file_id": "56099329",
+          "scene_line": 5934,
+          "local_position": [
+            0.22,
+            0.0,
+            0.0
+          ],
+          "local_rotation_xyzw": [
+            -0.0,
+            -0.0,
+            -0.0,
+            1.0
+          ],
+          "local_scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "source_sprite": "Assets/Sprite/smg.asset",
+        "sprite_reference": "{fileID: 21300000, guid: 0116fa85f8de2824fbec0f6f68e3e8e7, type: 2}",
+        "sprite_metadata": {
+          "unity_rect_xywh": [
+            644.0429,
+            451.0761,
+            68.93034,
+            46.847755
+          ],
+          "texture_guid": "a8c63da7e78651d41938707b3b17187d",
+          "unity_pivot_xy": [
+            0.5361513,
+            0.7668218
+          ],
+          "pixels_per_unit": 100.0,
+          "border_units": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "fire_point": [
+        0.516,
+        -0.049
+      ],
+      "projectile": {
+        "geometry": {
+          "offset": [
+            0,
+            0
+          ],
+          "axis_x": [
+            1,
+            0
+          ],
+          "axis_y": [
+            0,
+            1
+          ],
+          "size": [
+            1.02,
+            0.4
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ]
+        },
+        "renderer_file_id": "3164197297932872590",
+        "transform": {
+          "path": "BulletA",
+          "game_object_file_id": "3164197297932872591",
+          "transform_file_id": "3164197297932872589",
+          "scene_line": 22,
+          "local_position": [
+            11.032372,
+            0.21286094,
+            0.0
+          ],
+          "local_rotation_xyzw": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "local_scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "source_sprite": "Assets/Texture2D/sactx-0-1024x1024-ETC2-projectiles-cc582037.png",
+        "sprite_reference": "{fileID: -1909389404, guid: 685116be2efeee943b70a0ca1715215a, type: 3}",
+        "sprite_metadata": {
+          "unity_rect_xywh": [
+            766.0,
+            284.0,
+            102.0,
+            40.0
+          ],
+          "texture_guid": "685116be2efeee943b70a0ca1715215a",
+          "unity_pivot_xy": [
+            0.5,
+            0.5
+          ],
+          "pixels_per_unit": 100.0,
+          "source_sprite_file_id": -1909389404,
+          "source_sprite_kind": "TextureImporter sub-sprite"
+        }
+      },
+      "muzzle": {
+        "geometry": {
+          "offset": [
+            0.094,
+            0.025
+          ],
+          "axis_x": [
+            -2.220446049250313e-16,
+            1.0000000000000002
+          ],
+          "axis_y": [
+            1.0000000000000002,
+            -2.220446049250313e-16
+          ],
+          "size": [
+            1.0,
+            0.96
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ]
+        },
+        "renderer_file_id": "607546828",
+        "transform": {
+          "path": "Container/PlayerGo/ws/w5/WeaponGun/Weapons/Weapons_Ain/Guns_All/Guns/Point/Shoot",
+          "game_object_file_id": "607546826",
+          "transform_file_id": "607546827",
+          "scene_line": 69496,
+          "local_position": [
+            0.094,
+            0.025,
+            9.763
+          ],
+          "local_rotation_xyzw": [
+            0.7071068,
+            0.7071068,
+            -0.0,
+            0.0
+          ],
+          "local_scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "source_sprite": "Assets/Texture2D/sactx-0-1024x1024-ETC2-projectiles-cc582037.png",
+        "sprite_reference": "{fileID: 904847731, guid: 685116be2efeee943b70a0ca1715215a, type: 3}",
+        "sprite_metadata": {
+          "unity_rect_xywh": [
+            484.0,
+            104.0,
+            100.0,
+            96.0
+          ],
+          "texture_guid": "685116be2efeee943b70a0ca1715215a",
+          "unity_pivot_xy": [
+            0.5,
+            0.5
+          ],
+          "pixels_per_unit": 100.0,
+          "source_sprite_file_id": 904847731,
+          "source_sprite_kind": "TextureImporter sub-sprite"
+        }
+      },
+      "muzzle_parent": [
+        0.516,
+        -0.049
+      ],
+      "muzzle_parent_x": [
+        1.0,
+        0.0
+      ],
+      "muzzle_parent_y": [
+        0.0,
+        1.0
+      ],
+      "fire_transform": {
+        "path": "Container/PlayerGo/ws/w5/WeaponGun/Weapons/Weapons_Ain/Guns_All/Guns/Point",
+        "game_object_file_id": "2080703328",
+        "transform_file_id": "2080703329",
+        "scene_line": 217700,
+        "local_position": [
+          0.296,
+          -0.049,
+          -0.0
+        ],
+        "local_rotation_xyzw": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "local_scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "kind": "Burst",
+      "script_file_id": "5177469814621149503",
+      "script_owner": {
+        "path": "Container/PlayerGo/ws/w6",
+        "game_object_file_id": "5177469814621149502",
+        "transform_file_id": "5174535988596520870",
+        "scene_line": 233410,
+        "local_position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "local_rotation_xyzw": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "local_scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "rotation_root": {
+        "path": "Container/PlayerGo/ws/w6/WeaponGun/Weapons",
+        "game_object_file_id": "1957914370",
+        "transform_file_id": "1957914371",
+        "scene_line": 204986,
+        "local_position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "local_rotation_xyzw": [
+          0.5,
+          -0.5,
+          0.5,
+          0.5
+        ],
+        "local_scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "script_offset": [
+        0.0,
+        0.0
+      ],
+      "root_offset": [
+        0.0,
+        0.0
+      ],
+      "idle_angle": 1.5707963267948966,
+      "idle_reflected": true,
+      "body": {
+        "geometry": {
+          "offset": [
+            0.22,
+            0.056
+          ],
+          "axis_x": [
+            1.0,
+            0.0
+          ],
+          "axis_y": [
+            0.0,
+            1.0
+          ],
+          "size": [
+            0.909465,
+            0.35880974000000004
+          ],
+          "pivot": [
+            0.47251132,
+            0.7782364
+          ]
+        },
+        "renderer_file_id": "1345916261",
+        "transform": {
+          "path": "Container/PlayerGo/ws/w6/WeaponGun/Weapons/Weapons_Ain/Guns_All/Guns",
+          "game_object_file_id": "1345916259",
+          "transform_file_id": "1345916260",
+          "scene_line": 144179,
+          "local_position": [
+            0.22,
+            0.056,
+            -0.0
+          ],
+          "local_rotation_xyzw": [
+            -0.0,
+            -0.0,
+            -0.0,
+            1.0
+          ],
+          "local_scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "source_sprite": "Assets/Sprite/double_barrel_shotgun.asset",
+        "sprite_reference": "{fileID: 21300000, guid: 3d4f96fc53aa94247972d6573e76b626, type: 2}",
+        "sprite_metadata": {
+          "unity_rect_xywh": [
+            530.02673,
+            484.0761,
+            90.9465,
+            35.880974
+          ],
+          "texture_guid": "a8c63da7e78651d41938707b3b17187d",
+          "unity_pivot_xy": [
+            0.47251132,
+            0.7782364
+          ],
+          "pixels_per_unit": 100.0,
+          "border_units": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "fire_point": [
+        0.628,
+        0.053
+      ],
+      "projectile": {
+        "geometry": {
+          "offset": [
+            0,
+            0
+          ],
+          "axis_x": [
+            1,
+            0
+          ],
+          "axis_y": [
+            0,
+            1
+          ],
+          "size": [
+            1.02,
+            0.4
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ]
+        },
+        "renderer_file_id": "742716612722596868",
+        "transform": {
+          "path": "SpawnMove/BulletB",
+          "game_object_file_id": "742716612722596869",
+          "transform_file_id": "742716612722596871",
+          "scene_line": 22,
+          "local_position": [
+            0.317,
+            -0.135,
+            0.0
+          ],
+          "local_rotation_xyzw": [
+            0.0,
+            0.0,
+            -0.20054789,
+            0.9796839
+          ],
+          "local_scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "source_sprite": "Assets/Texture2D/sactx-0-1024x1024-ETC2-projectiles-cc582037.png",
+        "sprite_reference": "{fileID: -1909389404, guid: 685116be2efeee943b70a0ca1715215a, type: 3}",
+        "sprite_metadata": {
+          "unity_rect_xywh": [
+            766.0,
+            284.0,
+            102.0,
+            40.0
+          ],
+          "texture_guid": "685116be2efeee943b70a0ca1715215a",
+          "unity_pivot_xy": [
+            0.5,
+            0.5
+          ],
+          "pixels_per_unit": 100.0,
+          "source_sprite_file_id": -1909389404,
+          "source_sprite_kind": "TextureImporter sub-sprite"
+        }
+      },
+      "muzzle": {
+        "geometry": {
+          "offset": [
+            0.094,
+            0.025
+          ],
+          "axis_x": [
+            -2.220446049250313e-16,
+            1.0000000000000002
+          ],
+          "axis_y": [
+            1.0000000000000002,
+            -2.220446049250313e-16
+          ],
+          "size": [
+            1.0,
+            0.96
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ]
+        },
+        "renderer_file_id": "979097171",
+        "transform": {
+          "path": "Container/PlayerGo/ws/w6/WeaponGun/Weapons/Weapons_Ain/Guns_All/Guns/'Point '/Shoot",
+          "game_object_file_id": "979097167",
+          "transform_file_id": "979097168",
+          "scene_line": 107685,
+          "local_position": [
+            0.094,
+            0.025,
+            9.763
+          ],
+          "local_rotation_xyzw": [
+            0.7071068,
+            0.7071068,
+            -0.0,
+            0.0
+          ],
+          "local_scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "source_sprite": "Assets/Texture2D/sactx-0-1024x1024-ETC2-projectiles-cc582037.png",
+        "sprite_reference": "{fileID: 904847731, guid: 685116be2efeee943b70a0ca1715215a, type: 3}",
+        "sprite_metadata": {
+          "unity_rect_xywh": [
+            484.0,
+            104.0,
+            100.0,
+            96.0
+          ],
+          "texture_guid": "685116be2efeee943b70a0ca1715215a",
+          "unity_pivot_xy": [
+            0.5,
+            0.5
+          ],
+          "pixels_per_unit": 100.0,
+          "source_sprite_file_id": 904847731,
+          "source_sprite_kind": "TextureImporter sub-sprite"
+        }
+      },
+      "muzzle_parent": [
+        0.628,
+        0.053
+      ],
+      "muzzle_parent_x": [
+        0.9999999999999999,
+        0.0
+      ],
+      "muzzle_parent_y": [
+        0.0,
+        0.9999999999999999
+      ],
+      "fire_transform": {
+        "path": "Container/PlayerGo/ws/w6/WeaponGun/Weapons/Weapons_Ain/Guns_All/Guns/'Point '",
+        "game_object_file_id": "747385463",
+        "transform_file_id": "747385464",
+        "scene_line": 83850,
+        "local_position": [
+          0.408,
+          -0.003,
+          0.0
+        ],
+        "local_rotation_xyzw": [
+          -0.0,
+          -0.0,
+          -0.0,
+          1.0
+        ],
+        "local_scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    }
+  ],
+  "beam_segments": [
+    {
+      "center": [
+        0.687,
+        0.0
+      ],
+      "sprite": {
+        "geometry": {
+          "offset": [
+            0.687,
+            0.0
+          ],
+          "axis_x": [
+            0.7878700000000001,
+            0.0
+          ],
+          "axis_y": [
+            0.0,
+            0.78787
+          ],
+          "size": [
+            1.32,
+            0.56
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ]
+        },
+        "renderer_file_id": "1266466059",
+        "transform": {
+          "path": "Container/PlayerGo/ws/w3/WeaponGun/Weapons/Laser",
+          "game_object_file_id": "1266466057",
+          "transform_file_id": "1266466058",
+          "scene_line": 136087,
+          "local_position": [
+            0.687,
+            0.0,
+            -0.0
+          ],
+          "local_rotation_xyzw": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "local_scale": [
+            0.78787,
+            0.78787,
+            0.78787
+          ]
+        },
+        "source_sprite": "Assets/Texture2D/sactx-0-1024x1024-ETC2-projectiles-cc582037.png",
+        "sprite_reference": "{fileID: 1101925732, guid: 685116be2efeee943b70a0ca1715215a, type: 3}",
+        "sprite_metadata": {
+          "unity_rect_xywh": [
+            624.0,
+            376.0,
+            132.0,
+            56.0
+          ],
+          "texture_guid": "685116be2efeee943b70a0ca1715215a",
+          "unity_pivot_xy": [
+            0.5,
+            0.5
+          ],
+          "pixels_per_unit": 100.0,
+          "source_sprite_file_id": 1101925732,
+          "source_sprite_kind": "TextureImporter sub-sprite"
+        }
+      },
+      "collider_file_id": "1266466061",
+      "collider_offset": [
+        0.0,
+        0.0
+      ],
+      "collider_size": [
+        1.32,
+        0.56
+      ]
+    },
+    {
+      "center": [
+        1.10200028019,
+        0.0
+      ],
+      "sprite": {
+        "geometry": {
+          "offset": [
+            1.10200028019,
+            0.0
+          ],
+          "axis_x": [
+            0.7878700000000001,
+            0.0
+          ],
+          "axis_y": [
+            0.0,
+            0.78787
+          ],
+          "size": [
+            1.32,
+            0.56
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ]
+        },
+        "renderer_file_id": "1630540058",
+        "transform": {
+          "path": "Container/PlayerGo/ws/w3/WeaponGun/Weapons/Laser/Laser",
+          "game_object_file_id": "1630540056",
+          "transform_file_id": "1630540057",
+          "scene_line": 173822,
+          "local_position": [
+            0.526737,
+            0.0,
+            0.0
+          ],
+          "local_rotation_xyzw": [
+            -0.0,
+            -0.0,
+            -0.0,
+            1.0
+          ],
+          "local_scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "source_sprite": "Assets/Texture2D/sactx-0-1024x1024-ETC2-projectiles-cc582037.png",
+        "sprite_reference": "{fileID: 1101925732, guid: 685116be2efeee943b70a0ca1715215a, type: 3}",
+        "sprite_metadata": {
+          "unity_rect_xywh": [
+            624.0,
+            376.0,
+            132.0,
+            56.0
+          ],
+          "texture_guid": "685116be2efeee943b70a0ca1715215a",
+          "unity_pivot_xy": [
+            0.5,
+            0.5
+          ],
+          "pixels_per_unit": 100.0,
+          "source_sprite_file_id": 1101925732,
+          "source_sprite_kind": "TextureImporter sub-sprite"
+        }
+      },
+      "collider_file_id": "1630540060",
+      "collider_offset": [
+        0.0,
+        0.0
+      ],
+      "collider_size": [
+        1.32,
+        0.56
+      ]
+    },
+    {
+      "center": [
+        1.481000180109,
+        0.0
+      ],
+      "sprite": {
+        "geometry": {
+          "offset": [
+            1.481000180109,
+            0.0
+          ],
+          "axis_x": [
+            0.7878700000000003,
+            0.0
+          ],
+          "axis_y": [
+            0.0,
+            0.78787
+          ],
+          "size": [
+            1.32,
+            0.56
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ]
+        },
+        "renderer_file_id": "2009675685",
+        "transform": {
+          "path": "Container/PlayerGo/ws/w3/WeaponGun/Weapons/Laser/Laser/Laser",
+          "game_object_file_id": "2009675683",
+          "transform_file_id": "2009675684",
+          "scene_line": 210372,
+          "local_position": [
+            0.4810437,
+            0.0,
+            0.0
+          ],
+          "local_rotation_xyzw": [
+            -0.0,
+            -0.0,
+            -0.0,
+            1.0
+          ],
+          "local_scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "source_sprite": "Assets/Texture2D/sactx-0-1024x1024-ETC2-projectiles-cc582037.png",
+        "sprite_reference": "{fileID: 1101925732, guid: 685116be2efeee943b70a0ca1715215a, type: 3}",
+        "sprite_metadata": {
+          "unity_rect_xywh": [
+            624.0,
+            376.0,
+            132.0,
+            56.0
+          ],
+          "texture_guid": "685116be2efeee943b70a0ca1715215a",
+          "unity_pivot_xy": [
+            0.5,
+            0.5
+          ],
+          "pixels_per_unit": 100.0,
+          "source_sprite_file_id": 1101925732,
+          "source_sprite_kind": "TextureImporter sub-sprite"
+        }
+      },
+      "collider_file_id": "2009675687",
+      "collider_offset": [
+        0.0,
+        0.0
+      ],
+      "collider_size": [
+        1.32,
+        0.56
+      ]
+    },
+    {
+      "center": [
+        1.961000444382,
+        0.0
+      ],
+      "sprite": {
+        "geometry": {
+          "offset": [
+            1.961000444382,
+            0.0
+          ],
+          "axis_x": [
+            0.7878699999999998,
+            0.0
+          ],
+          "axis_y": [
+            0.0,
+            0.78787
+          ],
+          "size": [
+            1.32,
+            0.56
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ]
+        },
+        "renderer_file_id": "76926579",
+        "transform": {
+          "path": "Container/PlayerGo/ws/w3/WeaponGun/Weapons/Laser/Laser/Laser/Laser",
+          "game_object_file_id": "76926577",
+          "transform_file_id": "76926578",
+          "scene_line": 8185,
+          "local_position": [
+            0.6092379,
+            0.0,
+            0.0
+          ],
+          "local_rotation_xyzw": [
+            -0.0,
+            -0.0,
+            -0.0,
+            1.0
+          ],
+          "local_scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "source_sprite": "Assets/Texture2D/sactx-0-1024x1024-ETC2-projectiles-cc582037.png",
+        "sprite_reference": "{fileID: 1101925732, guid: 685116be2efeee943b70a0ca1715215a, type: 3}",
+        "sprite_metadata": {
+          "unity_rect_xywh": [
+            624.0,
+            376.0,
+            132.0,
+            56.0
+          ],
+          "texture_guid": "685116be2efeee943b70a0ca1715215a",
+          "unity_pivot_xy": [
+            0.5,
+            0.5
+          ],
+          "pixels_per_unit": 100.0,
+          "source_sprite_file_id": 1101925732,
+          "source_sprite_kind": "TextureImporter sub-sprite"
+        }
+      },
+      "collider_file_id": "76926581",
+      "collider_offset": [
+        0.0,
+        0.0
+      ],
+      "collider_size": [
+        1.32,
+        0.56
+      ]
+    },
+    {
+      "center": [
+        2.5090004841269,
+        0.0
+      ],
+      "sprite": {
+        "geometry": {
+          "offset": [
+            2.5090004841269,
+            0.0
+          ],
+          "axis_x": [
+            0.7878699999999998,
+            0.0
+          ],
+          "axis_y": [
+            0.0,
+            0.78787
+          ],
+          "size": [
+            1.32,
+            0.56
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ]
+        },
+        "renderer_file_id": "697827095",
+        "transform": {
+          "path": "Container/PlayerGo/ws/w3/WeaponGun/Weapons/Laser/Laser/Laser/Laser/Laser",
+          "game_object_file_id": "697827093",
+          "transform_file_id": "697827094",
+          "scene_line": 79416,
+          "local_position": [
+            0.69554627,
+            0.0,
+            0.0
+          ],
+          "local_rotation_xyzw": [
+            -0.0,
+            -0.0,
+            -0.0,
+            1.0
+          ],
+          "local_scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "source_sprite": "Assets/Texture2D/sactx-0-1024x1024-ETC2-projectiles-cc582037.png",
+        "sprite_reference": "{fileID: 1101925732, guid: 685116be2efeee943b70a0ca1715215a, type: 3}",
+        "sprite_metadata": {
+          "unity_rect_xywh": [
+            624.0,
+            376.0,
+            132.0,
+            56.0
+          ],
+          "texture_guid": "685116be2efeee943b70a0ca1715215a",
+          "unity_pivot_xy": [
+            0.5,
+            0.5
+          ],
+          "pixels_per_unit": 100.0,
+          "source_sprite_file_id": 1101925732,
+          "source_sprite_kind": "TextureImporter sub-sprite"
+        }
+      },
+      "collider_file_id": "697827097",
+      "collider_offset": [
+        0.0,
+        0.0
+      ],
+      "collider_size": [
+        1.32,
+        0.56
+      ]
+    },
+    {
+      "center": [
+        2.9330004851463993,
+        0.0
+      ],
+      "sprite": {
+        "geometry": {
+          "offset": [
+            2.9330004851463993,
+            0.0
+          ],
+          "axis_x": [
+            0.7878700000000007,
+            0.0
+          ],
+          "axis_y": [
+            0.0,
+            0.78787
+          ],
+          "size": [
+            1.32,
+            0.56
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ]
+        },
+        "renderer_file_id": "1009790266",
+        "transform": {
+          "path": "Container/PlayerGo/ws/w3/WeaponGun/Weapons/Laser/Laser/Laser/Laser/Laser/Laser",
+          "game_object_file_id": "1009790264",
+          "transform_file_id": "1009790265",
+          "scene_line": 110573,
+          "local_position": [
+            0.53815985,
+            0.0,
+            0.0
+          ],
+          "local_rotation_xyzw": [
+            -0.0,
+            -0.0,
+            -0.0,
+            1.0
+          ],
+          "local_scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "source_sprite": "Assets/Texture2D/sactx-0-1024x1024-ETC2-projectiles-cc582037.png",
+        "sprite_reference": "{fileID: 1101925732, guid: 685116be2efeee943b70a0ca1715215a, type: 3}",
+        "sprite_metadata": {
+          "unity_rect_xywh": [
+            624.0,
+            376.0,
+            132.0,
+            56.0
+          ],
+          "texture_guid": "685116be2efeee943b70a0ca1715215a",
+          "unity_pivot_xy": [
+            0.5,
+            0.5
+          ],
+          "pixels_per_unit": 100.0,
+          "source_sprite_file_id": 1101925732,
+          "source_sprite_kind": "TextureImporter sub-sprite"
+        }
+      },
+      "collider_file_id": "1009790268",
+      "collider_offset": [
+        0.0,
+        0.0
+      ],
+      "collider_size": [
+        1.32,
+        0.56
+      ]
+    }
+  ],
+  "burst_paths": [
+    {
+      "start": [
+        0.317,
+        -0.135
+      ],
+      "end": [
+        3.146,
+        -0.796
+      ],
+      "angle": -0.4038342812323459,
+      "sprite": {
+        "geometry": {
+          "offset": [
+            0,
+            0
+          ],
+          "axis_x": [
+            1,
+            0
+          ],
+          "axis_y": [
+            0,
+            1
+          ],
+          "size": [
+            1.02,
+            0.4
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ]
+        },
+        "renderer_file_id": "742716612722596868",
+        "transform": {
+          "path": "SpawnMove/BulletB",
+          "game_object_file_id": "742716612722596869",
+          "transform_file_id": "742716612722596871",
+          "scene_line": 22,
+          "local_position": [
+            0.317,
+            -0.135,
+            0.0
+          ],
+          "local_rotation_xyzw": [
+            0.0,
+            0.0,
+            -0.20054789,
+            0.9796839
+          ],
+          "local_scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "source_sprite": "Assets/Texture2D/sactx-0-1024x1024-ETC2-projectiles-cc582037.png",
+        "sprite_reference": "{fileID: -1909389404, guid: 685116be2efeee943b70a0ca1715215a, type: 3}",
+        "sprite_metadata": {
+          "unity_rect_xywh": [
+            766.0,
+            284.0,
+            102.0,
+            40.0
+          ],
+          "texture_guid": "685116be2efeee943b70a0ca1715215a",
+          "unity_pivot_xy": [
+            0.5,
+            0.5
+          ],
+          "pixels_per_unit": 100.0,
+          "source_sprite_file_id": -1909389404,
+          "source_sprite_kind": "TextureImporter sub-sprite"
+        }
+      }
+    },
+    {
+      "start": [
+        0.313,
+        0.096
+      ],
+      "end": [
+        3.076,
+        0.555
+      ],
+      "angle": 0.40382694581948114,
+      "sprite": {
+        "geometry": {
+          "offset": [
+            0,
+            0
+          ],
+          "axis_x": [
+            1,
+            0
+          ],
+          "axis_y": [
+            0,
+            1
+          ],
+          "size": [
+            1.02,
+            0.4
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ]
+        },
+        "renderer_file_id": "7315319444484349708",
+        "transform": {
+          "path": "SpawnMove/BulletB (1)",
+          "game_object_file_id": "7315319444484349709",
+          "transform_file_id": "7315319444484349711",
+          "scene_line": 268,
+          "local_position": [
+            0.313,
+            0.096,
+            0.0
+          ],
+          "local_rotation_xyzw": [
+            -0.0,
+            -0.0,
+            0.20054431,
+            0.9796847
+          ],
+          "local_scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "source_sprite": "Assets/Texture2D/sactx-0-1024x1024-ETC2-projectiles-cc582037.png",
+        "sprite_reference": "{fileID: -1909389404, guid: 685116be2efeee943b70a0ca1715215a, type: 3}",
+        "sprite_metadata": {
+          "unity_rect_xywh": [
+            766.0,
+            284.0,
+            102.0,
+            40.0
+          ],
+          "texture_guid": "685116be2efeee943b70a0ca1715215a",
+          "unity_pivot_xy": [
+            0.5,
+            0.5
+          ],
+          "pixels_per_unit": 100.0,
+          "source_sprite_file_id": -1909389404,
+          "source_sprite_kind": "TextureImporter sub-sprite"
+        }
+      }
+    },
+    {
+      "start": [
+        0.228,
+        -0.328
+      ],
+      "end": [
+        3.233,
+        -1.744
+      ],
+      "angle": -0.6540209109492989,
+      "sprite": {
+        "geometry": {
+          "offset": [
+            0,
+            0
+          ],
+          "axis_x": [
+            1,
+            0
+          ],
+          "axis_y": [
+            0,
+            1
+          ],
+          "size": [
+            1.02,
+            0.4
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ]
+        },
+        "renderer_file_id": "3591887655320017766",
+        "transform": {
+          "path": "SpawnMove/BulletB (2)",
+          "game_object_file_id": "3591887655320017767",
+          "transform_file_id": "3591887655320017765",
+          "scene_line": 145,
+          "local_position": [
+            0.228,
+            -0.328,
+            0.0
+          ],
+          "local_rotation_xyzw": [
+            -0.0,
+            -0.0,
+            -0.32121333,
+            0.9470068
+          ],
+          "local_scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "source_sprite": "Assets/Texture2D/sactx-0-1024x1024-ETC2-projectiles-cc582037.png",
+        "sprite_reference": "{fileID: -1909389404, guid: 685116be2efeee943b70a0ca1715215a, type: 3}",
+        "sprite_metadata": {
+          "unity_rect_xywh": [
+            766.0,
+            284.0,
+            102.0,
+            40.0
+          ],
+          "texture_guid": "685116be2efeee943b70a0ca1715215a",
+          "unity_pivot_xy": [
+            0.5,
+            0.5
+          ],
+          "pixels_per_unit": 100.0,
+          "source_sprite_file_id": -1909389404,
+          "source_sprite_kind": "TextureImporter sub-sprite"
+        }
+      }
+    },
+    {
+      "start": [
+        0.233,
+        0.238
+      ],
+      "end": [
+        3.148,
+        1.519
+      ],
+      "angle": 0.6540270578662907,
+      "sprite": {
+        "geometry": {
+          "offset": [
+            0,
+            0
+          ],
+          "axis_x": [
+            1,
+            0
+          ],
+          "axis_y": [
+            0,
+            1
+          ],
+          "size": [
+            1.02,
+            0.4
+          ],
+          "pivot": [
+            0.5,
+            0.5
+          ]
+        },
+        "renderer_file_id": "7320609566819551849",
+        "transform": {
+          "path": "SpawnMove/BulletB (3)",
+          "game_object_file_id": "7320609566819551848",
+          "transform_file_id": "7320609566819551850",
+          "scene_line": 391,
+          "local_position": [
+            0.233,
+            0.238,
+            -0.0
+          ],
+          "local_rotation_xyzw": [
+            0.0,
+            0.0,
+            0.32121626,
+            0.94700587
+          ],
+          "local_scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "source_sprite": "Assets/Texture2D/sactx-0-1024x1024-ETC2-projectiles-cc582037.png",
+        "sprite_reference": "{fileID: -1909389404, guid: 685116be2efeee943b70a0ca1715215a, type: 3}",
+        "sprite_metadata": {
+          "unity_rect_xywh": [
+            766.0,
+            284.0,
+            102.0,
+            40.0
+          ],
+          "texture_guid": "685116be2efeee943b70a0ca1715215a",
+          "unity_pivot_xy": [
+            0.5,
+            0.5
+          ],
+          "pixels_per_unit": 100.0,
+          "source_sprite_file_id": -1909389404,
+          "source_sprite_kind": "TextureImporter sub-sprite"
+        }
+      }
+    }
+  ],
+  "inputs": [
+    {
+      "path": "Assets/AnimationClip/MoveGun.anim",
+      "sha256": "da9d7267aae8584cfe42cadb3bad65a711c7e8039e2a7b127d4145297314d521"
+    },
+    {
+      "path": "Assets/AnimationClip/MoveGun.anim.meta",
+      "sha256": "5d420827f73f11eb65b864870d4312148d218ffba4fe468756e21506e7afa4af"
+    },
+    {
+      "path": "Assets/Brotato.unity",
+      "sha256": "d6e2108e2d0157d436abaca640e429b97ee54cdae8b4554d3d502b74a2de131c"
+    },
+    {
+      "path": "Assets/Brotato.unity.meta",
+      "sha256": "07cb2ad1af2cdbe0eaee8d4dcca7a7ebc60b5b8ce6b7378bb2e0ebdd11c5e707"
+    },
+    {
+      "path": "Assets/PrefabInstance/bullet_wand - Copy.prefab",
+      "sha256": "08bb2453c7db9a0bffc78f7830bf3193e16ce51d73345338a390ef24b510678d"
+    },
+    {
+      "path": "Assets/PrefabInstance/bullet_wand - Copy.prefab.meta",
+      "sha256": "7e66be7502019f77a24b33c77ee011c1cb08426cc59351cdf50dfa885817b71c"
+    },
+    {
+      "path": "Assets/PrefabInstance/BulletA.prefab",
+      "sha256": "1d486a09e574b75db3d7c5f66ab4921abab853181e1136e7389f321c30a8fe37"
+    },
+    {
+      "path": "Assets/PrefabInstance/BulletA.prefab.meta",
+      "sha256": "670b3ef0ed9ff0603c1526481368e2237913d8ba26cd445c905cc7e9b7e1513c"
+    },
+    {
+      "path": "Assets/PrefabInstance/SpawnMove.prefab",
+      "sha256": "7a4e610e50a28ec6cca2ce5c26f5205e4d32c51ab981310a77d9d0dc0a6e7f0c"
+    },
+    {
+      "path": "Assets/PrefabInstance/SpawnMove.prefab.meta",
+      "sha256": "ddd5069c39275fa9d614a9a2afd1416af22c042b89e0bf569d353dc6f7a0b9ce"
+    },
+    {
+      "path": "Assets/Scripts/w1.cs",
+      "sha256": "20b1ac41ea26456afbfd3dc3eade57404887a821335a51bb691bc521ff4aae9c"
+    },
+    {
+      "path": "Assets/Scripts/w1.cs.meta",
+      "sha256": "bebacbe57ed0b12493288280e908953d06eeabf28b79d4a9bc85a3fe46e3f6d9"
+    },
+    {
+      "path": "Assets/Scripts/w2.cs",
+      "sha256": "e2b8c3512abd3899960ea5f94abb95cbe3c485ed38285facdeabdc6cf981669b"
+    },
+    {
+      "path": "Assets/Scripts/w2.cs.meta",
+      "sha256": "0a441266d3e4125aac8d35aadd3af2ebb1b0847ce309ac381e53a8e8e688b131"
+    },
+    {
+      "path": "Assets/Scripts/w3.cs",
+      "sha256": "a4e71a946b259890de09c1ddc0378f080f6375d24b85cc79024a1020172f0207"
+    },
+    {
+      "path": "Assets/Scripts/w3.cs.meta",
+      "sha256": "0c4c0c3a1fad8a0b76493fd0938728d081c88aac1896020f31aaaa10323f8827"
+    },
+    {
+      "path": "Assets/Scripts/w4.cs",
+      "sha256": "0b8f30943ae44601acd0a65745e9619c2d0da3c456ec218aae5f0694691b8b68"
+    },
+    {
+      "path": "Assets/Scripts/w4.cs.meta",
+      "sha256": "dad603dfeb051e86b2a723502a4acd863ab6edd589a165bce11ff460931c0af0"
+    },
+    {
+      "path": "Assets/Scripts/w5.cs",
+      "sha256": "ba880b9d9f9c7a65210f1d0e912b4c24559c919dabecec99baa1597dc1078f50"
+    },
+    {
+      "path": "Assets/Scripts/w5.cs.meta",
+      "sha256": "1c55182b772cc46bc8d2458bd60b9adffa483e99dca5ebb742d79884cc7a8d8e"
+    },
+    {
+      "path": "Assets/Scripts/w6.cs",
+      "sha256": "e76ef4819753bf440b32b4036984ad7130b2269090cba376fd00ef01e6df6f2a"
+    },
+    {
+      "path": "Assets/Scripts/w6.cs.meta",
+      "sha256": "b0bd8a89b4ee9c5da0629d704a21562f10e71a868c93f67829bc159744bfc519"
+    },
+    {
+      "path": "Assets/Sprite/bullet_wand.asset",
+      "sha256": "662930ef7e54d93b16442702c436c1cd4a406376e7418b9faa6fd101f8c95b84"
+    },
+    {
+      "path": "Assets/Sprite/bullet_wand.asset.meta",
+      "sha256": "ca05b3c0e566b42eb721d54889593da557eb8f785574418aed0d6a2f6a7ccee2"
+    },
+    {
+      "path": "Assets/Sprite/double_barrel_shotgun.asset",
+      "sha256": "bf2a9a23b5d225ac3130e00d24d1d29e3b0eda343b09fa8af3eb24ed97a02aef"
+    },
+    {
+      "path": "Assets/Sprite/double_barrel_shotgun.asset.meta",
+      "sha256": "59e9d484b1aec83d2f103f6765bd47c533216e01603055bc75099149e99ac6ce"
+    },
+    {
+      "path": "Assets/Sprite/lightning_shiv.asset",
+      "sha256": "3e90015d6e29ceeaec214288d64c8cdb1457551bb153e14e0e8eab0ddc05c4b6"
+    },
+    {
+      "path": "Assets/Sprite/lightning_shiv.asset.meta",
+      "sha256": "65d6acebb0d5149911054530d29f45040ec61d2509728beb9121ef0419587b5b"
+    },
+    {
+      "path": "Assets/Sprite/smg.asset",
+      "sha256": "7d7a11a833d12e9537e46aa1e9dc17bfdfc7fe1a9bacbb0e63e3a4e0f9d2bdb2"
+    },
+    {
+      "path": "Assets/Sprite/smg.asset.meta",
+      "sha256": "a8ec9077eacbcc8e28dad75b8dba1d6c0a9ff7b80ea0eed60a51c3def3708df0"
+    },
+    {
+      "path": "Assets/Sprite/taser.asset",
+      "sha256": "3f83a83f53dfc82ab24270a94a2f42b9ecc5c87fee4676bdc056c9e5aff85918"
+    },
+    {
+      "path": "Assets/Sprite/taser.asset.meta",
+      "sha256": "e71defe487329ff10aa5f06583d39bff8f5cbdb2727e91b858a65010bcf4cd6b"
+    },
+    {
+      "path": "Assets/Sprite/torch.asset",
+      "sha256": "a46d1453ce0b1e06d5b53938f0fdaa44531875bfe2fa6acaaad274bdc7deff8e"
+    },
+    {
+      "path": "Assets/Sprite/torch.asset.meta",
+      "sha256": "6d098f1140f9fcfd72acca10d97d387f88aacdfadbc48875b07a7ca4f40ad86a"
+    },
+    {
+      "path": "Assets/Sprite/wand.asset",
+      "sha256": "2a3c75fbd9b380f4ce90ca69194d11bd9660ba45fa1fe4d72c6aab02b2aabb54"
+    },
+    {
+      "path": "Assets/Sprite/wand.asset.meta",
+      "sha256": "8ef08c9dc317a49b92f3244d560734cfb8e22b05f25bbc0b35b1864766efcbca"
+    },
+    {
+      "path": "Assets/Texture2D/sactx-0-1024x1024-ETC2-projectiles-cc582037.png",
+      "sha256": "0d344e2e553cd7d2e23e8f9d6be9b1900e60650a06d81d8013116be78c479a60"
+    },
+    {
+      "path": "Assets/Texture2D/sactx-0-1024x1024-ETC2-projectiles-cc582037.png.meta",
+      "sha256": "c2015241d8b982800e352bd0a18fdf55db81e26a01d31db4e07799ded85ab646"
+    },
+    {
+      "path": "Assets/Texture2D/sactx-0-1024x1024-ETC2-weapons-dadc6bfe.png",
+      "sha256": "9adda4689f9c0b81400b6b702670746394e9b871985eec9f2b6b1f7e05ec81b2"
+    },
+    {
+      "path": "Assets/Texture2D/sactx-0-1024x1024-ETC2-weapons-dadc6bfe.png.meta",
+      "sha256": "99231cdeb5efbad8800875515f4ae1790bf255a1387b628f9c4081802ef2a0d2"
+    }
+  ]
+}

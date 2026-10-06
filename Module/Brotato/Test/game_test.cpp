@@ -99,7 +99,7 @@ void TestPauseDeathAndRevive() {
     Check(game.GetState() == State::Playing, "unpause resumes the game");
     game.SpawnEnemy(PlayerTransform(game).position, true);
     game.FixedTick();
-    Check(game.GetState() == State::Dead && PlayerData(game).health <= 0,
+    Check(game.GetState() == State::Dead && game.Get<Health>(game.PlayerEntity()).current <= 0,
           "lethal contact transitions to dead");
     const double deadRemaining = game.Stats().remaining;
     const auto deadTicks = game.Stats().ticks;
@@ -111,7 +111,7 @@ void TestPauseDeathAndRevive() {
     Near(glm::length(PlayerTransform(game).position - deadPosition), 0, 1e-6,
          "death stops movement");
     game.Revive();
-    Check(game.GetState() == State::Playing && PlayerData(game).health > 0,
+    Check(game.GetState() == State::Playing && game.Get<Health>(game.PlayerEntity()).current > 0,
           "revive restores a living, playable player");
 }
 
@@ -126,17 +126,17 @@ void TestSpawnWarningAndContactEnter() {
     game.FixedTick();
     Check(game.Get<Enemy>(enemy).phase == EnemyPhase::Spawning,
           "spawn warning precedes the live enemy");
-    Check(PlayerData(game).health == 100, "spawn warnings do not deal contact damage");
-    TickUntil(game, [&] { return PlayerData(game).health < 100; }, 120,
+    Check(game.Get<Health>(game.PlayerEntity()).current == 100, "spawn warnings do not deal contact damage");
+    TickUntil(game, [&] { return game.Get<Health>(game.PlayerEntity()).current < 100; }, 120,
               "enemy can damage the player after its warning");
-    Check(PlayerData(game).health == 93, "first contact deals exactly one damage event");
+    Check(game.Get<Health>(game.PlayerEntity()).current == 93, "first contact deals exactly one damage event");
     for (int i = 0; i < 20; ++i) game.FixedTick();
-    Check(PlayerData(game).health == 93, "continuous overlap does not repeat OnTriggerEnter damage");
+    Check(game.Get<Health>(game.PlayerEntity()).current == 93, "continuous overlap does not repeat OnTriggerEnter damage");
     PlayerTransform(game).position = {4, 0};
     game.FixedTick();
     PlayerTransform(game).position = {0, 0};
     game.FixedTick();
-    Check(PlayerData(game).health == 86, "leaving and re-entering causes a fresh contact event");
+    Check(game.Get<Health>(game.PlayerEntity()).current == 86, "leaving and re-entering causes a fresh contact event");
 }
 
 void TestSweptProjectileHit() {
@@ -241,7 +241,7 @@ void TestWaveTransitionAndCleanup() {
     GameModule game(config);
     Start(game);
     Near(game.Stats().remaining, 20, 1e-6, "first wave is 20 seconds");
-    PlayerData(game).health = 97;
+    game.Get<Health>(game.PlayerEntity()).current = 97;
     PlayerData(game).level = 3;
     PlayerData(game).experience = 24;
     PlayerData(game).materials = 11;
@@ -264,7 +264,7 @@ void TestWaveTransitionAndCleanup() {
     Check(game.GetState() == State::Playing && game.Stats().wave == 2,
           "next wave resumes gameplay with wave two");
     Near(game.Stats().remaining, 27, 1e-6, "second wave adds seven seconds");
-    Check(PlayerData(game).health == 97 && PlayerData(game).level == 3 &&
+    Check(game.Get<Health>(game.PlayerEntity()).current == 97 && PlayerData(game).level == 3 &&
           PlayerData(game).experience == 24 && PlayerData(game).materials == 11,
           "wave transitions preserve player health and progression");
     Check(game.Stats().enemies == 0 && game.Stats().projectiles == 0 && game.Stats().pickups == 0,
@@ -291,7 +291,7 @@ void TestRestartLifecycleAndMultipleInstances() {
     first.SpawnEnemy({20, 0}, true);
     first.SpawnProjectile({40, 0}, {1, 0});
     first.SpawnPickup({60, 0});
-    PlayerData(first).health = 1;
+    first.Get<Health>(first.PlayerEntity()).current = 1;
     PlayerData(first).level = 4;
     PlayerData(first).experience = 32;
     PlayerData(first).materials = 17;
@@ -303,7 +303,7 @@ void TestRestartLifecycleAndMultipleInstances() {
           "restart resets run statistics");
     Check(first.Stats().enemies == 0 && first.Stats().projectiles == 0 && first.Stats().pickups == 0,
           "restart removes transient entities");
-    Check(PlayerData(first).health == firstConfig.initialHealth && PlayerData(first).level == 0 &&
+    Check(first.Get<Health>(first.PlayerEntity()).current == firstConfig.initialHealth && PlayerData(first).level == 0 &&
           PlayerData(first).experience == 0 && PlayerData(first).materials == 0,
           "restart resets player progression");
     Near(glm::length(PlayerTransform(first).position - firstConfig.playerStart), 0, 1e-6,
@@ -388,14 +388,20 @@ void TestAutomaticTargetingRangeAndCooldown() {
     game.FixedTick();
     Check(game.Stats().shots == 1 && game.Stats().projectiles == 1,
           "automatic weapon fires at a live enemy within range");
-    Near(game.Get<Weapon>(game.WeaponEntity()).angle, std::atan2(2.f, 0.f), 1e-6,
+    const float aim = std::atan2(2.029f, -.014f);
+    Near(game.Get<Weapon>(game.WeaponEntity()).angle, aim, 1e-6,
          "automatic weapon aims at the nearest eligible enemy");
     bool foundProjectile = false;
     for (const auto& sprite : game.Extract()) {
         if (sprite.image != Image::Projectile) continue;
         foundProjectile = true;
-        Check(std::abs(sprite.position.x) < 1e-5f && sprite.position.y > 0,
-              "projectile muzzle lies along the selected target direction");
+        const glm::vec2 local{.692806249f + (.5f - .5002063f) * .47867508f,
+                              .0135370124f + (.5f - .48976415f) * .48847755f};
+        const glm::vec2 expected = glm::vec2(.014f, -.029f) +
+            glm::vec2(local.x * std::cos(aim) - local.y * std::sin(aim),
+                      local.x * std::sin(aim) + local.y * std::cos(aim));
+        Near(glm::length(sprite.position - expected), 0, 1e-6,
+             "projectile snapshot preserves the source fire point and Sprite pivot");
     }
     Check(foundProjectile, "automatic projectiles are visible in the render snapshot");
     for (int i = 0; i < 10; ++i) game.FixedTick();

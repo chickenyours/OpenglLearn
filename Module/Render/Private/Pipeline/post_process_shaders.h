@@ -185,6 +185,42 @@ void main() { outColor = ReadImage(inputTexture, vUV); }
 )GLSL";
 }
 
+// Spatial reconstruction of the already display-mapped internal image. This
+// cardinal cubic is Catmull--Rom (radius two), derived directly from its cubic
+// basis. Its negative lobes restore detail; the central bilinear footprint's
+// component-wise envelope bounds ringing and preserves uniform colors. This
+// pass has no temporal reconstruction/history or TSR behavior.
+inline std::string SpatialUpsampleShader() {
+    return PostProcessDetail::FragmentPreamble() + R"GLSL(
+vec4 CubicWeights(float t) {
+    float t2=t*t, t3=t2*t;
+    return vec4(-0.5*t+t2-0.5*t3,
+                 1.0-2.5*t2+1.5*t3,
+                 0.5*t+2.0*t2-1.5*t3,
+                -0.5*t2+0.5*t3);
+}
+void main() {
+    ivec2 size=textureSize(inputTexture,0);
+    vec2 position=vUV*vec2(size)-0.5;
+    ivec2 base=ivec2(floor(position));
+    vec2 phase=fract(position);
+    vec4 wx=CubicWeights(phase.x), wy=CubicWeights(phase.y);
+    vec4 color=vec4(0), lower=vec4(60000), upper=vec4(-60000);
+    float weightSum=0;
+    for(int y=0;y<4;++y) for(int x=0;x<4;++x) {
+        ivec2 pixel=clamp(base+ivec2(x-1,y-1),ivec2(0),size-1);
+        vec4 sampleColor=FiniteColor(texelFetch(inputTexture,pixel,0));
+        float weight=wx[x]*wy[y];
+        color+=sampleColor*weight;weightSum+=weight;
+        if(x>=1 && x<=2 && y>=1 && y<=2) {
+            lower=min(lower,sampleColor);upper=max(upper,sampleColor);
+        }
+    }
+    outColor=clamp(color/max(weightSum,1e-6),lower,upper);
+}
+)GLSL";
+}
+
 // For same-size horizontal/vertical blur. Use BloomDownsampleShader when the
 // target is smaller so both axes receive the same pre-decimation footprint.
 inline std::string GaussianBlurShader() {
@@ -376,7 +412,8 @@ void main() {
     float edge = clamp(16.0 * vUV.x * vUV.y * (1.0 - vUV.x) * (1.0 - vUV.y), 0.0, 1.0);
     float vignette = pow(edge, 0.2);
     display *= mix(1.0, vignette, clamp(postGrading.z, 0.0, 1.0));
-    outColor = vec4(clamp(display, 0.0, 1.0), scene.a);
+    // The window output is opaque; HDR/TAA alpha may contain reactivity data.
+    outColor = vec4(clamp(display, 0.0, 1.0), 1.0);
 }
 )GLSL";
 }

@@ -210,7 +210,7 @@ void TestSelectedContentAndBaseRules() {
           "new game receives selected content");
     Check(settings.initialHealth == 77 && settings.playerSpeed == 6 && !settings.spawning && !settings.armed,
           "selection preserves gameplay rules without invented character bonuses");
-    Check(PlayerData(session).health == 77 && session.Game()->CurrentWeapon() == WeaponKind::Burst &&
+    Check(session.Game()->Get<Health>(session.Game()->PlayerEntity()).current == 77 && session.Game()->CurrentWeapon() == WeaponKind::Burst &&
           settings.initialWeapon == WeaponKind::Burst, "base health and selected weapon are applied");
     const auto& sprite = session.Game()->Get<Sprite>(session.Game()->PlayerEntity());
     Near(sprite.size.x, Characters.back().size.x, "selected character width reaches ECS sprite");
@@ -238,7 +238,7 @@ void TestReturnCreatesFreshRun() {
     auto config = QuietConfig(); config.initialWeapon = WeaponKind::Torch;
     config.character = Characters.size() - 1; config.map = Maps.size() - 1;
     SessionModule session(config); Start(session); Run(session);
-    PlayerData(session).health = 7; PlayerData(session).materials = 91;
+    session.Game()->Get<Health>(session.Game()->PlayerEntity()).current = 7; PlayerData(session).materials = 91;
     PlayerData(session).level = 4; PlayerData(session).experience = 66;
     auto* game = session.Game();
     game->SpawnEnemy({3, 0}, true); game->SpawnPickup({4, 0}); game->SpawnProjectile({5, 0}, {1, 0});
@@ -250,7 +250,7 @@ void TestReturnCreatesFreshRun() {
     Check(stats.ticks == 0 && stats.wave == 1 && stats.kills == 0 && stats.shots == 0 &&
           stats.enemies == 0 && stats.projectiles == 0 && stats.pickups == 0 && stats.weapons == 1,
           "new run starts with only the player and equipped weapon");
-    Check(PlayerData(session).health == config.initialHealth && PlayerData(session).materials == 0 &&
+    Check(session.Game()->Get<Health>(session.Game()->PlayerEntity()).current == config.initialHealth && PlayerData(session).materials == 0 &&
           PlayerData(session).level == 0 && PlayerData(session).experience == 0,
           "new run resets progression and health");
     Check(session.Game()->CurrentWeapon() == WeaponKind::Torch &&

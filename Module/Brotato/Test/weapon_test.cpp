@@ -120,7 +120,7 @@ void TestTargetEligibilityForAllWeapons() {
         const auto nearest = game.SpawnEnemy({0, 2.5f}, true);
         game.FixedTick();
         Check(game.Stats().shots == 1, "each weapon starts an attack for an eligible target");
-        const float expectedAim = config.weapons[index].mode == AttackMode::Thrust ? std::atan2(2.5f, -.55f) : std::atan2(1.f, 0.f);
+        const float expectedAim = index == WeaponIndex(WeaponKind::Wand) ? std::atan2(2.529f, -.014f) : std::atan2(1.f, 0.f);
         Near(Equipped(game).angle, expectedAim, 1e-5, "weapon selects nearest eligible target");
         Check(Equipped(game).target.GetID() == nearest.GetID(), "weapon retains a full target handle");
     }
@@ -296,7 +296,7 @@ void TestPauseAndDeathFreezeActiveAttacks() {
                  "paused authored projectiles do not move");
         game.SetPaused(false); game.FixedTick();
         Check(game.Stats().ticks == ticks + 1, "attack simulation resumes after unpausing");
-        game.Get<Player>(game.PlayerEntity()).health = 0; game.FixedTick();
+        game.Get<Health>(game.PlayerEntity()).current = 0; game.FixedTick();
         Check(game.GetState() == State::Dead, "scenario enters death state");
         const auto deathWeapon = Equipped(game); const auto deathTicks = game.Stats().ticks;
         Tick(game, 100);

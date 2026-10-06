@@ -48,6 +48,15 @@ inline std::optional<glm::vec2> CursorToCanvas(double cursorX, double cursorY,
 inline Rect Card(std::size_t slot) {
     return {{-8.9f + float(slot % Columns) * 2.30f, 3.05f - float(slot / Columns) * 2.05f}, {2.10f, 1.84f}};
 }
+inline Rect UpgradeCard(std::size_t slot) { return {{-5.2f + float(slot) * 5.2f, -.65f}, {4.7f, 2.3f}}; }
+inline Rect ShopCard(std::size_t slot) { return {{-7.2f+float(slot)*4.8f,.65f},{4.25f,3.55f}}; }
+inline Rect ShopLock(std::size_t slot) { return {{-7.2f+float(slot)*4.8f,-1.55f},{4.25f,.50f}}; }
+inline Rect EquipmentCard(std::size_t slot) { return {{-8.25f+float(slot)*3.3f,.65f},{3.05f,3.55f}}; }
+inline constexpr Rect ShopStockTab{{-3.2f,2.83f},{5.9f,.44f}};
+inline constexpr Rect ShopEquipmentTab{{3.2f,2.83f},{5.9f,.44f}};
+inline constexpr Rect ShopSell{{0,-3.92f},{3.7f,.68f}};
+inline constexpr Rect ShopReroll{{-5.7f,-3.92f},{4.5f,.68f}};
+inline constexpr Rect ShopNext{{5.3f,-3.92f},{6.0f,.68f}};
 inline constexpr Rect Back{{-8.2f, -4.9f}, {3.2f, .76f}};
 inline constexpr Rect Forward{{7.8f, -4.9f}, {4.2f, .76f}};
 inline constexpr Rect PreviousPage{{-5.5f, -3.75f}, {1.1f, .58f}};

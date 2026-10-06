@@ -27,7 +27,9 @@ public:
     std::size_t SelectedCharacter() const noexcept { return character_; }
     WeaponKind SelectedWeapon() const noexcept { return weapon_; }
     bool HasSelectedWeapon() const noexcept { return weaponChosen_; }
+    const Config& Settings() const noexcept { return base_; }
     std::size_t SelectedDifficulty() const noexcept { return difficulty_; }
+    std::size_t DifficultyCount() const noexcept { return ProfileRulesEnabled(base_)?RunDifficulties.size():1; }
     std::size_t SelectedMap() const noexcept { return map_; }
     GameModule* Game() noexcept { return game_.get(); }
     const GameModule* Game() const noexcept { return game_.get(); }

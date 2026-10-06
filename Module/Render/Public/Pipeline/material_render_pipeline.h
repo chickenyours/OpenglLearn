@@ -1,12 +1,20 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <string>
 #include "Render/Public/Material/pbr_material.h"
 #include "Render/Public/Pipeline/post_process.h"
 #include "Render/Public/Pipeline/render_pipeline.h"
 #include "Render/Public/Pipeline/scene_effects.h"
 #include "Render/Public/Pipeline/temporal_effects.h"
+#include "Render/Public/Pipeline/area_lights.h"
+#include "Render/Public/Pipeline/indirect_lighting.h"
+#include "Render/Public/Pipeline/sky_light.h"
+#include "Render/Public/Pipeline/diffuse_probe_volume.h"
+#include "Render/Public/Pipeline/realtime_gi.h"
+#include "Render/Public/Pipeline/lumen_gi.h"
+#include "Render/Public/Pipeline/spot_light.h"
 
 namespace Render {
 class RHIDevice;
@@ -32,11 +40,17 @@ struct ShadowSettings {
     float casterPadding = 30.0f;
     ShadowDebugView debugView = ShadowDebugView::None;
 };
+struct ReflectionReceiverBounds {
+    glm::vec3 minimum{0}, maximum{0}; // world-space conservative AABB
+};
 struct ReflectionSettings {
     bool enabled = true;
     glm::vec4 plane{0, 1, 0, 3.25f}; // keep dot(plane,worldPosition)>=0
     float strength = 0.75f;
     float resolutionScale = 1.0f; // relative to viewport; 0.25..2, default full resolution
+    // Supply bounds enclosing every surface using this planar reflection.
+    // Omitted bounds retain the existing always-render behavior.
+    std::optional<ReflectionReceiverBounds> receiverBounds;
 };
 struct MaterialPipelineSettings {
     ShadowSettings shadows;
@@ -47,6 +61,17 @@ struct MaterialPipelineSettings {
     TemporalEffectsSettings temporal;
     float deltaSeconds = 1.0f / 60.0f;
     bool cameraCut = false;
+    AreaLightsSettings areaLights;
+    SpotLightSettings spotLight;
+    IndirectLightingSettings indirect;
+    SkyLightSettings sky;
+    DiffuseProbeSettings probes;
+    RealtimeGiSettings realtimeGi;
+    LumenGiSettings lumenGi;
+    // Presentation/HUD extent; {0,0} uses the internal Resize extent.
+    // Both nonzero components must be 1..8192. Scene, depth, GI and temporal
+    // histories retain the internal extent when only this value changes.
+    glm::uvec2 outputSize{0};
 };
 struct PipelineStatistics {
     std::uint32_t shadowPasses = 0, reflectionPasses = 0, depthPasses = 0;
@@ -54,12 +79,26 @@ struct PipelineStatistics {
     std::uint32_t resolvePasses = 0, temporalPasses = 0, motionBlurPasses = 0;
     bool historyUsed = false, cameraHistoryUsed = false;
     std::uint32_t reflectionWidth = 0, reflectionHeight = 0, msaaSamples = 1;
+    std::uint32_t transparentPasses = 0, indirectPasses = 0;
+    std::uint32_t skyPasses = 0;
+    std::uint32_t validDiffuseProbes = 0;
+    std::uint32_t realtimeGiPasses=0,realtimeGiUpdatedProbes=0,realtimeGiRays=0;
+    std::uint32_t lumenGiPasses=0,lumenSurfaceTexels=0,lumenUpdatedSurfels=0,lumenScreenProbes=0;
+    bool lumenHistoryUsed=false;
 };
-// Borrowed diagnostic handles, valid until Resize/Shutdown. Never delete them.
+// Borrowed diagnostic handles. Resize/Shutdown or a scene/resource replacement
+// on the next Record can retire them; cache indices can flip each frame.
+// Never delete or retain them as external rendering resources.
 struct PipelineDebugTextures {
     RenderResourceHandle<RHITextureSpec> sceneColor, sceneDepth, shadowAtlas;
     RenderResourceHandle<RHITextureSpec> reflectionColor, ambientOcclusion, bloom;
     std::uint32_t reflectionWidth = 0, reflectionHeight = 0, msaaSamples = 1;
+    RenderResourceHandle<RHITextureSpec> indirectIrradiance, diffuseRadiance, surfaceNormals, indirectDepth;
+    RenderResourceHandle<RHITextureSpec> opaqueColor, opaqueDepth;
+    RenderResourceHandle<RHITextureSpec> realtimeGiCache;
+    RenderResourceHandle<RHITextureSpec> lumenSurfaceCache,lumenGather,lumenReflections;
+    RenderResourceHandle<RHITextureSpec> lumenDirectLighting;
+    RenderResourceHandle<RHITextureSpec> lumenReflectionSource,lumenReflectionSourceDepth;
 };
 
 // The caller owns RHIDevice and Begin/End/Submit. Initialize/Resize/Shutdown and

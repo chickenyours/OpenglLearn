@@ -1,13 +1,21 @@
 #pragma once
 
 #include <optional>
+#include <string>
+#include <vector>
+#include <unordered_map>
 
 #include "Render/Public/RHICommand/rhi_command.h"
+#include "Render/Public/RHICommand/rhi_pipeline_command.h"
 #include "Render/Public/RHIResourceType/rhi_resource_type.h"
 #include "Render/Private/Backend/rhi_backend_context.h"
 
 
 namespace Render{
+    struct BackendUniformBlock {
+        uint32_t bytes=0,binding=0;
+        std::unordered_map<std::string,uint32_t> offsets;
+    };
     // 后端类方法必须要只在同一个线程内调用
     class IBackend{
         friend class RHIDevice;
@@ -58,6 +66,19 @@ namespace Render{
         public:
             virtual ~IBackend() = default;
 
+            // Render-thread diagnostics, outside the frontend command protocol.
+            virtual bool HardwareRayTracingAvailable() const { return false; }
+            virtual std::string DeviceName() const { return "OpenGL"; }
+            virtual std::vector<float> ReadTexture(RenderResourceHandle<RHITextureSpec>) { return {}; }
+            virtual std::vector<uint8_t> ReadWindow() { return {}; }
+            virtual double LastGpuMilliseconds() const { return 0; }
+            virtual void AbortFrame() {}
+            virtual uint32_t ValidationErrorCount() const { return 0; }
+            virtual std::optional<BackendUniformBlock> ReflectUniformBlock(RenderResourceHandle<ShaderProgramSpec>, const std::string&) { return {}; }
+
 
     };
+    // Registered explicitly, so standalone header-only OpenGL modules do not
+    // acquire a link dependency on the Vulkan implementation.
+    inline IBackend* (*VulkanBackendFactory)(const RHIBackContext&) = nullptr;
 }

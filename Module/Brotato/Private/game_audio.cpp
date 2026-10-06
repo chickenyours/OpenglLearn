@@ -89,11 +89,11 @@ void GameAudio::Sync(GameModule* game,std::uint64_t runSerial) {
     std::erase_if(voices_,[&](const auto& voice){return !mixer_.IsPlaying(voice.id);});
     const State state = game->GetState();
     auto events = game->DrainEvents();
-    if(state==State::Dead || state==State::WaveComplete) {
+    if(state==State::Dead || state==State::WaveComplete || state==State::Shop || state==State::Victory || state==State::Defeat) {
         ClearGameVoices();
         return;
     }
-    const bool paused = state==State::Paused;
+    const bool paused = state==State::Paused || state==State::LevelUp;
     for(const auto& voice:voices_) mixer_.SetPaused(voice.id,paused);
     if(paused) return;
     for(const auto& event:events) {

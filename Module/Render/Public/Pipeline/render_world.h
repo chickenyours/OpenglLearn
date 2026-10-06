@@ -36,6 +36,15 @@ struct RenderItem {
     RenderOrder order = RenderOrder::Scene;
     bool castsShadows = true;
     bool visibleInReflections = true;
+    // Scene extraction tags fixtures paired with point/rectangle lights.
+    // Their visible emission remains; analytic lighting owns transported energy.
+    bool analyticEmission = false;
+
+    RenderLayer EffectiveLayer() const {
+        if (layer == RenderLayer::Overlay) return layer;
+        return material && material->GetDomain() == Material::Domain::Translucent
+            ? RenderLayer::Transparent : layer;
+    }
 
     RenderResourceHandle<PipelineSpec> EffectivePipeline() const {
         return material ? material->Pipeline() : pipeline;

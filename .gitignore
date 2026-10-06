@@ -13,10 +13,16 @@ build.md
 
 /build/
 /output/
+/Module/build/
 /third_party/archives/
 /CMakeUserPresets.json
-
-build/
+/third_party/jsoncpp-1.9.5/
+/third_party/glad-0.1.36/
+/third_party/glfw-3.4/
+/tools/*
+!/tools/import_brotato_*.py
+!/tools/brotato_scene.py
+/build/
 
 /Log/
 

@@ -25,7 +25,7 @@ inline constexpr std::uint32_t MaxMaterialTextureSlots = 16;
 static_assert(sizeof(float) == 4 && sizeof(std::int32_t) == 4,
               "Material parameter storage requires 32-bit scalars");
 
-enum class Domain : std::uint8_t { Surface, Sprite };
+enum class Domain : std::uint8_t { Surface, Sprite, Translucent };
 enum class ParameterType : std::uint8_t { Float, Int, Bool, Vec2, Vec3, Vec4, Mat4 };
 using ParameterValue = std::variant<float, std::int32_t, bool, glm::vec2, glm::vec3, glm::vec4, glm::mat4>;
 
@@ -217,7 +217,7 @@ public:
             Detail::Fail(error, "Material template name cannot be empty");
             return nullptr;
         }
-        if (desc.domain != Domain::Surface && desc.domain != Domain::Sprite) {
+        if (desc.domain != Domain::Surface && desc.domain != Domain::Sprite && desc.domain != Domain::Translucent) {
             Detail::Fail(error, "Unknown material domain");
             return nullptr;
         }

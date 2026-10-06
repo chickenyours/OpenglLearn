@@ -77,10 +77,11 @@ public:
         InspectUniform(blur_, "previousUnjitteredViewProjection", 256);
         CheckFxaa();
         CheckTaa();
+        CheckReactive();
         CheckStableJitterResolve();
         CheckMotion();
         CheckDepthCopy();
-        std::cout << "Temporal effects GPU test passed: real GLSL/384-byte UBO, FXAA, TAA rejection, camera blur and Depth32F copy\n";
+        std::cout << "Temporal effects GPU test passed: real GLSL/400-byte UBO, FXAA, TAA rejection, camera blur and Depth32F copy\n";
     }
 private:
     template <class Predicate> void Wait(Predicate done, const char* label) {
@@ -171,11 +172,11 @@ private:
         }, [result] { result->done = true; });
         Wait([result] { return result->done; }, "uniform reflection");
         Check(result->value.error == GL_NO_ERROR, "GL error reflecting TemporalData");
-        Check(result->value.bytes == 384 && result->value.binding == 6, "TemporalData size/binding mismatch");
+        Check(result->value.bytes == sizeof(TemporalConstants) && result->value.binding == 6, "TemporalData size/binding mismatch");
         Check(result->value.offset == expectedOffset, "TemporalData member offset mismatch: " + name);
     }
     Pixels Draw(Pipeline pipeline, Texture color, Texture history, Texture depth, Texture oldDepth,
-                const TemporalConstants& constants, bool depthOnly = false, bool alternate = false) {
+                const TemporalConstants& constants, bool depthOnly = false, bool alternate = false, Texture opaque = {}) {
         RHICommand::BeginFrame begin;
         begin.frameIndex = ++frameIndex_; begin.framebufferWidth = Width; begin.framebufferHeight = Height;
         auto encoder = device_.BeginFrame(begin);
@@ -193,6 +194,7 @@ private:
             !encoder.BindPipeline(pipeline) || !encoder.BindMesh(mesh_) ||
             !encoder.BindTexture(color, 0) || !encoder.BindTexture(history, 1) ||
             !encoder.BindTexture(depth, 2) || !encoder.BindTexture(oldDepth, 3) ||
+            !encoder.BindTexture(opaque, 4) ||
             !encoder.DrawIndexed(RHICommand::DrawIndexed{3}) || !encoder.End(false)) abort();
         auto completed = std::make_shared<Completion<bool>>();
         if (!device_.async_SubmitFrameCommands(encoder.GetCommandBuffer(), [completed] { completed->done = true; })) abort();
@@ -246,6 +248,21 @@ private:
         const auto clamped = Draw(taa_, uniformColor_, history_, depth_, depth_, constants);
         Check(MaximumDifference(clamped, uniformPixels_) < 0.0005f, "TAA failed to clamp stale color to a uniform neighborhood");
         std::cout << "TAA valid-history mean delta=" << delta << ", depth/UV/w rejection passed\n";
+    }
+    void CheckReactive() {
+        auto constants = Constants(); constants.temporal.w=1; constants.reactive.x=1;
+        // The old opaque test history has alpha=1: it models a fully reactive
+        // transparent layer that has just moved away, while the current color
+        // exactly matches the current opaque snapshot (current mask=0).
+        const auto uncovered=Draw(taa_,checker_,history_,depth_,depth_,constants,false,false,checker_);
+        Check(MeanDifference(uncovered,checkerPixels_)<.0005f,"Previous transparency left TAA ghosting");
+        for (std::size_t i=3;i<uncovered.size();i+=4) Check(uncovered[i]<.001f,"Current opaque mask was not cleared");
+        const auto transparent=Draw(taa_,checker_,history_,depth_,depth_,constants,false,false,uniformColor_);
+        Check(MeanDifference(transparent,checkerPixels_)<.0005f,"Reactive transparency retained stale background");
+        constants.motion.w=1; constants.previousUnjitteredViewProjection[3][0]=-.25f;
+        const auto protectedBlur=Draw(blur_,checker_,{},depth_,{},constants,false,false,uniformColor_);
+        Check(MeanDifference(protectedBlur,checkerPixels_)<.0005f,"Opaque depth blurred the transparent layer");
+        std::cout << "Transparent current/previous reactive history and camera-blur exclusion passed\n";
     }
     void CheckMotion() {
         auto constants = Constants();

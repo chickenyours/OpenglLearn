@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <cstring>
 #include <functional>
+#include <future>
 #include <limits>
 #include <mutex>
 #include <optional>
@@ -107,12 +108,14 @@ private:
     }
 
     bool thread_ProcessFrameCommands(const RHIFrameCommandBuffer& buffer) {
+        try {
         size_t cursor = 0;
         for (size_t i = 0; i < buffer.commandCount; ++i) {
             CommandId id{};
             if (!ReadFrameCommand(buffer, cursor, id) ||
                 !RHICommand::FrameCommandsSet::valid(id)) {
                 LOG_ERROR("RHIDevice", "invalid frame command id");
+                backend_->AbortFrame();
                 return false;
             }
 
@@ -172,9 +175,15 @@ private:
             default:
                 break;
             }
-            if (!ok) return false;
+            if (!ok) { backend_->AbortFrame(); return false; }
         }
-        return cursor == buffer.memory_p;
+        if (cursor != buffer.memory_p) { backend_->AbortFrame(); return false; }
+        return true;
+        } catch (const std::exception& error) {
+            backend_->AbortFrame();
+            LOG_ERROR("RHIDevice", error.what());
+            return false;
+        }
     }
 
     template <typename Command, typename CreateFn>
@@ -304,17 +313,14 @@ private:
         context.resourcePool = &resourcePool_;
         if (type == BackendType::Opengl) {
             backend_ = ObjectPtr<IBackend>(new OpenglBackend(context));
-            backend_->Init(specData);
+        } else if (type == BackendType::Vulkan && VulkanBackendFactory) {
+            backend_ = ObjectPtr<IBackend>(VulkanBackendFactory(context));
         }
+        if (!backend_) throw std::runtime_error("Requested RHI backend is not registered");
+        backend_->Init(specData);
     }
 
-    void thread_run(BackendType type, OpenglBackendContext specData) {
-        thread_InitBackend(type, &specData);
-        if (!backend_) {
-            isRun_.store(false);
-            return;
-        }
-
+    void thread_run() {
         for (;;) {
             std::unique_lock<std::mutex> lock(waitMutex_);
             rendercv_.wait(lock, [&]() {
@@ -342,14 +348,36 @@ public:
 
     ~RHIDevice() { StopAndRelease(); }
 
-    void Run(BackendType type, OpenglBackendContext specData) {
+    void Run(BackendType type, OpenglBackendContext context) {
+        if(type!=BackendType::Opengl)throw std::invalid_argument("OpenGL startup context requires the OpenGL backend");
+        RunWithContext(type,std::move(context));
+    }
+    template<class Context, std::enable_if_t<std::is_same_v<std::decay_t<Context>,VulkanBackendContext>,int> = 0>
+    void Run(BackendType type, Context&& context) {
+        if(type!=BackendType::Vulkan)throw std::invalid_argument("Vulkan startup context requires the Vulkan backend");
+        RunWithContext(type,std::forward<Context>(context));
+    }
+private:
+    template<class Context> void RunWithContext(BackendType type, Context specData) {
         bool expected = false;
         if (isRun_.compare_exchange_strong(expected, true)) {
             backendType_ = type;
-            renderThread_ = std::thread(&RHIDevice::thread_run, this, type, specData);
+            std::promise<void> ready;
+            auto initialized = ready.get_future();
+            renderThread_ = std::thread([this, type, specData, ready=std::move(ready)]() mutable {
+                try { thread_InitBackend(type, &specData); }
+                catch (...) {
+                    if (backend_) { backend_->Shutdown(); backend_.Reset(); }
+                    isRun_.store(false); ready.set_exception(std::current_exception()); return;
+                }
+                ready.set_value();
+                thread_run();
+            });
+            try { initialized.get(); }
+            catch (...) { renderThread_.join(); throw; }
         }
     }
-
+public:
     // The caller must stop frame/resource producers before shutdown. Release
     // abandoned recording leases while synchronization and the render thread are
     // still alive, so deletions enqueued by their destructors are drained below.
@@ -364,6 +392,9 @@ public:
     }
 
     bool IsRunning() const { return isRun_.load(); }
+    BackendType GetBackendType() const { return backendType_; }
+    // Only call from async_ExecuteCode on the render thread.
+    IBackend* BackendDiagnostics() const { return backend_.Get(); }
 
     const RHIResourcePool& GetResourcePool() const { return resourcePool_; }
 

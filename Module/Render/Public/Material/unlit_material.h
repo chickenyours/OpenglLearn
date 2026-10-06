@@ -6,6 +6,7 @@
 namespace Render::Material {
 
 inline std::shared_ptr<const MaterialTemplate> MakeUnlitTemplate(Domain domain) {
+    if (domain != Domain::Surface && domain != Domain::Sprite) return {};
     MaterialTemplateDesc desc;
     desc.name = domain == Domain::Sprite ? "UnlitSprite" : "UnlitSurface";
     desc.domain = domain;

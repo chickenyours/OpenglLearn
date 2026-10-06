@@ -52,6 +52,9 @@ public:
         glm::vec4 normalizedRegion, float radians = 0, glm::vec4 tint = {1, 1, 1, 1},
         bool flipX = false, bool flipY = false, int frame = 0);
     void Rect(glm::vec2 center, glm::vec2 size, glm::vec4 tint, float radians = 0);
+    // Solid geometry shares the atlas and the current painter-ordered batch.
+    bool Line(glm::vec2 start, glm::vec2 end, float thickness, glm::vec4 tint);
+    bool Ring(glm::vec2 center, float radius, float thickness, glm::vec4 tint, unsigned segments = 32);
     // Original 5x7 bitmap ASCII font; lowercase maps to uppercase. pixel is one
     // font pixel in world units. topLeft uses y-up coordinates; newlines descend.
     void Text(std::string_view text, glm::vec2 topLeft, float pixel, glm::vec4 tint);

@@ -4,6 +4,7 @@
 #include <optional>
 #include <string>
 
+#include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
 #include "Render/Public/render_backend_context.h"
@@ -16,6 +17,7 @@ struct WindowSpec {
     uint32_t height = 720;
     std::string title = "Application";
     bool vsync = true;
+    Render::BackendType backend = Render::BackendType::Opengl;
 };
 
 class Window {
@@ -70,6 +72,7 @@ public:
             glfwInitialized_ = true;
         }
 
+        glfwWindowHint(GLFW_CLIENT_API, spec_.backend == Render::BackendType::Vulkan ? GLFW_NO_API : GLFW_OPENGL_API);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
@@ -90,9 +93,11 @@ public:
             return false;
         }
 
-        glfwMakeContextCurrent(window_);
-        glfwSwapInterval(spec_.vsync ? 1 : 0);
-        glfwMakeContextCurrent(nullptr);
+        if (spec_.backend == Render::BackendType::Opengl) {
+            glfwMakeContextCurrent(window_);
+            glfwSwapInterval(spec_.vsync ? 1 : 0);
+            glfwMakeContextCurrent(nullptr);
+        }
 
         isActivated_ = true;
         return true;
@@ -120,7 +125,7 @@ public:
     }
 
     std::optional<Render::OpenglBackendContext> GetRenderContextAsOpengl() {
-        if (!isActivated_ || window_ == nullptr) {
+        if (!isActivated_ || window_ == nullptr || spec_.backend != Render::BackendType::Opengl) {
             return std::nullopt;
         }
 
@@ -153,6 +158,11 @@ public:
         };
 
         return context;
+    }
+
+    std::optional<Render::VulkanBackendContext> GetRenderContextAsVulkan() {
+        if (!isActivated_ || !window_ || spec_.backend != Render::BackendType::Vulkan) return {};
+        return Render::VulkanBackendContext{window_, spec_.vsync};
     }
 
 private:

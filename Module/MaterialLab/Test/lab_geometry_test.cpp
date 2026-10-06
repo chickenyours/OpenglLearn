@@ -84,7 +84,7 @@ void TestTextures() {
     for (const auto pattern : {
         TexturePattern::White, TexturePattern::FlatNormal, TexturePattern::CopperAlbedo,
         TexturePattern::CheckerAlbedo, TexturePattern::BumpedNormal, TexturePattern::Metallic,
-        TexturePattern::Roughness, TexturePattern::AmbientOcclusion
+        TexturePattern::Roughness, TexturePattern::AmbientOcclusion,TexturePattern::WaterNormal,TexturePattern::WaterFlow
     }) {
         const auto texture = MakeTexture(pattern, 32);
         assert(texture.width == 32 && texture.height == 32);
@@ -96,7 +96,7 @@ void TestTextures() {
                 assert(texture.rgba[i] == 128 && texture.rgba[i + 1] == 128 && texture.rgba[i + 2] == 255);
             } else if (pattern == TexturePattern::White || pattern == TexturePattern::Metallic) {
                 assert(texture.rgba[i] == 255 && texture.rgba[i + 1] == 255 && texture.rgba[i + 2] == 255);
-            } else if (pattern == TexturePattern::BumpedNormal) {
+            } else if (pattern == TexturePattern::BumpedNormal||pattern==TexturePattern::WaterNormal) {
                 const glm::vec3 normal = glm::vec3(texture.rgba[i], texture.rgba[i + 1], texture.rgba[i + 2])
                                       * (2.0f / 255.0f) - 1.0f;
                 assert(Near(glm::length(normal), 1.0f, 0.014f));

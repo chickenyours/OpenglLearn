@@ -49,7 +49,9 @@ namespace ECS::Core{
 
         template<typename T>
         T* GetComponentPtrAt(ArchType* archType, size_t baseIndex){
-            if(archType == nullptr){
+            // An absent Optional/AnyOf member is a normal query result, not a
+            // storage error to log once for every visited chunk.
+            if(!HasComponent<T>(archType)){
                 return nullptr;
             }
 
@@ -285,6 +287,16 @@ namespace ECS::Core{
 
             PointerTuple components{};
 
+            // Views and component pointers are borrowed until the next structural
+            // change. Resolve the current dense row, never fabricate a generation.
+            EntityHandle Entity(size_t row, const Scene& scene) const {
+                if (!archType || row >= count) return EntityHandle(0);
+                const auto& entities = archType->GetIndexEntities();
+                if (beginIndex >= entities.size() || row >= entities.size() - beginIndex)
+                    return EntityHandle(0);
+                return scene.GetEntityHandle(entities[beginIndex + row], archType);
+            }
+
             template<typename T>
             auto Get() const -> decltype(std::get<typename Detail::QueryItemTraits<T>::StorageType>(components)){
                 return std::get<typename Detail::QueryItemTraits<T>::StorageType>(components);
@@ -293,6 +305,15 @@ namespace ECS::Core{
             template<typename T>
             auto Data() const -> decltype(std::get<typename Detail::QueryItemTraits<T>::StorageType>(components)){
                 return std::get<typename Detail::QueryItemTraits<T>::StorageType>(components);
+            }
+
+            // Required/Optional row access. Missing optional data and invalid
+            // rows return null; this does not extend the view's borrowed lifetime.
+            template<typename T> requires (!Detail::IsAnyOfV<T>)
+            T* TryGet(size_t row) const {
+                if (row >= count) return nullptr;
+                auto* data = Get<T>();
+                return data ? data + row : nullptr;
             }
 
             bool Empty() const{
@@ -391,6 +412,7 @@ namespace ECS::Core{
         void Clear(){
             archTypes_.clear();
             sceneVersion_ = 0;
+            scene_ = nullptr;
         }
 
         bool RegisterArchType(ArchType* archType){
@@ -408,10 +430,11 @@ namespace ECS::Core{
             archTypes_.clear();
             RegisterArchTypes(scene.GetArchTypes());
             sceneVersion_ = scene.GetArchTypeVersion();
+            scene_ = &scene;
         }
 
         bool RefreshIfNeeded(const Scene& scene){
-            if(sceneVersion_ == scene.GetArchTypeVersion()) return false;
+            if(scene_ == &scene && sceneVersion_ == scene.GetArchTypeVersion()) return false;
             Refresh(scene);
             return true;
         }
@@ -425,6 +448,15 @@ namespace ECS::Core{
 
         size_t ArchTypeCount() const{
             return archTypes_.size();
+        }
+
+        // Entity creation/deletion updates this count without refreshing. Refresh
+        // after archetype changes before accessing the cached archetype pointers.
+        size_t Count() const {
+            size_t count = 0;
+            for (const auto* arch : archTypes_)
+                if (arch && arch->Check()) count += arch->ActiveCount();
+            return count;
         }
 
         ArchType* GetArchType(size_t index) const{
@@ -442,6 +474,7 @@ namespace ECS::Core{
     private:
         std::vector<ArchType*> archTypes_;
         uint64_t sceneVersion_ = 0;
+        const Scene* scene_ = nullptr;
 
         static size_t GetChunkCount(ArchType* archType){
             if(archType == nullptr){

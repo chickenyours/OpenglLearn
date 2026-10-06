@@ -8,7 +8,7 @@ namespace Brotato {
 
 SessionModule::SessionModule(Config base)
     : base_(std::move(base)), mapRandom_(base_.seed ^ 0x9e3779b9u),
-      character_(base_.character), map_(base_.map), weapon_(base_.initialWeapon) {}
+      character_(base_.character), map_(base_.map), weapon_(base_.initialWeapon), difficulty_(base_.difficulty) {}
 
 bool SessionModule::Reject(const char* message) {
     error_ = message;
@@ -17,7 +17,7 @@ bool SessionModule::Reject(const char* message) {
 
 bool SessionModule::Startup() {
     if (started_) return true;
-    if (character_ >= Characters.size() || map_ > RandomMap || !ValidWeapon(weapon_))
+    if (character_ >= Characters.size() || map_ > RandomMap || !ValidWeapon(weapon_) || difficulty_>=DifficultyCount())
         return Reject("Brotato session: invalid initial character, weapon or map");
     screen_ = Screen::Home;
     weaponChosen_ = false;
@@ -85,8 +85,8 @@ bool SessionModule::SelectWeapon(WeaponKind kind) {
 bool SessionModule::SelectDifficulty(std::size_t index) {
     if (!started_ || screen_ != Screen::DifficultySelect)
         return Reject("Brotato session: difficulty selection is not open");
-    // The source scene binds only one difficulty choice and no rule multipliers.
-    if (index >= Difficulties.size()) return Reject("Brotato session: invalid difficulty");
+    // Generated source choices stay separate from the new rule profiles.
+    if (index >= DifficultyCount()) return Reject("Brotato session: invalid difficulty");
     difficulty_ = index;
     error_.clear();
     return true;
@@ -98,6 +98,7 @@ bool SessionModule::StartRun() {
     try {
         Config settings = base_;
         settings.character = character_;
+        settings.difficulty = difficulty_;
         settings.initialWeapon = weapon_;
         auto candidateRandom = mapRandom_;
         settings.map = map_ == RandomMap ? candidateRandom() % Maps.size() : map_;

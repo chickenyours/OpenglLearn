@@ -1,5 +1,6 @@
-#include "Brotato/Public/game_module.h"
+#include "Brotato/Public/game_world.h"
 #include "Brotato/Public/animation_catalog.h"
+#include "Brotato/Systems/game_systems.h"
 #include <algorithm>
 #include <cmath>
 #include <numbers>
@@ -16,6 +17,22 @@ const Render::Animation::Clip& Clip(ActorClip clip) {
     }
     return PlayerIdle;
 }
+void Sample(ActorAnimation& animation) {
+    const bool player = animation.clip == ActorClip::PlayerIdle || animation.clip == ActorClip::PlayerMove;
+    const std::span<const AnimatedNode> nodes = player ? std::span<const AnimatedNode>(PlayerNodes) : std::span<const AnimatedNode>(EnemyNodes);
+    static_assert(PlayerNodes.size() <= ActorAnimation::MaxNodes && EnemyNodes.size() <= ActorAnimation::MaxNodes);
+    for (std::size_t index = 0; index < nodes.size(); ++index) animation.nodes[index] = nodes[index].base;
+    Render::Animation::Sample(Clip(animation.clip), animation.time,
+        std::span<Render::Animation::Pose>(animation.nodes.data(), nodes.size()));
+}
+void AdvanceAnimation(ActorAnimation& animation, ActorClip clip) {
+    if (animation.clip != clip) {
+        animation = ActorAnimation{};
+        animation.clip = clip;
+    }
+    animation.time += SimulationStep;
+    Sample(animation);
+}
 std::uint32_t Hash(std::uint32_t value) {
     value ^= value >> 16; value *= 0x7feb352du;
     value ^= value >> 15; value *= 0x846ca68bu;
@@ -25,172 +42,154 @@ float RandomUnit(std::uint32_t& state) {
     state = Hash(state + 0x9e3779b9u);
     return float(state >> 8) / 16777216.f;
 }
-glm::mat2 Basis(const Render::Animation::Pose& pose) {
-    const float cosine = std::cos(pose.angle), sine = std::sin(pose.angle);
-    return {{cosine * pose.scale.x, sine * pose.scale.x}, {-sine * pose.scale.y, cosine * pose.scale.y}};
-}
 }
 
-void GameModule::ResetActorAnimation(ECS::EntityHandle entity, ActorClip clip) {
-    auto& animation = Get<ActorAnimation>(entity);
-    animation = ActorAnimation{}; animation.clip = clip;
-    SampleActorAnimation(entity);
+void ResetActorAnimation(GameWorld& world, ECS::EntityHandle entity, ActorClip clip) {
+    auto& animation = world.Get<ActorAnimation>(entity);
+    animation = ActorAnimation{};
+    animation.clip = clip;
+    Sample(animation);
 }
 
-void GameModule::SampleActorAnimation(ECS::EntityHandle entity) {
-    auto& animation = Get<ActorAnimation>(entity);
-    const bool player = animation.clip == ActorClip::PlayerIdle || animation.clip == ActorClip::PlayerMove;
-    const std::span<const AnimatedNode> nodes = player ? std::span<const AnimatedNode>(PlayerNodes) : std::span<const AnimatedNode>(EnemyNodes);
-    static_assert(PlayerNodes.size() <= ActorAnimation::MaxNodes && EnemyNodes.size() <= ActorAnimation::MaxNodes);
-    for (std::size_t index = 0; index < nodes.size(); ++index) animation.nodes[index] = nodes[index].base;
-    Render::Animation::Sample(Clip(animation.clip), animation.time,
-        std::span<Render::Animation::Pose>(animation.nodes.data(), nodes.size()));
+void SampleActorAnimation(GameWorld& world, ECS::EntityHandle entity) {
+    Sample(world.Get<ActorAnimation>(entity));
 }
 
-void GameModule::Animate() {
-    if (state_ != State::Playing) return;
-    const auto& transform = Get<Transform>(player_);
-    const auto delta = transform.position - transform.previous;
-    const auto playerClip = glm::dot(delta, delta) > 1e-12f ? ActorClip::PlayerMove : ActorClip::PlayerIdle;
-    if (Get<ActorAnimation>(player_).clip != playerClip) ResetActorAnimation(player_, playerClip);
-    Get<ActorAnimation>(player_).time += FixedStep;
-    SampleActorAnimation(player_);
-    for (auto entity : enemies_) {
-        const auto phase = Get<Enemy>(entity).phase;
-        if (phase == EnemyPhase::Spawning) continue;
-        const auto clip = phase == EnemyPhase::Dying ? ActorClip::EnemyDeath : ActorClip::EnemyMove;
-        if (Get<ActorAnimation>(entity).clip != clip) ResetActorAnimation(entity, clip);
-        Get<ActorAnimation>(entity).time += FixedStep;
-        SampleActorAnimation(entity);
+void PresentationSystem::OnTick() {
+    auto& world = *GetContext()->GetService<GameWorld>();
+    if (world.state != State::Playing) return;
+
+    // Each query spans every matching archetype. No game-owned entity registry
+    // determines which actors or effects participate in this system.
+    Query<Player, Transform, ActorAnimation> players;
+    players.Refresh(*world.scene);
+    for (auto chunk : players) {
+        const auto* transforms = chunk.Get<Transform>();
+        auto* animations = chunk.Get<ActorAnimation>();
+        for (std::size_t row = 0; row < chunk.count; ++row) {
+            const auto delta = transforms[row].position - transforms[row].previous;
+            AdvanceAnimation(animations[row], glm::dot(delta, delta) > 1e-12f ? ActorClip::PlayerMove : ActorClip::PlayerIdle);
+        }
     }
-    for (auto entity : effects_) {
-        auto& effect = Get<Effect>(entity);
-        if (effect.kind == EffectKind::DamageText) {
-            // WaveTick schedules corpse retirement before this system runs.
-            // Follow that same boundary instead of approximating it with an
-            // independent float clock; generation protects a reused ECS slot.
-            const auto* owner = scene_->IsAlive(effect.owner) ?
-                scene_->GetActiveComponent<Enemy>(effect.owner.GetID()).Get() : nullptr;
-            if (!owner || owner->phase != EnemyPhase::Dying || owner->remaining <= 1e-5f) {
-                retired_.push_back(entity); continue;
+    Query<Enemy, ActorAnimation> enemies;
+    enemies.Refresh(*world.scene);
+    for (auto chunk : enemies) {
+        const auto* actors = chunk.Get<Enemy>();
+        auto* animations = chunk.Get<ActorAnimation>();
+        for (std::size_t row = 0; row < chunk.count; ++row) {
+            if (actors[row].phase == EnemyPhase::Spawning) continue;
+            AdvanceAnimation(animations[row], actors[row].phase == EnemyPhase::Dying ? ActorClip::EnemyDeath : ActorClip::EnemyMove);
+        }
+    }
+    Query<Effect, Transform, Velocity, Sprite> effects;
+    effects.Refresh(*world.scene);
+    for (auto chunk : effects) {
+        auto* values = chunk.Get<Effect>();
+        auto* transforms = chunk.Get<Transform>();
+        const auto* velocities = chunk.Get<Velocity>();
+        auto* sprites = chunk.Get<Sprite>();
+        for (std::size_t row = 0; row < chunk.count; ++row) {
+            auto& effect = values[row];
+            if (effect.kind == EffectKind::DamageText && effect.owner.GetID() != 0) {
+                // A relationship lookup is generation checked; the effect set
+                // itself comes from the query. Wave retirement occurs earlier
+                // this tick and its command is not played back until the end.
+                const auto* owner = world.scene->IsAlive(effect.owner) ?
+                    world.scene->GetActiveComponent<Enemy>(effect.owner.GetID()).Get() : nullptr;
+                if (!owner || owner->phase != EnemyPhase::Dying || owner->remaining <= 1e-5f) {
+                    world.commands->Destroy(chunk.Entity(row, *world.scene));
+                    continue;
+                }
+            }
+            const double activeSeconds = std::min(SimulationStep, std::max(0.0, double(effect.lifetime) - effect.age));
+            effect.age += activeSeconds;
+            if (effect.kind == EffectKind::BlastRing) {
+                if (effect.age + 1e-9 >= effect.lifetime) world.commands->Destroy(chunk.Entity(row,*world.scene));
+                continue;
+            }
+            auto& transform = transforms[row];
+            transform.previous = transform.position;
+            if (effect.kind == EffectKind::HitParticle) {
+                transform.position += velocities[row].value * float(activeSeconds);
+                const float progress = float(std::clamp(effect.age / effect.lifetime, 0.0, 1.0));
+                sprites[row].size = glm::vec2(effect.initialSize * (1 - progress * progress));
+                if (effect.age + 1e-9 >= effect.lifetime)
+                    world.commands->Destroy(chunk.Entity(row, *world.scene));
+            } else {
+                if (effect.owner.GetID() == 0 && effect.age + 1e-9 >= effect.lifetime) {
+                    world.commands->Destroy(chunk.Entity(row, *world.scene)); continue;
+                }
+                effect.pose = DamageTextBase;
+                Render::Animation::Sample(DamageText, effect.age, std::span<Render::Animation::Pose>(&effect.pose, 1));
             }
         }
-        const double activeSeconds = std::min(FixedStep, std::max(0.0, double(effect.lifetime) - effect.age));
-        const float activeDt = float(activeSeconds);
-        effect.age += activeSeconds;
-        auto& transform = Get<Transform>(entity);
-        transform.previous = transform.position;
-        if (effect.kind == EffectKind::HitParticle) {
-            transform.position += Get<Velocity>(entity).value * activeDt;
-            const float progress = float(std::clamp(effect.age / effect.lifetime, 0.0, 1.0));
-            Get<Sprite>(entity).size = glm::vec2(effect.initialSize * (1 - progress * progress));
-        } else {
-            effect.pose = DamageTextBase;
-            Render::Animation::Sample(DamageText, effect.age, std::span<Render::Animation::Pose>(&effect.pose, 1));
-        }
-        if (effect.kind == EffectKind::HitParticle && effect.age + 1e-9 >= effect.lifetime) retired_.push_back(entity);
     }
 }
 
-void GameModule::AppendActorSprites(std::vector<DrawSprite>& result, ECS::EntityHandle entity, bool player) {
-    const auto& animation = Get<ActorAnimation>(entity);
-    const auto& sprite = Get<Sprite>(entity);
-    const auto origin = Get<Transform>(entity).position;
-    const std::span<const AnimatedNode> nodes = player ? std::span<const AnimatedNode>(PlayerNodes) : std::span<const AnimatedNode>(EnemyNodes);
-    std::array<glm::mat2, ActorAnimation::MaxNodes> matrices{};
-    std::array<glm::vec2, ActorAnimation::MaxNodes> positions{};
-    std::array<float, ActorAnimation::MaxNodes> opacity{};
-    struct OrderedSprite { int order = 0; DrawSprite draw{}; };
-    std::array<OrderedSprite, ActorAnimation::MaxNodes> ordered{};
-    std::size_t count = 0;
-    const glm::mat2 rootBasis{{sprite.flipX ? -1.f : 1.f, 0}, {0, 1}};
-    for (std::size_t index = 0; index < nodes.size(); ++index) {
-        const auto& node = nodes[index]; const auto& pose = animation.nodes[index];
-        const auto parentBasis = node.parent < 0 ? rootBasis : matrices[node.parent];
-        const auto parentPosition = node.parent < 0 ? origin : positions[node.parent];
-        matrices[index] = parentBasis * Basis(pose);
-        positions[index] = parentPosition + parentBasis * pose.position;
-        opacity[index] = pose.opacity * (node.parent < 0 ? 1.f : opacity[node.parent]);
-        if (!node.visible) continue;
-        const auto size = node.image == Image::Player ? sprite.size : node.size;
-        const auto pivot = node.image == Image::Player ? CharacterPivots[config_.character] : node.pivot;
-        const auto axisX = matrices[index][0] * size.x, axisY = matrices[index][1] * size.y;
-        // The non-looping death clip reaches zero scale at .5 seconds but the
-        // ECS corpse stays alive until the source's delayed XP credit at 1.5.
-        if (glm::dot(axisX, axisX) <= 1e-12f || glm::dot(axisY, axisY) <= 1e-12f) continue;
-        const auto center = positions[index] + matrices[index] * ((glm::vec2(.5f) - pivot) * size);
-        DrawSprite draw{node.image, center, {glm::length(axisX), glm::length(axisY)},
-            std::atan2(axisX.y, axisX.x), node.tint};
-        draw.tint.a *= opacity[index];
-        draw.axisX = axisX; draw.axisY = axisY; draw.affine = true;
-        ordered[count++] = {node.order, draw};
-    }
-    std::stable_sort(ordered.begin(), ordered.begin() + count, [](const auto& a, const auto& b) { return a.order < b.order; });
-    for (std::size_t index = 0; index < count; ++index) result.push_back(ordered[index].draw);
-}
-
-void GameModule::QueueHitEffects(ECS::EntityHandle entity) {
-    const auto position = Get<Transform>(entity).position;
+void QueueHitEffects(GameWorld& world, ECS::EntityHandle entity, int damage) {
+    const auto position = world.Get<Transform>(entity).position;
     // Visual randomness is derived from captured values, never the combat RNG.
-    std::uint32_t random = Hash(config_.seed ^ std::uint32_t(stats_.ticks) ^
+    std::uint32_t random = Hash(world.config.seed ^ std::uint32_t(world.stats.ticks) ^
                                 (std::uint32_t(entity.GetID()) * 0x9e3779b9u));
-    auto room = [&] { return effects_.size() + pendingEffects_.size() < config_.maxEffects; };
-    if (config_.deathDelay > 0 && room())
-        pendingEffects_.push_back({EffectKind::DamageText, position, {}, DamageTextFontSize, 1 + int(RandomUnit(random) * 8), entity});
+    const auto existing = Count<Effect>(world);
+    auto room = [&] { return existing + world.reservedEffects < world.config.maxEffects; };
+    auto queue = [&](EffectKind kind, glm::vec2 origin, glm::vec2 velocity, float size, int value,
+                     ECS::EntityHandle owner = ECS::EntityHandle(0)) {
+        const float lifetime = kind == EffectKind::HitParticle ? .5f : world.config.expanded ? .45f : world.config.deathDelay;
+        const bool actualDamage = world.config.expanded;
+        // Copy all initialization values. The playback boundary may compact any
+        // queried chunk; callbacks must never retain component references.
+        world.effectCommands->Create(world.effectType,
+            [kind, origin, velocity, size, value, owner, lifetime, actualDamage](ECS::Core::Scene& scene, ECS::EntityHandle created) {
+                auto& transform = *scene.GetActiveComponent<Transform>(created.GetID()).Get();
+                transform.position = transform.previous = origin;
+                scene.GetActiveComponent<Velocity>(created.GetID()).Get()->value = velocity;
+                auto& sprite = *scene.GetActiveComponent<Sprite>(created.GetID()).Get();
+                sprite.image = Image::HitParticle;
+                sprite.size = glm::vec2(size);
+                auto& effect = *scene.GetActiveComponent<Effect>(created.GetID()).Get();
+                effect.kind = kind; effect.initialSize = size; effect.value = value;
+                effect.owner = owner; effect.lifetime = lifetime;
+                effect.damage = actualDamage;
+                if (kind == EffectKind::DamageText) {
+                    effect.pose = DamageTextBase;
+                    Render::Animation::Sample(DamageText, 0, std::span<Render::Animation::Pose>(&effect.pose, 1));
+                }
+            });
+        ++world.reservedEffects;
+    };
+    if ((world.config.expanded || world.config.deathDelay > 0) && room())
+        queue(EffectKind::DamageText, position, {}, DamageTextFontSize,
+            world.config.expanded ? std::max(1, damage) : 1 + int(RandomUnit(random) * 8),
+            world.config.expanded ? ECS::EntityHandle(0) : entity);
     for (int index = 0; index < 6 && room(); ++index) {
         const float angle = (RandomUnit(random) * 2 - 1) * (7 * std::numbers::pi_v<float> / 180);
         const float speed = 1 + RandomUnit(random) * 7;
         const float radius = std::sqrt(RandomUnit(random)) * .1f;
         const float offsetAngle = RandomUnit(random) * (2 * std::numbers::pi_v<float>);
         const glm::vec2 offset{std::cos(offsetAngle) * radius, std::sin(offsetAngle) * radius};
-        pendingEffects_.push_back({EffectKind::HitParticle, position + offset,
-            {std::cos(angle) * speed, std::sin(angle) * speed}, .1f + RandomUnit(random) * .18f, 1});
+        queue(EffectKind::HitParticle, position + offset, {std::cos(angle) * speed, std::sin(angle) * speed},
+              .1f + RandomUnit(random) * .18f, 1);
     }
 }
 
-void GameModule::CommitEffects() {
-    for (const auto& command : pendingEffects_) {
-        if (effects_.size() >= config_.maxEffects) break;
-        const auto entity = scene_->CreateEntity(effectType_); effects_.push_back(entity);
-        auto& transform = Get<Transform>(entity); transform.position = transform.previous = command.position;
-        Get<Velocity>(entity).value = command.velocity;
-        auto& sprite = Get<Sprite>(entity); sprite.image = Image::HitParticle; sprite.size = glm::vec2(command.size);
-        auto& effect = Get<Effect>(entity); effect.kind = command.kind; effect.initialSize = command.size; effect.value = command.value;
-        effect.owner = command.owner;
-        effect.lifetime = command.kind == EffectKind::HitParticle ? .5f : config_.deathDelay;
-        if (effect.kind == EffectKind::DamageText) {
-            effect.pose = DamageTextBase;
-            Render::Animation::Sample(DamageText, 0, std::span<Render::Animation::Pose>(&effect.pose, 1));
-        }
-    }
-    pendingEffects_.clear();
+void QueueBlastEffect(GameWorld& world, glm::vec2 position, float radius) {
+    if (!world.effectCommands || Count<Effect>(world) + world.reservedEffects >= world.config.maxEffects) return;
+    ++world.reservedEffects;
+    world.effectCommands->Create(world.effectType,[position,radius](auto& scene,auto entity) {
+        auto& transform = *scene.template TryGetComponent<Transform>(entity); transform.position = transform.previous = position;
+        auto& effect = *scene.template TryGetComponent<Effect>(entity);
+        effect.kind = EffectKind::BlastRing; effect.radius = radius; effect.lifetime = .22f;
+    });
+}
+void EmitEvent(GameWorld& world, GameEventKind kind, ECS::EntityHandle entity, glm::vec2 position, WeaponKind weapon) {
+    if (world.events.size() == MaxPendingGameEvents) { ++world.droppedEvents; return; }
+    world.events.push_back({kind, world.stats.ticks, entity, position, weapon});
 }
 
-std::vector<DrawDamageText> GameModule::ExtractDamageText() {
-    std::vector<DrawDamageText> result;
-    if (!started_) return result;
-    for (auto entity : effects_) {
-        const auto& effect = Get<Effect>(entity);
-        if (effect.kind != EffectKind::DamageText) continue;
-        result.push_back({effect.value, Get<Transform>(entity).position + DamageTextParentOffset + effect.pose.position,
-                          DamageTextFontSize * effect.pose.scale.y, {1, 1, 1, effect.pose.opacity}});
-    }
-    return result;
-}
-
-void GameModule::EmitEvent(GameEventKind kind, ECS::EntityHandle entity, glm::vec2 position, WeaponKind weapon) {
-    if (events_.size() == MaxPendingEvents) { ++droppedEvents_; return; }
-    events_.push_back({kind, stats_.ticks, entity, position, weapon});
-}
-
-std::vector<GameEvent> GameModule::DrainEvents() {
-    std::vector<GameEvent> result(events_.begin(), events_.end());
-    events_.clear();
-    return result;
-}
-
-void GameModule::ResetPresentation() {
-    ++presentationEpoch_;
-    events_.clear(); droppedEvents_ = 0;
+void ResetPresentation(GameWorld& world) {
+    ++world.presentationEpoch;
+    world.events.clear();
+    world.droppedEvents = 0;
 }
 } // namespace Brotato

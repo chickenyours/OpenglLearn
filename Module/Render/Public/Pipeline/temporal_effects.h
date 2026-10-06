@@ -71,6 +71,9 @@ struct alignas(16) TemporalConstants {
     // xyz=current world camera; w=1 only for blur whose input color has already
     // been resolved by TAA. Other passes ignore w; default/raw color uses 0.
     glm::vec4 cameraPosition{0, 0, 0, 0};
+    // x=opaque snapshot available, y=HDR difference sensitivity. When enabled,
+    // TAA history alpha stores current transparent reactivity, not scene opacity.
+    glm::vec4 reactive{0, 8, 0, 0};
 };
 static_assert(std::is_standard_layout_v<TemporalConstants>);
 static_assert(std::is_trivially_copyable_v<TemporalConstants>);
@@ -83,7 +86,8 @@ static_assert(offsetof(TemporalConstants, temporal) == 320);
 static_assert(offsetof(TemporalConstants, screen) == 336);
 static_assert(offsetof(TemporalConstants, motion) == 352);
 static_assert(offsetof(TemporalConstants, cameraPosition) == 368);
-static_assert(sizeof(TemporalConstants) == 384);
+static_assert(offsetof(TemporalConstants, reactive) == 384);
+static_assert(sizeof(TemporalConstants) == 400);
 
 inline TemporalConstants MakeTemporalConstants(const TemporalEffectsSettings& settings) {
     TemporalConstants result;

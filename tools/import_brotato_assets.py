@@ -6,7 +6,8 @@ Requires Pillow. Example:
 
 The Unity project is read only. Sprite .asset files in this recovered project
 contain the rectangle and texture GUID; the texture .meta resolves the PNG.
-No Unity installation, generated artwork, or entire-atlas copy is required.
+Whole textures are retained only where the scene explicitly uses a single-sprite
+PNG. No Unity installation or generated artwork is required.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from pathlib import Path
 import re
 
 from PIL import Image
+from brotato_scene import read_scene, write_catalog_headers
 
 
 # All names are grounded in the supplied source; the player is the selectable
@@ -106,7 +108,7 @@ def sprite_data(path: Path) -> dict:
     }
 
 
-def import_assets(source: Path, output: Path) -> dict:
+def import_assets(source: Path, output: Path, catalog_output: Path | None = None) -> dict:
     source = source.resolve(strict=True)
     output = output.resolve()
     if output == source or source in output.parents:
@@ -114,6 +116,11 @@ def import_assets(source: Path, output: Path) -> dict:
     assets = source / "Assets"
     if not (assets / "Brotato.unity").is_file():
         raise ValueError("--source must name the Unity project containing Assets/Brotato.unity")
+    scene = read_scene(source)
+    if catalog_output is not None:
+        catalog_output = catalog_output.resolve()
+        if catalog_output == source or source in catalog_output.parents:
+            raise ValueError("Generated headers must be outside the read-only Unity source project")
 
     # Restrict GUID discovery to source PNG textures, not plugin/examples/assets.
     textures = {
@@ -135,6 +142,12 @@ def import_assets(source: Path, output: Path) -> dict:
         sprite_meta = atlas.with_suffix(".png.meta")
         sources.append((name, purpose, sprite_meta, sprite_meta,
                         texture_sprite_data(sprite_meta, file_id)))
+    existing_names = {entry[0] for entry in sources}
+    for entry in scene["images"]:
+        if entry["id"] in existing_names:
+            continue
+        sources.append((entry["id"], entry["purpose"], source / entry["source_sprite"],
+                        source / entry["source_meta"], entry["data"]))
     for name, purpose, sprite, sprite_meta, data in sources:
         texture = textures.get(data["texture_guid"])
         if texture is None:
@@ -178,12 +191,15 @@ def import_assets(source: Path, output: Path) -> dict:
         "source_project": "Unity2021_Botato",
         "source_scene": "Assets/Brotato.unity",
         "source_scene_sha256": sha256(assets / "Brotato.unity"),
-        "scope": "Playable slices 1-2: player, enemy, six source weapons, projectiles, laser, muzzle flash, collectible, ground, spawn marker",
+        "scope": "Playable slices 1-3: five characters, five authored maps, enemy, six source weapons, projectiles, laser, muzzle flash, collectible, ground, spawn marker",
         "operation": "RGBA crop of original art; no resampling or recoloring",
         "rect_convention": "Unity bottom-left xywh; output crop is Pillow top-left ltrb; outward rounding",
         "assets": records,
     }
-    (output / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    (output / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
+    (output / "scene_manifest.json").write_text(json.dumps(scene, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
+    if catalog_output is not None:
+        write_catalog_headers(scene, catalog_output)
     return manifest
 
 
@@ -191,8 +207,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--source", type=Path, required=True, help="Read-only Unity2021_Botato project directory")
     parser.add_argument("--output", type=Path, default=Path(__file__).resolve().parents[1] / "Asset" / "Brotato")
+    parser.add_argument("--catalog-output", type=Path,
+                        default=Path(__file__).resolve().parents[1] / "Module" / "Brotato" / "Public",
+                        help="Generated content_catalog.h and map_layout_data.h destination")
     args = parser.parse_args()
-    manifest = import_assets(args.source, args.output)
+    manifest = import_assets(args.source, args.output, args.catalog_output)
     print(f"Imported {len(manifest['assets'])} source sprites to {args.output.resolve()}")
     for asset in manifest["assets"]:
         print(f"  {asset['output']}: {asset['output_size_px'][0]}x{asset['output_size_px'][1]} ({asset['source_sprite']})")

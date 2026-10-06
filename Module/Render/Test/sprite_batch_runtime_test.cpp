@@ -259,6 +259,22 @@ void TestFailedUploadCancelsFrame() {
     fixture.Pump(3);
     Require(fixture.backend->deletes == fixture.backend->creates, "failed upload kept its frame/resource lease alive");
 }
+void TestLinesAndRingsShareOneBatch() {
+    Fixture fixture; SpriteBatch2D batch(fixture.device.GenWeakPtr());
+    Require(!batch.Line({0,0},{1,1},.1f,{1,1,1,1}), "geometry requires an active frame");
+    Require(batch.Initialize({}), "initialize geometry batch"); fixture.Pump(10);
+    Require(batch.Begin(10,10,{1,2}), "begin geometry batch");
+    Require(!batch.Line({0,0},{0,0},.1f,{1,1,1,1}) && !batch.Ring({1,2},1,.1f,{1,1,1,1},1000), "degenerate and unbounded tessellation rejected");
+    Require(batch.Line({1,2},{5,2},.2f,{1,.3f,.2f,1}) && batch.Ring({1,2},2,.1f,{.5f,1,.2f,1},16), "valid cues accepted");
+    auto frame = fixture.device->BeginFrame({});
+    Require(batch.Flush(frame) && frame.End(false) && batch.Submit(frame.GetCommandBuffer()), "submit cues"); fixture.Pump(5);
+    Require(fixture.backend->draws == 1 && fixture.backend->uploadedIndices == 17*6, "line and ring remain in one painter-ordered draw");
+    const auto& vertices = fixture.backend->uploadedVertices;
+    Require(Near(vertices[0].position.x,0) && Near(vertices[0].position.y,-.01f) && Near(vertices[2].position.x,.4f), "line endpoints and thickness use world units and camera offset");
+    for (const auto& vertex : vertices) Require(std::isfinite(vertex.position.x) && std::isfinite(vertex.position.y), "ring emits finite geometry");
+    batch.Shutdown(); fixture.Pump(3);
+    Require(fixture.backend->deletes == fixture.backend->creates, "cue geometry shares ordinary batch resource lifetime");
+}
 }
 
 int main() {
@@ -268,6 +284,7 @@ int main() {
         TestShutdownRetainsSubmittedFrame();
         TestFailedUploadCancelsFrame();
         TestSpriteRegionUploadsFrameRelativeUVs();
+        TestLinesAndRingsShareOneBatch();
         std::cout << "Sprite RHI dependency, lifecycle and region upload tests passed\n";
         return 0;
     } catch (const std::exception& exception) {

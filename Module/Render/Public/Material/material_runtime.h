@@ -34,6 +34,9 @@ struct MaterialPassResources {
     // Optional depth/shadow variant using the same template, textures and UBO.
     // The lifetime token must also retain this pipeline and its shader program.
     RenderResourceHandle<PipelineSpec> shadowPipeline;
+    // Optional opaque capture variants; share this schema, textures and owner.
+    RenderResourceHandle<PipelineSpec> diffuseRadiancePipeline;
+    RenderResourceHandle<PipelineSpec> normalPipeline;
 };
 
 class MaterialSnapshot final {

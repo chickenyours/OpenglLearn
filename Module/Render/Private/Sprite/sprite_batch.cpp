@@ -318,6 +318,31 @@ void SpriteBatch2D::Rect(glm::vec2 center, glm::vec2 size, glm::vec4 tint, float
     if (state_) Quad(center, size, radians, state_->whiteRegion, tint);
 }
 
+bool SpriteBatch2D::Line(glm::vec2 start, glm::vec2 end, float thickness, glm::vec4 tint) {
+    const auto delta = end - start;
+    const float length = glm::length(delta);
+    if (!Ready() || !state_->begun || state_->flushed || !std::isfinite(start.x) || !std::isfinite(start.y) ||
+        !std::isfinite(end.x) || !std::isfinite(end.y) || !std::isfinite(thickness) || thickness <= 0 ||
+        !std::isfinite(length) || length < 1e-6f) return false;
+    return AffineQuad((start + end) * .5f, delta, glm::vec2(-delta.y, delta.x) * (thickness / length),
+                      state_->whiteRegion, tint);
+}
+
+bool SpriteBatch2D::Ring(glm::vec2 center, float radius, float thickness, glm::vec4 tint, unsigned segments) {
+    if (!Ready() || !state_->begun || state_->flushed || !std::isfinite(center.x) || !std::isfinite(center.y) ||
+        !std::isfinite(radius) || radius <= 0 || !std::isfinite(thickness) || thickness <= 0 ||
+        thickness > radius || segments < 8 || segments > 128) return false;
+    constexpr float tau = 6.28318530718f;
+    auto previous = center + glm::vec2(radius, 0);
+    for (unsigned i = 1; i <= segments; ++i) {
+        const float angle = tau * i / segments;
+        const auto next = center + glm::vec2(std::cos(angle), std::sin(angle)) * radius;
+        if (!Line(previous, next, thickness, tint)) return false;
+        previous = next;
+    }
+    return true;
+}
+
 void SpriteBatch2D::Text(std::string_view text, glm::vec2 topLeft, float pixel, glm::vec4 tint) {
     if (!state_ || !(pixel > 0) || !std::isfinite(pixel)) return;
     const float left = topLeft.x;

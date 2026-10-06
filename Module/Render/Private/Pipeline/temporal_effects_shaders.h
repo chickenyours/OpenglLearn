@@ -13,6 +13,7 @@ layout(binding = 0) uniform sampler2D currentColor;
 layout(binding = 1) uniform sampler2D historyColor;
 layout(binding = 2) uniform sampler2D currentDepth;
 layout(binding = 3) uniform sampler2D historyDepth;
+layout(binding = 4) uniform sampler2D opaqueColor;
 layout(std140, binding = 6) uniform TemporalData {
     mat4 currentInverseViewProjection;
     mat4 previousViewProjection;
@@ -23,6 +24,7 @@ layout(std140, binding = 6) uniform TemporalData {
     vec4 screen;
     vec4 motion;
     vec4 cameraPosition;
+    vec4 reactive;
 };
 vec2 SafeUV(sampler2D image, vec2 uv) {
     vec2 halfTexel = 0.5 / vec2(textureSize(image, 0));
@@ -53,6 +55,14 @@ vec2 CurrentJitterUV() {
 vec3 FiniteHDR(vec3 color) {
     color = mix(color, vec3(0), isnan(color));
     return clamp(color, vec3(0), vec3(60000));
+}
+float TransparencyReactive(vec2 rawUV, vec3 color) {
+    if (reactive.x < 0.5) return 0.0;
+    vec3 opaque = FiniteHDR(ReadColor(opaqueColor, rawUV).rgb);
+    vec3 delta = abs(FiniteHDR(color) - opaque);
+    float difference = max(delta.r, max(delta.g, delta.b));
+    float magnitude = max(max(color.r, max(color.g, color.b)), max(opaque.r, max(opaque.g, opaque.b)));
+    return clamp(difference * reactive.y / max(magnitude, 0.1), 0.0, 1.0);
 }
 )GLSL";
 }
@@ -106,6 +116,7 @@ void main() {
     // at vUV+jitter; otherwise even accepted history follows the jitter motion.
     vec2 currentUV = SafeUV(currentColor, vUV + CurrentJitterUV());
     vec4 current = ReadColor(currentColor, currentUV);
+    if (reactive.x > 0.5) current.a = TransparencyReactive(currentUV, current.rgb);
     if (temporal.w < 0.5 || temporal.x <= 0.0) { outColor = current; return; }
     float depth = ReadDepth(currentDepth, currentUV);
     vec3 world;
@@ -151,6 +162,12 @@ void main() {
     float speedPixels = length((historyUV - vUV) / max(screen.xy, vec2(1e-8)));
     float weight = clamp(temporal.x, 0.0, 0.98) * (1.0 - 0.85 * clamp(luminanceChange, 0.0, 1.0));
     weight *= mix(1.0, 0.65, clamp(speedPixels / 32.0, 0.0, 1.0));
+    if (reactive.x > 0.5) {
+        // Both masks matter: a moving/flowing transparent surface must not leave
+        // its old contribution behind after uncovering an opaque background.
+        float response = max(current.a, ReadColor(historyColor, historyUV).a);
+        weight *= 1.0 - clamp(response, 0.0, 1.0);
+    }
     outColor = vec4(FiniteHDR(FromYCoCg(mix(currentYCoCg, oldYCoCg, weight))), current.a);
 }
 )GLSL";
@@ -180,6 +197,8 @@ void main() {
     // raw color input the grids already match, so this extra offset is zero.
     vec2 depthOffset = cameraPosition.w > 0.5 ? CurrentJitterUV() : vec2(0);
     vec2 depthUV = SafeUV(currentDepth, vUV + depthOffset);
+    float response = cameraPosition.w > 0.5 ? current.a : TransparencyReactive(depthUV, current.rgb);
+    if (reactive.x > 0.5 && response > 0.05) { outColor = current; return; }
     float depth = ReadDepth(currentDepth, depthUV);
     // Background has no finite surface depth. Leave it untouched instead of
     // treating the far plane as moving scene geometry or smearing silhouettes.
@@ -207,6 +226,11 @@ void main() {
         float position = (float(i) + 0.5) / float(sampleCount) - 0.5;
         vec2 uv = vUV + velocityUV * position;
         if (!Inside(uv)) continue;
+        if (reactive.x > 0.5) {
+            vec4 candidate = ReadColor(currentColor, uv);
+            float mask = cameraPosition.w > 0.5 ? candidate.a : TransparencyReactive(uv, candidate.rgb);
+            if (mask > 0.05) continue;
+        }
         vec2 sampleDepthUV = SafeUV(currentDepth, uv + depthOffset);
         float sampleDepth = ReadDepth(currentDepth, sampleDepthUV);
         if (sampleDepth >= 0.999999) continue;

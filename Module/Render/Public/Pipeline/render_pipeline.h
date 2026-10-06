@@ -40,14 +40,15 @@ public:
         }
 
         std::stable_sort(frame.items.begin(), frame.items.end(), [](const RenderItem& a, const RenderItem& b) {
-            if(a.layer != b.layer) return a.layer < b.layer;
+            const auto layerA = a.EffectiveLayer(), layerB = b.EffectiveLayer();
+            if(layerA != layerB) return layerA < layerB;
             // Each layer has a scene-sorted group followed by a painter-ordered
             // group. Never reorder sprites A/B/A just to reduce state changes.
             const bool orderedA = a.PreservesSubmissionOrder();
             const bool orderedB = b.PreservesSubmissionOrder();
             if(orderedA != orderedB) return !orderedA;
             if(orderedA) return false;
-            if(a.layer == RenderLayer::Transparent && a.viewDepth != b.viewDepth) {
+            if(layerA == RenderLayer::Transparent && a.viewDepth != b.viewDepth) {
                 return a.viewDepth > b.viewDepth;
             }
             if(a.sortKey != b.sortKey) return a.sortKey < b.sortKey;

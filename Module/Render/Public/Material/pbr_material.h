@@ -467,10 +467,10 @@ float FilterNormalMapRoughness(float r,vec4 flowUVs) {
     // Averaged mip/layer normals shorten before normalization. Retain that
     // lost variance in the NDF instead of recreating a sharp subpixel lobe.
     vec3 raw=PbrSampleMap(normalMap,flowUVs).xyz*2-1;
-    float len=clamp(length(raw),.001,1);
+    float len=clamp(length(raw),.001,1.0);
     float variance=(1-len)/len*normalScale*normalScale;
     float kernel=min(2*specularAA.x*variance,specularAA.y);
-    return sqrt(sqrt(min(pow(r,4)+kernel,1.0)));
+    return sqrt(sqrt(min(pow(r,4.0)+kernel,1.0)));
 }
 
 float FilterPointSourceRoughness(float roughness,vec3 V,vec3 L,vec3 H,
@@ -590,7 +590,7 @@ vec3 EvaluatePbrLighting(vec3 albedo, float surfaceMetallic,
 #if PBR_OUTPUT == 0
     if(probeOptions.x>2.5) {
         vec4 gather=texture(diffuseIrradiance,gl_FragCoord.xy*surfaceScreenTime.xy+surfaceScreenJitter.xy);
-        probeCoverage=1;probeIrradiance=max(gather.rgb,vec3(0))/PI;probeSkyVisibility=clamp(gather.a,0,1);
+        probeCoverage=1;probeIrradiance=max(gather.rgb,vec3(0))/PI;probeSkyVisibility=clamp(gather.a,0.0,1.0);
     } else probeCoverage=EvaluateDiffuseProbes(vWorldPosition,N,reflect(-V,N),surfaceRoughness,
                                               probeIrradiance,probeSkyVisibility);
 #endif
@@ -777,6 +777,14 @@ void main() {
     // normal/metallic/roughness/AO samples are always interpreted as linear data.
     vec3 albedo = (baseColorIsSRGB != 0u ? SRGBToLinear(albedoSample.rgb) : albedoSample.rgb) * baseColor.rgb;
     float surfaceMetallic = clamp(useMetallicMap != 0u ? PbrSampleMap(metallicMap, flowUVs).r : metallic, 0.0, 1.0);
+#if PBR_OUTPUT == 1
+    // Raw transport receiver data. Reuse the material's alpha-tested capture
+    // variant, but do not evaluate lighting or include emission in reflectance.
+    if(surfaceOptions.z>1.5) {
+        outColor=vec4(clamp(albedo*(1.0-surfaceMetallic),vec3(0),vec3(1)),1);
+        return;
+    }
+#endif
     float surfaceRoughness = filteredRoughness;
     float surfaceAo = clamp(useAoMap != 0u ? PbrSampleMap(aoMap, flowUVs).r : ao, 0.0, 1.0);
     vec3 diffuseRadiance;
@@ -796,7 +804,7 @@ void main() {
 #if PBR_TRANSLUCENT
                 vec3 V=normalize(uCameraPosition.xyz-vWorldPosition);
                 float f0=pow((ior-1.0)/(ior+1.0),2.0);
-                weight*=f0+(1-f0)*pow(1-clamp(dot(shadingNormal,V),0,1),5);
+                weight*=f0+(1-f0)*pow(1-clamp(dot(shadingNormal,V),0.0,1.0),5.0);
 #endif
                 vec3 reflected=texture(reflectionColor,reflectedUV).rgb;
                 linearHDR=mix(linearHDR,reflected,weight);

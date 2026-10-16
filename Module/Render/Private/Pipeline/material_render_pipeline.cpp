@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <map>
 #include <stdexcept>
 #include <glm/gtc/matrix_inverse.hpp>
 #include "Render/Private/Pipeline/pipeline_resource_builder.h"
@@ -11,6 +12,16 @@
 #include "Render/Private/Pipeline/indirect_lighting_shaders.h"
 #include "Render/Private/Pipeline/realtime_gi_shaders.h"
 #include "Render/Private/Pipeline/lumen_gi_shaders.h"
+#include "Render/Private/Pipeline/screen_probe_placement_shaders.h"
+#include "Render/Private/Pipeline/screen_probe_trace_shaders.h"
+#include "Render/Private/Pipeline/probe_sdf_shaders.h"
+#include "Render/Private/Pipeline/probe_sdf_visualization_shaders.h"
+#include "Render/Private/Pipeline/surface_cache_probe_shaders.h"
+#include "Render/Private/Pipeline/surface_cache_temporal_shaders.h"
+#include "Render/Private/Pipeline/surface_cache_shaders.h"
+#include "Render/Public/Pipeline/surface_cache.h"
+#include "Render/Public/Pipeline/probe_sdf_scene.h"
+#include "Render/Public/Pipeline/probe_sdf_clipmap.h"
 #include "Render/Public/Pipeline/surface_pass.h"
 #include "Render/Public/Pipeline/view_frustum.h"
 
@@ -103,6 +114,59 @@ struct MaterialRenderPipeline::Impl {
     Target opaqueSnapshot, diffuseCapture, normalCapture, indirectHalf, indirectFull;
     std::array<Target, 2> indirectWork;
     Target indirectPositions;
+    std::shared_ptr<const void> placementProgramsOwner,placementTargetsOwner;
+    RenderResourceHandle<UniformBufferSpec> placementBuffer;
+    RenderResourceHandle<PipelineSpec> placementUniformProgram,placementMarkProgram,placementSpawnProgram,placementCoverageProgram,placementMarkerProgram;
+    std::array<Target,2> placementUniform,placementMarked,placementSpawned;
+    Target placementCoverage;
+    struct PlacementState {
+        bool valid=false;std::uint32_t image=0,phase=0,spacing=0,candidates=0,sourceWidth=0,sourceHeight=0;
+        float threshold=0;bool adaptive=false;std::uint64_t sequence=0;bool cosineHemisphere=false;
+        glm::mat4 viewProjection{1};
+    } placementCompleted,placementPending;
+    std::shared_ptr<const void> traceProgramsOwner,traceTargetsOwner;
+    RenderResourceHandle<PipelineSpec> traceHzbBaseProgram,traceHzbReduceProgram,traceRayProgram,traceDisplayProgram;
+    Target traceSource;
+    std::array<Target,ScreenProbeTraceMaxHzbLevels> traceHzb;
+    std::array<Target,2> traceRays;
+    std::uint32_t traceHzbLevels=0,traceResolution=0;
+    struct TraceState {bool valid=false;unsigned image=0,resolution=0;bool sdf=false,volume=false;} traceCompleted,tracePending;
+    std::shared_ptr<const void> sdfProgramsOwner,sdfMeshOwner,sdfWorldOwner,sdfViewOwner;
+    std::shared_ptr<const ProbeSdfScene> sdfScene;
+    RenderResourceHandle<UniformBufferSpec> sdfBuffer;
+    RenderResourceHandle<PipelineSpec> sdfFallbackProgram,sdfSliceProgram,sdfHitMarkerProgram;
+    std::array<RenderResourceHandle<PipelineSpec>,3> sdfVolumePrograms;
+    std::array<std::shared_ptr<const void>,3> sdfVolumeOwners;
+    RenderResourceHandle<RHITextureSpec> sdfMeshTexture,sdfObjectTexture,sdfGlobalTexture,sdfGeometryTexture,sdfRangeTexture;
+    std::array<Target,2> sdfRays;
+    std::uint64_t sdfUploadedGeneration=0,sdfMeshGeneration=0;
+    std::uint64_t sdfUploadedGlobalGeneration=0,sdfUploadedGeometryGeneration=0,sdfUploadedRangeGeneration=0;
+    unsigned sdfGlobalHeight=0,sdfObjectHeight=0,sdfGeometryHeight=0,sdfRangeHeight=0;
+    struct SdfMeshUpload {RenderResourceHandle<RHITextureSpec> texture;std::shared_ptr<const void> owner;std::vector<std::shared_ptr<const ProbeMeshSdf>> assets;};
+    std::map<std::vector<std::uintptr_t>,SdfMeshUpload> sdfMeshUploads;
+    std::shared_ptr<const void> surfaceCacheProgramsOwner,surfaceCacheDataOwner,surfaceCacheViewOwner;
+    std::shared_ptr<const void> surfaceCacheProbeOwner;
+    std::shared_ptr<const SurfaceCacheScene> surfaceCacheAsset;
+    std::shared_ptr<const ProbeSdfScene> surfaceCacheGeometryScene;
+    RenderResourceHandle<UniformBufferSpec> surfaceCacheBuffer;
+    RenderResourceHandle<PipelineSpec> surfaceCacheLightingProgram,surfaceCacheGatherProgram,surfaceCacheResolveProgram,surfaceCacheCoverageProgram;
+    RenderResourceHandle<PipelineSpec> surfaceCacheProbeIntegrateProgram,surfaceCacheProbeReconstructProgram;
+    RenderResourceHandle<RHITextureSpec> surfaceCacheAttributes,surfaceCacheMetadata,surfaceCacheGeometry;
+    Target surfaceCacheLighting,surfaceCacheRaw,surfaceCacheResolved,surfaceCacheCoverage,surfaceCacheSource;
+    Target surfaceCacheProbeIrradiance;
+    ScreenProbePlacementConstants placementFrameConstants;
+    std::uint64_t surfaceCacheGeneration=0,surfaceCacheGeometryGeneration=0;
+    unsigned surfaceCacheAttributeHeight=0,surfaceCacheMetadataHeight=0,surfaceCacheGeometryHeight=0;
+    struct SurfaceCacheState {bool valid=false;std::uint64_t lightingKey=0;bool probes=false;} surfaceCacheCompleted,surfaceCachePending;
+    std::shared_ptr<const void> surfaceCacheTemporalProgramsOwner,surfaceCacheTemporalOwner;
+    RenderResourceHandle<UniformBufferSpec> surfaceCacheTemporalBuffer;
+    RenderResourceHandle<PipelineSpec> surfaceCacheTemporalProgram,surfaceCacheTemporalPositionProgram,surfaceCacheTemporalNormalProgram;
+    RenderResourceHandle<PipelineSpec> surfaceCacheTemporalDisplayProgram,surfaceCacheTemporalCountProgram;
+    std::array<Target,2> surfaceCacheTemporalHistory,surfaceCacheTemporalPositions,surfaceCacheTemporalNormals;
+    Target surfaceCacheTemporalGi;
+    struct SurfaceCacheTemporalState {
+        bool valid=false;unsigned image=0;std::uint64_t key=0,sequence=0;PipelineCamera camera;
+    } surfaceCacheTemporalCompleted,surfaceCacheTemporalPending;
     Target opaqueSnapshotDepth, reflectionSnapshot, reflectionSnapshotDepth;
     std::array<Target, 2> historyColor, historyDepth;
     std::array<Target, 6> bloomDown, bloomWork;
@@ -394,6 +458,19 @@ void main() {
         add(lm.distanceFields);add(lm.reflectionRays);add(lm.reflectionResolutionScale);add(lm.reflectionTraceMaxDimension);
         add(lm.reflectionSourceResolutionScale);
         add(lm.origin);add(lm.spacing);add(lm.counts);
+        const auto& placement=settings.screenProbePlacement;
+        add(placement.enabled);
+        if(placement.enabled) {
+            add(placement.adaptive);add(placement.freeze);add(placement.baseSpacing);add(placement.candidateCount);
+            add(placement.relativeDepthThreshold);add(placement.markerRadiusPixels);add(placement.debugView);add(placement.frameIndex);
+            add(placement.trace.enabled);add(placement.trace.rayResolution);add(placement.trace.maxSteps);add(placement.trace.maxMip);
+            add(placement.trace.displayMode);add(placement.trace.maxDistance);add(placement.trace.thickness);
+            add(placement.trace.normalBias);add(placement.trace.relativeThickness);add(placement.trace.selectedProbe);add(placement.trace.showPanel);
+            const auto& sdf=placement.trace.sdf;add(sdf.enabled);add(sdf.useMesh);add(sdf.useGlobal);add(sdf.meshTraceDistance);
+            add(sdf.hitEpsilon);add(sdf.maxSteps);add(sdf.sliceView);add(sdf.sliceAxis);add(sdf.slicePosition);add(sdf.selectedObject);add(sdf.showHitPoints);
+            add(sdf.visualMode);add(sdf.visualizeSelected);add(sdf.showVoxelGrid);add(sdf.visualEpsilon);add(sdf.meshQuality);add(sdf.automaticQuality);
+            if(sdf.scene){add(sdf.scene.get());add(sdf.scene->Statistics().generation);}
+        }
         // Animated point lights deliberately use the luminance-reactive history
         // weight in the TAA shader rather than resetting every animation frame.
         return hash;
@@ -425,10 +502,30 @@ void main() {
         Require(ValidateIndirectLightingSettings(settings.indirect, &error), "Invalid indirect lighting settings");
         Require(ValidateRealtimeGiSettings(settings.realtimeGi,&error),"Invalid realtime GI settings");
         Require(ValidateLumenGiSettings(settings.lumenGi,&error),"Invalid hybrid Lumen GI settings");
+        Require(ValidateScreenProbePlacementSettings(settings.screenProbePlacement),"Invalid screen probe placement settings");
+        Require(ValidateSurfaceCacheGiSettings(settings.surfaceCacheGi),"Invalid Surface Cache GI settings");
+        Require(!settings.surfaceCacheGi.enabled||(!settings.lumenGi.enabled&&!settings.realtimeGi.enabled&&!settings.probes.enabled&&!settings.indirect.enabled),
+            "Card Surface Cache GI needs an independent diffuse GI mode");
+        if(settings.surfaceCacheGi.enabled) {
+            Require(!settings.sky.enabled||settings.sky.intensity<=0||settings.sky.diffuseStrength<=0,
+                "Card Surface Cache GI currently supports point, sun and spot illumination; disable sky diffuse lighting");
+            for(unsigned i=0;i<settings.areaLights.count;++i) {
+                const auto& area=settings.areaLights.lights[i];
+                Require(!area.enabled||glm::all(glm::lessThanEqual(area.radiance,glm::vec3(0))),
+                    "Card Surface Cache GI currently supports point, sun and spot illumination; disable area lights");
+            }
+        }
+        if(settings.surfaceCacheGi.enabled&&settings.surfaceCacheGi.probeDiagnostics&&settings.screenProbePlacement.enabled&&
+            settings.screenProbePlacement.trace.enabled&&settings.screenProbePlacement.trace.sdf.enabled)
+            Require(settings.screenProbePlacement.trace.sdf.scene&&settings.screenProbePlacement.trace.sdf.scene->PackedGeometry()==settings.surfaceCacheGi.scene->PackedGeometry(),
+                "Surface Cache diagnostics must trace the same packed geometry");
         const bool cacheView=settings.lumenGi.lightingView!=LumenLightingView::Material;
         Require(!cacheView||(settings.lumenGi.enabled&&!settings.lumenGi.reflections&&!settings.reflection.enabled),
                 "Surface Cache views require Lumen GI with reflections disabled");
-        if(cacheView)for(const auto& item:frame.items)
+        // Coverage is a pure resolve diagnostic and does not rebuild receiver
+        // lighting, so it tolerates transparent items present in the scene.
+        const bool opaqueOnlyView=cacheView&&settings.lumenGi.lightingView!=LumenLightingView::Coverage;
+        if(opaqueOnlyView)for(const auto& item:frame.items)
             Require(item.EffectiveLayer()!=RenderLayer::Transparent,"Surface Cache views require opaque receivers");
         Require(!settings.lumenGi.enabled||(!settings.realtimeGi.enabled&&!settings.probes.enabled&&!settings.indirect.enabled),
                 "Hybrid Lumen GI is an independent mode; disable DDGI, baked probes and standalone screen GI");
@@ -592,10 +689,22 @@ void main() {
         ++statistics.skyPasses;
     }
     #include "Render/Private/Pipeline/lumen_gi_pipeline.inl"
+    #include "Render/Private/Pipeline/screen_probe_placement_pipeline.inl"
+    #include "Render/Private/Pipeline/probe_sdf_pipeline.inl"
+    #include "Render/Private/Pipeline/surface_cache_temporal_pipeline.inl"
+    #include "Render/Private/Pipeline/surface_cache_pipeline.inl"
     void Record(RHIFrameEncoder& encoder, const RenderFrame& frame, const PipelineCamera& camera,
                 const MaterialPipelineSettings& requested) {
         Validate(frame, camera, requested);
         auto settings=requested;
+        if(settings.surfaceCacheGi.enabled&&settings.surfaceCacheGi.useScreenProbes) {
+            auto& p=settings.screenProbePlacement;auto& t=p.trace;
+            p.enabled=true;t.enabled=true;t.cosineHemisphere=true;t.sdf.enabled=true;
+            t.sdf.visualMode=0;t.sdf.sliceView=0;t.sdf.scene=settings.surfaceCacheGi.scene;
+            t.maxDistance=settings.surfaceCacheGi.maxDistance;t.normalBias=settings.surfaceCacheGi.rayBias;
+            // Stable single-frame quadrature: no automatic temporal cycling.
+            if(p.frameIndex==std::numeric_limits<std::uint32_t>::max())p.frameIndex=0;
+        }
         if(settings.lumenGi.enabled) {
             const auto& lm=settings.lumenGi;auto& rt=settings.realtimeGi;
             rt.enabled=true;rt.scene=lm.scene->Geometry();rt.origin=lm.origin;rt.spacing=lm.spacing;rt.counts=lm.counts;
@@ -603,16 +712,40 @@ void main() {
             rt.reset=lm.reset;rt.historyWeight=.7f;
         }
         Require(encoder.IsRecording(), "Pipeline needs a recording frame encoder");
+        statistics = {};
         auto skyAssets=settings.sky;if(settings.lumenGi.enabled&&settings.lumenGi.reflections)skyAssets.enabled=true;
         PrepareSky(skyAssets);
         PrepareProbes(settings.probes);
         PrepareRealtimeGi(settings.realtimeGi);realtimePending={};
         PrepareLumen(settings.lumenGi);lumenPending={};
+        const auto& sc=settings.surfaceCacheGi;
+        const bool cacheProbeGather=sc.enabled&&sc.useScreenProbes&&(sc.view==0||sc.view==2||(sc.view==5&&sc.temporal.enabled)||sc.probeDiagnostics);
+        const bool doPlacement=settings.screenProbePlacement.enabled&&(!sc.enabled||cacheProbeGather||sc.probeDiagnostics);
+        placementPending={};tracePending={};surfaceCachePending={};surfaceCacheTemporalPending={};
+        if(doPlacement) {
+            PrepareScreenProbePlacement(settings.screenProbePlacement);
+            PrepareScreenProbeTrace(settings.screenProbePlacement);
+            PrepareProbeSdfTrace(settings.screenProbePlacement);
+        }
+        PrepareSurfaceCacheGi(settings.surfaceCacheGi,settings.screenProbePlacement);
+        PrepareSurfaceCacheTemporal(settings.surfaceCacheGi);
         Require(encoder.KeepAlive(assetsOwner) && encoder.KeepAlive(targetsOwner), "Cannot pin pipeline resources");
         if (skyOwner) Require(encoder.KeepAlive(skyOwner), "Cannot pin sky environment resources");
         if (probeOwner) Require(encoder.KeepAlive(probeOwner), "Cannot pin diffuse probe resources");
         if(settings.realtimeGi.enabled) Require(encoder.KeepAlive(realtimeOwner)&&encoder.KeepAlive(realtimeGeometryOwner),"Cannot pin realtime GI resources");
         if(settings.lumenGi.enabled)Require(encoder.KeepAlive(lumenProgramsOwner)&&encoder.KeepAlive(lumenSceneOwner)&&encoder.KeepAlive(lumenCacheOwner)&&encoder.KeepAlive(lumenDistanceOwner)&&encoder.KeepAlive(lumenViewOwner),"Cannot pin hybrid GI resources");
+        if(doPlacement)Require(encoder.KeepAlive(placementProgramsOwner)&&encoder.KeepAlive(placementTargetsOwner),"Cannot pin screen probe placement resources");
+        const bool sdfVolume=doPlacement&&settings.screenProbePlacement.trace.enabled&&
+            settings.screenProbePlacement.trace.sdf.enabled&&settings.screenProbePlacement.trace.sdf.visualMode!=0;
+        if(doPlacement&&settings.screenProbePlacement.trace.enabled&&!sdfVolume)
+            Require(encoder.KeepAlive(traceProgramsOwner)&&encoder.KeepAlive(traceTargetsOwner),"Cannot pin screen probe trace resources");
+        if(doPlacement&&settings.screenProbePlacement.trace.enabled&&settings.screenProbePlacement.trace.sdf.enabled)
+            Require(encoder.KeepAlive(sdfProgramsOwner)&&encoder.KeepAlive(sdfMeshOwner)&&encoder.KeepAlive(sdfWorldOwner)&&
+                (sdfVolume||encoder.KeepAlive(sdfViewOwner))&&encoder.KeepAlive(sdfScene),"Cannot pin SDF resources");
+        if(settings.surfaceCacheGi.enabled)Require(encoder.KeepAlive(surfaceCacheProgramsOwner)&&encoder.KeepAlive(surfaceCacheDataOwner)&&
+            encoder.KeepAlive(surfaceCacheViewOwner)&&encoder.KeepAlive(surfaceCacheAsset)&&encoder.KeepAlive(surfaceCacheGeometryScene),"Cannot pin card Surface Cache resources");
+        if(cacheProbeGather)Require(encoder.KeepAlive(surfaceCacheProbeOwner),"Cannot pin probe integration targets");
+        if(SurfaceCacheTemporalActive(sc))Require(encoder.KeepAlive(surfaceCacheTemporalOwner)&&encoder.KeepAlive(surfaceCacheTemporalProgramsOwner),"Cannot pin GI temporal history resources");
         const auto& rt=settings.realtimeGi;
         const DiffuseProbeRuntimeConstants probeRuntime{rt.enabled?glm::vec4(2,rt.intensity,rt.normalBias,rt.visibilityBias):
             glm::vec4(settings.probes.enabled?1:0,settings.probes.intensity,settings.probes.normalBias,settings.probes.visibilityBias)};
@@ -624,7 +757,6 @@ void main() {
         Upload(encoder, skyBuffer, &sky, sizeof(sky), SkyLightBinding);
         Require(encoder.BindTexture(settings.sky.enabled ? skyAtlas : RenderResourceHandle<RHITextureSpec>{}, SkyReflectionTextureSlot) &&
                 encoder.BindTexture(skyAssets.enabled ? skyBrdf : RenderResourceHandle<RHITextureSpec>{}, SkyBrdfTextureSlot), "Cannot bind sky environment");
-        statistics = {};
         statistics.validDiffuseProbes=settings.probes.enabled?settings.probes.volume->ValidProbes():0;
         statistics.reflectionWidth = reflection.width; statistics.reflectionHeight = reflection.height;
         statistics.msaaSamples = samples;
@@ -852,6 +984,10 @@ void main() {
             Resolve(encoder, sceneTarget, scene, true, false);
         }
 
+        if(settings.surfaceCacheGi.enabled)
+            RecordSurfaceCacheGi(encoder,frame,renderCamera,settings,effects,surface,post,cut);
+        if(doPlacement&&!(settings.surfaceCacheGi.enabled&&settings.surfaceCacheGi.useScreenProbes))
+            RecordScreenProbePlacement(encoder,frame,renderCamera,settings.screenProbePlacement,effects,surface,post);
         auto hdrColor = scene.color;
         if (useTaa) {
             TemporalPass(encoder, historyColor[writeHistory], taa, hdrColor,
@@ -944,6 +1080,17 @@ void MaterialRenderPipeline::Shutdown() {
     impl_->realtimeCompleted={};impl_->realtimePending={};
     impl_->lumenProgramsOwner.reset();impl_->lumenSceneOwner.reset();impl_->lumenCacheOwner.reset();impl_->lumenDistanceOwner.reset();impl_->lumenViewOwner.reset();impl_->lumenScene.reset();
     impl_->lumenCompleted={};impl_->lumenPending={};
+    impl_->placementProgramsOwner.reset();impl_->placementTargetsOwner.reset();
+    impl_->placementCompleted={};impl_->placementPending={};
+    impl_->traceProgramsOwner.reset();impl_->traceTargetsOwner.reset();impl_->traceCompleted={};impl_->tracePending={};
+    impl_->sdfProgramsOwner.reset();impl_->sdfMeshOwner.reset();impl_->sdfWorldOwner.reset();impl_->sdfViewOwner.reset();impl_->sdfScene.reset();
+    impl_->sdfMeshUploads.clear();
+    impl_->surfaceCacheProgramsOwner.reset();impl_->surfaceCacheDataOwner.reset();impl_->surfaceCacheViewOwner.reset();
+    impl_->surfaceCacheProbeOwner.reset();
+    impl_->surfaceCacheTemporalOwner.reset();impl_->surfaceCacheTemporalProgramsOwner.reset();
+    impl_->surfaceCacheTemporalCompleted={};impl_->surfaceCacheTemporalPending={};
+    impl_->surfaceCacheAsset.reset();impl_->surfaceCacheGeometryScene.reset();impl_->surfaceCacheCompleted={};impl_->surfaceCachePending={};
+    impl_->surfaceCacheBuffer={};
     impl_->lumenReactiveFrames=0;impl_->lumenGeometryChanged=impl_->realtimeGeometryChanged=false;
     impl_->width = impl_->height = impl_->atlasResolution = 0;
     impl_->lastBloom = {};
@@ -955,6 +1102,10 @@ bool MaterialRenderPipeline::CompleteFrame(std::uint64_t token) {
     impl_->completed = impl_->pending; impl_->pending = {}; impl_->pendingToken = 0;
     impl_->realtimeCompleted=impl_->realtimePending;impl_->realtimePending={};
     impl_->lumenCompleted=impl_->lumenPending;impl_->lumenPending={};
+    impl_->placementCompleted=impl_->placementPending;impl_->placementPending={};
+    impl_->traceCompleted=impl_->tracePending;impl_->tracePending={};
+    impl_->surfaceCacheCompleted=impl_->surfaceCachePending;impl_->surfaceCachePending={};
+    impl_->surfaceCacheTemporalCompleted=impl_->surfaceCacheTemporalPending;impl_->surfaceCacheTemporalPending={};
     return true;
 }
 bool MaterialRenderPipeline::DiscardFrame(std::uint64_t token) {
@@ -962,18 +1113,23 @@ bool MaterialRenderPipeline::DiscardFrame(std::uint64_t token) {
     impl_->pending = {}; impl_->pendingToken = 0;
     impl_->realtimePending={};
     impl_->lumenPending={};
+    impl_->placementPending={};
+    impl_->tracePending={};
+    impl_->surfaceCachePending={};
+    impl_->surfaceCacheTemporalPending={};
     return true;
 }
 void MaterialRenderPipeline::ResetHistory() {
     impl_->completed.valid = impl_->completed.taaValid = false;
     impl_->pending.valid = impl_->pending.taaValid = false;
     impl_->lumenCompleted.viewValid=false;impl_->lumenPending.viewValid=false;
+    impl_->surfaceCacheTemporalCompleted.valid=false;impl_->surfaceCacheTemporalPending.valid=false;
 }
 const std::string& MaterialRenderPipeline::LastError() const noexcept { return impl_->error; }
 PipelineStatistics MaterialRenderPipeline::Statistics() const { return impl_->statistics; }
 PipelineDebugTextures MaterialRenderPipeline::DebugTextures() const {
     if (!impl_->targetsOwner) return {};
-    return {impl_->scene.color, impl_->scene.depth, impl_->shadows.depth,
+    PipelineDebugTextures result{impl_->scene.color, impl_->scene.depth, impl_->shadows.depth,
             impl_->reflection.color, impl_->aoBlurred.color, impl_->lastBloom,
             impl_->reflection.width, impl_->reflection.height, impl_->samples,
             impl_->indirectFull.color, impl_->diffuseCapture.color, impl_->normalCapture.color, impl_->diffuseCapture.depth,
@@ -985,5 +1141,50 @@ PipelineDebugTextures MaterialRenderPipeline::DebugTextures() const {
             impl_->lumenCompleted.valid?impl_->lumenDirectCache[impl_->lumenCompleted.image].color:RenderResourceHandle<RHITextureSpec>{},
             impl_->lumenCompleted.viewValid?impl_->lumenSpecularSource.color:RenderResourceHandle<RHITextureSpec>{},
             impl_->lumenCompleted.viewValid?impl_->lumenSpecularSource.depth:RenderResourceHandle<RHITextureSpec>{}};
+    if(impl_->placementCompleted.valid) {
+        const auto& state=impl_->placementCompleted;const auto image=state.image;
+        result.screenProbeUniform=impl_->placementUniform[image].color;
+        result.screenProbeMarked=impl_->placementMarked[image].color;
+        result.screenProbeSpawned=impl_->placementSpawned[image].color;
+        result.screenProbeUniformWidth=impl_->placementUniform[image].width;result.screenProbeUniformHeight=impl_->placementUniform[image].height;
+        result.screenProbeCandidateWidth=impl_->placementMarked[image].width;result.screenProbeCandidateHeight=impl_->placementMarked[image].height;
+        result.screenProbeGridWidth=result.screenProbeUniformWidth/2;result.screenProbeGridHeight=result.screenProbeUniformHeight;
+        result.screenProbeCandidateCount=state.candidates;result.screenProbeSourceWidth=state.sourceWidth;result.screenProbeSourceHeight=state.sourceHeight;
+        result.screenProbeFrameIndex=state.phase;
+    }
+    if(impl_->traceCompleted.valid) {
+        const auto& rays=impl_->traceRays[impl_->traceCompleted.image];
+        result.screenProbeScreenRays=rays.color;
+        result.screenProbeRays=impl_->traceCompleted.sdf?impl_->sdfRays[impl_->traceCompleted.image].color:rays.color;
+        result.screenProbeRayWidth=rays.width;result.screenProbeRayHeight=rays.height;
+        result.screenProbeRayResolution=impl_->traceCompleted.resolution;
+        result.screenProbeTraceSource=impl_->traceSource.color;result.screenProbeTracePositions=impl_->indirectPositions.color;
+        result.screenProbeHzbLevels=impl_->traceHzbLevels;
+        for(unsigned level=0;level<impl_->traceHzbLevels;++level) {
+            result.screenProbeHzb[level]=impl_->traceHzb[level].color;
+            result.screenProbeHzbSizes[level]={impl_->traceHzb[level].width,impl_->traceHzb[level].height};
+        }
+    }
+    if(impl_->traceCompleted.sdf&&(impl_->traceCompleted.valid||impl_->traceCompleted.volume)) {
+        result.probeGlobalSdf=impl_->sdfGlobalTexture;result.probeMeshSdf=impl_->sdfMeshTexture;
+        if(impl_->sdfScene&&impl_->sdfScene->Clipmaps())result.probeSdfRanges=impl_->sdfRangeTexture;
+        if(impl_->traceCompleted.volume)result.probeSdfVolumeView=impl_->placementCoverage.color;
+    }
+    if(impl_->surfaceCacheCompleted.valid) {
+        result.surfaceCacheAtlas=impl_->surfaceCacheLighting.color;result.surfaceCacheRawGi=impl_->surfaceCacheRaw.color;
+        result.surfaceCacheCoverage=impl_->surfaceCacheCoverage.color;
+        result.surfaceCacheWidth=impl_->surfaceCacheLighting.width;result.surfaceCacheHeight=impl_->surfaceCacheLighting.height;
+        result.surfaceCacheGiWidth=impl_->surfaceCacheRaw.width;result.surfaceCacheGiHeight=impl_->surfaceCacheRaw.height;
+        if(impl_->surfaceCacheCompleted.probes) {
+            result.surfaceCacheProbeIrradiance=impl_->surfaceCacheProbeIrradiance.color;
+            result.surfaceCacheProbeWidth=impl_->surfaceCacheProbeIrradiance.width;
+            result.surfaceCacheProbeHeight=impl_->surfaceCacheProbeIrradiance.height;
+        }
+        if(impl_->surfaceCacheTemporalCompleted.valid) {
+            result.surfaceCacheTemporalGi=impl_->surfaceCacheTemporalGi.color;
+            result.surfaceCacheTemporalHistory=impl_->surfaceCacheTemporalHistory[impl_->surfaceCacheTemporalCompleted.image].color;
+        }
+    }
+    return result;
 }
 } // namespace Render

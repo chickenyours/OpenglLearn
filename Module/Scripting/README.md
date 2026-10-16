@@ -58,7 +58,8 @@ MyIwana 第一关已使用同一代码。脚本自己调用 `math.random`、`mat
 房间运行层增加了弹体受击事件 `on_hit(ctx,event)`：`event.id` 为被击中的实例，
 `event.name` 为其 `event` 属性，`phase` 为 `hit`，`properties.projectileId` 为弹体 ID。
 目标须设置 `receivesShots=true` 且启用碰撞；受击检测沿用贴图蒙版或可视检测框。
-每个目标每个固定步长合并一次受击；一次性机关再用 `ctx:once`。
+同一目标与同一子弹在一个固定步长中的多次采样合并一次受击；不同子弹分别发出事件，
+因此同帧两颗子弹命中会产生两次回调。一次性机关再用 `ctx:once`。
 `on_trigger` 的进入事件、`on_hit`、`on_entity_spawn` 都提供实时
 `properties.positionX/positionY`、`sizeX/sizeY`、`rotation`。接触退出事件沿用资源位置。
 

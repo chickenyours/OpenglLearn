@@ -10,7 +10,7 @@ bool Bounded(glm::vec3 p) {
 }
 struct Node { glm::vec3 lo,hi; std::uint32_t left=0,right=0,begin=0,count=0; };
 void ValidateTriangles(std::span<const ProbeTriangle> triangles) {
-    if(triangles.size()>32768) throw std::invalid_argument("Realtime GI scene exceeds 32768 triangles");
+    if(triangles.size()>1048576) throw std::invalid_argument("Realtime GI scene exceeds 1048576 triangles");
     for(const auto& t:triangles) if(!Bounded(t.a)||!Bounded(t.b)||!Bounded(t.c)||!Bounded(t.diffuseReflectance)||!Bounded(t.emission)||
         glm::length(glm::cross(t.b-t.a,t.c-t.a))<1e-7f||
         glm::any(glm::lessThan(t.diffuseReflectance,glm::vec3(0)))||glm::any(glm::greaterThan(t.diffuseReflectance,glm::vec3(1)))||

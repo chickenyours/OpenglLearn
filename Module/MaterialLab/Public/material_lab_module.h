@@ -16,6 +16,12 @@
 #include "Render/Public/Pipeline/material_render_pipeline.h"
 #include "MaterialLab/Public/showcase_scene.h"
 #include "MaterialLab/Public/gi_room_scene.h"
+#include "MaterialLab/Public/probe_placement_scene.h"
+#include "Render/Public/Pipeline/probe_sdf_scene.h"
+#include "Render/Public/Pipeline/probe_sdf_lod.h"
+
+struct GLFWwindow;
+namespace DebugUI { class DebugUIModule; }
 
 namespace MaterialLab {
 
@@ -40,6 +46,16 @@ struct FrameSettings {
     bool giRoom = false; // sealed room illuminated only by the traced world radiance cache
     bool giRoomHud = true;
     GiRoomSettings giRoomState;
+    bool screenProbeStudy = false, screenProbeStudyHud = true;
+    bool sdfProbeStudy=false;
+    bool sdfModelStudy=false; // imported Utah-teapot banquet and distance-driven raster/MDF tiers
+    bool sdfClipmapStudy=false; // camera-following multilevel Global distance field
+    bool surfaceCacheStudy=false; // camera-independent cards and unfiltered software-ray GI
+    bool sdfModelRasterLod=true;
+    ProbePlacementSceneSettings screenProbeStudyState;
+    std::uint32_t placementUniformCount = 0, placementAdaptiveCount = 0, placementMarkedCount = 0;
+    std::uint32_t traceHitCount=0,traceActiveCount=0;
+    std::uint32_t sdfMeshHitCount=0,sdfGlobalHitCount=0,sdfUnreadableCount=0;
     float displayFps = 0; // optional HUD sample; update infrequently outside the renderer
     std::optional<Render::PipelineCamera> camera; // free-camera override; legacy orbit remains available
     glm::uvec2 OutputExtent() const {
@@ -74,6 +90,33 @@ struct FrameTiming {
     double elapsedMilliseconds = 0;
 };
 
+struct ScreenProbePlacementReadback {
+    glm::uvec2 uniformGridSize{0};
+    std::uint32_t candidateCount=0, sourceWidth=0, sourceHeight=0, frameIndex=0;
+    // Position.xyz / status.w and normal.xyz / linear view depth.w.
+    std::vector<glm::vec4> uniform, uniformNormals, marked, markedNormals, spawned, spawnedNormals;
+};
+
+struct ScreenProbeTraceReadback {
+    glm::uvec2 atlasSize{0},sourceSize{0},uniformGridSize{0};
+    std::uint32_t rayResolution=0,candidateCount=0,probeSlots=0;
+    // Four texels per ray, probe-major then ray Y/X. Inactive radiance/status is zero.
+    std::vector<glm::vec4> radianceStatus,hitWorldDistance,hitPixelStepsMip,rayDirectionDepthFetches;
+    std::vector<glm::vec4> sourceHdr,sourceViewPositions,sourceWorldNormals;
+    std::vector<glm::uvec2> hzbSizes;
+    std::vector<std::vector<glm::vec4>> hzb;
+};
+struct ProbeSdfQualityStatus {
+    Render::ProbeSdfLodStatistics cache;
+    std::array<std::uint32_t,3> activeInstances{};
+    std::uint32_t sceneBuilds=0,cachedSceneSwitches=0;
+    bool pending=false;
+    bool importedModels=false;
+    std::array<std::uint64_t,3> modelTriangles{};
+    std::uint64_t activeRasterTriangles=0,fullRasterTriangles=0;
+    double tierSwitchMilliseconds=0;
+};
+
 // Standalone material test module. The caller owns the window/context and must
 // keep it alive until Shutdown. All public calls run on the application's thread.
 class MaterialLabModule final : public IModule {
@@ -96,6 +139,11 @@ public:
     bool SetMaterialParameter(std::size_t index, std::string_view name,
                               const Render::Material::ParameterValue& value);
     bool ResetMaterial(std::size_t index);
+    // Optional tooling, attached after Startup. The window must outlive this
+    // module. Panels use BeginFrame/EndFrame; Render records the prepared UI
+    // through the same RHI encoder, after scene post-processing and before End.
+    bool EnableDebugUI(GLFWwindow* window, Render::BackendType backend);
+    DebugUI::DebugUIModule* GetDebugUI() noexcept;
     // Reliable, completed submission: deliberately bounded to one frame in flight
     // for this small laboratory. No rendering work bypasses the RHI encoder.
     bool Render(const FrameSettings& settings);
@@ -109,6 +157,23 @@ public:
     bool ShowcaseGiUpdating() const;
     std::vector<glm::vec4> ReadbackLumenSurfaceCache(bool directLighting=false); // test-only outgoing diffuse radiance
     std::vector<glm::vec4> ReadbackLumenGather(); // test-only incident irradiance at the internal rendering extent
+    ScreenProbePlacementReadback ReadbackScreenProbePlacement(); // diagnostic only; actual active slots, not atlas capacity
+    ScreenProbeTraceReadback ReadbackScreenProbeTrace(bool includeSources=true,bool screenOnly=false);
+    std::shared_ptr<const Render::ProbeSdfScene> PreparedProbeSdfScene() const;
+    ProbeSdfQualityStatus ProbeSdfQualityStatistics() const;
+    std::vector<glm::vec4> ReadbackProbeGlobalSdf();
+    std::vector<glm::vec4> ReadbackProbeSdfRanges(); // conservative cell-brick min/max hierarchy
+    std::vector<glm::vec4> ReadbackProbeSdfVolume(); // 3D raw view RGB / ray hit distance in alpha
+    std::shared_ptr<const Render::SurfaceCacheScene> PreparedSurfaceCache() const;
+    std::vector<glm::vec4> ReadbackSurfaceCacheAtlas(); // outgoing direct diffuse radiance / validity
+    std::vector<glm::vec4> ReadbackSurfaceCacheRawGi(); // raw outgoing indirect diffuse radiance, no history/filter
+    std::vector<glm::vec4> ReadbackSurfaceCacheProbeIrradiance(); // probe E/pi, no receiver albedo or history
+    std::vector<glm::vec4> ReadbackSurfaceCacheTemporalGi(); // accumulated indirect radiance / current coverage
+    std::vector<glm::vec4> ReadbackSurfaceCacheTemporalHistory(); // accumulated indirect radiance / effective frame count
+    // Diagnostic receiver-only edit: the incident card radiance stays fixed,
+    // allowing the gather's application of the final pixel albedo to be tested.
+    bool SetSurfaceCacheReceiverAlbedoForTest(std::uint32_t objectIndex,glm::vec3 albedo);
+    std::vector<glm::vec4> ReadbackSurfaceCacheCoverage();
     // Test diagnostics: minimum CSM depth, AO minimum and maximum HDR channel.
     glm::vec3 InspectPipelineBuffers();
     // Diagnostic batch; settings.present selects presentation. No pixel readback.

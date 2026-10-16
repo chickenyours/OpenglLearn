@@ -1,0 +1,95 @@
+{
+  "source_url": "https://casual-effects.com/g3d/data10/common/model/teapot/teapot.zip",
+  "source_sha256": "6e5d123af85bcbf52a8c9da1ff970b78eda41a9188418a1cb6b8b3696a683a7e",
+  "model_license": "CC0",
+  "simplifier": "fast-simplification 0.2.0 / QEM",
+  "original": {
+    "vertices": 7850,
+    "triangles": 15704,
+    "boundary_edges": 0,
+    "nonmanifold_edges": 0,
+    "inconsistently_oriented_edges": 0,
+    "edge_manifold_closed": true,
+    "nonmanifold_vertices": 0,
+    "connected_components": 2,
+    "signed_volume": 27916.832695142715,
+    "bounds_min": [
+      -71.892532,
+      0.0,
+      -47.928356
+    ],
+    "bounds_max": [
+      82.293999,
+      79.006561,
+      47.928356
+    ]
+  },
+  "tiers": {
+    "high": {
+      "vertices": 7850,
+      "triangles": 15704,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "inconsistently_oriented_edges": 0,
+      "edge_manifold_closed": true,
+      "nonmanifold_vertices": 0,
+      "connected_components": 2,
+      "signed_volume": 27916.832695142715,
+      "bounds_min": [
+        -71.892532,
+        0.0,
+        -47.928356
+      ],
+      "bounds_max": [
+        82.293999,
+        79.006561,
+        47.928356
+      ],
+      "file_sha256": "6e5d123af85bcbf52a8c9da1ff970b78eda41a9188418a1cb6b8b3696a683a7e"
+    },
+    "medium": {
+      "vertices": 3924,
+      "triangles": 7852,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "inconsistently_oriented_edges": 0,
+      "edge_manifold_closed": true,
+      "nonmanifold_vertices": 0,
+      "connected_components": 2,
+      "signed_volume": 27841.380944453278,
+      "bounds_min": [
+        -71.892532,
+        0.0025152341597495347,
+        -47.928356
+      ],
+      "bounds_max": [
+        82.293999,
+        79.006561,
+        47.928356
+      ],
+      "file_sha256": "fe4968e67d717ff5d97e55904d77628c8320a792a4316bfb4b6bf81798b4b844"
+    },
+    "low": {
+      "vertices": 1961,
+      "triangles": 3926,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "inconsistently_oriented_edges": 0,
+      "edge_manifold_closed": true,
+      "nonmanifold_vertices": 0,
+      "connected_components": 2,
+      "signed_volume": 27667.85808845262,
+      "bounds_min": [
+        -71.86004080724949,
+        0.015179770328316869,
+        -47.90003414895447
+      ],
+      "bounds_max": [
+        82.30277415346737,
+        79.006561,
+        47.97495701773789
+      ],
+      "file_sha256": "5e5957feafd391387a642c09c2d2e64470b6290975295916e143aa1736750c4e"
+    }
+  }
+}

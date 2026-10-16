@@ -8,6 +8,7 @@ stb_image / stb_image_write: stb.txt
 stduuid: stduuid.txt
 JsonCpp 1.9.5 (IWanna content): JsonCpp.txt
 Lua 5.4.9 (IWanna scripting): Lua.html
+Dear ImGui 1.91.9b (DebugUI / model tools, MIT): DearImGui.txt
 
 The shared notice set also contains components unused by some executables.
 Game-specific assets retain their own provenance and notices in the supplied

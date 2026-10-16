@@ -8,6 +8,8 @@ set(GLFW_LIBRARY_TYPE STATIC)
 add_subdirectory("${CMAKE_SOURCE_DIR}/third_party/glfw-3.4" "${CMAKE_BINARY_DIR}/third_party/glfw" EXCLUDE_FROM_ALL)
 add_library(glfw3 ALIAS glfw)
 
+include("${CMAKE_CURRENT_LIST_DIR}/ImGui.cmake")
+
 add_library(glad STATIC "${CMAKE_SOURCE_DIR}/third_party/glad-generated/src/glad.c")
 target_include_directories(glad PUBLIC "${CMAKE_SOURCE_DIR}/include")
 if(CMAKE_DL_LIBS)

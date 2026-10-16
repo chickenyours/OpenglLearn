@@ -22,7 +22,13 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include "ApplicationWindow/public/window.h"
 #include "MaterialLab/Public/material_lab_module.h"
+#include "material_lab_debug_panel.h"
+#include "Render/Public/Pipeline/probe_sdf_clipmap.h"
+#include "Render/Public/Pipeline/surface_cache.h"
 #include "MaterialLab/Public/gi_room_scene.h"
+#ifdef MATERIAL_LAB_HAS_MODEL
+#include "MaterialLab/Public/sdf_model_scene.h"
+#endif
 #include <stb_image.h>
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
@@ -36,11 +42,25 @@ struct Options {
     bool smoke = false, quality = false, shadows = false, closeup = false, advanced = false, advancedQuality = false, benchmark = false, procedural = false;
     bool skyTest=false, sky=false, probeTest=false, probes=false;
     bool realtimeGi=false,realtimeGiTest=false,realtimeGiStabilityTest=false;
-    bool lumenGi=false,lumenGiTest=false;
+    bool lumenGi=false,lumenGiTest=false,lumenAdaptiveTest=false,lumenAdaptive=false,probeDiffuseTest=false,probeDiffuseInteractive=false;
     bool showcase=false,showcaseTest=false,showcaseStability=false,showcaseWaterDiagnostic=false,showcaseMotion=false;
     bool showcaseMeasureOnly=false;
     bool giRoom=false,giRoomTest=false,giRoomPerformance=false;
+    bool probePlacement=false,probePlacementTest=false;
+    bool screenProbeTracing=false,screenProbeTraceTest=false;
+    bool sdfProbeTracing=false,sdfProbeTraceTest=false;
+    bool sdfQualityTest=false,sdfAutomatic=false,sdfVoxelGrid=false,sdfIsolate=false;
+    bool sdfBanquet=false,sdfBanquetTest=false,sdfQualitySet=false,sdfViewSet=false;
+    bool sdfClipmaps=false,sdfClipmapTest=false;
+    bool sdfClipmapPerformance=false;
+    bool surfaceCacheGi=false,surfaceCacheTest=false,surfaceCachePerformance=false,surfaceCacheProbeTest=false,surfaceCacheReference=false;
+    bool surfaceCacheTemporalTest=false,surfaceCacheNoTemporal=false;
+    std::uint32_t surfaceCacheHistoryFrames=10,surfaceCacheHistoryDirections=8;
+    std::uint32_t surfaceCacheView=0,surfaceCacheRays=1;
+    std::uint32_t surfaceCacheProbeRays=8,surfaceCacheProbeSpacing=32;
+    std::uint32_t sdfQuality=1,sdfView=3,sdfObject=4;
     bool vulkan=false,validation=false,softwareRays=false,vsync=false;
+    bool noDebugUI=false;
     bool studySizeSet=false,renderSizeSet=false,viewStability=false,benchmarkPresent=false,fullscreen=false;
     float lumenReflectionScale=.5f;
     float lumenSourceScale=.5f;
@@ -57,8 +77,47 @@ Options Parse(int argc, char** argv) {
     Options result;
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
-        if (arg == "--smoke-test") result.smoke = true;
+        if (arg == "--no-debug-ui") result.noDebugUI = true;
+        else if (arg == "--smoke-test") result.smoke = true;
         else if(arg=="--showcase") result.showcase=true;
+        else if(arg=="--probe-placement") result.probePlacement=true;
+        else if(arg=="--probe-placement-test") result.probePlacementTest=true;
+        else if(arg=="--screen-probe-tracing") result.screenProbeTracing=true;
+        else if(arg=="--screen-probe-trace-test") result.screenProbeTraceTest=true;
+        else if(arg=="--sdf-probe-tracing") result.sdfProbeTracing=true;
+        else if(arg=="--sdf-probe-trace-test") result.sdfProbeTraceTest=true;
+        else if(arg=="--sdf-quality-test") result.sdfQualityTest=true;
+        else if(arg=="--sdf-banquet") result.sdfBanquet=true;
+        else if(arg=="--sdf-banquet-test") result.sdfBanquetTest=true;
+        else if(arg=="--sdf-clipmaps") {result.sdfClipmaps=true;result.sdfBanquet=true;}
+        else if(arg=="--sdf-clipmap-test") result.sdfClipmapTest=true;
+        else if(arg=="--sdf-clipmap-performance-test") result.sdfClipmapPerformance=true;
+        else if(arg=="--surface-cache-gi") result.surfaceCacheGi=true;
+        else if(arg=="--surface-cache-test") result.surfaceCacheTest=true;
+        else if(arg=="--surface-cache-probe-test") result.surfaceCacheProbeTest=true;
+        else if(arg=="--surface-cache-temporal-test") result.surfaceCacheTemporalTest=true;
+        else if(arg=="--surface-cache-no-temporal") result.surfaceCacheNoTemporal=true;
+        else if(arg=="--surface-cache-history-frames"&&i+1<argc){result.surfaceCacheHistoryFrames=unsigned(std::stoul(argv[++i]));Check(result.surfaceCacheHistoryFrames>=1&&result.surfaceCacheHistoryFrames<=64,"GI history frames must be 1..64");}
+        else if(arg=="--surface-cache-history-directions"&&i+1<argc){result.surfaceCacheHistoryDirections=unsigned(std::stoul(argv[++i]));Check(result.surfaceCacheHistoryDirections>=1&&result.surfaceCacheHistoryDirections<=64,"GI temporal direction phases must be 1..64");}
+        else if(arg=="--surface-cache-reference") result.surfaceCacheReference=true;
+        else if(arg=="--surface-cache-probe-rays"&&i+1<argc){result.surfaceCacheProbeRays=unsigned(std::stoul(argv[++i]));Check(result.surfaceCacheProbeRays==4||result.surfaceCacheProbeRays==8||result.surfaceCacheProbeRays==16,"Probe ray dimension must be 4, 8 or 16 (16, 64 or 256 rays/probe)");}
+        else if(arg=="--surface-cache-probe-spacing"&&i+1<argc){result.surfaceCacheProbeSpacing=unsigned(std::stoul(argv[++i]));Check(result.surfaceCacheProbeSpacing>=4&&result.surfaceCacheProbeSpacing<=128,"Probe spacing must be 4..128 pixels");}
+        else if(arg=="--surface-cache-performance-test") result.surfaceCachePerformance=true;
+        else if(arg=="--surface-cache-rays"&&i+1<argc){result.surfaceCacheRays=unsigned(std::stoul(argv[++i]));Check(result.surfaceCacheRays>=1&&result.surfaceCacheRays<=32,"Surface Cache rays must be 1..32");}
+        else if(arg=="--surface-cache-view"&&i+1<argc){const std::string value=argv[++i];
+            Check(value=="total"||value=="cache"||value=="indirect"||value=="coverage"||value=="atlas"||value=="history","Surface Cache view must be total, cache, indirect, coverage, atlas or history");
+            result.surfaceCacheView=value=="total"?0:value=="cache"?1:value=="indirect"?2:value=="coverage"?3:value=="atlas"?4:5;}
+        else if(arg=="--sdf-auto") result.sdfAutomatic=true;
+        else if(arg=="--sdf-voxel-grid") result.sdfVoxelGrid=true;
+        else if(arg=="--sdf-isolate") result.sdfIsolate=true;
+        else if(arg=="--sdf-object"&&i+1<argc)result.sdfObject=unsigned(std::stoul(argv[++i]));
+        else if(arg=="--sdf-quality"&&i+1<argc){const std::string value=argv[++i];
+            result.sdfQualitySet=true;
+            Check(value=="low"||value=="medium"||value=="high","SDF quality must be low, medium or high");result.sdfQuality=value=="low"?0:value=="medium"?1:2;}
+        else if(arg=="--sdf-view"&&i+1<argc){const std::string value=argv[++i];
+            result.sdfViewSet=true;
+            Check(value=="scene"||value=="mesh"||value=="global"||value=="split","SDF view must be scene, mesh, global or split");
+            result.sdfView=value=="scene"?0:value=="mesh"?1:value=="global"?2:3;}
         else if(arg=="--gi-room") result.giRoom=true;
         else if(arg=="--gi-room-test") result.giRoomTest=true;
         else if(arg=="--gi-room-performance-test") result.giRoomPerformance=true;
@@ -92,7 +151,11 @@ Options Parse(int argc, char** argv) {
         else if (arg == "--realtime-gi-test") result.realtimeGiTest=true;
         else if (arg == "--realtime-gi-stability-test") result.realtimeGiStabilityTest=true;
         else if (arg == "--lumen-gi") {result.lumenGi=true;result.sky=true;}
+        else if (arg == "--lumen-adaptive") {result.lumenAdaptive=true;result.lumenGi=true;result.sky=true;}
+        else if (arg == "--lumen-probe-diffuse") {result.probeDiffuseInteractive=true;result.lumenAdaptive=true;result.lumenGi=true;result.sky=true;}
         else if (arg == "--lumen-gi-test") result.lumenGiTest=true;
+        else if (arg == "--lumen-adaptive-test") result.lumenAdaptiveTest=true;
+        else if (arg == "--lumen-probe-diffuse-test") result.probeDiffuseTest=true;
         else if (arg == "--sky") result.sky = true;
         else if (arg == "--sky-hdr" && i+1<argc) { result.skyHdr=argv[++i]; result.sky=true; }
         else if (arg == "--fps" && i+1<argc) {
@@ -118,7 +181,7 @@ Options Parse(int argc, char** argv) {
         else if ((arg == "--screenshot" || arg == "--legacy-textures") && i + 1 < argc) {
             if (arg == "--screenshot") result.screenshot = argv[++i];
             else result.legacyDirectory = argv[++i];
-        } else throw std::runtime_error("Usage: material_lab_demo [--gi-room|--gi-room-test|--gi-room-performance-test|--showcase|--showcase-test|--showcase-motion-test|--showcase-performance-test|--showcase-stability-test|--showcase-water-diagnostic|--smoke-test|--quality-test|--shadow-test|--closeup-test|--advanced-test|--advanced-quality-test|--sky-test|--probe-test|--realtime-gi-test|--lumen-gi-test|--realtime-gi-stability-test|--lumen-view-stability-test|--benchmark] [--vulkan --validation --software-rays] [--sky --probes --realtime-gi --lumen-gi --sky-hdr FILE.hdr] [--lumen-reflection-scale .5..1 --lumen-source-scale .25..1 --lumen-reflection-detail 128..512] [--yaw RADIANS --pitch RADIANS --distance UNITS] [--fps LIMIT --vsync --fullscreen --msaa 1|2|4|8] [--benchmark-width W --benchmark-height H --benchmark-present] [--render-width W --render-height H --render-scale .5..1] [--procedural] [--legacy-textures DIR] [--screenshot FILE.png]");
+        } else throw std::runtime_error("Usage: material_lab_demo [--surface-cache-gi|--surface-cache-test|--surface-cache-temporal-test|--surface-cache-performance-test|--sdf-quality-test|--sdf-probe-tracing|--sdf-probe-trace-test|--screen-probe-tracing|--screen-probe-trace-test|--probe-placement|--probe-placement-test|--gi-room|--gi-room-test|--gi-room-performance-test|--showcase|--showcase-test|--showcase-motion-test|--showcase-performance-test|--showcase-stability-test|--showcase-water-diagnostic|--smoke-test|--quality-test|--shadow-test|--closeup-test|--advanced-test|--advanced-quality-test|--sky-test|--probe-test|--realtime-gi-test|--lumen-gi-test|--lumen-adaptive-test|--lumen-probe-diffuse-test|--realtime-gi-stability-test|--lumen-view-stability-test|--benchmark] [--surface-cache-view total|cache|indirect|coverage|atlas|history --surface-cache-no-temporal --surface-cache-history-frames 1..64 --surface-cache-history-directions 1..64 --surface-cache-rays 1..32 --surface-cache-reference --surface-cache-probe-test --surface-cache-probe-rays 4|8|16 --surface-cache-probe-spacing 4..128] [--vulkan --validation --software-rays] [--sky --probes --realtime-gi --lumen-gi --lumen-adaptive --lumen-probe-diffuse --sky-hdr FILE.hdr] [--lumen-reflection-scale .5..1 --lumen-source-scale .25..1 --lumen-reflection-detail 128..512] [--yaw RADIANS --pitch RADIANS --distance UNITS] [--fps LIMIT --vsync --fullscreen --msaa 1|2|4|8 --no-debug-ui] [--benchmark-width W --benchmark-height H --benchmark-present] [--render-width W --render-height H --render-scale .5..1] [--procedural] [--legacy-textures DIR] [--screenshot FILE.png]");
     }
     Check(!result.procedural || result.legacyDirectory.empty(), "Choose --procedural or --legacy-textures, not both");
     Check(!result.probes||!result.realtimeGi,"Choose --probes or --realtime-gi");
@@ -128,6 +191,13 @@ Options Parse(int argc, char** argv) {
         Check(result.legacyDirectory.empty(),"The GI room uses only procedural, untextured materials");
         result.procedural=true;
     }
+    if(result.surfaceCacheGi||result.surfaceCacheTest||result.surfaceCacheProbeTest||result.surfaceCacheTemporalTest||result.surfaceCachePerformance||result.probePlacement||result.probePlacementTest||result.screenProbeTracing||result.screenProbeTraceTest||result.sdfProbeTracing||result.sdfProbeTraceTest||result.sdfQualityTest||result.sdfBanquet||result.sdfBanquetTest||result.sdfClipmapTest||result.sdfClipmapPerformance) {
+        Check(!result.giRoom&&!result.showcase&&!result.lumenAdaptive,"Probe placement uses its dedicated scene");
+        result.procedural=true;result.msaaSamples=1;
+    }
+#ifndef MATERIAL_LAB_HAS_MODEL
+    Check(!result.sdfBanquet&&!result.sdfBanquetTest&&!result.sdfClipmapTest&&!result.sdfClipmapPerformance,"SDF banquet needs the Model module; use the banquet build or provide a compatible Assimp library");
+#endif
     // CI smoke has a deterministic, asset-independent default. Interactive use
     // picks up the existing ignored legacy assets beside the executable.
     if (!result.showcaseTest && !result.smoke && !result.quality && !result.shadows && !result.closeup && !result.advanced && !result.advancedQuality && !result.skyTest && !result.probeTest && !result.realtimeGiTest && !result.realtimeGiStabilityTest && !result.lumenGiTest && !result.benchmark && !result.procedural && result.legacyDirectory.empty()) {
@@ -1156,6 +1226,109 @@ void LumenGiQuality(MaterialLabModule& lab,const Options& options) {
     Check(!lab.Render(frame),"Hybrid GI accepted zero update budget");
     std::cout<<"Hybrid GI passed: Surface Cache, multiple bounces, local sky, screen/world tracing, offscreen cache, moving light/emission, AA max delta="<<maxDelta<<", reflection delta="<<reflectionDelta<<"; DDGI preserved; backend errors=0\n";
 }
+void CaptureAdaptiveScenes(MaterialLabModule& lab,const Options& options);
+void LumenAdaptiveProbes(MaterialLabModule& lab,const Options& options) {
+    FrameSettings frame;ConfigureLightingStudy(frame);
+    frame.width=640;frame.height=400;frame.present=false;
+    frame.effects.lumenGi.enabled=true;frame.effects.indirect.enabled=false;
+    frame.effects.lumenGi.reflections=false;frame.effects.lumenGi.screenTraces=true;
+    frame.effects.post.bloomEnabled=false;frame.effects.post.ssaoEnabled=false;
+    frame.effects.sky=LoadSky(options);
+    frame.effects.areaLights.count=1;
+    // Deterministic captures: no temporal AA or MSAA lets GI-on minus GI-off
+    // isolate the diffuse final gather exactly. The surface cache does not depend
+    // on intensity, so the shared direct/shadow/material terms cancel.
+    frame.effects.temporal.antialiasing=Render::AntialiasingMode::None;
+    frame.effects.temporal.msaaSamples=1;
+    frame.closedLightingStudy=true;frame.cameraDistance=5;frame.cameraPitch=-.05f;
+    const auto render=[&]{Check(lab.Render(frame),lab.LastError());frame.effects.cameraCut=false;};
+    for(int n=0;n<160;++n)render();
+    const auto scene=lab.PreparedLumenGiScene();Check(bool(scene),"Adaptive probe test needs a prepared hybrid scene");
+    const auto gatherOnly=[&] {
+        frame.effects.lumenGi.intensity=1;render();const auto lit=lab.Readback();
+        frame.effects.lumenGi.intensity=0;render();const auto unlit=lab.Readback();
+        frame.effects.lumenGi.intensity=1;
+        Check(lit.rgba.size()==unlit.rgba.size()&&!lit.rgba.empty(),"Adaptive capture sizes differ");
+        FramePixels out=lit;
+        for(std::size_t i=0;i<out.rgba.size();++i)out.rgba[i]=static_cast<std::uint8_t>(std::min(255,std::abs(int(lit.rgba[i])-int(unlit.rgba[i]))));
+        return out;
+    };
+    struct Config { const char* label; bool adaptive; std::uint32_t subdivision; std::uint32_t spacing; };
+    const std::array<Config,4> configs{{{"uniform16",false,1,16},{"adaptive2",true,2,16},{"adaptive4",true,4,16},{"reference_u4",false,1,4}}};
+    std::array<FramePixels,4> gi;std::array<unsigned,4> gridProbes{};
+    for(std::size_t i=0;i<configs.size();++i) {
+        auto& s=frame.effects.lumenGi;
+        s.scene=scene;s.adaptiveProbes=configs[i].adaptive;s.adaptiveSubdivision=configs[i].subdivision;s.probeSpacing=configs[i].spacing;
+        s.reset=true;render();s.reset=false;for(int n=0;n<192;++n)render();
+        gi[i]=gatherOnly();gridProbes[i]=lab.PipelineStatistics().lumenScreenProbes;
+        // Keep the ordinary rendered material frame as well so the comparison is
+        // visible as a scene, not only as an isolated GI difference.
+        s.intensity=1;render();
+        const auto full=lab.Readback();
+        if(!options.screenshot.empty()){
+            auto path=std::filesystem::path(options.screenshot);
+            path.replace_filename(path.stem().string()+"_"+configs[i].label+"_scene"+path.extension().string());
+            Save(full,path.string());
+        }
+    }
+    const auto& reference=gi[3];
+    Check(reference.width==gi[0].width&&reference.height==gi[0].height,"Adaptive reference extent mismatch");
+    const auto width=reference.width,height=reference.height;
+    std::vector<double> gradient(std::size_t(width)*height,0.0);
+    const auto luma=[&](const FramePixels& p,std::uint32_t x,std::uint32_t y) {
+        const auto at=(std::size_t(y)*p.width+x)*4;return .2126*p.rgba[at]+.7152*p.rgba[at+1]+.0722*p.rgba[at+2];
+    };
+    for(std::uint32_t y=1;y+1<height;++y)for(std::uint32_t x=1;x+1<width;++x) {
+        const double gx=luma(reference,x+1,y)-luma(reference,x-1,y),gy=luma(reference,x,y+1)-luma(reference,x,y-1);
+        gradient[std::size_t(y)*width+x]=std::sqrt(gx*gx+gy*gy);
+    }
+    auto sorted=gradient;std::nth_element(sorted.begin(),sorted.begin()+sorted.size()*9/10,sorted.end());
+    // Silhouette pixels: the top decile of the reference GI gradient. Adaptive
+    // probes should reproduce these better than the uniform coarse grid.
+    const double threshold=std::max(sorted[sorted.size()*9/10],1.0);
+    const auto error=[&](const FramePixels& a) {
+        double edge=0,all=0;std::size_t edgeCount=0;
+        for(std::uint32_t y=1;y+1<height;++y)for(std::uint32_t x=1;x+1<width;++x) {
+            const auto at=(std::size_t(y)*width+x)*4;double d=0;
+            for(int c=0;c<3;++c)d+=std::abs(int(a.rgba[at+c])-int(reference.rgba[at+c]));
+            d/=3.0;all+=d;const auto index=std::size_t(y)*width+x;
+            if(gradient[index]>threshold){edge+=d;++edgeCount;}
+        }
+        return std::pair{edge/double(std::max<std::size_t>(edgeCount,1)),all/double(std::size_t(width)*height)};
+    };
+    std::array<double,4> edgeError{},globalError{};
+    for(std::size_t i=0;i<configs.size();++i) {
+        const auto e=error(gi[i]);edgeError[i]=e.first;globalError[i]=e.second;
+        std::cout<<std::fixed<<std::setprecision(4)<<"Adaptive probe config "<<configs[i].label<<" grid probes="<<gridProbes[i]
+                 <<" edge GI error vs dense reference="<<edgeError[i]<<" /255, global="<<globalError[i]<<" /255\n";
+        if(!options.screenshot.empty()){auto path=std::filesystem::path(options.screenshot);path.replace_filename(path.stem().string()+"_"+configs[i].label+path.extension().string());Save(gi[i],path.string());}
+    }
+    Check(edgeError[1]<edgeError[0]&&edgeError[2]<edgeError[0],"Adaptive screen probes did not reduce silhouette GI error against the dense reference");
+    Check(edgeError[2]<=edgeError[1]*1.05,"Finer adaptive subdivision did not match or beat the coarse one");
+    // Coverage diagnostics: green marks receivers resolved from the probe grid,
+    // red the low-frequency world-cache fallback. Analytic lights are off so the
+    // debug colors delivered as GI dominate the tonemapped image.
+    frame.effects.lumenGi.lightingView=Render::LumenLightingView::Coverage;
+    frame.effects.areaLights.count=0;frame.effects.sky.enabled=false;frame.effects.shadows.sunIntensity=0;
+    for(std::size_t i=0;i<2;++i) {
+        auto& s=frame.effects.lumenGi;
+        s.adaptiveProbes=configs[i].adaptive;s.adaptiveSubdivision=configs[i].subdivision;s.probeSpacing=configs[i].spacing;
+        s.reset=true;render();s.reset=false;for(int n=0;n<64;++n)render();
+        const auto coverage=lab.Readback();
+        std::size_t green=0,red=0;
+        for(std::size_t p=0;p+1<coverage.rgba.size();p+=4){
+            const int r=coverage.rgba[p],g=coverage.rgba[p+1];
+            if(g>r+12)++green;else if(r>g+12)++red;
+        }
+        const auto fraction=double(red)/double(std::max<std::size_t>(green+red,1));
+        std::cout<<"Adaptive coverage "<<configs[i].label<<" grid="<<lab.PipelineStatistics().lumenScreenProbes
+                 <<" resolved="<<green<<" fallback="<<red<<" fallback fraction="<<std::fixed<<std::setprecision(3)<<fraction<<'\n';
+        if(!options.screenshot.empty()){auto path=std::filesystem::path(options.screenshot);path.replace_filename(path.stem().string()+"_"+configs[i].label+"_coverage"+path.extension().string());Save(coverage,path.string());}
+    }
+    std::cout<<"Adaptive screen probes passed: edge GI error "<<edgeError[0]<<" -> "<<edgeError[1]<<" (x2) / "<<edgeError[2]<<" (x4) /255 against the "
+             <<gridProbes[3]<<"-probe dense reference; adaptive grid "<<gridProbes[1]<<" fine probes; backend errors=0\n";
+    CaptureAdaptiveScenes(lab,options);
+}
 void Benchmark(MaterialLabModule& lab, const Options& options) {
     FrameSettings frame; ConfigureLightingStudy(frame); ApplyAdvancedCamera(frame, options);
     if(options.sky) frame.effects.sky=LoadSky(options);
@@ -1245,6 +1418,102 @@ void Benchmark(MaterialLabModule& lab, const Options& options) {
 }
 #include "showcase_demo.inl"
 #include "gi_room_demo.inl"
+#include "probe_placement_demo.inl"
+#include "surface_cache_demo.inl"
+#include "surface_cache_probe_test.inl"
+#include "surface_cache_temporal_test.inl"
+#include "probe_placement_test.inl"
+#include "screen_probe_trace_test.inl"
+#include "probe_sdf_trace_test.inl"
+#include "probe_sdf_quality_test.inl"
+#ifdef MATERIAL_LAB_HAS_MODEL
+#include "sdf_banquet_test.inl"
+#include "sdf_clipmap_test.inl"
+#include "sdf_clipmap_performance.inl"
+#endif
+void LumenProbeDiffuseTest(MaterialLabModule& lab,const Options& options) {
+    FrameSettings frame=MakeGiRoomFrame(options);
+    frame.giRoomHud=false;frame.present=false;
+    // Screen-probe diffuse displays the incident irradiance sampled from the
+    // probe grid, so low probe density shows up directly as blocky "Lego" GI.
+    frame.effects.lumenGi.lightingView=Render::LumenLightingView::ProbeDiffuse;
+    frame.effects.lumenGi.reflections=false;
+    frame.effects.temporal.antialiasing=Render::AntialiasingMode::None;frame.effects.temporal.msaaSamples=1;
+    frame.effects.post.bloomEnabled=false;frame.effects.post.ssaoEnabled=false;frame.effects.post.vignette=0;
+    frame.width=options.studySizeSet?options.benchmarkWidth:640;
+    frame.height=options.studySizeSet?options.benchmarkHeight:400;
+    frame.camera=GiRoomCameraPreset(2,frame.OutputAspect());
+    const auto render=[&]{Check(lab.Render(frame),lab.LastError());frame.effects.cameraCut=false;};
+    const auto capture=[&](const char* label,bool adaptive,unsigned subdiv,unsigned spacing) {
+        auto& s=frame.effects.lumenGi;
+        s.adaptiveProbes=adaptive;s.adaptiveSubdivision=subdiv;s.probeSpacing=spacing;s.reset=true;
+        render();s.reset=false;for(int n=0;n<192;++n)render();
+        const auto image=lab.Readback();
+        if(!options.screenshot.empty()){auto path=std::filesystem::path(options.screenshot);path.replace_filename(path.stem().string()+"_"+label+path.extension().string());Save(image,path.string());}
+        return image;
+    };
+    // The dense 4px probe grid is the reference the coarse/adaptive views are
+    // measured against: nearest-probe shading quantization is exactly the error.
+    const auto uniform=capture("uniform16",false,1,16);
+    const auto adaptive=capture("adaptive4",true,4,16);
+    const auto reference=capture("reference4",false,1,4);
+    const int w=int(reference.width),h=int(reference.height);
+    const auto luma=[&](const FramePixels& p,std::size_t i){return .2126*p.rgba[i]+.7152*p.rgba[i+1]+.0722*p.rgba[i+2];};
+    std::vector<double> gradient(std::size_t(w)*h,0.0);
+    for(int y=1;y+1<h;++y)for(int x=1;x+1<w;++x) {
+        const auto at=[&](int xx,int yy){return (std::size_t(yy)*w+xx)*4;};
+        gradient[std::size_t(y)*w+x]=std::abs(luma(reference,at(x+1,y))-luma(reference,at(x-1,y)))+
+                                     std::abs(luma(reference,at(x,y+1))-luma(reference,at(x,y-1)));
+    }
+    auto sorted=gradient;std::nth_element(sorted.begin(),sorted.begin()+sorted.size()*95/100,sorted.end());
+    const double threshold=std::max(sorted[sorted.size()*95/100],1.0);
+    const auto edgeError=[&](const FramePixels& a) {
+        double edge=0,all=0;std::size_t count=0;
+        for(int y=1;y+1<h;++y)for(int x=1;x+1<w;++x) {
+            const auto at=(std::size_t(y)*w+x)*4;
+            const double diff=std::abs(luma(a,at)-luma(reference,at));
+            all+=diff;if(gradient[std::size_t(y)*w+x]>threshold){edge+=diff;++count;}
+        }
+        return std::pair{edge/double(std::max<std::size_t>(count,1)),all/double(std::size_t(w)*h)};
+    };
+    const auto coarse=edgeError(uniform),fine=edgeError(adaptive);
+    std::cout<<std::fixed<<std::setprecision(3)<<"Probe-diffuse uniform16 edge error vs dense="<<coarse.first<<" global="<<coarse.second<<" /255\n";
+    std::cout<<std::fixed<<std::setprecision(3)<<"Probe-diffuse adaptive4 edge error vs dense="<<fine.first<<" global="<<fine.second<<" /255\n";
+    Check(fine.first<coarse.first*.8,"Adaptive probes did not reduce screen-probe blockiness on silhouettes");
+    std::cout<<"Probe-diffuse silhouette error "<<coarse.first<<" -> "<<fine.first<<" /255 with adaptive probes; blockiness reduced\n";
+}
+void CaptureAdaptiveScenes(MaterialLabModule& lab,const Options& options) {
+    const std::array<const char*,3> labels{{"study","courtyard","room"}};
+    for(int scene=0;scene<3;++scene) {
+        FrameSettings view;
+        if(scene==0) {
+            ConfigureLightingStudy(view);view.closedLightingStudy=false;
+            view.effects.lumenGi.enabled=true;
+            view.effects.temporal.antialiasing=Render::AntialiasingMode::None;view.effects.temporal.msaaSamples=1;
+        } else if(scene==1) {
+            view=MakeShowcaseFrame(options);view.showcaseHud=false;
+            view.effects.temporal.antialiasing=Render::AntialiasingMode::None;view.effects.temporal.msaaSamples=1;
+        } else {
+            // Original sealed-room diagnostic view (traced direct shadows).
+            view=MakeGiRoomFrame(options);view.giRoomHud=false;
+        }
+        view.effects.lumenGi.adaptiveProbes=true;view.effects.lumenGi.reflections=false;
+        view.width=options.studySizeSet?options.benchmarkWidth:640;
+        view.height=options.studySizeSet?options.benchmarkHeight:400;
+        view.present=false;
+        Render::PipelineCamera camera;
+        if(scene==0) {
+            camera.position={0,2.6f,7};camera.nearPlane=.05f;camera.farPlane=200;
+            camera.view=glm::lookAt(camera.position,glm::vec3(0,1,-.6f),glm::vec3(0,1,0));
+        } else if(scene==1) camera=ShowcaseCameraPreset(0,view.OutputAspect());
+        else camera=GiRoomCameraPreset(0,view.OutputAspect());
+        camera.projection=glm::perspective(glm::radians(55.f),view.OutputAspect(),camera.nearPlane,camera.farPlane);
+        view.camera=camera;
+        for(int n=0;n<160;++n){Check(lab.Render(view),lab.LastError());view.effects.cameraCut=false;}
+        std::cout<<"Adaptive scene "<<labels[scene]<<" adaptive grid="<<lab.PipelineStatistics().lumenScreenProbes<<" probes\n";
+        if(!options.screenshot.empty()){auto path=std::filesystem::path(options.screenshot);path.replace_filename(path.stem().string()+"_scene_"+labels[scene]+"_adaptive"+path.extension().string());Save(lab.Readback(),path.string());}
+    }
+}
 void Interactive(MaterialLabModule& lab, ApplicationWindow::Window& window, const Options& options) {
     std::cout << "MaterialLab: columns roughness 0.08 -> 1, rows metallic 0 -> 1.\n"
                  "Bottom: copper / five maps / migrated legacy tile.\n"
@@ -1257,6 +1526,7 @@ void Interactive(MaterialLabModule& lab, ApplicationWindow::Window& window, cons
     std::cout << "S sky light | D sky background | [/] sky intensity | ,/. sky rotation\n";
     std::cout << "W realtime GPU GI | Y baked diffuse probes | Z enclosed lighting study\n";
     std::cout << "2 hybrid Lumen GI | 3 hybrid screen tracing | 4 hybrid scene reflections | 5 courtyard/gallery showcase\n";
+    std::cout << "F2 hybrid adaptive screen probes | F3 probe subdivision 2..4 | F4 hybrid view Material/coverage\n";
     FrameSettings frame;
     frame.effects.sky=LoadSky(options);
     frame.effects.lumenGi.reflectionResolutionScale=options.lumenReflectionScale;
@@ -1266,32 +1536,37 @@ void Interactive(MaterialLabModule& lab, ApplicationWindow::Window& window, cons
     frame.effects.temporal.msaaSamples = options.msaaSamples;
     std::size_t selected = 7;
     if(options.realtimeGi){ConfigureLightingStudy(frame);frame.effects.realtimeGi.enabled=true;selected=18;}
-    if(options.lumenGi){ConfigureLightingStudy(frame);frame.effects.lumenGi.enabled=true;selected=18;}
+    if(options.lumenGi){ConfigureLightingStudy(frame);frame.effects.lumenGi.enabled=true;frame.effects.lumenGi.adaptiveProbes=options.lumenAdaptive;selected=18;}
     bool focused = false, animate = false;
+    // Saved lighting while the adaptive coverage diagnostic replaces the shaded scene.
+    bool coverageSaved=false, savedSky=true; int savedArea=0; float savedSun=0; bool savedLumenReflections=false;
     std::array<bool, GLFW_KEY_LAST + 1> previous{};
     auto* native = window.GetNativeWindow();
     Input input;
     glfwSetWindowUserPointer(native, &input);
-    glfwSetScrollCallback(native, [](GLFWwindow* w, double, double y) {
+    glfwSetScrollCallback(native, [](GLFWwindow* w, double x, double y) {
+        DebugUiScroll(w, x, y);
         static_cast<Input*>(glfwGetWindowUserPointer(w))->scroll += static_cast<float>(y);
     });
     double lastTime = glfwGetTime(), lastX = 0, lastY = 0;
-    bool dragging = false, saved = false;
+    bool dragging = false, saved = false, switchShowcase = false;
     double smoothFrameMs=1000.0/(options.fpsLimit>0?options.fpsLimit:90);
     FramePacer pacer;
+    DebugPanelHost debugPanels(lab, native);
     while (!window.ShouldClose()) {
         const auto frameStarted=std::chrono::steady_clock::now();
         window.PollEvents();
+        DebugPanelFrame uiFrame(debugPanels);
         const double now = glfwGetTime();
         const float dt = static_cast<float>(std::clamp(now - lastTime, 0.0001, 0.1));
         frame.effects.deltaSeconds = static_cast<float>(std::clamp(now - lastTime, 0.0001, 1.0));
         frame.effects.cameraCut = now - lastTime > 0.25;
         smoothFrameMs=smoothFrameMs*.9+std::clamp(now-lastTime,0.0001,1.0)*1000.0*.1;
         lastTime = now;
-        const auto down = [&](int key) { return glfwGetKey(native, key) == GLFW_PRESS; };
-        const auto pressed = [&](int key) { const bool value = down(key); const bool edge = value && !previous[key]; previous[key] = value; return edge; };
+        const auto down = [&](int key) { return !uiFrame.WantsKeyboard() && glfwGetKey(native, key) == GLFW_PRESS; };
+        const auto pressed = [&](int key) { const bool value = glfwGetKey(native, key) == GLFW_PRESS; const bool edge = value && !previous[key]; previous[key] = value; return edge && !uiFrame.WantsKeyboard(); };
         if (down(GLFW_KEY_ESCAPE)) break;
-        if(pressed(GLFW_KEY_5)){ShowcaseInteractive(lab,window,options);break;}
+        if(pressed(GLFW_KEY_5)){switchShowcase=true;break;}
         if (pressed(GLFW_KEY_TAB)) selected = (selected + (down(GLFW_KEY_LEFT_SHIFT) ? lab.MaterialCount() - 1 : 1)) % lab.MaterialCount();
         if (pressed(GLFW_KEY_F)) focused = !focused;
         if (pressed(GLFW_KEY_SPACE)) animate = !animate;
@@ -1307,7 +1582,7 @@ void Interactive(MaterialLabModule& lab, ApplicationWindow::Window& window, cons
         if (pressed(GLFW_KEY_U)) frame.effects.temporal.motionBlurEnabled = !frame.effects.temporal.motionBlurEnabled;
         if (pressed(GLFW_KEY_H)) frame.effects.reflection.resolutionScale = frame.effects.reflection.resolutionScale < 1 ? 1 : frame.effects.reflection.resolutionScale == 1 ? 2 : 0.5f;
         if (pressed(GLFW_KEY_Q)) {
-            if (!frame.lightingStudy) { ConfigureLightingStudy(frame); frame.effects.lumenGi.enabled=true;frame.effects.realtimeGi.enabled=false;frame.effects.probes.enabled=false; selected=18; animate=true; }
+            if (!frame.lightingStudy) { ConfigureLightingStudy(frame); frame.effects.lumenGi.enabled=true;frame.effects.lumenGi.adaptiveProbes=options.lumenAdaptive;frame.effects.realtimeGi.enabled=false;frame.effects.probes.enabled=false; selected=18; animate=true; }
             else {
                 frame.lightingStudy=false; frame.closedLightingStudy=false; frame.effects.probes.enabled=false;
                 frame.effects.realtimeGi.enabled=false;
@@ -1324,6 +1599,30 @@ void Interactive(MaterialLabModule& lab, ApplicationWindow::Window& window, cons
         if (pressed(GLFW_KEY_2)&&frame.lightingStudy) {frame.effects.realtimeGi.enabled=false;frame.effects.probes.enabled=false;frame.effects.lumenGi.enabled=!frame.effects.lumenGi.enabled;frame.effects.cameraCut=true;}
         if (pressed(GLFW_KEY_3)&&frame.lightingStudy)frame.effects.lumenGi.screenTraces=!frame.effects.lumenGi.screenTraces;
         if (pressed(GLFW_KEY_4)&&frame.lightingStudy)frame.effects.lumenGi.reflections=!frame.effects.lumenGi.reflections;
+        // Adaptive screen-probe viewer: F2 toggles the refined receiver grid,
+        // F3 cycles its subdivision, F4 cycles the hybrid diagnostic view.
+        if (pressed(GLFW_KEY_F2)&&frame.effects.lumenGi.enabled) {
+            frame.effects.lumenGi.adaptiveProbes=!frame.effects.lumenGi.adaptiveProbes;
+            frame.effects.cameraCut=true;
+        }
+        if (pressed(GLFW_KEY_F3)&&frame.effects.lumenGi.enabled) {
+            frame.effects.lumenGi.adaptiveSubdivision=frame.effects.lumenGi.adaptiveSubdivision>=4?2:frame.effects.lumenGi.adaptiveSubdivision+1;
+            frame.effects.cameraCut=true;
+        }
+        if (pressed(GLFW_KEY_F4)&&frame.effects.lumenGi.enabled) {
+            auto& view=frame.effects.lumenGi.lightingView;
+            if(view==Render::LumenLightingView::Material) {
+                savedArea=frame.effects.areaLights.count;savedSky=frame.effects.sky.enabled;savedSun=frame.effects.shadows.sunIntensity;
+                savedLumenReflections=frame.effects.lumenGi.reflections;coverageSaved=true;
+                view=Render::LumenLightingView::Coverage;
+                frame.effects.lumenGi.reflections=false;
+                frame.effects.areaLights.count=0;frame.effects.sky.enabled=false;frame.effects.shadows.sunIntensity=0;
+            } else {
+                view=Render::LumenLightingView::Material;
+                if(coverageSaved){frame.effects.areaLights.count=savedArea;frame.effects.sky.enabled=savedSky;frame.effects.shadows.sunIntensity=savedSun;frame.effects.lumenGi.reflections=savedLumenReflections;}
+            }
+            frame.effects.cameraCut=true;
+        }
         if (pressed(GLFW_KEY_Z)&&frame.lightingStudy) {
             frame.closedLightingStudy=!frame.closedLightingStudy;
             frame.cameraDistance=frame.closedLightingStudy?4:15; frame.cameraPitch=.28f;
@@ -1372,25 +1671,31 @@ void Interactive(MaterialLabModule& lab, ApplicationWindow::Window& window, cons
             const bool enable = !(info.metallicMap || info.roughnessMap || info.aoMap);
             edit("useMetallicMap", enable); edit("useRoughnessMap", enable); edit("useAoMap", enable);
         }
-        frame.exposure = std::clamp(frame.exposure + (float(down(GLFW_KEY_PAGE_UP)) - float(down(GLFW_KEY_PAGE_DOWN))) * dt, 0.05f, 5.0f);
+        frame.exposure = std::clamp(frame.exposure + (float(down(GLFW_KEY_PAGE_UP)) - float(down(GLFW_KEY_PAGE_DOWN))) * dt, 0.05f, 8.0f);
         if (animate) frame.lightTime += dt;
         double x, y; glfwGetCursorPos(native, &x, &y);
-        const bool mouse = glfwGetMouseButton(native, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+        const bool mouse = !uiFrame.WantsMouse() && glfwGetMouseButton(native, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
         if (mouse && dragging) {
             frame.cameraYaw += static_cast<float>(x - lastX) * 0.005f;
             frame.cameraPitch = std::clamp(frame.cameraPitch + static_cast<float>(y - lastY) * 0.005f, -0.7f, 1.2f);
         }
         lastX = x; lastY = y; dragging = mouse;
+        if (uiFrame.WantsMouse()) input.scroll = 0;
         frame.cameraDistance = std::clamp(frame.cameraDistance - input.scroll,frame.closedLightingStudy?3.0f:9.0f,
                                          frame.closedLightingStudy?6.0f:32.0f); input.scroll = 0;
         int width = 0, height = 0; glfwGetFramebufferSize(native, &width, &height);
         if (width <= 0 || height <= 0) { glfwWaitEventsTimeout(0.05); continue; }
         frame.width = width; frame.height = height;
-        if(options.renderSizeSet){frame.width=options.benchmarkWidth;frame.height=options.benchmarkHeight;}
+        if(options.renderSizeSet){
+            frame.width=options.benchmarkWidth;frame.height=options.benchmarkHeight;
+            frame.effects.outputSize=frame.width==unsigned(width)&&frame.height==unsigned(height)?glm::uvec2(0):glm::uvec2(width,height);
+        }
         frame.isolatedMaterial = focused ? static_cast<int>(selected) : -1;
         if (!saved && !options.screenshot.empty()) {
             frame.present = false; Save(Capture(lab, frame), options.screenshot); saved = true;
         }
+        uiFrame.Finish(frame, &selected, &focused, &animate);
+        frame.isolatedMaterial = focused ? static_cast<int>(selected) : -1;
         frame.present = true;
         Check(lab.Render(frame), lab.LastError());
         info = lab.InspectMaterial(selected);
@@ -1410,6 +1715,8 @@ void Interactive(MaterialLabModule& lab, ApplicationWindow::Window& window, cons
         title << " Probes=" << lab.PipelineStatistics().validDiffuseProbes << " Closed=" << frame.closedLightingStudy;
         title << " RTGI=" << frame.effects.realtimeGi.enabled << " rays=" << lab.PipelineStatistics().realtimeGiRays;
         title << " Hybrid="<<frame.effects.lumenGi.enabled<<" Surf="<<lab.PipelineStatistics().lumenUpdatedSurfels<<" S/R="<<frame.effects.lumenGi.screenTraces<<frame.effects.lumenGi.reflections;
+        title << " Adaptive="<<frame.effects.lumenGi.adaptiveProbes<<" x"<<frame.effects.lumenGi.adaptiveSubdivision
+              << " View="<<static_cast<unsigned>(frame.effects.lumenGi.lightingView)<<" Probes="<<lab.PipelineStatistics().lumenScreenProbes;
         title << " FPS=" << std::setprecision(1) << 1000.0/smoothFrameMs;
         glfwSetWindowTitle(native, title.str().c_str());
         if(options.fpsLimit>0) {
@@ -1420,6 +1727,219 @@ void Interactive(MaterialLabModule& lab, ApplicationWindow::Window& window, cons
     }
     glfwSetScrollCallback(native, nullptr);
     glfwSetWindowUserPointer(native, nullptr);
+    if(switchShowcase)ShowcaseInteractive(lab,window,options);
+}
+void LumenAdaptiveInteractive(MaterialLabModule& lab, ApplicationWindow::Window& window, const Options& options) {
+    auto* native=window.GetNativeWindow();
+    Input input;
+    glfwSetWindowUserPointer(native,&input);
+    glfwSetScrollCallback(native,[](GLFWwindow* handle,double x,double delta){DebugUiScroll(handle,x,delta);static_cast<Input*>(glfwGetWindowUserPointer(handle))->scroll+=float(delta);});
+    const std::array<const char*,3> names{{"lighting study","courtyard showcase","sealed GI room"}};
+    int scene=options.probeDiffuseInteractive?2:0;
+    // Rebuild the whole frame per scene so the module extracts the right world
+    // geometry and material set. Adaptive probes stay on across the switch.
+    const auto makeFrame=[&](int which) {
+        FrameSettings result;
+        if(which==0) {
+            ConfigureLightingStudy(result);
+            result.closedLightingStudy=false;
+            result.effects.lumenGi.enabled=true;
+        } else if(which==1) {
+            result=MakeShowcaseFrame(options);
+            result.showcaseHud=false;
+        } else {
+            // Keep the sealed room's original diagnostic Surface Cache view so
+            // its traced direct shadows plus the flashlight (F) and point lamp
+            // (F6) behave exactly like the original room viewer.
+            result=MakeGiRoomFrame(options);
+        }
+        result.effects.lumenGi.adaptiveProbes=true;
+        result.present=true;
+        return result;
+    };
+    FrameSettings frame=makeFrame(scene);
+    if(options.probeDiffuseInteractive) {
+        // Open the sealed room already showing the screen-probe diffuse view with
+        // adaptive probes off, so the blocky probe grid is visible immediately;
+        // F2 then turns adaptive refinement on.
+        frame.effects.lumenGi.lightingView=Render::LumenLightingView::ProbeDiffuse;
+        frame.effects.lumenGi.adaptiveProbes=false;
+    }
+    float renderScale=options.renderScale;
+    glm::vec3 position;float yaw=0,pitch=0,speed=3;
+    const auto pose=[&](const Render::PipelineCamera& camera) {
+        position=camera.position;
+        const auto forward=-glm::vec3(glm::inverse(camera.view)[2]);
+        yaw=std::atan2(forward.x,-forward.z);pitch=std::asin(glm::clamp(forward.y,-1.f,1.f));
+    };
+    const auto placeCamera=[&](int which,float aspect) {
+        Render::PipelineCamera camera;
+        if(which==0) {
+            camera.position={0,2.6f,7};camera.nearPlane=.05f;camera.farPlane=200;
+            camera.view=glm::lookAt(camera.position,glm::vec3(0,1,-.6f),glm::vec3(0,1,0));
+        } else if(which==1) camera=ShowcaseCameraPreset(0,aspect);
+        else camera=GiRoomCameraPreset(0,aspect);
+        pose(camera);frame.camera=camera;
+    };
+    placeCamera(scene,frame.OutputAspect());
+    // Each scene has a default shaded/diagnostic view. F4 swaps it with the
+    // coverage diagnostic and restores the exact lighting and view on the way
+    // back, so the sealed room keeps its traced shadows and F/F6 lighting.
+    const auto baseView=[&]{return scene==2?Render::LumenLightingView::SurfaceCache:Render::LumenLightingView::Material;};
+    bool coverageSaved=false,savedSky=true,savedLumenReflections=false;int savedArea=0;float savedSun=0;
+    const auto restoreLighting=[&] {
+        if(coverageSaved) {
+            frame.effects.areaLights.count=savedArea;frame.effects.sky.enabled=savedSky;
+            frame.effects.shadows.sunIntensity=savedSun;frame.effects.lumenGi.reflections=savedLumenReflections;coverageSaved=false;
+        }
+        if(frame.effects.lumenGi.lightingView==Render::LumenLightingView::Coverage)
+            frame.effects.lumenGi.lightingView=baseView();
+    };
+    std::array<bool,GLFW_KEY_LAST+1> previous{};
+    bool looking=false,clicked=false,saved=false;double lastX=0,lastY=0,lastTime=glfwGetTime(),smoothFrameMs=1000./90,lastFpsSample=lastTime;
+    FramePacer pacer;
+    DebugPanelHost debugPanels(lab, native, false);
+    std::cout<<"Adaptive screen probe viewer\n"
+                 "F5 scene: lighting study / courtyard showcase / sealed GI room\n"
+                 "F2 adaptive probes | F3 subdivision 2..4 | F4 coverage / probe-diffuse diagnostic\n"
+                 "RMB look; WASD move; Q/E down/up; Shift fast; wheel speed; P render scale; Esc exit.\n"
+                 "Sealed room also: F flashlight | F6 point lamp | G full/bounce/direct | 1/2/3 views\n"
+                 "  Tab select | arrows move | Z/X rotate | R reset prop | Backspace reset room | F1 controls\n";
+    while(!window.ShouldClose()) {
+        const auto start=std::chrono::steady_clock::now();window.PollEvents();
+        DebugPanelFrame uiFrame(debugPanels);
+        const double now=glfwGetTime(),elapsed=now-lastTime;lastTime=now;
+        const float dt=float(std::clamp(elapsed,.0001,.1));
+        frame.effects.deltaSeconds=float(std::clamp(elapsed,.0001,1.));
+        frame.effects.cameraCut=elapsed>.25;
+        smoothFrameMs=.9*smoothFrameMs+.1*std::clamp(elapsed,.0001,1.)*1000;
+        if(now-lastFpsSample>=1){frame.displayFps=float(1000/smoothFrameMs);lastFpsSample=now;}
+        const auto down=[&](int key){return !uiFrame.WantsKeyboard() && glfwGetKey(native,key)==GLFW_PRESS;};
+        const auto pressed=[&](int key){const bool value=glfwGetKey(native,key)==GLFW_PRESS,edge=value&&!previous[key];previous[key]=value;return edge && !uiFrame.WantsKeyboard();};
+        if(pressed(GLFW_KEY_ESCAPE))break;
+        int width=0,height=0;glfwGetFramebufferSize(native,&width,&height);
+        if(width<=0||height<=0){glfwWaitEventsTimeout(.05);continue;}
+        if(pressed(GLFW_KEY_F5)) {
+            restoreLighting();
+            scene=(scene+1)%3;
+            frame=makeFrame(scene);
+            placeCamera(scene,frame.OutputAspect());
+            frame.effects.cameraCut=true;
+        }
+        if(pressed(GLFW_KEY_F2)&&frame.effects.lumenGi.enabled){frame.effects.lumenGi.adaptiveProbes=!frame.effects.lumenGi.adaptiveProbes;frame.effects.cameraCut=true;}
+        if(pressed(GLFW_KEY_F3)&&frame.effects.lumenGi.enabled){frame.effects.lumenGi.adaptiveSubdivision=frame.effects.lumenGi.adaptiveSubdivision>=4?2:frame.effects.lumenGi.adaptiveSubdivision+1;frame.effects.cameraCut=true;}
+        if(pressed(GLFW_KEY_F4)&&frame.effects.lumenGi.enabled) {
+            auto& view=frame.effects.lumenGi.lightingView;
+            if(view==Render::LumenLightingView::Coverage) {
+                view=Render::LumenLightingView::ProbeDiffuse;
+            } else if(view==Render::LumenLightingView::ProbeDiffuse) {
+                restoreLighting();
+            } else {
+                savedArea=frame.effects.areaLights.count;savedSky=frame.effects.sky.enabled;savedSun=frame.effects.shadows.sunIntensity;
+                savedLumenReflections=frame.effects.lumenGi.reflections;coverageSaved=true;
+                view=Render::LumenLightingView::Coverage;
+                frame.effects.lumenGi.reflections=false;
+                frame.effects.areaLights.count=0;frame.effects.sky.enabled=false;frame.effects.shadows.sunIntensity=0;
+            }
+            frame.effects.cameraCut=true;
+        }
+        if(pressed(GLFW_KEY_P)) {
+            constexpr std::array<float,4> scales{{1,.75f,.625f,.5f}};
+            const auto found=std::find_if(scales.begin(),scales.end(),[&](float scale){return std::abs(scale-renderScale)<.0001f;});
+            renderScale=found==scales.end()?1:scales[(unsigned(found-scales.begin())+1)%scales.size()];
+            frame.effects.cameraCut=true;
+        }
+        SetShowcaseResolution(frame,unsigned(width),unsigned(height),renderScale);
+        if(options.renderSizeSet) {
+            frame.width=options.benchmarkWidth;frame.height=options.benchmarkHeight;
+            frame.effects.outputSize=frame.width==unsigned(width)&&frame.height==unsigned(height)?glm::uvec2(0):glm::uvec2(width,height);
+        }
+        const float aspect=frame.OutputAspect();
+        // Sealed-room controls mirror the original room viewer exactly.
+        if(scene==2) {
+            auto& state=frame.giRoomState;
+            if(!lab.GetDebugUI()&&pressed(GLFW_KEY_F1)) state.help=!state.help;
+            if(pressed(GLFW_KEY_F)) state.flashlight=!state.flashlight;
+            if(pressed(GLFW_KEY_F6)) state.pointLight=!state.pointLight;
+            if(pressed(GLFW_KEY_G)) {
+                const auto current=frame.effects.lumenGi.lightingView;
+                GiRoomSetView(frame,current==Render::LumenLightingView::SurfaceCache?Render::LumenLightingView::IndirectOnly:
+                    current==Render::LumenLightingView::IndirectOnly?Render::LumenLightingView::DirectOnly:Render::LumenLightingView::SurfaceCache);
+                restoreLighting();
+                frame.effects.cameraCut=true;
+            }
+            for(unsigned preset=0;preset<3;++preset) if(pressed(GLFW_KEY_1+int(preset))){pose(GiRoomCameraPreset(preset,aspect));frame.effects.cameraCut=true;}
+            if(pressed(GLFW_KEY_TAB)) state.selected=(state.selected+(down(GLFW_KEY_LEFT_SHIFT)?int(GiRoomMovableCount)-1:1))%int(GiRoomMovableCount);
+            if(pressed(GLFW_KEY_R)){state.offsets[state.selected]={};state.rotations[state.selected]=0;}
+            if(pressed(GLFW_KEY_BACKSPACE)){state=GiRoomSettings{};GiRoomSetView(frame,Render::LumenLightingView::SurfaceCache);pose(GiRoomCameraPreset(0,aspect));frame.effects.cameraCut=true;}
+        }
+        double x=0,y=0;glfwGetCursorPos(native,&x,&y);
+        const bool focused=glfwGetWindowAttrib(native,GLFW_FOCUSED);
+        const bool rmb=!uiFrame.WantsMouse()&&focused&&glfwGetMouseButton(native,GLFW_MOUSE_BUTTON_RIGHT)==GLFW_PRESS;
+        if(rmb!=looking) {
+            glfwSetInputMode(native,GLFW_CURSOR,rmb?GLFW_CURSOR_DISABLED:GLFW_CURSOR_NORMAL);
+            if(glfwRawMouseMotionSupported())glfwSetInputMode(native,GLFW_RAW_MOUSE_MOTION,rmb?GLFW_TRUE:GLFW_FALSE);
+            glfwGetCursorPos(native,&x,&y);
+        }
+        if(rmb&&looking){yaw+=float(x-lastX)*.0025f;pitch=std::clamp(pitch-float(y-lastY)*.0025f,-1.5f,1.5f);}
+        lastX=x;lastY=y;looking=rmb;
+        if(uiFrame.WantsMouse())input.scroll=0;
+        speed=std::clamp(speed*std::pow(1.15f,input.scroll),.3f,12.f);input.scroll=0;
+        if(focused) {
+            const auto forward=ShowcaseForward(yaw,0),right=glm::normalize(glm::cross(forward,glm::vec3(0,1,0)));
+            const auto movement=forward*(float(down(GLFW_KEY_W))-float(down(GLFW_KEY_S)))+
+                right*(float(down(GLFW_KEY_D))-float(down(GLFW_KEY_A)))+glm::vec3(0,float(down(GLFW_KEY_E))-float(down(GLFW_KEY_Q)),0);
+            if(glm::dot(movement,movement)>0)position+=glm::normalize(movement)*speed*dt*(down(GLFW_KEY_LEFT_SHIFT)?3.f:1.f);
+            if(scene==2) {
+                auto& state=frame.giRoomState;
+                const auto delta=glm::vec3(float(down(GLFW_KEY_RIGHT))-float(down(GLFW_KEY_LEFT)),
+                    float(down(GLFW_KEY_PAGE_UP))-float(down(GLFW_KEY_PAGE_DOWN)),
+                    float(down(GLFW_KEY_DOWN))-float(down(GLFW_KEY_UP)))*dt*1.5f;
+                Check(MoveGiRoomObject(state,state.selected,delta,(float(down(GLFW_KEY_X))-float(down(GLFW_KEY_Z)))*dt),"Invalid room prop edit");
+                position=ClampGiRoomCamera(position);
+            }
+        }
+        Render::PipelineCamera camera=frame.camera.value_or(Render::PipelineCamera{});
+        camera.position=position;camera.nearPlane=.05f;camera.farPlane=200;
+        camera.view=glm::lookAt(position,position+ShowcaseForward(yaw,pitch),glm::vec3(0,1,0));
+        camera.projection=glm::perspective(glm::radians(55.f),aspect,camera.nearPlane,camera.farPlane);
+        frame.camera=camera;
+        const bool lmb=!uiFrame.WantsMouse()&&focused&&glfwGetMouseButton(native,GLFW_MOUSE_BUTTON_LEFT)==GLFW_PRESS;
+        if(scene==2&&lmb&&!clicked&&!rmb) {
+            int lw=1,lh=1;glfwGetWindowSize(native,&lw,&lh);
+            const glm::vec2 ndc{float(x/lw)*2-1,1-float(y/lh)*2};
+            const auto farPoint=glm::inverse(camera.projection*camera.view)*glm::vec4(ndc,1,1);
+            const auto selected=PickGiRoomObject(position,glm::normalize(glm::vec3(farPoint)/farPoint.w-position),frame.giRoomState);
+            if(selected>=0)frame.giRoomState.selected=selected;
+        }
+        clicked=lmb;
+        if(!saved&&!options.screenshot.empty()) {
+            frame.present=false;
+            for(int n=0;n<96;++n){Check(lab.Render(frame),lab.LastError());frame.effects.cameraCut=false;}
+            Save(Capture(lab,frame),options.screenshot);saved=true;
+        }
+        uiFrame.Finish(frame);
+        frame.present=true;Check(lab.Render(frame),lab.LastError());
+        const auto view=frame.effects.lumenGi.lightingView;
+        const char* viewName=view==Render::LumenLightingView::Coverage?"coverage":view==Render::LumenLightingView::ProbeDiffuse?"probe diffuse":view==Render::LumenLightingView::SurfaceCache?"GI full":
+            view==Render::LumenLightingView::IndirectOnly?"GI bounce":view==Render::LumenLightingView::DirectOnly?"GI direct":"material";
+        std::ostringstream title;
+        title<<"Adaptive probes | "<<names[scene]
+             <<" | Adaptive="<<frame.effects.lumenGi.adaptiveProbes<<" x"<<frame.effects.lumenGi.adaptiveSubdivision
+             <<" | View="<<viewName
+             <<" | Grid="<<lab.PipelineStatistics().lumenScreenProbes;
+        if(scene==2)title<<" | lamp "<<frame.giRoomState.pointLight<<" flash "<<frame.giRoomState.flashlight<<" | "<<GiRoomMovable(frame.giRoomState.selected).name;
+        title<<" | "<<std::fixed<<std::setprecision(1)<<1000/smoothFrameMs<<" FPS | "<<frame.width<<'x'<<frame.height
+             <<" | F5 scene  F2 probes  F3 x  F4 coverage";
+        glfwSetWindowTitle(native,title.str().c_str());
+        if(options.fpsLimit>0) {
+            const auto period=std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(1.0/options.fpsLimit));
+            pacer.WaitUntil(start+period);
+        }
+    }
+    glfwSetInputMode(native,GLFW_CURSOR,GLFW_CURSOR_NORMAL);
+    if(glfwRawMouseMotionSupported())glfwSetInputMode(native,GLFW_RAW_MOUSE_MOTION,GLFW_FALSE);
+    glfwSetScrollCallback(native,nullptr);glfwSetWindowUserPointer(native,nullptr);
 }
 } // namespace
 
@@ -1429,10 +1949,10 @@ int main(int argc, char** argv) {
     try {
         const auto options = Parse(argc, argv);
         Check(glfwInit() == GLFW_TRUE, "glfwInit failed");
-        const bool hidden = options.giRoomTest || (options.giRoomPerformance&&!options.benchmarkPresent) || (options.showcaseMotion&&!(options.showcaseMeasureOnly&&options.benchmarkPresent)) || options.showcaseStability || options.showcaseTest || options.smoke || options.quality || options.shadows || options.closeup || options.advanced || options.advancedQuality || options.skyTest || options.probeTest || options.realtimeGiTest || options.realtimeGiStabilityTest || options.lumenGiTest || options.viewStability || (options.benchmark&&!options.benchmarkPresent);
+        const bool hidden = options.surfaceCacheTest || options.surfaceCacheProbeTest || options.surfaceCacheTemporalTest || options.surfaceCachePerformance || options.sdfClipmapPerformance || options.sdfClipmapTest || options.sdfBanquetTest || options.sdfQualityTest || options.sdfProbeTraceTest || options.screenProbeTraceTest || options.probePlacementTest || options.giRoomTest || (options.giRoomPerformance&&!options.benchmarkPresent) || (options.showcaseMotion&&!(options.showcaseMeasureOnly&&options.benchmarkPresent)) || options.showcaseStability || options.showcaseTest || options.smoke || options.quality || options.shadows || options.closeup || options.advanced || options.advancedQuality || options.skyTest || options.probeTest || options.realtimeGiTest || options.realtimeGiStabilityTest || (options.lumenGiTest||options.lumenAdaptiveTest||options.probeDiffuseTest)||options.viewStability|| (options.benchmark&&!options.benchmarkPresent);
         glfwWindowHint(GLFW_VISIBLE, hidden ? GLFW_FALSE : GLFW_TRUE);
         if(options.fullscreen)glfwWindowHint(GLFW_AUTO_ICONIFY,GLFW_FALSE);
-        const bool sizedStudy=options.benchmark||((options.giRoom||options.giRoomTest||options.giRoomPerformance||options.showcaseMotion||options.showcaseStability||options.showcaseTest||options.viewStability||options.realtimeGiStabilityTest)&&options.studySizeSet);
+        const bool sizedStudy=options.benchmark||((options.surfaceCacheGi||options.surfaceCacheTest||options.surfaceCacheProbeTest||options.surfaceCacheTemporalTest||options.surfaceCachePerformance||options.sdfClipmapPerformance||options.sdfClipmapTest||options.sdfBanquet||options.sdfBanquetTest||options.sdfQualityTest||options.sdfProbeTracing||options.sdfProbeTraceTest||options.screenProbeTracing||options.screenProbeTraceTest||options.probePlacement||options.probePlacementTest||options.giRoom||options.giRoomTest||options.giRoomPerformance||options.showcaseMotion||options.showcaseStability||options.showcaseTest||options.viewStability||options.realtimeGiStabilityTest)&&options.studySizeSet);
         const std::uint32_t width = sizedStudy ? options.benchmarkWidth : options.giRoomPerformance ? 2560 : options.closeup ? 640 : hidden ? 960 : 1280;
         const std::uint32_t height = sizedStudy ? options.benchmarkHeight : options.giRoomPerformance ? 1440 : options.closeup ? 724 : hidden ? 600 : 800;
         ApplicationWindow::Window window({width, height, "MaterialLab", options.vsync,options.vulkan?Render::BackendType::Vulkan:Render::BackendType::Opengl});
@@ -1448,8 +1968,30 @@ int main(int argc, char** argv) {
         else module=std::make_unique<MaterialLabModule>(*window.GetRenderContextAsOpengl(),options.legacyDirectory);
         auto& lab=*module;
         Check(lab.Startup(), lab.LastError());
+        // Offline quality and performance runs keep their original framebuffer
+        // and timing contracts. Every interactive scene shares the same UI.
+        if (!options.noDebugUI && !hidden && !options.benchmark && !options.giRoomPerformance && !options.showcaseMotion)
+            Check(lab.EnableDebugUI(window.GetNativeWindow(), options.vulkan ? Render::BackendType::Vulkan : Render::BackendType::Opengl), lab.LastError());
         std::cout << "Legacy textures: " << (options.legacyDirectory.empty() ? "procedural fallback" : options.legacyDirectory) << '\n';
-        if(options.giRoomTest)GiRoomQuality(lab,options);
+        if(options.surfaceCacheTemporalTest)SurfaceCacheTemporalQuality(lab,options);
+        else if(options.surfaceCacheProbeTest)SurfaceCacheProbeQuality(lab,options);
+        else if(options.surfaceCacheTest)SurfaceCacheQuality(lab,options);
+        else if(options.surfaceCachePerformance)SurfaceCachePerformance(lab,options);
+        else if(options.surfaceCacheGi)SurfaceCacheInteractive(lab,window,options);
+        else if(options.sdfQualityTest)ProbeSdfQualityCheck(lab,options);
+        else if(options.sdfProbeTraceTest)ProbeSdfTracingQuality(lab,options);
+#ifdef MATERIAL_LAB_HAS_MODEL
+        else if(options.sdfClipmapPerformance)SdfClipmapPerformance(lab,options);
+        else if(options.sdfClipmapTest)SdfClipmapCheck(lab,options);
+        else if(options.sdfBanquetTest)SdfBanquetCheck(lab,options);
+#endif
+        else if(options.sdfBanquet)ProbePlacementInteractive(lab,window,options);
+        else if(options.sdfProbeTracing)ProbePlacementInteractive(lab,window,options);
+        else if(options.screenProbeTraceTest)ScreenProbeTraceQuality(lab,options);
+        else if(options.screenProbeTracing)ProbePlacementInteractive(lab,window,options);
+        else if(options.probePlacementTest)ProbePlacementQuality(lab,options);
+        else if(options.probePlacement)ProbePlacementInteractive(lab,window,options);
+        else if(options.giRoomTest)GiRoomQuality(lab,options);
         else if(options.giRoomPerformance)GiRoomPerformance(lab,options);
         else if(options.giRoom)GiRoomInteractive(lab,window,options);
         else if(options.showcaseMotion)ShowcaseMotion(lab,options);
@@ -1467,7 +2009,10 @@ int main(int argc, char** argv) {
         else if (options.realtimeGiTest) RealtimeGiQuality(lab,options);
         else if (options.realtimeGiStabilityTest) RealtimeGiStability(lab,options);
         else if (options.viewStability) LumenViewStability(lab,options);
+        else if (options.lumenAdaptiveTest) LumenAdaptiveProbes(lab,options);
+        else if (options.probeDiffuseTest) LumenProbeDiffuseTest(lab,options);
         else if (options.lumenGiTest) LumenGiQuality(lab,options);
+        else if (options.lumenAdaptive) LumenAdaptiveInteractive(lab,window,options);
         else if (options.benchmark) Benchmark(lab, options);
         else Interactive(lab, window, options);
         lab.Shutdown();

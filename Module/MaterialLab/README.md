@@ -1,5 +1,48 @@
 # MaterialLab：新材质系统的独立试验模块
 
+## 实时参数调节窗口
+
+所有交互入口接入 Dear ImGui 调节窗口，包括材质画廊、Showcase、密闭 GI 房间、Lumen adaptive 和探针 / SDF 场景。场景查看器启动时先收起窗口，保留原场景与 HUD；按 **F1** 打开或收起，材质画廊仍默认展开。窗口显示时，场景快捷键仍可用；操作控件、输入文本或弹出菜单时，相应输入交给界面。原有场景 HUD 帮助开关在面板的 `Help / scene controls` 中；使用 `--no-debug-ui` 可完全关闭界面，恢复原有 F1 场景帮助操作。离屏质量回归和性能测量自动关闭 UI。
+
+面板按材质、光照 / 阴影、GI / 探针、后处理 / AA、统计和帮助分组。`Find panel` 按组名筛选；滑块支持 Ctrl+单击输入数值并限制合法范围；各参数组可重置到本场景启动值。`Store preset` / `Restore preset` 保存和恢复一份内存中的 effects / exposure 参数快照，不包含材质、相机、物体变换或场景灯光开关，重启或切换场景后不保留。
+
+SDF 场景的 GI / 探针组还提供 Mesh / Global / 分屏视图、MDF 质量与自动选择、体素网格、对象隔离、切片，以及 Clipmap 层级、着色、边界和模型 LOD 控件。面板与原快捷键修改同一份设置；重置 SDF 检查只恢复距离场显示参数，不改变相机和物体位置。各交互场景 `.cmd` 统一优先使用 `output/sdf-banquet/Debug/bin` 中的当前完整程序，旧场景脚本仍可回退到 Release 和 `bin`，避免入口运行不同年代的构建；独立性能测量脚本保留原构建选择。
+
+材质组复用 `InspectMaterial` / `SetMaterialParameter` / `ResetMaterial`；修改粗糙度或金属度标量会关闭对应贴图。Showcase、房间和探针场景使用自己的材质，不显示无效的画廊材质编辑。世界 GI 参数只在包含 GI 场景几何的入口开放；画廊中可先按 Q 进入 lighting study。统计读取上一帧已完成的管线计数，不额外读回 GPU。截图预热与离屏截图在 UI 帧结束前执行，保持场景截图不含调节窗口。
+
+```text
+bin\material_lab_demo.exe --procedural
+bin\material_lab_demo.exe --vulkan --gi-room --procedural
+bin\material_lab_demo.exe --vulkan --showcase --no-debug-ui
+```
+
+公共 `Module/DebugUI` 管理 ImGui / GLFW 的生命周期、绘制数据快照和 RHI 资源；通过 `RHIFrameEncoder` 在场景后处理之后、呈现之前叠加界面，OpenGL 和 Vulkan 使用同一适配器。材质实验室的业务面板集中在 `Test/material_lab_debug_panel.h`，不把 ImGui 控件或原生图形对象传进 Render 的接口。后续实验在 runner 的 `DebugPanelHost` 上注册回调即可增加一组参数，不必修改渲染后端：
+
+```cpp
+DebugPanelHost panels(lab, nativeWindow);
+panels.AddPanel("experiment", "My experiment", [](DebugPanelHost::Context& context) {
+    ImGui::SliderFloat("Exposure", &context.frame.exposure, .05f, 8.f,
+                       "%.2f", ImGuiSliderFlags_AlwaysClamp);
+});
+// 每次 PollEvents 后创建；Finish 在最终呈现 Render 之前调用。
+// 离屏截图或预热先完成，再 Finish；提前退出 / 最小化由 RAII 平衡帧。
+DebugPanelFrame uiFrame(panels);
+uiFrame.Finish(frame);
+lab.Render(frame);
+```
+
+Lumen 探针布置学习入口：[专用场景说明](PROBE_PLACEMENT.md)，双击 [RunProbePlacement.cmd](RunProbePlacement.cmd) 启动。
+
+第二阶段 HZB 屏幕光追：[Screen Probe 追踪说明](SCREEN_PROBE_TRACING.md)，双击 [RunScreenProbeTracing.cmd](RunScreenProbeTracing.cmd) 启动。
+
+第三阶段 Mesh / Global SDF 回退：[距离场追踪说明](SDF_PROBE_TRACING.md)，双击 [RunSdfProbeTracing.cmd](RunSdfProbeTracing.cmd) 启动。默认三维分屏比较 Mesh 与 Global；F12 切低 / 中 / 高精度，L 自动按距离选择，V 切普通场景与距离场视图。
+
+真实模型与远中近切档：[经典茶壶宴会说明](SDF_MODEL_BANQUET.md)，双击 [RunSdfBanquet.cmd](RunSdfBanquet.cmd) 启动。12 个导入 Utah Teapot 共享 24 / 48 / 128 Mesh SDF，并按距离选择真实 Raster LOD；首选已接入 Model / Assimp 的优化 Debug 程序。
+
+后续 Global 多级滚动：[相机 Clipmap 说明](GLOBAL_SDF_CLIPMAPS.md)。`RunSdfBanquet.cmd` 现默认进入该场景，四级真实距离纹理按命中层级着色；K 检查自动 / L0–L3，C/H 开关层级色与边界，走动时仅合并新进入的砖块。
+
+Surface Cache 与基础软件 GI：[数据结构、光传输和操作说明](SURFACE_CACHE_GI.md)，双击 [RunSurfaceCacheGi.cmd](RunSurfaceCacheGi.cmd) 启动。默认使用红绿墙房间，逐像素软件射线读取相机无关的卡片光照；V 检查总光、卡片光照、原始间接光、覆盖和图集。使用 `--sdf-clipmaps` 可在茶壶宴会中检查同一缓存与 GI 路径。本阶段不使用时空滤波。
+
 ## 密闭 GI 房间
 
 双击 `Module/MaterialLab/RunGiRoom.cmd`，或者运行：
@@ -24,7 +67,7 @@ output\Release\bin\material_lab_demo.exe --vulkan --gi-room --procedural --fulls
 | 移动 / 旋转物体 | 方向键移动 X/Z，PgUp/PgDn 升降，Z/X 旋转 |
 | 重置 | R 重置选中物体，Backspace 重置房间 |
 | 内部渲染比例 | P：100% / 75% / 62.5% / 50%；窗口标题显示实际渲染与输出尺寸 |
-| 帮助 / 退出 | F1 / Esc |
+| 调节窗口 / 退出 | F1 / Esc（场景帮助在面板 Help 中） |
 
 相机和物体限制在房间范围内；移动物体沿用相同拓扑的 BVH/Surface Cache refit。诊断模式只支持不透明接收面，跳过不需要的世界探针、反射和常规 PBR 直射计算。默认原生 2K、不限制帧数，用于观察真实负载；降低内部比例不等同于提高原生 2K 性能。
 
@@ -213,11 +256,74 @@ Q 场景现在默认使用独立的 `effects.lumenGi` 模式。2 开关混合 GI
 
 反射覆盖全部粗糙度：光滑表面使用 GGX VNDF 采样、法线贴图、独立位置/法线/粗糙度/命中距离历史过滤和几何上采样；粗糙度超过 .4 时复用世界入射缓存与 GGX DFG，.3..4 渐变。光滑屏外命中包含表面漫反射/自发光、直接高光及一次后续镜面反射。默认每像素 4 条射线、追踪网格每维为视口的 1/4、最长边 256；`--lumen-reflection-detail 320` 恢复更密的追踪网格。HDR 反射源及 F0/掠射角两系数输出默认每维为视口的 1/2，`--lumen-reflection-scale 1` 恢复全尺寸；主画面和漫反射 GI 保持原分辨率。软件路径使用保守距离场行进与精确三角面细化，薄墙仍参与遮挡。透明层和平面镜面视图继续使用世界辐射缓存。
 
-灯光/天空改变只更新 GPU 光照；相机移动不重建世界缓存。材质或几何改变由 Lab 提取层重建 BVH/表面图集，初次初始化会更新全部采样点。正式帧不做 CPU 光照烘焙或 GPU 回读。公共设置、预算、资源生命周期和限制见 [混合 GI API](../Render/README_MATERIAL_PIPELINE.md#类-lumen-混合全局光照)。GPU CTest 为 `material_lab_lumen_gi_test`、`material_lab_lumen_gi_stability_test`，由 `MATERIAL_LAB_GPU_TESTS` 显式注册。
+灯光/天空改变只更新 GPU 光照；相机移动不重建世界缓存。材质或几何改变由 Lab 提取层重建 BVH/表面图集，初次初始化会更新全部采样点。正式帧不做 CPU 光照烘焙或 GPU 回读。公共设置、预算、资源生命周期和限制见 [混合 GI API](../Render/README_MATERIAL_PIPELINE.md#类-lumen-混合全局光照)。GPU CTest 为 `material_lab_lumen_gi_test`、`material_lab_lumen_gi_stability_test`、`material_lab_lumen_adaptive_test`，由 `MATERIAL_LAB_GPU_TESTS` 显式注册。
 
 2026-10-05 本机 RTX 4060 Laptop、1280×800、程序化贴图、TAA+MSAA4+Bloom，6880 个表面采样点（512 更新/帧）、4000 个屏幕探针：完整混合 GI 首批为 8.483 ms/帧，恢复后为 6.335；世界追踪对照 5.391，仅漫反射 5.219，DDGI 对照 2.260。GPU interval 包含 CPU 提交空隙，首次程序编译/几何准备不计入；批次受升频和后台活动影响，视觉近似也不同，不能把时差直接视作固定收益。640×400、收敛后连续 96 帧，开放背墙 TAA+MSAA4+Bloom 的平均/峰值亮度标准差为 .00212/.01144（/255）；封闭房间无 AA 为 .00649/.01374，静态天空可见性/分类变化均为0。封闭无光房间可见均值为0；红色区域灯的表面缓存多反弹/单反弹比为2.014。这些数值仅覆盖固定测试场景。
 
-这是本项目的类 Lumen 实现，结构参考 [Epic Lumen 技术说明](https://dev.epicgames.com/documentation/en-us/unreal-engine/lumen-technical-details-in-unreal-engine)。本次已加入距离体积、Vulkan 原生硬件 ray query、全部粗糙度的 GGX 积分和屏外高光。它尚无 UE 的 Mesh Cards、距离场 clipmap/自动流送、适应性屏幕探针、TSR 和任意深度反射递归。世界缓存用平均材质颜色/F0/粗糙度；屏外贴图法线、透明层间递归、复杂动态几何、小发光体和窄门洞仍有限制。屏幕直接光源与世界缓存的点光/区域光遮挡方式也不同，不能据此宣称达到 UE5 Lumen 同等画质。
+### 自适应屏幕探针
+
+默认屏幕探针网格是固定间距的接收者采样。`lumenGi.adaptiveProbes` 在深度或法线变化超过门限的 tile 内把网格细化到 `probeSpacing / adaptiveSubdivision`（2..4），平坦 tile 仍每格一个探针，把追踪预算放在轮廓和小光源附近而不是均匀铺满屏幕；关闭开关或 `adaptiveSubdivision=1` 即回到原固定网格。细分判据逐 tile 从当前捕获的深度/法线计算，缺失样本视为轮廓，同一 tile 的所有细探针得到一致结果，因此稀疏细网格可以用固定局部窗口消费，不需要填充 pass。解析重建改为在 `(subdivision+1)²` 居中窗口内搜索接收三角面：该窗口必然包含一个粗角探针，至少覆盖原粗网格的接收者，并在细化 tile 中再读取周围细探针。空闲细探针不发射射线，只保留粗角探针密度，所以平坦区域开销与原来相当。
+
+```text
+# 固定16px、adaptive2、adaptive4 与 4px 均匀稠密参考的对照（隔离漫反射 GI）
+.\bin\material_lab_demo.exe --lumen-adaptive-test --procedural --screenshot .\build\adaptive_probe.png
+```
+
+交互查看：一个自由飞行视窗，内置三个原有测试场景，可按键切换并实时对照：
+
+```text
+.\bin\material_lab_demo.exe --lumen-adaptive --procedural
+```
+
+| 操作 | 效果 |
+|---|---|
+| F5 | 切换场景：光照研究房间 / 庭院展示 / 封闭小屋 |
+| F2 | 开关自适应屏幕探针（核心 A/B 对照） |
+| F3 | 切换细分 2 / 3 / 4 |
+| F4 | 循环 默认视图 / 覆盖诊断视图 / 屏幕探针漫反射视图（进入诊断时自动关闭直射光、天空与场景反射，退出恢复） |
+| 鼠标右键转动 + WASD / Q / E 移动，Shift 加速，滚轮调速 | 自由飞行巡视 |
+| P | 内部渲染比例 100% / 75% / 62.5% / 50% |
+| 封闭小屋额外按键 | F 手电筒、F6 点灯、G 全 GI / 仅反弹 / 仅直射、1/2/3 视角、Tab 选择、方向键移动、Z/X 旋转、R 重置物体、Backspace 重置房间、F1 帮助 |
+
+光照研究房间与庭院默认 Material 视图，这是自适应接收者解析真正生效的路径；封闭小屋保持**原来的诊断视图**，因此原有的逐像素解析直射阴影以及手电筒 / 点灯光照完全保留，F/F6/G/1/2/3/Tab/R/Backspace/F1 等按键与原 `--gi-room` 交互一致。切换场景会重建该场景的世界几何与材质（复用模块原有的场景提取），自适应开关保持不变。窗口标题显示当前场景、自适应开关与细分、视图、探针网格规模；封闭小屋还显示点灯 / 手电与当前选中物体。
+
+F4 的覆盖诊断视图直接把自适应机制画出来：青色 tile 表示该 tile 已细化，绿色像素表示接收者由探针网格解析，红色像素表示回退到低频世界缓存。按 F2 开关自适应时，可以看到细化 tile 与红带沿物体轮廓出现/消失。该场景红带像素比例由固定 16px 的 15.4% 降到自适应 ×2 的 14.4%，而参考亮度梯度前 10% 的轮廓像素误差由 0.054 降到 0.017 /255——改善集中在轮廓，不是整体均匀提亮。
+
+`--lumen-adaptive-test` 会为每个配置额外保存普通渲染场景 `build\adaptive_probe_<config>_scene.png`、隔离漫反射 `build\adaptive_probe_<config>.png`，覆盖诊断 `build\adaptive_probe_<config>_coverage.png`（仅前两档），以及三个场景的自适应图 `build\adaptive_probe_scene_{study,courtyard,room}_adaptive.png`。
+
+测试对每个配置分别渲染“GI 开”和“GI 关”再相减，得到隔离的漫反射最终收集：直射、阴影、材质在无 AA 的确定性捕获中精确抵消，Surface Cache 与 `intensity` 无关。以 4px 均匀网格为稠密参考，取参考亮度梯度前 10% 作为轮廓像素统计误差。
+
+| 配置 | 细网格规模（探针） | 轮廓 GI 误差 /255 | 全局误差 /255 |
+|---|---:|---:|---:|
+| 固定 16px | 1000 | 0.0539 | 0.0230 |
+| 自适应 ×2 | 4000 | 0.0171 | 0.0065 |
+| 自适应 ×4 | 16000 | 0.0157 | 0.0129 |
+| 4px 均匀参考 | 16000 | 0（参考） | 0（参考） |
+
+本机 RTX 4060 Laptop、640×400、程序化贴图，OpenGL 与 Vulkan 数值一致（Vulkan 固定16px 为 0.0540）。自适应 ×2 与固定 16px 共享相同的粗网格密度，仅靠轮廓 tile 的细探针把轮廓 GI 误差降到约 1/3；自适应 ×4 接近稠密参考，但大部分探针空闲、不发射射线。细网格规模是上限，实际活跃探针只在轮廓 tile 达到该密度。数值仅代表该固定光照研究场景，不是任意场景的误差上限。反射仍使用独立均匀网格。
+
+### 屏幕探针漫反射的"乐高"对照
+
+上面的 Material 视图用世界缓存解析到精确世界位置，本身不产生屏幕探针网格的块状感；覆盖诊断只显示接收者来源。为了**直接看到屏幕探针网格本身**，`LumenLightingView::ProbeDiffuse` 把最近活跃探针所对应的表面缓存着色辐射（含直射阴影）赋给整个屏幕单元——这正是低密度屏幕探针产生"乐高颗粒感"的方式。开启自适应后轮廓处的单元被细化，颗粒消失。
+
+```text
+# 交互：直接进入封闭小屋并显示屏幕探针漫反射，F2 开关自适应对照
+.\bin\material_lab_demo.exe --lumen-probe-diffuse --procedural
+# 静态：16px / 自适应×4 / 4px 稠密参考，并以稠密参考度量量化误差
+.\bin\material_lab_demo.exe --lumen-probe-diffuse-test --procedural --screenshot .\build\probe_diffuse.png
+```
+
+封闭小屋的点灯、遮挡物与手电筒提供锐利阴影，屏幕探针单元在阴影/轮廓边界最明显；关闭直射与天空后画面完全由该视图驱动。以 4px 稠密网格为参考，取参考亮度梯度前 5% 作为轮廓像素：
+
+| 配置 | 轮廓量化误差 /255 | 全局 /255 |
+|---|---:|---:|
+| 固定 16px | 13.026 | 3.193 |
+| 自适应 ×4 | 1.219 | 1.157 |
+| 4px 稠密参考 | 0（参考） | 0（参考） |
+
+自适应把轮廓处的屏幕探针量化误差降低约 10 倍，颗粒感消失；静态图 `build\probe_diffuse_{uniform16,adaptive4,reference4}.png` 可直接对比。交互视窗中 F4 在 默认视图 → 覆盖诊断 → 屏幕探针漫反射 之间循环，F2/F3 实时改变探针密度。
+
+这是本项目的类 Lumen 实现，结构参考 [Epic Lumen 技术说明](https://dev.epicgames.com/documentation/en-us/unreal-engine/lumen-technical-details-in-unreal-engine)。本次已加入距离体积、Vulkan 原生硬件 ray query、全部粗糙度的 GGX 积分、屏外高光，以及基于深度/法线方差的自适应屏幕接收者网格。它尚无 UE 的 Mesh Cards、距离场 clipmap/自动流送、UE 式自适应方向辐射探针、TSR 和任意深度反射递归。世界缓存用平均材质颜色/F0/粗糙度；屏外贴图法线、透明层间递归、复杂动态几何、小发光体和窄门洞仍有限制。屏幕直接光源与世界缓存的点光/区域光遮挡方式也不同，不能据此宣称达到 UE5 Lumen 同等画质。
 
 ## 近景与效果隔离
 

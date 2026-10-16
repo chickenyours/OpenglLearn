@@ -189,6 +189,18 @@ layout(location=0) out vec4 o;void main(){o=color*texelFetch(source,ivec2(0),0);
                     std::abs(c[at + 3] - .75f) < .01f,
                 "OpenGL-compatible color/alpha blending");
       });
+      blendSpec.blendMode = BlendMode::AlphaComposite;
+      shader = build.Create<PipelineSpec>(
+          [&](auto cb) { device.async_CreatePipeline({blendSpec}, cb); });
+      draw(false, false);
+      OnThread(device, [&] {
+        auto c = device.BackendDiagnostics()->ReadTexture(color);
+        auto at = (16 * 64 + 16) * 4;
+        Require(std::abs(c[at] - .5f) < .01f &&
+                    std::abs(c[at + 2] - .5f) < .01f &&
+                    std::abs(c[at + 3] - 1.f) < .01f,
+                "UI alpha compositing must preserve opaque destination coverage");
+      });
       drawAlpha = 1;
       clearColor = glm::vec4(0);
       shader = opaqueShader;

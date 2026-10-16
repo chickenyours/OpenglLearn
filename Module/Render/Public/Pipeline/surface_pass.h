@@ -19,7 +19,9 @@ struct alignas(16) SurfacePassConstants {
     glm::mat4 projection{1};
     // inverse width, inverse height, time in seconds, opaque snapshots ready.
     glm::vec4 screenTime{0};
-    // Screen irradiance, hybrid reflections, direct-only GI capture, reserved.
+    // Screen irradiance, hybrid reflections, capture mode, shading normals.
+    // Capture z=1: direct diffuse; z=2: diffuse reflectance in the existing
+    // DiffuseRadiance material variant (no lighting, emission, or PI factor).
     glm::vec4 options{0};
     // Main raster UV offset to the unjittered GI/reflection grids. Optical
     // snapshots retain the main projection/jitter and do not use this offset.

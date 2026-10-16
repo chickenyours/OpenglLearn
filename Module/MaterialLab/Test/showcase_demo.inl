@@ -2,6 +2,7 @@
 FrameSettings MakeShowcaseFrame(const Options& options) {
     FrameSettings frame;frame.showcase=true;frame.effects.sky=LoadSky(options);
     frame.effects.lumenGi.enabled=!options.realtimeGi;
+    frame.effects.lumenGi.surfaceUpdatesPerFrame=1024;
     frame.effects.realtimeGi.enabled=options.realtimeGi;
     frame.effects.lumenGi.reflectionResolutionScale=options.lumenReflectionScale;
     frame.effects.lumenGi.reflectionSourceResolutionScale=options.lumenSourceScale;
@@ -104,7 +105,7 @@ void ShowcaseInteractive(MaterialLabModule& lab,ApplicationWindow::Window& windo
     float renderScale=options.renderScale;
     auto* native=window.GetNativeWindow();Input input;
     glfwSetWindowUserPointer(native,&input);
-    glfwSetScrollCallback(native,[](GLFWwindow* w,double,double y){static_cast<Input*>(glfwGetWindowUserPointer(w))->scroll+=float(y);});
+    glfwSetScrollCallback(native,[](GLFWwindow* w,double x,double y){DebugUiScroll(w,x,y);static_cast<Input*>(glfwGetWindowUserPointer(w))->scroll+=float(y);});
     glm::vec3 position;float yaw=0,pitch=0,speed=4;
     const auto pose=[&](const Render::PipelineCamera& camera) {
         position=camera.position;const auto forward=-glm::vec3(glm::inverse(camera.view)[2]);
@@ -114,18 +115,20 @@ void ShowcaseInteractive(MaterialLabModule& lab,ApplicationWindow::Window& windo
     std::array<bool,GLFW_KEY_LAST+1> previous{};
     bool looking=false,clicked=false,saved=false;double lastX=0,lastY=0,lastTime=glfwGetTime();
     double smoothFrameMs=1000./90;FramePacer pacer;
+    DebugPanelHost debugPanels(lab, native, false);
     std::cout<<"Showcase: connected courtyard/gallery/pool. RMB look, WASD move, Q/E vertical, Shift fast.\n"
         "Click or Tab selects a prop. Arrows/PgUp/PgDn move, Z/X rotate, R resets.\n"
-        "1/2/3 camera views; F focus. F5/F6/F7/F8/F9 sun/point/area/emission/sky. F1 help.\n"
+        "1/2/3 camera views; F focus. F5/F6/F7/F8/F9 sun/point/area/emission/sky. F1 controls.\n"
         "P cycles render scale 100/75/62.5/50 percent; output size and AA stay unchanged.\n";
     while(!window.ShouldClose()) {
         const auto start=std::chrono::steady_clock::now();window.PollEvents();
+        DebugPanelFrame uiFrame(debugPanels);
         const double now=glfwGetTime(),elapsed=now-lastTime;lastTime=now;
         const float dt=float(std::clamp(elapsed,.0001,.1));
         frame.effects.deltaSeconds=float(std::clamp(elapsed,.0001,1.));frame.effects.cameraCut=elapsed>.25;
         smoothFrameMs=.9*smoothFrameMs+.1*std::clamp(elapsed,.0001,1.)*1000;
-        const auto down=[&](int key){return glfwGetKey(native,key)==GLFW_PRESS;};
-        const auto pressed=[&](int key){bool value=down(key),edge=value&&!previous[key];previous[key]=value;return edge;};
+        const auto down=[&](int key){return !uiFrame.WantsKeyboard() && glfwGetKey(native,key)==GLFW_PRESS;};
+        const auto pressed=[&](int key){bool value=glfwGetKey(native,key)==GLFW_PRESS,edge=value&&!previous[key];previous[key]=value;return edge && !uiFrame.WantsKeyboard();};
         if(pressed(GLFW_KEY_ESCAPE))break;
         int width=0,height=0;glfwGetFramebufferSize(native,&width,&height);
         if(width<=0||height<=0){glfwWaitEventsTimeout(.05);continue;}
@@ -135,13 +138,16 @@ void ShowcaseInteractive(MaterialLabModule& lab,ApplicationWindow::Window& windo
             renderScale=at==scales.end()?1:scales[(unsigned(at-scales.begin())+1)%scales.size()];
             frame.effects.cameraCut=true;
         }
-        SetShowcaseResolution(frame,options.renderSizeSet?options.benchmarkWidth:unsigned(width),
-                              options.renderSizeSet?options.benchmarkHeight:unsigned(height),renderScale);
+        SetShowcaseResolution(frame,unsigned(width),unsigned(height),renderScale);
+        if(options.renderSizeSet) {
+            frame.width=options.benchmarkWidth;frame.height=options.benchmarkHeight;
+            frame.effects.outputSize=frame.width==unsigned(width)&&frame.height==unsigned(height)?glm::uvec2(0):glm::uvec2(width,height);
+        }
         const float aspect=frame.OutputAspect();
         for(unsigned i=0;i<3;++i)if(pressed(GLFW_KEY_1+int(i))){pose(ShowcaseCameraPreset(i,aspect));frame.effects.cameraCut=true;}
         auto& state=frame.showcaseState;
         if(pressed(GLFW_KEY_TAB))state.selected=(state.selected+(down(GLFW_KEY_LEFT_SHIFT)?int(ShowcaseMovableCount)-1:1))%int(ShowcaseMovableCount);
-        if(pressed(GLFW_KEY_F1))state.help=!state.help;
+        if(!lab.GetDebugUI()&&pressed(GLFW_KEY_F1))state.help=!state.help;
         if(pressed(GLFW_KEY_F5))state.sunlight=!state.sunlight;
         if(pressed(GLFW_KEY_F6))state.pointLights=!state.pointLights;
         if(pressed(GLFW_KEY_F7))state.areaLights=!state.areaLights;
@@ -156,7 +162,7 @@ void ShowcaseInteractive(MaterialLabModule& lab,ApplicationWindow::Window& windo
         if(pressed(GLFW_KEY_R)){state.offsets[state.selected]={};state.rotations[state.selected]=0;}
         if(pressed(GLFW_KEY_BACKSPACE)){state=ShowcaseSettings{};pose(ShowcaseCameraPreset(0,aspect));frame.effects.cameraCut=true;}
         double x=0,y=0;glfwGetCursorPos(native,&x,&y);
-        const bool rmb=glfwGetWindowAttrib(native,GLFW_FOCUSED)&&glfwGetMouseButton(native,GLFW_MOUSE_BUTTON_RIGHT)==GLFW_PRESS;
+        const bool rmb=!uiFrame.WantsMouse()&&glfwGetWindowAttrib(native,GLFW_FOCUSED)&&glfwGetMouseButton(native,GLFW_MOUSE_BUTTON_RIGHT)==GLFW_PRESS;
         if(rmb!=looking) {
             glfwSetInputMode(native,GLFW_CURSOR,rmb?GLFW_CURSOR_DISABLED:GLFW_CURSOR_NORMAL);
             if(glfwRawMouseMotionSupported())glfwSetInputMode(native,GLFW_RAW_MOUSE_MOTION,rmb?GLFW_TRUE:GLFW_FALSE);
@@ -164,6 +170,7 @@ void ShowcaseInteractive(MaterialLabModule& lab,ApplicationWindow::Window& windo
         }
         if(rmb&&looking){yaw+=float(x-lastX)*.0025f;pitch=std::clamp(pitch-float(y-lastY)*.0025f,-1.5f,1.5f);}
         lastX=x;lastY=y;looking=rmb;
+        if(uiFrame.WantsMouse())input.scroll=0;
         speed=std::clamp(speed*std::pow(1.15f,input.scroll),.5f,15.f);input.scroll=0;
         if(glfwGetWindowAttrib(native,GLFW_FOCUSED)) {
             auto forward=ShowcaseForward(yaw,0);auto right=glm::normalize(glm::cross(forward,glm::vec3(0,1,0)));
@@ -182,7 +189,7 @@ void ShowcaseInteractive(MaterialLabModule& lab,ApplicationWindow::Window& windo
             position=target-ShowcaseForward(yaw,pitch)*4.f;frame.effects.cameraCut=true;
         }
         const auto camera=ShowcaseCamera(position,yaw,pitch,aspect);frame.camera=camera;
-        const bool lmb=glfwGetMouseButton(native,GLFW_MOUSE_BUTTON_LEFT)==GLFW_PRESS;
+        const bool lmb=!uiFrame.WantsMouse()&&glfwGetMouseButton(native,GLFW_MOUSE_BUTTON_LEFT)==GLFW_PRESS;
         if(lmb&&!clicked&&!rmb) {
             int logicalW=1,logicalH=1;glfwGetWindowSize(native,&logicalW,&logicalH);
             const glm::vec2 ndc{float(x/logicalW)*2-1,1-float(y/logicalH)*2};
@@ -195,10 +202,11 @@ void ShowcaseInteractive(MaterialLabModule& lab,ApplicationWindow::Window& windo
             frame.present=false;for(int i=0;i<48;++i)Check(lab.Render(frame),lab.LastError());
             Save(Capture(lab,frame),options.screenshot);saved=true;
         }
+        uiFrame.Finish(frame);
         frame.present=true;Check(lab.Render(frame),lab.LastError());
         std::ostringstream title;title<<"Lighting Showcase | "<<ShowcaseMovable(state.selected).name<<" | GI "
             <<(lab.ShowcaseGiUpdating()?"updating":"ready")<<" | "<<std::fixed<<std::setprecision(1)<<1000/smoothFrameMs
-            <<" FPS | "<<frame.width<<'x'<<frame.height<<" -> "<<frame.OutputExtent().x<<'x'<<frame.OutputExtent().y<<" | P scale | F1 help";
+            <<" FPS | "<<frame.width<<'x'<<frame.height<<" -> "<<frame.OutputExtent().x<<'x'<<frame.OutputExtent().y<<" | P scale | F1 controls";
         glfwSetWindowTitle(native,title.str().c_str());
         if(options.fpsLimit>0)pacer.WaitUntil(start+std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(1/options.fpsLimit)));
     }

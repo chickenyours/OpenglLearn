@@ -42,7 +42,8 @@ private:
     std::deque<std::string> pendingSpawns_;
     std::set<std::string> touched_,previous_,activated_;
     std::set<std::string> retired_;
-    std::map<std::string,std::string> hits_;
+    // Preserve each distinct projectile; repeated collision samples still deduplicate.
+    std::map<std::string,std::set<std::string>> hits_;
     std::mt19937 random_{std::random_device{}()};
     uint64_t runtimeSerial_=0;
     struct Save {glm::vec2 position;std::string id;};

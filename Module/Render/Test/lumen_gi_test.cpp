@@ -217,11 +217,11 @@ int main() {
         LumenGiSettings settings;settings.enabled=true;Check(!ValidateLumenGiSettings(settings),"Missing hybrid scene accepted");
         settings.scene=scene;Check(ValidateLumenGiSettings(settings),"Default hybrid settings rejected");
         Check(settings.lightingView==LumenLightingView::Material,"Default hybrid view changed material shading");
-        for(const auto view:{LumenLightingView::SurfaceCache,LumenLightingView::IndirectOnly,LumenLightingView::DirectOnly}) {
+        for(const auto view:{LumenLightingView::SurfaceCache,LumenLightingView::IndirectOnly,LumenLightingView::DirectOnly,LumenLightingView::Coverage,LumenLightingView::ProbeDiffuse}) {
             settings.lightingView=view;Check(ValidateLumenGiSettings(settings),"Valid surface-cache lighting view rejected");
             Check(settings.scene==scene,"Display mode replaced the transport scene");
         }
-        settings.lightingView=static_cast<LumenLightingView>(4);Check(!ValidateLumenGiSettings(settings),"Unknown surface-cache lighting view accepted");
+        settings.lightingView=static_cast<LumenLightingView>(6);Check(!ValidateLumenGiSettings(settings),"Unknown surface-cache lighting view accepted");
         settings.lightingView=LumenLightingView::Material;
         // Reflection resolution derives from its unchanged view-resolve
         // factory. A missing replacement marker throws during source creation.
@@ -244,6 +244,21 @@ int main() {
         settings.surfaceUpdatesPerFrame=0;Check(!ValidateLumenGiSettings(settings),"Zero cache updates accepted");settings.surfaceUpdatesPerFrame=512;
         settings.bounceFeedback=1;Check(!ValidateLumenGiSettings(settings),"Unbounded diffuse feedback accepted");settings.bounceFeedback=.9f;
         settings.counts={4,4,5};Check(!ValidateLumenGiSettings(settings),"Oversized radiance volume accepted");
+        settings.counts={4,4,4};
+        settings.adaptiveProbes=true;settings.adaptiveSubdivision=2;settings.adaptiveDepthThreshold=.03f;settings.adaptiveNormalThreshold=.92f;
+        Check(ValidateLumenGiSettings(settings),"Enabled adaptive screen probes rejected");
+        for(unsigned subdiv:{1u,2u,3u,4u}){settings.adaptiveSubdivision=subdiv;Check(ValidateLumenGiSettings(settings),"Valid adaptive subdivision rejected");}
+        settings.adaptiveSubdivision=0;Check(!ValidateLumenGiSettings(settings),"Zero adaptive subdivision accepted");
+        settings.adaptiveSubdivision=5;Check(!ValidateLumenGiSettings(settings),"Unbounded adaptive subdivision accepted");settings.adaptiveSubdivision=2;
+        settings.adaptiveDepthThreshold=0;Check(!ValidateLumenGiSettings(settings),"Degenerate adaptive depth threshold accepted");settings.adaptiveDepthThreshold=.03f;
+        settings.adaptiveNormalThreshold=1.1f;Check(!ValidateLumenGiSettings(settings),"Unbounded adaptive normal threshold accepted");settings.adaptiveNormalThreshold=.92f;
+        settings.adaptiveProbes=false;
+        Check(sizeof(LumenGiConstants)==304,"Adaptive probe field changed the Lumen constants ABI");
+        const auto gather=PipelineDetail::LumenGatherShader();
+        Check(gather.find("LmProbeActive")!=std::string::npos&&gather.find("LmTileNeedsDetail")!=std::string::npos,
+              "Adaptive gather lost its probe activation gate");
+        Check(PipelineDetail::LumenResolveShader().find("if(y>subdiv)break")!=std::string::npos,
+              "Adaptive resolve lost its coarse-aligned search");
         bool rejected=false;try{BuildLumenGiScene({},0);}catch(const std::invalid_argument&){rejected=true;}Check(rejected,"Invalid surface density accepted");
         std::cout<<"Hybrid GI CPU tests passed: triangle coverage, barycentric lookup, bounded cache and settings\n";
     } catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

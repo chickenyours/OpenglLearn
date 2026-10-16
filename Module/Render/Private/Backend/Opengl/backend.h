@@ -597,7 +597,11 @@ public:
 
         if (newPipeline->blendEnable && newPipeline->blendMode != BlendMode::Opaque) {
             glEnable(GL_BLEND);
-            if (newPipeline->blendMode == BlendMode::Additive) {
+            glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
+            if (newPipeline->blendMode == BlendMode::AlphaComposite) {
+                glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA,
+                    GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+            } else if (newPipeline->blendMode == BlendMode::Additive) {
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE);
             } else {
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

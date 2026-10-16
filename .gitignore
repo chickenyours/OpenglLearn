@@ -22,6 +22,8 @@ build.md
 /tools/*
 !/tools/import_brotato_*.py
 !/tools/brotato_scene.py
+!/tools/install_iwanna_apple_monster.py
+!/tools/add_iwanna_apple_monster_demo.py
 /build/
 
 /Log/
@@ -42,3 +44,6 @@ build.md
 *.editor.bak
 *.editor.tmp
 *.editor.old
+
+# Reproducible local intermediate model packages (source assets stay separate).
+/Asset/Generated/

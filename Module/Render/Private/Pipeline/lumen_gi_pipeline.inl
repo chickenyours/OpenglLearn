@@ -49,8 +49,14 @@ void PrepareLumen(const LumenGiSettings& s) {
         } else lumenReactiveFrames=4;
         lumenAttributes=attributes;lumenSceneOwner=b.Finish();lumenScene=s.scene;
     }
-    unsigned w=std::max(1u,(width+s.probeSpacing-1)/s.probeSpacing),h=std::max(1u,(height+s.probeSpacing-1)/s.probeSpacing);
-    const auto longest=std::max(w,h);if(longest>160){w=std::max(1u,w*160/longest);h=std::max(1u,h*160/longest);}
+    // Adaptive screen probes allocate a finer grid whose corner probes form the
+    // legacy coarse grid. Only silhouette tiles activate the inner probes, so
+    // the gather cost stays near the baseline in flat regions.
+    const unsigned subdivision=s.adaptiveProbes?std::clamp(s.adaptiveSubdivision,1u,4u):1u;
+    const unsigned spacing=std::max(1u,s.probeSpacing/subdivision);
+    unsigned w=std::max(1u,(width+spacing-1)/spacing),h=std::max(1u,(height+spacing-1)/spacing);
+    const unsigned longestCap=160*subdivision;
+    const auto longest=std::max(w,h);if(longest>longestCap){w=std::max(1u,w*longestCap/longest);h=std::max(1u,h*longestCap/longest);}
     const auto sw=std::max(1u,unsigned(std::ceil(width*s.reflectionResolutionScale))),sh=std::max(1u,unsigned(std::ceil(height*s.reflectionResolutionScale)));
     const auto sourceWidth=std::max(1u,unsigned(std::ceil(width*s.reflectionSourceResolutionScale)));
     const auto sourceHeight=std::max(1u,unsigned(std::ceil(height*s.reflectionSourceResolutionScale)));
@@ -85,7 +91,10 @@ LumenGiConstants LumenConstants(const LumenGiSettings& s) const {
     c.budget={0,0,int(s.surfaceRays),int(s.gatherRays)};
     c.gather={int(lumenRaw.width),int(lumenRaw.height),int(s.screenSteps),s.traceDirectLighting?1:0};
     const auto& field=*s.scene->DistanceField();c.fieldOrigin=glm::vec4(field.Origin(),0);c.fieldSpacing=glm::vec4(field.Spacing(),s.maxReflectionRoughness);
-    c.fieldCounts=glm::ivec4(s.distanceFields&&s.scene->DistanceFieldCurrent()?glm::ivec3(field.Counts()):glm::ivec3(0),int(field.Width()));c.reflection.x=float(s.reflectionRays);return c;
+    c.fieldCounts=glm::ivec4(s.distanceFields&&s.scene->DistanceFieldCurrent()?glm::ivec3(field.Counts()):glm::ivec3(0),int(field.Width()));c.reflection.x=float(s.reflectionRays);
+    const unsigned subdivision=s.adaptiveProbes?std::clamp(s.adaptiveSubdivision,1u,4u):1u;
+    c.adaptive=glm::vec4(float(subdivision),s.adaptiveDepthThreshold,s.adaptiveNormalThreshold,s.adaptiveProbes&&subdivision>=2?1.f:0.f);
+    return c;
 }
 void RecordLumenSurface(RHIFrameEncoder& encoder,MaterialPipelineSettings& settings) {
     const auto& s=settings.lumenGi;std::uint64_t key=14695981039346656037ull;
@@ -194,6 +203,7 @@ void RecordLumenGather(RHIFrameEncoder& encoder,const RenderFrame& frame,const P
     auto resolveCache=lumenIncidentCache[lumenPending.image].color;
     if(s.lightingView==LumenLightingView::SurfaceCache)resolveCache=lumenCache[lumenPending.image].color;
     else if(s.lightingView==LumenLightingView::DirectOnly)resolveCache=lumenDirectCache[lumenPending.image].color;
+    else if(s.lightingView==LumenLightingView::ProbeDiffuse)resolveCache=lumenCache[lumenPending.image].color;
     const bool receiverDirect=s.fullResolutionDirectLighting&&
         (s.lightingView==LumenLightingView::SurfaceCache||s.lightingView==LumenLightingView::DirectOnly);
     draw(indirectFull,receiverDirect?lumenResolveDirect:lumenResolve,lumenRaw.color,lumenGuides[write].color,resolveCache,lumenAttributes);

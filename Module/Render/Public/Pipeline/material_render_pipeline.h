@@ -15,6 +15,8 @@
 #include "Render/Public/Pipeline/realtime_gi.h"
 #include "Render/Public/Pipeline/lumen_gi.h"
 #include "Render/Public/Pipeline/spot_light.h"
+#include "Render/Public/Pipeline/screen_probe_placement.h"
+#include "Render/Public/Pipeline/surface_cache_gi.h"
 
 namespace Render {
 class RHIDevice;
@@ -68,6 +70,8 @@ struct MaterialPipelineSettings {
     DiffuseProbeSettings probes;
     RealtimeGiSettings realtimeGi;
     LumenGiSettings lumenGi;
+    ScreenProbePlacementSettings screenProbePlacement;
+    SurfaceCacheGiSettings surfaceCacheGi;
     // Presentation/HUD extent; {0,0} uses the internal Resize extent.
     // Both nonzero components must be 1..8192. Scene, depth, GI and temporal
     // histories retain the internal extent when only this value changes.
@@ -85,6 +89,19 @@ struct PipelineStatistics {
     std::uint32_t realtimeGiPasses=0,realtimeGiUpdatedProbes=0,realtimeGiRays=0;
     std::uint32_t lumenGiPasses=0,lumenSurfaceTexels=0,lumenUpdatedSurfels=0,lumenScreenProbes=0;
     bool lumenHistoryUsed=false;
+    std::uint32_t screenProbePlacementPasses=0,screenProbeUniformCapacity=0,screenProbeCandidateCapacity=0;
+    bool screenProbePlacementFrozen=false;
+    std::uint32_t screenProbeTracePasses=0,screenProbeHzbLevels=0;
+    std::uint64_t probeSdfUploadedTexels=0,probeSdfUploadRegions=0,probeSdfUpdatedVoxels=0,probeSdfUpdatedBricks=0;
+    std::uint64_t probeSdfMeshUploadedTexels=0;
+    bool probeSdfMeshCacheHit=false;
+    std::uint32_t surfaceCachePasses=0,surfaceCacheTexels=0,surfaceCacheUpdatedTexels=0;
+    std::uint64_t surfaceCacheRays=0;
+    std::uint32_t surfaceCacheProbePasses=0,surfaceCacheProbeSlots=0;
+    std::uint64_t surfaceCacheProbeRayBudget=0;
+    bool surfaceCacheLightingUpdated=false;
+    std::uint32_t surfaceCacheTemporalPasses=0;
+    bool surfaceCacheHistoryUsed=false;
 };
 // Borrowed diagnostic handles. Resize/Shutdown or a scene/resource replacement
 // on the next Record can retire them; cache indices can flip each frame.
@@ -99,6 +116,29 @@ struct PipelineDebugTextures {
     RenderResourceHandle<RHITextureSpec> lumenSurfaceCache,lumenGather,lumenReflections;
     RenderResourceHandle<RHITextureSpec> lumenDirectLighting;
     RenderResourceHandle<RHITextureSpec> lumenReflectionSource,lumenReflectionSourceDepth;
+    // Two texels per slot; see screen_probe_placement.h. Borrowed like all other
+    // handles here, and published only after successful frame completion.
+    RenderResourceHandle<RHITextureSpec> screenProbeUniform,screenProbeMarked,screenProbeSpawned;
+    std::uint32_t screenProbeUniformWidth=0,screenProbeUniformHeight=0;
+    std::uint32_t screenProbeCandidateWidth=0,screenProbeCandidateHeight=0;
+    std::uint32_t screenProbeGridWidth=0,screenProbeGridHeight=0,screenProbeCandidateCount=0;
+    std::uint32_t screenProbeSourceWidth=0,screenProbeSourceHeight=0,screenProbeFrameIndex=0;
+    RenderResourceHandle<RHITextureSpec> screenProbeRays,screenProbeTraceSource,screenProbeTracePositions;
+    RenderResourceHandle<RHITextureSpec> screenProbeScreenRays,probeGlobalSdf,probeMeshSdf;
+    RenderResourceHandle<RHITextureSpec> probeSdfVolumeView;
+    RenderResourceHandle<RHITextureSpec> probeSdfRanges;
+    std::array<RenderResourceHandle<RHITextureSpec>,ScreenProbeTraceMaxHzbLevels> screenProbeHzb{};
+    std::array<glm::uvec2,ScreenProbeTraceMaxHzbLevels> screenProbeHzbSizes{};
+    std::uint32_t screenProbeRayWidth=0,screenProbeRayHeight=0,screenProbeRayResolution=0,screenProbeHzbLevels=0;
+    // Card radiance atlas and unfiltered reflected indirect radiance. Raw GI
+    // alpha is the fraction of readable rays (an empty ray is valid black).
+    RenderResourceHandle<RHITextureSpec> surfaceCacheAtlas,surfaceCacheRawGi,surfaceCacheCoverage;
+    RenderResourceHandle<RHITextureSpec> surfaceCacheProbeIrradiance;
+    // Temporal GI keeps the raw readability alpha; history alpha is the
+    // effective accumulated frame count. Both publish after frame completion.
+    RenderResourceHandle<RHITextureSpec> surfaceCacheTemporalGi,surfaceCacheTemporalHistory;
+    std::uint32_t surfaceCacheProbeWidth=0,surfaceCacheProbeHeight=0;
+    std::uint32_t surfaceCacheWidth=0,surfaceCacheHeight=0,surfaceCacheGiWidth=0,surfaceCacheGiHeight=0;
 };
 
 // The caller owns RHIDevice and Begin/End/Submit. Initialize/Resize/Shutdown and

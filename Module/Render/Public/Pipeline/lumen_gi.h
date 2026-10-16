@@ -40,7 +40,7 @@ std::shared_ptr<const LumenGiScene> BuildLumenGiScene(std::span<const ProbeTrian
 std::shared_ptr<const LumenGiScene> RefitLumenGiScene(const LumenGiScene&,std::span<const ProbeTriangle>);
 // Diagnostic views share the traced diffuse transport solution. They do not
 // change light sources or the persistent transport/cache scene.
-enum class LumenLightingView : std::uint32_t { Material=0, SurfaceCache=1, IndirectOnly=2, DirectOnly=3 };
+enum class LumenLightingView : std::uint32_t { Material=0, SurfaceCache=1, IndirectOnly=2, DirectOnly=3, Coverage=4, ProbeDiffuse=5 };
 struct LumenGiSettings {
     bool enabled=false,reset=false,screenTraces=true,reflections=true;
     bool distanceFields=true;
@@ -62,6 +62,16 @@ struct LumenGiSettings {
     float surfaceHistory=.65f,bounceFeedback=.9f,gatherHistory=.85f;
     std::uint32_t surfaceUpdatesPerFrame=512,surfaceRays=16;
     std::uint32_t probeSpacing=16,gatherRays=12,screenSteps=16;
+    // Adaptive screen probes. When enabled, the receiver probe grid is refined
+    // to probeSpacing/adaptiveSubdivision inside tiles whose depth or normal
+    // varies beyond the thresholds, while flat tiles keep one probe per tile.
+    // The trace budget follows local receiver complexity instead of uniform
+    // screen area, so silhouettes keep a dense triangle ID without paying for
+    // a uniformly finer grid. adaptiveSubdivision is 1..4 (1 disables detail).
+    bool adaptiveProbes=false;
+    std::uint32_t adaptiveSubdivision=2;
+    float adaptiveDepthThreshold=.03f;  // relative tile view-depth spread that refines a tile
+    float adaptiveNormalThreshold=.92f; // tile minimum normal alignment; lower refines more
     // Low-frequency radiance cache for transparency, mirrored views and
     // disoccluded pixels without matching screen probes; no CPU light bake.
     glm::vec3 origin{-2.5f,.4f,-2.5f},spacing{1.666667f,1.066667f,1.666667f};
@@ -81,6 +91,7 @@ struct alignas(16) LumenGiConstants {
     glm::vec4 fieldOrigin{0},fieldSpacing{1,1,1,0}; // W: dedicated reflection roughness limit; zero for isolated ray tests
     glm::ivec4 fieldCounts{0};
     glm::vec4 reflection{4,0,1,0}; // rays, stage flag (live direct / reflection), resolve X scale, Fresnel coefficient
+    glm::vec4 adaptive{1,0,0,0}; // subdivision, tile depth threshold, tile normal threshold, enabled
 };
-static_assert(sizeof(LumenGiConstants)==288);
+static_assert(sizeof(LumenGiConstants)==304);
 } // namespace Render

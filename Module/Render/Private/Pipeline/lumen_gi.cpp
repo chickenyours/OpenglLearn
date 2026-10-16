@@ -217,10 +217,12 @@ bool ValidateLumenGiSettings(const LumenGiSettings& s,std::string* error) {
         range(s.gatherHistory,0,.98f)&&range(s.bounceFeedback,0,.95f)&&s.surfaceUpdatesPerFrame>=1&&
         s.surfaceUpdatesPerFrame<=MaxLumenSurfels&&s.surfaceRays>=1&&s.surfaceRays<=32&&s.gatherRays>=1&&s.gatherRays<=32&&
         s.probeSpacing>=4&&s.probeSpacing<=32&&s.screenSteps>=4&&s.screenSteps<=64&&s.reflectionRays>=1&&s.reflectionRays<=32&&
+        s.adaptiveSubdivision>=1&&s.adaptiveSubdivision<=4&&range(s.adaptiveDepthThreshold,.0005f,4)&&
+        range(s.adaptiveNormalThreshold,0,1)&&
         s.reflectionTraceMaxDimension>=128&&s.reflectionTraceMaxDimension<=512&&range(s.reflectionResolutionScale,.5f,1)&&
         range(s.reflectionSourceResolutionScale,.25f,1)&&
         range(s.maxReflectionRoughness,0,1)&&(!s.enabled||bool(s.scene))&&
-        static_cast<std::uint32_t>(s.lightingView)<=static_cast<std::uint32_t>(LumenLightingView::DirectOnly);
+        static_cast<std::uint32_t>(s.lightingView)<=static_cast<std::uint32_t>(LumenLightingView::ProbeDiffuse);
     if(error)*error=valid?"":"Invalid hybrid Lumen GI scene, grid, budgets or history";return valid;
 }
 } // namespace Render

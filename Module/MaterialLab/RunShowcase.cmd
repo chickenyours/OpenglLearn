@@ -1,8 +1,9 @@
 @echo off
 setlocal
 pushd "%~dp0..\.."
-set "showcaseExecutable=bin\material_lab_demo.exe"
-if exist "output\Release\bin\material_lab_demo.exe" set "showcaseExecutable=output\Release\bin\material_lab_demo.exe"
+set "showcaseExecutable=output\sdf-banquet\Debug\bin\material_lab_demo.exe"
+if not exist "%showcaseExecutable%" set "showcaseExecutable=output\Release\bin\material_lab_demo.exe"
+if not exist "%showcaseExecutable%" set "showcaseExecutable=bin\material_lab_demo.exe"
 if not exist "%showcaseExecutable%" (
     echo Build material_lab_demo before launching the lighting showcase.
     pause

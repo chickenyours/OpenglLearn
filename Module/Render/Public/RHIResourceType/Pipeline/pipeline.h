@@ -32,7 +32,9 @@ namespace Render{
     enum class BlendMode{
         Opaque,
         Alpha,
-        Additive
+        Additive,
+        // Straight-alpha color compositing with coverage-preserving alpha.
+        AlphaComposite
     };
 
     enum class Format{

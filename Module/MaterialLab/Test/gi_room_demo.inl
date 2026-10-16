@@ -712,7 +712,8 @@ void GiRoomInteractive(MaterialLabModule& lab, ApplicationWindow::Window& window
     auto* native = window.GetNativeWindow();
     Input input;
     glfwSetWindowUserPointer(native, &input);
-    glfwSetScrollCallback(native, [](GLFWwindow* handle, double, double delta) {
+    glfwSetScrollCallback(native, [](GLFWwindow* handle, double x, double delta) {
+        DebugUiScroll(handle, x, delta);
         static_cast<Input*>(glfwGetWindowUserPointer(handle))->scroll += float(delta);
     });
     glm::vec3 position;
@@ -728,20 +729,22 @@ void GiRoomInteractive(MaterialLabModule& lab, ApplicationWindow::Window& window
     double lastX = 0, lastY = 0, lastTime = glfwGetTime(), smoothFrameMs = 1000. / 90;
     double lastFpsSample=lastTime;
     FramePacer pacer;
+    DebugPanelHost debugPanels(lab, native, false);
     std::cout << "Sealed GI room: one point lamp; F camera flashlight, F6 point lamp, G full/bounce/direct.\n"
                  "RMB look; WASD move; Q/E down/up; Shift fast; wheel speed. 1/2/3 camera views.\n"
                  "Click/Tab select; arrows/PgUp/PgDn move; Z/X rotate; R reset prop; Backspace reset room.\n"
-                 "P cycles 100/75/62.5/50 percent render scale; F1 help. No sky, ambient fill or bloom.\n";
+                 "P cycles 100/75/62.5/50 percent render scale; F1 controls. No sky, ambient fill or bloom.\n";
     while (!window.ShouldClose()) {
         const auto start = std::chrono::steady_clock::now(); window.PollEvents();
+        DebugPanelFrame uiFrame(debugPanels);
         const double now = glfwGetTime(), elapsed = now - lastTime; lastTime = now;
         const float dt = float(std::clamp(elapsed, .0001, .1));
         frame.effects.deltaSeconds = float(std::clamp(elapsed, .0001, 1.));
         frame.effects.cameraCut = elapsed > .25;
         smoothFrameMs = .9 * smoothFrameMs + .1 * std::clamp(elapsed, .0001, 1.) * 1000;
         if(now-lastFpsSample>=1) {frame.displayFps=float(1000/smoothFrameMs);lastFpsSample=now;}
-        const auto down = [&](int key) { return glfwGetKey(native, key) == GLFW_PRESS; };
-        const auto pressed = [&](int key) { const bool value = down(key), edge = value && !previous[key]; previous[key] = value; return edge; };
+        const auto down = [&](int key) { return !uiFrame.WantsKeyboard() && glfwGetKey(native, key) == GLFW_PRESS; };
+        const auto pressed = [&](int key) { const bool value = glfwGetKey(native, key) == GLFW_PRESS, edge = value && !previous[key]; previous[key] = value; return edge && !uiFrame.WantsKeyboard(); };
         if (pressed(GLFW_KEY_ESCAPE)) break;
         int width = 0, height = 0; glfwGetFramebufferSize(native, &width, &height);
         if (width <= 0 || height <= 0) { glfwWaitEventsTimeout(.05); continue; }
@@ -751,15 +754,18 @@ void GiRoomInteractive(MaterialLabModule& lab, ApplicationWindow::Window& window
             renderScale = found == scales.end() ? 1 : scales[(unsigned(found - scales.begin()) + 1) % scales.size()];
             frame.effects.cameraCut = true;
         }
-        SetShowcaseResolution(frame, options.renderSizeSet ? options.benchmarkWidth : unsigned(width),
-                              options.renderSizeSet ? options.benchmarkHeight : unsigned(height), renderScale);
+        SetShowcaseResolution(frame, unsigned(width), unsigned(height), renderScale);
+        if(options.renderSizeSet) {
+            frame.width=options.benchmarkWidth;frame.height=options.benchmarkHeight;
+            frame.effects.outputSize=frame.width==unsigned(width)&&frame.height==unsigned(height)?glm::uvec2(0):glm::uvec2(width,height);
+        }
         const float aspect = frame.OutputAspect();
         for (unsigned preset = 0; preset < 3; ++preset) if (pressed(GLFW_KEY_1 + int(preset))) {
             pose(GiRoomCameraPreset(preset, aspect)); frame.effects.cameraCut = true;
         }
         auto& state = frame.giRoomState;
         if (pressed(GLFW_KEY_TAB)) state.selected = (state.selected + (down(GLFW_KEY_LEFT_SHIFT) ? int(GiRoomMovableCount) - 1 : 1)) % int(GiRoomMovableCount);
-        if (pressed(GLFW_KEY_F1)) state.help = !state.help;
+        if (!lab.GetDebugUI() && pressed(GLFW_KEY_F1)) state.help = !state.help;
         if (pressed(GLFW_KEY_F)) state.flashlight = !state.flashlight;
         if (pressed(GLFW_KEY_F6)) state.pointLight = !state.pointLight;
         if (pressed(GLFW_KEY_G)) {
@@ -775,7 +781,7 @@ void GiRoomInteractive(MaterialLabModule& lab, ApplicationWindow::Window& window
         }
         double x = 0, y = 0; glfwGetCursorPos(native, &x, &y);
         const bool focused = glfwGetWindowAttrib(native, GLFW_FOCUSED);
-        const bool rmb = focused && glfwGetMouseButton(native, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS;
+        const bool rmb = !uiFrame.WantsMouse() && focused && glfwGetMouseButton(native, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS;
         if (rmb != looking) {
             glfwSetInputMode(native, GLFW_CURSOR, rmb ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
             if (glfwRawMouseMotionSupported()) glfwSetInputMode(native, GLFW_RAW_MOUSE_MOTION, rmb ? GLFW_TRUE : GLFW_FALSE);
@@ -783,6 +789,7 @@ void GiRoomInteractive(MaterialLabModule& lab, ApplicationWindow::Window& window
         }
         if (rmb && looking) { yaw += float(x - lastX) * .0025f; pitch = std::clamp(pitch - float(y - lastY) * .0025f, -1.5f, 1.5f); }
         lastX = x; lastY = y; looking = rmb;
+        if (uiFrame.WantsMouse()) input.scroll = 0;
         speed = std::clamp(speed * std::pow(1.15f, input.scroll), .3f, 8.f); input.scroll = 0;
         if (focused) {
             const auto forward = ShowcaseForward(yaw, 0), right = glm::normalize(glm::cross(forward, glm::vec3(0, 1, 0)));
@@ -798,7 +805,7 @@ void GiRoomInteractive(MaterialLabModule& lab, ApplicationWindow::Window& window
         camera.position = position;
         camera.view = glm::lookAt(position, position + ShowcaseForward(yaw, pitch), glm::vec3(0, 1, 0));
         frame.camera = camera;
-        const bool lmb = focused && glfwGetMouseButton(native, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+        const bool lmb = !uiFrame.WantsMouse() && focused && glfwGetMouseButton(native, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
         if (lmb && !clicked && !rmb) {
             int logicalWidth = 1, logicalHeight = 1; glfwGetWindowSize(native, &logicalWidth, &logicalHeight);
             const glm::vec2 ndc{float(x / logicalWidth) * 2 - 1, 1 - float(y / logicalHeight) * 2};
@@ -812,13 +819,14 @@ void GiRoomInteractive(MaterialLabModule& lab, ApplicationWindow::Window& window
             for (unsigned warm = 0; warm < 128; ++warm) Check(lab.Render(frame), lab.LastError());
             Save(Capture(lab, frame), options.screenshot); saved = true;
         }
+        uiFrame.Finish(frame);
         frame.present = true; Check(lab.Render(frame), lab.LastError());
         std::ostringstream title;
         title << "Sealed GI Room | " << GiRoomViewName(frame.effects.lumenGi.lightingView)
               << " | point " << state.pointLight << " flashlight " << state.flashlight
               << " | " << GiRoomMovable(state.selected).name << " | " << std::fixed << std::setprecision(1)
               << 1000 / smoothFrameMs << " FPS | " << frame.width << 'x' << frame.height << " -> "
-              << frame.OutputExtent().x << 'x' << frame.OutputExtent().y << " | F flashlight G view P scale F1 help";
+              << frame.OutputExtent().x << 'x' << frame.OutputExtent().y << " | F flashlight G view P scale F1 controls";
         glfwSetWindowTitle(native, title.str().c_str());
         if (options.fpsLimit > 0) pacer.WaitUntil(start + std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(1 / options.fpsLimit)));
     }

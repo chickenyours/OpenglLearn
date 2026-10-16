@@ -692,6 +692,11 @@ def main() -> None:
     install_morph_spikes(root, ("room_01", "room_02", "room_03", "room_04"))
     if not (root / "rooms/morph_spikes_demo.room.json").exists():
         add_morph_demo(root)
+    from install_iwanna_apple_monster import install_project as install_apple_monster
+    from add_iwanna_apple_monster_demo import install as add_apple_monster_demo
+    install_apple_monster(root, ("room_01", "room_02", "room_03", "room_04"))
+    if not (root / "rooms/apple_monster_demo.room.json").exists():
+        add_apple_monster_demo(root)
     print(f"Designed longer MyIwana route in {root}; {final_status}")
 
 

@@ -399,15 +399,18 @@ CPU 仅构建不可变几何与规则重心坐标三角面参数化；每三角�
 | `rayBias` / `thickness` | .015 / .15 世界单位；偏移用短射线约束接触表面穿越 |
 | `surfaceUpdatesPerFrame` / `surfaceRays` | 512 / 16；1..65536 / 1..32 |
 | `probeSpacing` / `gatherRays` / `screenSteps` | 16 / 12 / 16；4..32 / 1..32 / 4..64；gatherRays 保留兼容，世界缓存收集不再使用该射线预算 |
+| `adaptiveProbes` / `adaptiveSubdivision` | false / 2；细分 1..4；只在深度或法线变化超过门限的 tile 内把接收者网格细化到 `probeSpacing/adaptiveSubdivision`，平坦 tile 保持粗间距 |
+| `adaptiveDepthThreshold` / `adaptiveNormalThreshold` | .03 / .92；.0005..4 / 0..1；逐 tile 深度相对跨度与法线对齐门限 |
 | `surfaceHistory` / `gatherHistory` / `bounceFeedback` | .65 / .85 / .9；历史0..0.98，反馈0..0.95 |
 | `origin` / `spacing` / `counts` | 世界辐射体积布局；各维至少2，总数不超过64 |
 | `distanceFields` / `reflectionRays` | true / 4；反射射线预算 1..32 |
 | `fullResolutionDirectLighting` | false；`SurfaceCache` / `DirectOnly` 诊断在可见像素计算解析直射和几何遮挡，密闭 GI 房间开启 |
+| `lightingView` | Material / SurfaceCache / IndirectOnly / DirectOnly / Coverage / ProbeDiffuse；`Coverage` 是自适应探针覆盖诊断（绿=接收者由探针网格解析，红=回退到世界缓存），`ProbeDiffuse` 把最近活跃探针的表面缓存着色辐射赋给整个屏幕单元，用于显示屏幕探针网格的块状感；两者都是纯解析调试，可在含透明物体的场景使用 |
 | `traceDirectLighting` | false；在反弹射线的实际命中点计算解析直射与遮挡，缓存保留高阶反弹，密闭 GI 房间开启 |
 | `reflectionResolutionScale` / `reflectionTraceMaxDimension` | .5 / 256；.5..1 / 128..512 |
 | `maxReflectionRoughness` | .4；0..1，0 保留全部粗糙度的独立射线，用于质量对照 |
 
-UBO 10 为 288 字节，原 0..223 偏移不变，在 224..287 追加距离体积原点/间距/尺寸和反射参数；保留 UBO 9 / 11..15 的布局。UBO13 mode=3 在主不透明视图读取 texture15 的最终辐照度 E/pi；透明/镜像视图 mode=2 读世界缓存。UBO7 options.y 启用混合反射、z 指定直接光捕获；2026-10-06 在原 160 字节末尾追加 screenJitter，表面 UBO 为 176 字节，208 字节材质参数布局不变，正式 PBR 仍限 16 个片元采样器。screenJitter.xy 将主视图抖动栅格坐标映射到稳定 GI/反射网格，光学快照继续使用主视图投影。全屏 GI 局部槽 0..8 按 pass 重绑定，其中 8 为距离场；正式材质纹理 0..7 的契约不变。
+UBO 10 为 304 字节，原 0..223 偏移不变，在 224..287 追加距离体积原点/间距/尺寸和反射参数，在 288..303 追加自适应屏幕探针的细分（x）、深度门限（y）、法线门限（z）与启用标志（w）；保留 UBO 9 / 11..15 的布局。UBO13 mode=3 在主不透明视图读取 texture15 的最终辐照度 E/pi；透明/镜像视图 mode=2 读世界缓存。UBO7 options.y 启用混合反射、z 指定直接光捕获；2026-10-06 在原 160 字节末尾追加 screenJitter，表面 UBO 为 176 字节，208 字节材质参数布局不变，正式 PBR 仍限 16 个片元采样器。screenJitter.xy 将主视图抖动栅格坐标映射到稳定 GI/反射网格，光学快照继续使用主视图投影。全屏 GI 局部槽 0..8 按 pass 重绑定，其中 8 为距离场；正式材质纹理 0..7 的契约不变。
 
 仅 `CompleteFrame` 推进表面/世界/视图双缓存和更新批次，Discard 不提交；已录制 encoder 持有程序/图集/视图 owner，Shutdown 后仍可执行。反射 HDR 源持有独立深度附件，MSAA 在同尺寸切换时不会引用被释放的主视图附件。相机移动保留世界光照；resize 重建依赖尺寸的视图资源，内容 hash / 跳切控制历史。调用方负责在几何/材质变化后提交新 `LumenGiScene`，MaterialLab 自动提取；源在帧内不执行 CPU 光照烘焙或 GPU 回读。
 
@@ -415,7 +418,7 @@ UBO 10 为 288 字节，原 0..223 偏移不变，在 224..287 追加距离体�
 
 `lumen_gi_test` 验证三角面参数化、查询反变换、空资产、32768 三角面的有界覆盖与设置边界；`material_pipeline_history_test` 增补初始化/丢弃/重用/resize/同尺寸 MSAA、资产来回替换、模式冲突、黑色太阳下无光残留与 Shutdown 后旧帧执行。`--lumen-gi-test` 检查封闭天空遮挡、表面多次反弹、动态灯光/自发光、屏外缓存、屏幕追踪开关、场景反射、MSAA/TAA 与切回 DDGI。`--realtime-gi-stability-test --lumen-gi` 复用 DDGI 的局部墙面与探针稳定性门限，避免整体均值掩盖局部闪烁。
 
-设计参考 [Epic Lumen 技术说明](https://dev.epicgames.com/documentation/en-us/unreal-engine/lumen-technical-details-in-unreal-engine)中的表面缓存和最终收集，以及 [Lumen 性能指南](https://dev.epicgames.com/documentation/en-us/unreal-engine/lumen-performance-guide-for-unreal-engine)中的粗糙反射复用与更新预算。本项目有软件 BVH/距离体积与 Vulkan 原生光追路径，尚无 UE 的 Mesh Cards、距离场 clipmap、大世界流送、HZB、自适应方向探针或 TSR。图集平均材质忽略 alpha 裁剪、流动纹理与法线细节；透明几何不遮挡间接射线。太阳使用 CSM，常规 `Material` 视图的点光/区域光主表面直射尚无独立几何阴影；上述逐像素光源遮挡仅用于漫反射诊断模式。该有限场景实现不等同于 UE5 Lumen 本体或同等画质。
+设计参考 [Epic Lumen 技术说明](https://dev.epicgames.com/documentation/en-us/unreal-engine/lumen-technical-details-in-unreal-engine)中的表面缓存和最终收集，以及 [Lumen 性能指南](https://dev.epicgames.com/documentation/en-us/unreal-engine/lumen-performance-guide-for-unreal-engine)中的粗糙反射复用与更新预算。本项目有软件 BVH/距离体积与 Vulkan 原生光追路径，并实现了基于逐 tile 深度/法线方差的自适应屏幕接收者网格（`adaptiveProbes`，不是 UE 的自适应方向辐射探针）；尚无 UE 的 Mesh Cards、距离场 clipmap、大世界流送、HZB 或 TSR。图集平均材质忽略 alpha 裁剪、流动纹理与法线细节；透明几何不遮挡间接射线。太阳使用 CSM，常规 `Material` 视图的点光/区域光主表面直射尚无独立几何阴影；上述逐像素光源遮挡仅用于漫反射诊断模式。该有限场景实现不等同于 UE5 Lumen 本体或同等画质。
 
 2026-10-06 的普通相机运动修复改用独立的世界入射辐照度缓存：每个 surfel 存 `E/pi` 和天空可见比例，再组合出射辐射 `direct + rho * E/pi`。低分辨率接收者查询只识别三角面 ID；全分辨率用平面、法线和重心坐标验证该 ID，在确切世界位置插值入射光。没有匹配的像素使用世界探针，不再每次转动相机重新产生 12 条漫反射半球样本，也不依赖增加视角历史权重来隐藏噪声。入射缓存与原缓存一起只在 CompleteFrame 后推进。
 

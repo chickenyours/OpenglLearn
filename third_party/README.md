@@ -11,6 +11,12 @@ Only the VM library is built, not the standalone `lua`/`luac` tools.
 
 # Shared Release / Debug dependencies
 
+Dear ImGui 1.91.9b is vendored in `imgui-1.91.9b` with its upstream MIT
+license. `cmake/ImGui.cmake` builds shared `imgui_core` and `imgui_glfw`
+targets independently of Model/Assimp. `Module/DebugUI` implements the engine
+RHI renderer; the optional `imgui_opengl3` target remains available to the
+existing skeletal editor. Portable builds include `licenses/DearImGui.txt`.
+
 `cmake/Dependencies.cmake` builds the following pinned sources rather than
 reusing the old `/MDd` libraries under `lib/debug`. No downloads, Python, or
 generator steps are needed during normal CMake builds.

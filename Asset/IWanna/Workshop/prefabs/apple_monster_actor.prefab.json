@@ -1,0 +1,13 @@
+{
+  "format": "IWANNA_PREFAB_1",
+  "pixelArt": true,
+  "visible": true,
+  "role": "trigger",
+  "image": "demo_apple.png",
+  "width": 6,
+  "height": 6,
+  "collide": true,
+  "receivesShots": true,
+  "event": "apple_monster_actor",
+  "health": 5
+}

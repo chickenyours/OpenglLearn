@@ -1713,7 +1713,9 @@ VkPipeline VulkanBackend::NativePipeline(const PipelineSpec &s,
   attachment.dstColorBlendFactor = s.blendMode == BlendMode::Additive
                                        ? VK_BLEND_FACTOR_ONE
                                        : VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-  attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+  attachment.srcAlphaBlendFactor = s.blendMode == BlendMode::AlphaComposite
+                                       ? VK_BLEND_FACTOR_ONE
+                                       : VK_BLEND_FACTOR_SRC_ALPHA;
   attachment.dstAlphaBlendFactor = s.blendMode == BlendMode::Additive
                                        ? VK_BLEND_FACTOR_ONE
                                        : VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;

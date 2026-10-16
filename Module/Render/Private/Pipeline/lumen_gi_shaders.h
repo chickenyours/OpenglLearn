@@ -13,6 +13,7 @@ layout(std140,binding=10) uniform LumenData {
     vec4 lmFieldOrigin,lmFieldSpacing;
     ivec4 lmFieldCounts;
     vec4 lmReflection;
+    vec4 lmAdaptive;
 };
 layout(binding=4) uniform sampler2D lmAttributes;
 layout(binding=5) uniform sampler2D lmCache;
@@ -199,7 +200,7 @@ float LmTriangleCosineForm(vec3 p,vec3 N,vec3 a,vec3 b,vec3 c) {
         vec3 x=normalize(clipped[i]),y=normalize(clipped[(i+1)%count]),axis=cross(x,y);float len=length(axis);
         if(len>1e-7)integral+=axis/len*atan(len,clamp(dot(x,y),-1,1));
     }
-    return clamp(abs(dot(N,integral))*.5,0,3.14159265359);
+    return clamp(abs(dot(N,integral))*.5,0.0,3.14159265359);
 }
 vec3 LmEmissiveIncident(vec3 p,vec3 N,int receiver) {
     vec3 incident=vec3(0);int begin=lmAtlas.w+lmAtlas.y*2,samples=min(lmAtlas.z,16);
@@ -378,9 +379,39 @@ bool LmFilteredSurface(ivec2 pixel,out vec3 p,out vec3 N,out float roughness) {
         float w=float((x==0?2:1)*(y==0?2:1)),r=clamp(texelFetch(giNormal,tap,0).a-1,.045,1.0);
         sum+=n*w;r4+=pow(r,4)*w;weights+=w;
     }
-    if(weights>0){sum/=weights;float len=clamp(length(sum),.001,1);N=normalize(sum);
+    if(weights>0){sum/=weights;float len=clamp(length(sum),.001,1.0);N=normalize(sum);
         roughness=sqrt(sqrt(min(r4/weights+min(.3*(1-len)/len,.2),1.0)));}
     return true;
+}
+// Adaptive screen probes. Every coarse tile keeps its four corner probes so the
+// resolve search radius never changes; a tile whose depth or normal varies
+// activates its inner fine probes too. The metric is derived from the tile
+// origin, so all cells of a tile agree and the sparse fine grid stays
+// deterministic across passes. Missing samples (silhouette or screen border)
+// force refinement rather than silently reading a far surface.
+bool LmTileNeedsDetail(ivec2 tile) {
+    int subdiv=int(lmAdaptive.x+.5);
+    if(lmAdaptive.w<.5||subdiv<2)return false;
+    ivec2 origin=tile*subdiv,span=ivec2(subdiv-1);
+    ivec2 center=min(origin+span/2,lmGather.xy-1);vec3 centerP,centerN;
+    if(!GISurface(LmFullPixel(center),centerP,centerN)||dot(centerN,centerN)<.5)return false;
+    float low=1e30,high=-1e30,align=1.0;int valid=0;
+    for(int y=0;y<3;++y)for(int x=0;x<3;++x) {
+        ivec2 offset=ivec2(x==0?0:(x==1?span.x/2:span.x),y==0?0:(y==1?span.y/2:span.y));
+        ivec2 probe=min(origin+offset,lmGather.xy-1);
+        vec3 p,N;if(!GISurface(LmFullPixel(probe),p,N)||dot(N,N)<.5)continue;
+        ++valid;low=min(low,p.z);high=max(high,p.z);align=min(align,dot(N,centerN));
+    }
+    if(valid==0)return false;
+    if(valid<9)return true;
+    float reference=max(abs(centerP.z),.05);
+    return (high-low)/reference>lmAdaptive.y||align<lmAdaptive.z;
+}
+bool LmProbeActive(ivec2 probe) {
+    int subdiv=int(lmAdaptive.x+.5);
+    if(lmAdaptive.w<.5||subdiv<2)return true;
+    if(probe.x%subdiv==0&&probe.y%subdiv==0)return true;
+    return LmTileNeedsDetail(ivec2(probe.x/subdiv,probe.y/subdiv));
 }
 vec4 LmGuide(ivec2 probe) {
     ivec2 pixel=LmFullPixel(probe);vec3 p,N;float filtered;
@@ -437,7 +468,11 @@ void main(){outColor=LmGuide(ivec2(gl_FragCoord.xy));}
 inline std::string LumenGatherShader(){return LumenScreenPreamble()+R"GLSL(
 layout(binding=9) uniform sampler2D lmIncident;
 void main() {
-    ivec2 index=ivec2(gl_FragCoord.xy),pixel=LmFullPixel(index);vec3 p,N;
+    ivec2 index=ivec2(gl_FragCoord.xy);
+    // Adaptive grid: inactive fine probes stay empty (alpha 0) and consume no
+    // receiver ray. The coarse corner probes remain active in every tile.
+    if(!LmProbeActive(index)){outColor=vec4(0);return;}
+    ivec2 pixel=LmFullPixel(index);vec3 p,N;
     if(!GISurface(pixel,p,N)||dot(N,N)<.5){outColor=vec4(0);return;}
     vec3 world=(lmInverseView*vec4(p,1)).xyz,worldN=normalize(mat3(lmInverseView)*N),hitN;
     // A sparse receiver lookup identifies the stable world irradiance solution.
@@ -575,21 +610,43 @@ vec4 LmResolvedReceiver(int triangle,vec3 world,int lightingView) {
 #endif
     return vec4(max(radiance,vec3(0))*lmSettings.x,1);
 }
+// Coverage diagnostics for adaptive screen probes. Refined tiles are tinted,
+// fine-probe cells are outlined, green marks a receiver resolved from the probe
+// grid and red a fallback to the low-frequency world cache. Toggling
+// adaptiveProbes visibly grows/shrinks the refined tiles and the red band.
+vec3 LmCoverageColor(ivec2 pixel,bool resolved) {
+    vec2 probeAt=(vec2(pixel)+.5)*vec2(lmGather.xy)/vec2(GIFullSize());
+    int subdiv=max(1,int(lmAdaptive.x+.5));
+    ivec2 probe=clamp(ivec2(floor(probeAt)),ivec2(0),lmGather.xy-1);
+    ivec2 tile=ivec2(int(floor(probeAt.x/float(subdiv))),int(floor(probeAt.y/float(subdiv))));
+    bool refined=LmTileNeedsDetail(tile),probeActive=LmProbeActive(probe);
+    vec3 color=refined?(probeActive?vec3(.10,.34,.42):vec3(.06,.20,.26)):vec3(.10,.10,.12);
+    vec2 cell=fract(probeAt);float line=min(min(cell.x,1.0-cell.x),min(cell.y,1.0-cell.y));
+    color=mix(color,vec3(.26,.26,.30),smoothstep(.03,.08,line));
+    return mix(color,resolved?vec3(.15,.85,.30):vec3(.90,.14,.12),resolved?.62:.78);
+}
 void main() {
     ivec2 pixel=ivec2(gl_FragCoord.xy);vec3 p,N;
     if(!GISurface(pixel,p,N)||dot(N,N)<.5){outColor=vec4(0);return;}
     vec3 world=(lmInverseView*vec4(p,1)).xyz,worldN=normalize(mat3(lmInverseView)*N);
     int lightingView=int(round(surfaceScreenJitter.z));
-    vec2 at=(vec2(pixel)+.5)*vec2(lmGather.xy)/vec2(GIFullSize())-.5;ivec2 base=ivec2(floor(at));
+    vec2 at=(vec2(pixel)+.5)*vec2(lmGather.xy)/vec2(GIFullSize())-.5;
+    // Search a local (subdivision+1)^2 window. It always contains a coarse
+    // corner probe, so it matches the legacy coarse coverage, and in a refined
+    // silhouette tile it also reads the surrounding detail probes. Capping the
+    // loop at five avoids unrolling the receiver test across the whole grid.
+    int subdiv=max(1,int(lmAdaptive.x+.5));
+    ivec2 base=ivec2(floor(at))-ivec2(subdiv/2);
     // Identify this exact world receiver from a neighbouring sparse-grid ID.
 #if LM_RECEIVER_DIRECT
     int receiver=-1;
-    for(int y=0;y<=1&&receiver<0;++y)for(int x=0;x<=1&&receiver<0;++x) {
+    for(int y=0;y<5&&receiver<0;++y){if(y>subdiv)break;
+        for(int x=0;x<5&&receiver<0;++x){if(x>subdiv)break;
         ivec2 tap=clamp(base+ivec2(x,y),ivec2(0),lmGather.xy-1);int triangle=int(texelFetch(giInput,tap,0).a+.5)-1;
         if(triangle>=0&&triangle<rtGeometry.w&&LmReceiverContains(triangle,world,worldN)) {
             receiver=triangle;
         }
-    }
+    }}
     if(receiver<0) {
         // A missing sparse-grid ID is not missing physical illumination. One
         // short receiver query supplies the exact triangle for diagnostic
@@ -605,13 +662,39 @@ void main() {
     if(receiver>=0){outColor=LmResolvedReceiver(receiver,world,lightingView);return;}
     outColor=vec4(0);
 #else
-    // Keep the lightweight cached path separate from analytic shadow queries.
-    for(int y=0;y<=1;++y)for(int x=0;x<=1;++x) {
-        ivec2 tap=clamp(base+ivec2(x,y),ivec2(0),lmGather.xy-1);int triangle=int(texelFetch(giInput,tap,0).a+.5)-1;
-        if(triangle>=0&&triangle<rtGeometry.w&&LmReceiverContains(triangle,world,worldN)) {
-            outColor=LmResolvedReceiver(triangle,world,lightingView);return;
+    if(lightingView==5) {
+        // Screen-probe diffuse: reuse the shaded surface cache of the nearest
+        // active probe, assigned to its whole screen cell. At coarse spacing this
+        // quantizes the shaded radiance (including sharp direct shadows) into
+        // visible "Lego" blocks; adaptive refinement shrinks the cells wherever
+        // the shading actually varies. The probe's own pixel supplies the world
+        // position so the cache is read at the same surface it identified.
+        ivec2 nearest=clamp(ivec2(round(at)),ivec2(0),lmGather.xy-1);
+        for(int radius=0;radius<=2;++radius) {
+            for(int y=-radius;y<=radius;++y)for(int x=-radius;x<=radius;++x) {
+                if(max(abs(x),abs(y))!=radius)continue;
+                ivec2 tap=clamp(nearest+ivec2(x,y),ivec2(0),lmGather.xy-1);
+                int triangle=int(texelFetch(giInput,tap,0).a+.5)-1;
+                if(triangle<0||triangle>=rtGeometry.w)continue;
+                vec3 pp,pn;if(!GISurface(LmFullPixel(tap),pp,pn))continue;
+                outColor=LmResolvedReceiver(triangle,(lmInverseView*vec4(pp,1)).xyz,1);
+                return;
+            }
         }
+        vec3 E;float sky;EvaluateRealtimeGi(world,worldN,worldN,1,E,sky);
+        outColor=vec4(E*(3.14159265359*lmSettings.x),sky);return;
     }
+    // Keep the lightweight cached path separate from analytic shadow queries.
+    int receiver=-1;
+    for(int y=0;y<5&&receiver<0;++y){if(y>subdiv)break;
+        for(int x=0;x<5&&receiver<0;++x){if(x>subdiv)break;
+        ivec2 tap=clamp(base+ivec2(x,y),ivec2(0),lmGather.xy-1);int triangle=int(texelFetch(giInput,tap,0).a+.5)-1;
+        if(triangle>=0&&triangle<rtGeometry.w&&LmReceiverContains(triangle,world,worldN))receiver=triangle;
+    }}
+    // Coverage resolves once after the search; inlining it into each candidate
+    // would unroll the adaptive tile test across the whole window.
+    if(lightingView==4){outColor=vec4(LmCoverageColor(pixel,receiver>=0),1);return;}
+    if(receiver>=0){outColor=LmResolvedReceiver(receiver,world,lightingView);return;}
     if(lightingView!=0) {
         float offset=max(.004,lmTrace.y),distance=offset*2;vec3 hitN;int triangle;bool front;
         if(RtIntersect(world+worldN*offset,-worldN,distance,hitN,triangle,front)&&front&&

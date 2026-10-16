@@ -115,7 +115,7 @@ void RoomWorld::Shoot(const Input& input,double dt) {
     }catch(const std::exception& e){error_=CurrentId()+": "+e.what();game_.RebuildViews();}
 }
 void RoomWorld::Hit(ECS::EntityID target,ECS::EntityID projectile) {
-    hits_.try_emplace(game_.Get<Behavior>(target).stableId,game_.Get<Behavior>(projectile).stableId);
+    hits_[game_.Get<Behavior>(target).stableId].insert(game_.Get<Behavior>(projectile).stableId);
 }
 void RoomWorld::Retire(ECS::EntityID id) {
     const auto& name=game_.Get<Behavior>(id).stableId;
@@ -173,7 +173,7 @@ void RoomWorld::EndTick(double dt) {
         }
         for(const auto& id:previous_)if(!touched_.contains(id)&&definitions_.contains(id)&&!definitions_.at(id).event.empty())
             script_->Call(ObjectEvent("on_trigger",definitions_.at(id),"exit"));
-        for(const auto& [id,projectile]:hits_)if(definitions_.contains(id)&&!definitions_.at(id).event.empty()) {
+        for(const auto& [id,projectiles]:hits_)if(definitions_.contains(id)&&!definitions_.at(id).event.empty())for(const auto& projectile:projectiles) {
             auto event=ObjectEvent("on_hit",definitions_.at(id),"hit",&game_.Get<Transform>(Find(id)));
             event.properties["projectileId"]=projectile;script_->Call(event);
         }

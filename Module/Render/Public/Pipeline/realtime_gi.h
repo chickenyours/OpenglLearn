@@ -15,6 +15,9 @@ public:
     std::uint32_t Height() const { return std::uint32_t(pixels_.size()/Width()); }
     std::uint32_t NodeCount() const { return nodes_; }
     std::uint32_t TriangleCount() const { return triangles_; }
+    // Packed BVH triangle ID -> original extraction order. Consumers such as
+    // card caches use this to retain exact instance ownership after BVH sorting.
+    const std::vector<std::uint32_t>& InputTriangleIndices() const { return inputOrder_; }
     bool HasEmission() const { return hasEmission_; }
     // Refits preserve triangle IDs and cache layout. The caller must retain
     // input triangle ordering and replace the asset when topology changes.

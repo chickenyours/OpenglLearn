@@ -1,4 +1,7 @@
 #include "MaterialLab/Public/material_lab_module.h"
+#include "DebugUI/Public/debug_ui_module.h"
+#include "Render/Public/Pipeline/probe_sdf_clipmap.h"
+#include "Render/Public/Pipeline/surface_cache.h"
 
 #include <array>
 #include <chrono>
@@ -21,6 +24,10 @@
 #include "Render/Public/Pipeline/material_render_pipeline.h"
 #include "Render/Private/Material/rhi_material_resources.h"
 #include "Render/Private/Pipeline/pipeline_resource_builder.h"
+#ifdef MATERIAL_LAB_HAS_MODEL
+#include "Model/Public/model_module.h"
+#include "MaterialLab/Public/sdf_model_scene.h"
+#endif
 
 namespace MaterialLab {
 using namespace Render;
@@ -68,6 +75,7 @@ TexturePixels LoadTexture(const std::filesystem::path& path) {
 struct MaterialLabModule::Impl {
     // First member, destroyed last: all resource leases depend on this device.
     RHIDevice device;
+    std::unique_ptr<DebugUI::DebugUIModule> debugUI;
     MaterialService materials;
     std::shared_ptr<const MaterialTemplate> schema;
     OwnedMaterialResources owned;
@@ -92,6 +100,29 @@ struct MaterialLabModule::Impl {
     bool showcaseMaterialsReady=false,showcaseEmission=true;
     std::array<MaterialHandle,std::size_t(GiRoomMaterial::Count)> giRoomMaterials{};
     bool giRoomMaterialsReady=false;
+    std::array<MaterialHandle,std::size_t(ProbePlacementMaterial::Count)> placementMaterials{};
+    bool placementMaterialsReady=false;
+    std::vector<MaterialHandle> surfaceCacheMaterials;
+    bool surfaceCacheMaterialsBanquet=false;
+    std::shared_ptr<SurfaceCacheScene> surfaceCacheScene;
+    std::array<std::shared_ptr<const ProbeMeshSdf>,3> probeSdfAssets;
+    std::shared_ptr<ProbeSdfScene> probeSdfScene;
+    std::unique_ptr<ProbeSdfLodCache> probeSdfLod;
+    std::array<std::uint32_t,3> probeSdfAssetIds{};
+    std::vector<ProbeSdfQuality> probeSdfRequestedTiers;
+    using SdfSceneKey=std::vector<std::uintptr_t>;
+    std::map<SdfSceneKey,std::shared_ptr<ProbeSdfScene>> probeSdfSceneCache;
+    SdfSceneKey probeSdfActiveKey,probeSdfPendingKey;
+    std::future<std::shared_ptr<ProbeSdfScene>> probeSdfPendingScene;
+    ProbeSdfQualityStatus probeSdfQualityStatus;
+#ifdef MATERIAL_LAB_HAS_MODEL
+    std::unique_ptr<Model::ModelModule> sdfModels;
+    std::shared_ptr<const SdfModelVariants> sdfModelVariants;
+    std::array<std::shared_ptr<Model::ModelResource>,3> sdfModelResources;
+    std::vector<ProbeSdfQuality> sdfModelActiveTiers;
+    std::shared_ptr<const ProbeMeshSdf> sdfModelResidentMedium,sdfModelFloor;
+    bool sdfModelGiMaterials=false;
+#endif
     std::shared_ptr<const LumenGiScene> giRoomScene;
     std::uint64_t giRoomHash=0;
     struct ShowcaseBatch {
@@ -143,6 +174,7 @@ struct MaterialLabModule::Impl {
             device.returnSystem.DrainCallbacks();
             if (pendingCreates != 0) device.returnSystem.WaitForCallbacks(2ms);
         }
+        debugUI.reset();
         pipeline.reset();
         showcaseHudOwner.reset();
         materials.Clear();
@@ -492,6 +524,227 @@ struct MaterialLabModule::Impl {
         }
         giRoomMaterialsReady=true;
     }
+    void InitializeProbePlacement() {
+        if(placementMaterialsReady)return;
+        const std::array<glm::vec3,std::size_t(ProbePlacementMaterial::Count)> colors{{
+            {.31f,.34f,.39f},{.52f,.55f,.60f},{.55f,.43f,.29f},{.34f,.48f,.40f},{.61f,.31f,.26f}}};
+        for(std::size_t i=0;i<colors.size();++i) {
+            auto asset=MaterialAsset::Create(common.expectedTemplate,{{"baseColor",glm::vec4(colors[i],1)},
+                {"roughness",.9f},{"metallic",0.f}});
+            Require(bool(asset),"Invalid probe placement material");placementMaterials[i]=Register(asset,common);
+        }
+        placementMaterialsReady=true;
+    }
+    static glm::vec3 SurfaceCacheAlbedo(unsigned object,bool banquet) {
+        if(banquet)return object<12?glm::vec3(.65f):object<15?glm::vec3(.55f,.43f,.29f):glm::vec3(.31f,.34f,.39f);
+        if(object==9)return {.65f,.035f,.025f};
+        if(object==10)return {.035f,.55f,.07f};
+        return object==0?glm::vec3(.65f):glm::vec3(.70f);
+    }
+    void InitializeSurfaceCacheMaterials(bool banquet) {
+        if(!surfaceCacheMaterials.empty()&&surfaceCacheMaterialsBanquet==banquet)return;
+        surfaceCacheMaterials.clear();surfaceCacheMaterialsBanquet=banquet;
+        const auto count=banquet?16u:unsigned(ProbeSdfObjects().size());
+        for(unsigned object=0;object<count;++object) {
+            auto asset=MaterialAsset::Create(common.expectedTemplate,{{"baseColor",glm::vec4(SurfaceCacheAlbedo(object,banquet),1)},
+                {"roughness",.9f},{"metallic",0.f}});
+            Require(bool(asset),"Invalid Surface Cache scene material");surfaceCacheMaterials.push_back(Register(asset,common));
+        }
+    }
+    void AddProbePlacementHud(RenderFrame& frame,const FrameSettings& settings) {
+        const auto& s=settings.effects.screenProbePlacement;
+        if(settings.surfaceCacheStudy) {
+            const auto& gi=settings.effects.surfaceCacheGi;
+            const char* views[]{"TOTAL DIFFUSE GI","SURFACE CACHE LIGHTING","INDIRECT GI","CACHE COVERAGE","CARD ATLAS","HISTORY LENGTH"};
+            std::string text="SURFACE CACHE / "+std::string(views[std::min(gi.view,5u)])+"\n";
+            text+=gi.useScreenProbes?"ADAPTIVE SURFACE PROBES / "+std::to_string(s.trace.rayResolution*s.trace.rayResolution)+" RAYS PER PROBE / SPACING "+std::to_string(s.baseSpacing)+"\n":
+                "PIXEL REFERENCE / "+std::to_string(gi.raysPerPixel)+" RAYS PER PIXEL\n";
+            text+=gi.temporal.enabled&&gi.useScreenProbes?"TEMPORAL GI / "+std::to_string(gi.temporal.maxFrames)+" FRAMES / "+std::to_string(gi.temporal.directionPhases)+" PHASES / T ON-OFF / G RESET\n":"SINGLE FRAME GI / T TEMPORAL / G RESET\n";
+            text+="V VIEW / F5 GI / F6 REFERENCE / F7 RAYS / P PROBES\n";
+            text+="F2 ADAPTIVE / F3 SPACING / J SEED / SPACE FREEZE\n";
+            text+="1 OVERVIEW / 2 SIDE / 3 CLOSE / ARROWS MOVE BLOCK\n";
+            text+="RMB LOOK / WASD MOVE / Q-E HEIGHT / R RESET / F1 HUD";
+            if(settings.displayFps>0)text+=" / FPS "+std::to_string(int(settings.displayFps));
+            AddLabHud(frame,settings,text);return;
+        }
+        if(settings.sdfClipmapStudy&&probeSdfScene&&probeSdfScene->Clipmaps()) {
+            const auto& volume=*probeSdfScene->Clipmaps();const auto& stats=volume.Statistics();
+            const auto& df=s.trace.sdf;const auto& levels=volume.Levels();
+            std::string text="GLOBAL SDF / 4 CAMERA CLIPMAPS / TEAPOT BANQUET\n";
+            text+="64 CUBED EACH / VOXEL .03125 / .125 / .5 / 2\n";
+            text+="CYAN L0 / GREEN L1 / ORANGE L2 / PURPLE L3\n";
+            text+="K LEVEL "+(df.clipmapLevel<0?std::string("AUTO"):std::to_string(df.clipmapLevel))+" / C COLORS / H BOUNDS / B GRID\n";
+            text+="UPDATED "+std::to_string(stats.updatedVoxels)+" / "+std::to_string(stats.totalVoxels)+" VOXELS / "+std::to_string(stats.updatedBricks)+" BRICKS\n";
+            text+="L0-3 ";for(const auto& level:levels)text+=std::to_string(level.statistics.updatedVoxels)+" ";text+="/ ENTER "+std::to_string(stats.enteringVoxels)+"\n";
+            text+="MDF SOURCES 128 / 48 / 24 / 24 / "+std::string(probeSdfQualityStatus.pending?"PREPARING":"READY")+"\n";
+            text+="1 OVERVIEW / 2 CLOSE / 3 FAR / V MODEL-MESH-GLOBAL-SPLIT\n";
+            text+="RMB LOOK / WASD MOVE / Q-E HEIGHT / ARROWS MOVE POT\n";
+            text+="CLIP CPU "+std::to_string(stats.updateMilliseconds)+" MS / F1 HUD";
+            if(settings.displayFps>0)text+=" / FPS "+std::to_string(int(settings.displayFps));
+            AddLabHud(frame,settings,text);return;
+        }
+        if(settings.sdfModelStudy) {
+            const auto& q=probeSdfQualityStatus;const auto& df=s.trace.sdf;
+            const auto* view=!s.trace.enabled||!df.enabled||df.visualMode==0?"IMPORTED MODEL":df.visualMode==1?"MESH SDF":df.visualMode==2?"GLOBAL SDF":"MESH SDF LEFT / GLOBAL SDF RIGHT";
+            std::string text="UTAH TEAPOT BANQUET / "+std::string(view)+"\n";
+            text+="GEOMETRY LOW "+std::to_string(q.modelTriangles[0])+" / MID "+std::to_string(q.modelTriangles[1])+" / HIGH "+std::to_string(q.modelTriangles[2])+" TRI\n";
+            text+="MDF 24 / 48 / 128 / "+std::string(df.automaticQuality?"AUTO":ProbeSdfQualityName(static_cast<ProbeSdfQuality>(df.meshQuality)))+" / THIN SHELL BIAS .87 VOXEL\n";
+            text+="ACTIVE LOW "+std::to_string(q.activeInstances[0])+" / MID "+std::to_string(q.activeInstances[1])+" / HIGH "+std::to_string(q.activeInstances[2])+"\n";
+            text+="RASTER "+std::to_string(q.activeRasterTriangles)+" / ALL HIGH "+std::to_string(q.fullRasterTriangles)+" TRI\n";
+            text+=q.pending?"PREPARING MDF / PREVIOUS READY TIER REMAINS ACTIVE\n":"READY / WARM LOW / CYAN MID / BLUE HIGH\n";
+            text+="L AUTO / F12 MANUAL QUALITY / T RASTER LOD "+std::to_string(settings.sdfModelRasterLod)+"\n";
+            text+="V MODEL-MESH-GLOBAL-SPLIT / B GRID / O-F9 ISOLATE\n";
+            text+="1 OVERVIEW / 2 CLOSE / 3 FAR / RMB LOOK / WASD MOVE\n";
+            text+="GDF .125 MID48 / CACHE "+std::to_string(q.cache.distanceBytes/(1024*1024))+" MB / F1 HUD";
+            if(settings.displayFps>0)text+=" / FPS "+std::to_string(int(settings.displayFps));
+            AddLabHud(frame,settings,text);return;
+        }
+        if(s.trace.enabled) {
+            if(settings.sdfProbeStudy) {
+                const auto& df=s.trace.sdf;std::string text="LUMEN / SCREEN -> MESH SDF -> GLOBAL SDF\n";
+                if(df.enabled&&df.visualMode) {
+                    const auto* view=df.visualMode==1?"MESH SDF":df.visualMode==2?"GLOBAL SDF":"MESH SDF LEFT / GLOBAL SDF RIGHT";
+                    text="SDF 3D / "+std::string(view)+"\n";
+                    text+="SAME TRIANGLES / ACTUAL DISTANCE VOLUME SURFACES\n";
+                    text+="QUALITY "+std::string(df.automaticQuality?"AUTO":ProbeSdfQualityName(static_cast<ProbeSdfQuality>(df.meshQuality)))+
+                        " / LOW 24 / MEDIUM 40 / HIGH 64\n";
+                    const auto& quality=probeSdfQualityStatus;
+                    text+="ACTIVE LOW "+std::to_string(quality.activeInstances[0])+" / MEDIUM "+std::to_string(quality.activeInstances[1])+" / HIGH "+std::to_string(quality.activeInstances[2])+"\n";
+                    text+=quality.pending?"PREPARING REQUEST / CURRENT FIELD REMAINS ACTIVE\n":"REQUEST READY / CACHED ASSETS\n";
+                    text+="F12 QUALITY / L AUTO / V SCENE-MESH-GLOBAL-SPLIT\n";
+                    text+="B VOXEL GRID / O SELECTED ONLY / F9 OBJECT "+std::to_string(df.selectedObject)+"\n";
+                    text+="WARM LOW / CYAN MEDIUM / BLUE HIGH / GLOBAL BY OBJECT\n";
+                    text+="1/2/3 CAMERAS / RMB LOOK / WASD MOVE / Q/E HEIGHT\n";
+                    text+="ARROWS MOVE BLOCK / R RESET / F1 HUD\n";
+                    text+="CACHE "+std::to_string(quality.cache.distanceBytes/(1024*1024))+" MB / SCENE BUILDS "+std::to_string(quality.sceneBuilds)+
+                        " / CACHED SWITCHES "+std::to_string(quality.cachedSceneSwitches);
+                    if(settings.displayFps>0)text+=" / FPS "+std::to_string(int(settings.displayFps));
+                    AddLabHud(frame,settings,text);return;
+                }
+                text+="F12 MDF QUALITY / L AUTO / V 3D FIELD VIEWS\n";
+                text+="GREEN SCREEN / BLUE MESH / TEAL GLOBAL\n";
+                text+="ORANGE MESH UNREADABLE / OCHRE GLOBAL UNREADABLE\n";
+                text+="MAGENTA NO HIT / RED OUTSIDE / VIOLET BUDGET\n";
+                text+="MESH "+std::to_string(settings.sdfMeshHitCount)+" / GLOBAL "+std::to_string(settings.sdfGlobalHitCount)+
+                    " / UNREADABLE "+std::to_string(settings.sdfUnreadableCount)+"\n";
+                if(probeSdfScene){const auto& stats=probeSdfScene->Statistics();
+                    text+="ASSETS "+std::to_string(stats.meshAssets)+" / INSTANCES "+std::to_string(stats.instances)+
+                        " / DIRTY "+std::to_string(stats.updatedBricks)+" OF "+std::to_string(stats.totalBricks)+" BRICKS\n";
+                    text+="UPDATED "+std::to_string(stats.updatedVoxels)+" VOXELS / "+std::to_string(stats.updateMilliseconds)+" MS\n";}
+                text+="F8 SDF SLICE / F9 OBJECT "+std::to_string(df.selectedObject)+" / [ ] SLICE\n";
+                text+="F11 ACTUAL HIT POINTS / SELECTED PROBE WHITE RIM\n";
+                text+="M MESH "+std::to_string(df.useMesh)+" / G GLOBAL "+std::to_string(df.useGlobal)+" / F10 FALLBACK "+std::to_string(df.enabled)+"\n";
+                text+="X/Y/Z SLICE AXIS / F6 COLOR/STATUS / F7 RAYS\n";
+                text+="CLICK PROBE / SPACE FREEZE / ARROWS MOVE BLOCK\n";
+                text+="1/2/3 CAMERAS / RMB LOOK / WASD MOVE / F1 HUD\n";
+                text+="RAYS "+std::to_string(s.trace.rayResolution)+"X"+std::to_string(s.trace.rayResolution)+" / CURRENT HDR ONLY";
+                AddLabHud(frame,settings,text);return;
+            }
+            std::string text="LUMEN / HZB SCREEN PROBE TRACES / "+std::string(s.trace.displayMode?"HIT STATUS":"HDR RADIANCE")+"\n";
+            text+="MAGENTA OFFSCREEN / CYAN NO HIT / YELLOW UNCERTAIN\n";
+            text+="GRAY BACKFACE / RED ORIGIN / PINK INVALID / VIOLET LIMIT\n";
+            text+="RAYS "+std::to_string(s.trace.rayResolution)+"X"+std::to_string(s.trace.rayResolution)+
+                " / HIT "+std::to_string(settings.traceHitCount)+" OF "+std::to_string(settings.traceActiveCount)+"\n";
+            text+="CLICK PROBE: DIRECTION GRID AT BOTTOM RIGHT\n";
+            if(s.trace.selectedProbe!=std::numeric_limits<std::uint32_t>::max())text+="SELECTED PROBE "+std::to_string(s.trace.selectedProbe)+" / WHITE RIM\n";
+            text+="F5 TRACES  F6 COLOR/STATUS  F7 RAY DENSITY\n";
+            text+="F2 ADAPTIVE  F3 PROBE DENSITY  F4 VIEW  SPACE FREEZE\n";
+            text+="1/2/3 CAMERAS  RMB LOOK  WASD MOVE  Q/E HEIGHT\n";
+            text+="LEFT/RIGHT BLOCK  J PHASE  R RESET  F1 HUD\n";
+            text+="CURRENT SCREEN HDR / "+std::to_string(settings.width)+"X"+std::to_string(settings.height);
+            if(settings.displayFps>0)text+=" / FPS "+std::to_string(int(settings.displayFps));
+            AddLabHud(frame,settings,text);return;
+        }
+        const char* view=s.debugView==1?"CANDIDATE COVERAGE":s.debugView==2?"COVERAGE":"SURFACE PROBES";
+        std::string text="UE 5.7 / SCREEN PROBE PLACEMENT / "+std::string(view)+"\n";
+        text+=s.debugView==1?"BLUE BASE / GREEN COVERED / ORANGE NEEDS PROBE\n":
+            s.debugView==2?"BLUE BASE COVERAGE / ORANGE ADAPTIVE / RED GAP\n":"BLUE UNIFORM / ORANGE SPAWNED ADAPTIVE\n";
+        text+="GRID "+std::to_string(s.baseSpacing)+" PX / "+std::to_string(s.candidateCount)+" CANDIDATES / "+
+            std::string(s.freeze?"FROZEN WORLD POSITIONS":"LIVE CAMERA SAMPLES")+"\n";
+        text+="ACTIVE BASE "+std::to_string(settings.placementUniformCount)+" / ADAPTIVE "+std::to_string(settings.placementAdaptiveCount)+
+            " / UNCOVERED CANDIDATES "+std::to_string(settings.placementMarkedCount)+"\n";
+        text+="F2 ADAPTIVE  F3 DENSITY  F4 VIEW  SPACE FREEZE\n";
+        text+="1 OVERVIEW  2 SIDE  3 THIN POST / RMB LOOK\n";
+        text+="WASD MOVE  Q/E DOWN/UP  SHIFT FAST\n";
+        text+="LEFT/RIGHT MOVE BLOCK  J TEMPORAL PHASE  R RESET\n";
+        text+="PLACEMENT ONLY / NO GI GATHER / "+std::to_string(settings.width)+"X"+std::to_string(settings.height);
+        if(settings.displayFps>0)text+=" / FPS "+std::to_string(int(settings.displayFps));
+        AddLabHud(frame,settings,text);
+    }
+    void PrepareProbeSdf(const ProbePlacementSceneSettings& state,const ProbeSdfTracingSettings& quality,glm::vec3 cameraPosition) {
+        if(!probeSdfAssets[0]) {
+            const std::array<MeshData,3> meshes{MakePlane(),MakeBox(),MakeSphere(48,64)};
+            for(unsigned index=0;index<meshes.size();++index){std::vector<ProbeTriangle> triangles;const auto& mesh=meshes[index];
+                for(std::size_t i=0;i+2<mesh.indices.size();i+=3){
+                    const auto a=mesh.vertices[mesh.indices[i]].position,b=mesh.vertices[mesh.indices[i+1]].position,c=mesh.vertices[mesh.indices[i+2]].position;
+                    if(glm::length(glm::cross(b-a,c-a))>1e-7f)triangles.push_back({a,b,c});}
+                probeSdfAssets[index]=BakeProbeMeshSdf(triangles,40,index!=0);
+            }
+            probeSdfLod=std::make_unique<ProbeSdfLodCache>();
+            for(unsigned index=0;index<probeSdfAssets.size();++index) {
+                probeSdfAssetIds[index]=probeSdfLod->RegisterMesh(probeSdfAssets[index]->Triangles(),index!=0,probeSdfAssets[index]);
+                probeSdfLod->Request(probeSdfAssetIds[index],ProbeSdfQuality::Low);
+                probeSdfLod->Request(probeSdfAssetIds[index],ProbeSdfQuality::High);
+            }
+            probeSdfRequestedTiers.assign(ProbeSdfObjects().size(),ProbeSdfQuality::Medium);
+        }
+        std::vector<ProbeSdfInstance> instances;SdfSceneKey key;unsigned index=0;bool assetsPending=false;
+        for(const auto& object:ProbeSdfObjects()) {
+            const auto asset=object.mesh==ShowcaseMesh::Plane?0:object.mesh==ShowcaseMesh::Box?1:2;
+            const auto transform=ProbePlacementTransform(object,state);
+            auto desired=static_cast<ProbeSdfQuality>(quality.meshQuality);
+            if(quality.automaticQuality) {
+                glm::vec3 low(1e30f),high(-1e30f);const auto lo=probeSdfAssets[asset]->BoundsMin(),hi=probeSdfAssets[asset]->BoundsMax();
+                for(unsigned corner=0;corner<8;++corner){const auto p=glm::vec3(transform*glm::vec4(corner&1?hi.x:lo.x,corner&2?hi.y:lo.y,corner&4?hi.z:lo.z,1));low=glm::min(low,p);high=glm::max(high,p);}
+                const auto distance=glm::length(glm::max(glm::max(low-cameraPosition,cameraPosition-high),glm::vec3(0)));
+                desired=SelectProbeSdfDistanceQuality(distance,probeSdfRequestedTiers[index]);
+            }
+            probeSdfRequestedTiers[index]=desired;
+            const auto previous=probeSdfScene?probeSdfScene->Instances()[index].mesh:probeSdfAssets[asset];
+            const auto selected=probeSdfLod->Resolve(probeSdfAssetIds[asset],desired,previous);
+            Require(!selected.failed,probeSdfLod->Error(probeSdfAssetIds[asset],desired));assetsPending|=selected.pending;
+            instances.push_back({selected.mesh,transform,object.movable,index++,{},probeSdfAssets[asset]});key.push_back(reinterpret_cast<std::uintptr_t>(selected.mesh.get()));
+        }
+        if(assetsPending&&!quality.automaticQuality) {
+            key.clear();
+            for(unsigned i=0;i<instances.size();++i){const auto& object=ProbeSdfObjects()[i];
+                const auto asset=object.mesh==ShowcaseMesh::Plane?0:object.mesh==ShowcaseMesh::Box?1:2;
+                instances[i].mesh=probeSdfScene?probeSdfScene->Instances()[i].mesh:probeSdfAssets[asset];
+                key.push_back(reinterpret_cast<std::uintptr_t>(instances[i].mesh.get()));}
+        }
+        bool fresh=false;SdfSceneKey completedKey;
+        if(probeSdfPendingScene.valid()&&probeSdfPendingScene.wait_for(0ms)==std::future_status::ready) {
+            auto completed=probeSdfPendingScene.get();completedKey=probeSdfPendingKey;
+            probeSdfSceneCache[completedKey]=std::move(completed);probeSdfPendingKey.clear();fresh=true;
+        }
+        if(!probeSdfScene) {
+            probeSdfScene=BuildProbeSdfScene(instances);probeSdfActiveKey=key;probeSdfSceneCache[key]=probeSdfScene;++probeSdfQualityStatus.sceneBuilds;
+        } else if(key!=probeSdfActiveKey) {
+            if(const auto found=probeSdfSceneCache.find(key);found!=probeSdfSceneCache.end()) {
+                probeSdfScene=found->second;probeSdfActiveKey=key;
+                if(!fresh||key!=completedKey)++probeSdfQualityStatus.cachedSceneSwitches;
+            } else if(!probeSdfPendingScene.valid()) {
+                const auto grid=probeSdfScene->Settings();probeSdfPendingKey=key;++probeSdfQualityStatus.sceneBuilds;
+                probeSdfPendingScene=std::async(std::launch::async,[instances,grid]{return BuildProbeSdfScene(instances,grid);});
+            }
+        }
+        // Only a complete scene is published. While another tier prepares,
+        // keep its predecessor's fields coherent with the current transforms.
+        auto active=instances;
+        if(key!=probeSdfActiveKey)for(unsigned i=0;i<active.size();++i)active[i].mesh=probeSdfScene->Instances()[i].mesh;
+        probeSdfScene->UpdateInstances(active);
+        while(probeSdfSceneCache.size()>24) {
+            auto item=std::find_if(probeSdfSceneCache.begin(),probeSdfSceneCache.end(),[&](const auto& entry){return entry.first!=probeSdfActiveKey&&entry.first!=probeSdfPendingKey;});
+            if(item==probeSdfSceneCache.end())break;probeSdfSceneCache.erase(item);
+        }
+        probeSdfQualityStatus.activeInstances={};
+        for(const auto& instance:probeSdfScene->Instances())++probeSdfQualityStatus.activeInstances[instance.mesh->Resolution()<=24?0:instance.mesh->Resolution()<=40?1:2];
+        probeSdfQualityStatus.pending=assetsPending||key!=probeSdfActiveKey;
+        probeSdfQualityStatus.cache=probeSdfLod->Statistics();
+    }
+#ifdef MATERIAL_LAB_HAS_MODEL
+#include "MaterialLab/Private/sdf_model_study.inl"
+#endif
     void AddShowcaseHud(RenderFrame& frame,const FrameSettings& settings) {
         const bool updating=showcaseRequestedHash!=showcaseGiHash;
         const auto output=settings.OutputExtent();
@@ -675,6 +928,10 @@ void main(){outColor=texture(hud,vUV);}
         lastPresented = true;
         Require(settings.width > 0 && settings.height > 0 && settings.width <= 8192 && settings.height <= 8192,
                 "Invalid framebuffer dimensions");
+        if(settings.screenProbeStudy) {
+            Require(!settings.giRoom&&!settings.showcase&&!settings.lightingStudy&&!settings.shadowStudy,"Probe placement is an independent scene");
+            Require(std::isfinite(settings.screenProbeStudyState.occluderOffset),"Invalid placement block transform");
+        }
         if(settings.showcase) {
             Require(settings.showcaseState.selected>=0&&settings.showcaseState.selected<int(ShowcaseMovableCount),"Invalid showcase selection");
             for(std::size_t i=0;i<ShowcaseMovableCount;++i) {
@@ -691,7 +948,7 @@ void main(){outColor=texture(hud,vUV);}
                 std::isfinite(settings.cameraYaw) && std::isfinite(settings.cameraPitch) &&
                 std::isfinite(settings.cameraDistance) && settings.cameraDistance >= 3.0f,
                 "Invalid camera/exposure");
-        const bool isolated = !settings.giRoom && !settings.showcase && !settings.shadowStudy && !settings.lightingStudy && settings.isolatedMaterial >= 0;
+        const bool isolated = !settings.screenProbeStudy && !settings.giRoom && !settings.showcase && !settings.shadowStudy && !settings.lightingStudy && settings.isolatedMaterial >= 0;
         Require(!isolated || static_cast<std::size_t>(settings.isolatedMaterial) < entries.size(), "Invalid material index");
         const glm::vec3 target = settings.lightingStudy ? glm::vec3(0,1,-.6f) : settings.shadowStudy ? glm::vec3(0, 0.5f, -0.8f) : isolated ? glm::vec3(0) : glm::vec3(0, 0.7f, 0);
         const float distance = settings.shadowStudy || settings.lightingStudy ? settings.cameraDistance * 0.65f : isolated ? std::max(2.4f, settings.cameraDistance / 4.5f) : settings.cameraDistance;
@@ -706,7 +963,35 @@ void main(){outColor=texture(hud,vUV);}
             result.material = Capture(material);
             return result;
         };
-        if(settings.giRoom) {
+        if(settings.sdfModelStudy) {
+#ifdef MATERIAL_LAB_HAS_MODEL
+            PrepareSdfModels(settings);InitializeProbePlacement();unsigned index=0;
+            if(settings.surfaceCacheStudy)InitializeSurfaceCacheMaterials(true);
+            const auto modelCamera=settings.camera.value_or(SdfModelCameraPreset(0,settings.OutputAspect()));
+            for(const auto& object:SdfModelBanquetObjects()) {
+                const auto tier=settings.sdfModelRasterLod?std::size_t(sdfModelActiveTiers[index]):2;
+                const auto placement=glm::dmat4(SdfModelObjectTransform(object,{settings.screenProbeStudyState.occluderOffset}))*sdfModelVariants->normalization;
+                std::string error;Require(sdfModelResources[tier]->AppendTo(frame,placement,glm::dvec3(0),modelCamera.view,&error),error);++index;
+            }
+            for(float depth:{4.f,-1.f,-7.f})frame.items.push_back(item(settings.surfaceCacheStudy?surfaceCacheMaterials[12]:placementMaterials[std::size_t(ProbePlacementMaterial::Block)],box,boxIndices,
+                glm::translate(glm::mat4(1),glm::vec3(0,.4f,depth))*glm::scale(glm::mat4(1),glm::vec3(10.8f,.45f,1.8f))));
+            frame.items.push_back(item(settings.surfaceCacheStudy?surfaceCacheMaterials[15]:placementMaterials[std::size_t(ProbePlacementMaterial::Floor)],plane,planeIndices,
+                glm::scale(glm::mat4(1),glm::vec3(11.7f,1,11.7f))));
+#else
+            throw std::runtime_error("SDF banquet requires the Model module; build with a compatible Assimp dependency");
+#endif
+        } else if(settings.screenProbeStudy) {
+            InitializeProbePlacement();
+            if(settings.surfaceCacheStudy)InitializeSurfaceCacheMaterials(false);
+            unsigned objectIndex=0;
+            for(const auto& object:settings.sdfProbeStudy?ProbeSdfObjects():ProbePlacementObjects()) {
+                const auto mesh=object.mesh==ShowcaseMesh::Sphere?sphere:object.mesh==ShowcaseMesh::Plane?plane:box;
+                const auto indices=object.mesh==ShowcaseMesh::Sphere?sphereIndices:object.mesh==ShowcaseMesh::Plane?planeIndices:boxIndices;
+                frame.items.push_back(item(settings.surfaceCacheStudy?surfaceCacheMaterials[objectIndex]:placementMaterials[std::size_t(object.material)],mesh,indices,
+                    ProbePlacementTransform(object,settings.screenProbeStudyState)));
+                ++objectIndex;
+            }
+        } else if(settings.giRoom) {
             InitializeGiRoom();
             for(const auto& object:GiRoomObjects()) {
                 const bool isPlane=object.mesh==ShowcaseMesh::Plane;
@@ -800,11 +1085,31 @@ void main(){outColor=texture(hud,vUV);}
             lighting.lightColors[i] = glm::vec4(colors[i], 1);
         }
         auto effects = settings.effects;
+        if(settings.sdfModelStudy)effects.screenProbePlacement.trace.sdf.scene=probeSdfScene;
+        else if(settings.sdfProbeStudy){PrepareProbeSdf(settings.screenProbeStudyState,effects.screenProbePlacement.trace.sdf,settings.camera?settings.camera->position:ProbePlacementCameraPreset(0,settings.OutputAspect()).position);
+            if(!effects.screenProbePlacement.trace.sdf.scene)effects.screenProbePlacement.trace.sdf.scene=probeSdfScene;}
+        if(settings.surfaceCacheStudy) {
+            Require(bool(probeSdfScene),"Surface Cache study requires a prepared SDF scene");
+            std::vector<SurfaceCacheMaterial> cacheMaterials;
+            cacheMaterials.reserve(probeSdfScene->Instances().size());
+            for(unsigned object=0;object<probeSdfScene->Instances().size();++object)
+                cacheMaterials.push_back({SurfaceCacheAlbedo(object,settings.sdfModelStudy),glm::vec3(0)});
+            if(!surfaceCacheScene)surfaceCacheScene=BuildSurfaceCache(*probeSdfScene,cacheMaterials);
+            else surfaceCacheScene->Update(*probeSdfScene,cacheMaterials);
+            if(!effects.surfaceCacheGi.cache)effects.surfaceCacheGi.cache=surfaceCacheScene;
+            if(!effects.surfaceCacheGi.scene)effects.surfaceCacheGi.scene=probeSdfScene;
+        }
         effects.lighting = lighting;
+        if(settings.screenProbeStudy)effects.lighting=settings.effects.lighting;
         effects.lighting.specularAA = settings.effects.lighting.specularAA;
         effects.post.exposure = settings.exposure;
         effects.time = settings.lightTime;
-        if(settings.showcase)ConfigureShowcaseLighting(effects,settings.showcaseState,settings.lightTime);
+        if(settings.showcase) {
+            ConfigureShowcaseLighting(effects,settings.showcaseState,settings.lightTime);
+            // The scene chooses its probe coverage; interactive work budgets
+            // remain caller-owned so the DebugUI slider persists across frames.
+            effects.lumenGi.surfaceUpdatesPerFrame=settings.effects.lumenGi.surfaceUpdatesPerFrame;
+        }
         if(settings.giRoom)ConfigureGiRoomLighting(effects,settings.giRoomState);
         if (isolated) effects.reflection.enabled = false;
         if (settings.shadowStudy) {
@@ -827,6 +1132,7 @@ void main(){outColor=texture(hud,vUV);}
         camera.view = glm::lookAt(eye, target, glm::vec3(0, 1, 0));
         camera.projection = glm::perspective(glm::radians(42.0f), settings.OutputAspect(), 0.1f, 100.0f);
         if(settings.camera)camera=*settings.camera;
+        else if(settings.screenProbeStudy)camera=ProbePlacementCameraPreset(0,settings.OutputAspect());
         else if(settings.giRoom)camera=GiRoomCameraPreset(0,settings.OutputAspect());
         else if(settings.showcase)camera=ShowcaseCameraPreset(0,settings.OutputAspect());
         if(settings.giRoom) {
@@ -854,6 +1160,7 @@ void main(){outColor=texture(hud,vUV);}
         }
         if(settings.showcase&&settings.showcaseHud)AddShowcaseHud(frame,settings);
         if(settings.giRoom&&settings.giRoomHud)AddGiRoomHud(frame,settings);
+        if(settings.screenProbeStudy&&settings.screenProbeStudyHud)AddProbePlacementHud(frame,settings);
         Require(pipeline->Resize(settings.width, settings.height, effects.shadows.atlasResolution,
             effects.temporal.msaaSamples, effects.reflection.resolutionScale), pipeline->LastError());
         RHICommand::BeginFrame begin;
@@ -862,12 +1169,17 @@ void main(){outColor=texture(hud,vUV);}
         begin.framebufferWidth = output.x; begin.framebufferHeight = output.y;
         begin.clearColor = glm::vec4(0.027f, 0.035f, 0.052f, 1);
         auto encoder = device.BeginFrame(begin);
-        if((settings.showcase&&settings.showcaseHud)||(settings.giRoom&&settings.giRoomHud))
+#ifdef MATERIAL_LAB_HAS_MODEL
+        if(settings.sdfModelStudy)for(const auto& model:sdfModelResources)Require(model->KeepAlive(encoder),"Cannot retain imported teapot render assets");
+#endif
+        if((settings.showcase&&settings.showcaseHud)||(settings.giRoom&&settings.giRoomHud)||(settings.screenProbeStudy&&settings.screenProbeStudyHud))
             Require(encoder.KeepAlive(showcaseHudOwner),"Cannot retain lab HUD");
-        if (!encoder.KeepAlive(owner) || !pipeline->Record(encoder, frame, camera, effects) || !encoder.End(settings.present)) {
+        if (!encoder.KeepAlive(owner) || !pipeline->Record(encoder, frame, camera, effects) ||
+            (debugUI && !debugUI->Record(encoder, output.x, output.y)) || !encoder.End(settings.present)) {
             encoder.Cancel();
             if (pipeline->RecordedFrameToken()) pipeline->DiscardFrame(pipeline->RecordedFrameToken());
-            throw std::runtime_error("PBR frame recording failed: " + pipeline->LastError());
+            throw std::runtime_error("PBR frame recording failed: " +
+                (debugUI && !debugUI->LastError().empty() ? debugUI->LastError() : pipeline->LastError()));
         }
         struct FrameCompletion { bool frameDone=false,timingDone=false; double gpuMilliseconds=0; };
         auto completion = std::make_shared<FrameCompletion>();
@@ -943,6 +1255,54 @@ void main(){outColor=texture(hud,vUV);}
     }
     std::vector<glm::vec4> ReadLumenGather() {
         return ReadFloatTexture(pipeline->DebugTextures().indirectIrradiance);
+    }
+    ScreenProbePlacementReadback ReadScreenProbePlacement() {
+        const auto debug=pipeline->DebugTextures();
+        ScreenProbePlacementReadback result;
+        result.uniformGridSize={debug.screenProbeGridWidth,debug.screenProbeGridHeight};
+        result.candidateCount=debug.screenProbeCandidateCount;
+        result.sourceWidth=debug.screenProbeSourceWidth;result.sourceHeight=debug.screenProbeSourceHeight;
+        result.frameIndex=debug.screenProbeFrameIndex;
+        const auto decode=[&](RenderResourceHandle<RHITextureSpec> texture,unsigned width,unsigned height,
+                              auto& positions,auto& normals) {
+            const auto data=ReadFloatTexture(texture);
+            Require(width%2==0&&data.size()==std::size_t(width)*height,"Invalid probe placement atlas");
+            positions.reserve(data.size()/2);normals.reserve(data.size()/2);
+            for(unsigned y=0;y<height;++y)for(unsigned x=0;x<width;x+=2) {
+                positions.push_back(data[std::size_t(y)*width+x]);
+                normals.push_back(data[std::size_t(y)*width+x+1]);
+            }
+        };
+        decode(debug.screenProbeUniform,debug.screenProbeUniformWidth,debug.screenProbeUniformHeight,result.uniform,result.uniformNormals);
+        decode(debug.screenProbeMarked,debug.screenProbeCandidateWidth,debug.screenProbeCandidateHeight,result.marked,result.markedNormals);
+        decode(debug.screenProbeSpawned,debug.screenProbeCandidateWidth,debug.screenProbeCandidateHeight,result.spawned,result.spawnedNormals);
+        return result;
+    }
+    ScreenProbeTraceReadback ReadScreenProbeTrace(bool includeSources,bool screenOnly) {
+        const auto debug=pipeline->DebugTextures();ScreenProbeTraceReadback result;
+        result.atlasSize={debug.screenProbeRayWidth,debug.screenProbeRayHeight};
+        result.sourceSize={debug.screenProbeSourceWidth,debug.screenProbeSourceHeight};
+        result.uniformGridSize={debug.screenProbeGridWidth,debug.screenProbeGridHeight};
+        result.rayResolution=debug.screenProbeRayResolution;result.candidateCount=debug.screenProbeCandidateCount;
+        result.probeSlots=result.uniformGridSize.x*result.uniformGridSize.y*(1+result.candidateCount);
+        const auto raw=ReadFloatTexture(screenOnly?debug.screenProbeScreenRays:debug.screenProbeRays);
+        const auto rays=std::size_t(result.probeSlots)*result.rayResolution*result.rayResolution;
+        Require(raw.size()>=rays*4,"Invalid screen ray atlas");
+        result.radianceStatus.reserve(rays);result.hitWorldDistance.reserve(rays);
+        result.hitPixelStepsMip.reserve(rays);result.rayDirectionDepthFetches.reserve(rays);
+        for(std::size_t ray=0;ray<rays;++ray) {
+            result.radianceStatus.push_back(raw[ray*4]);result.hitWorldDistance.push_back(raw[ray*4+1]);
+            result.hitPixelStepsMip.push_back(raw[ray*4+2]);result.rayDirectionDepthFetches.push_back(raw[ray*4+3]);
+        }
+        if(includeSources) {
+            result.sourceHdr=ReadFloatTexture(debug.screenProbeTraceSource);
+            result.sourceViewPositions=ReadFloatTexture(debug.screenProbeTracePositions);
+            result.sourceWorldNormals=ReadFloatTexture(debug.surfaceNormals);
+            for(unsigned level=0;level<debug.screenProbeHzbLevels;++level) {
+                result.hzbSizes.push_back(debug.screenProbeHzbSizes[level]);result.hzb.push_back(ReadFloatTexture(debug.screenProbeHzb[level]));
+            }
+        }
+        return result;
     }
     FrameTiming Measure(const FrameSettings& settings, std::uint32_t count,float timeStep) {
         Require(count > 0 && count <= 120, "Timing requires 1..120 frames");
@@ -1062,6 +1422,22 @@ bool MaterialLabModule::Render(const FrameSettings& settings) {
     try { impl_->Draw(settings); return true; }
     catch (const std::exception& error) { error_ = error.what(); return false; }
 }
+bool MaterialLabModule::EnableDebugUI(GLFWwindow* window, Render::BackendType backend) {
+    error_.clear();
+    if (!impl_) { error_ = "MaterialLab is not started"; return false; }
+    if (impl_->debugUI) return true;
+    if ((backend == BackendType::Vulkan) != vulkanContext_.has_value()) {
+        error_ = "DebugUI backend must match the MaterialLab render device";
+        return false;
+    }
+    auto ui = std::make_unique<DebugUI::DebugUIModule>(impl_->device, window, backend);
+    if (!ui->Startup()) { error_ = ui->LastError(); return false; }
+    impl_->debugUI = std::move(ui);
+    return true;
+}
+DebugUI::DebugUIModule* MaterialLabModule::GetDebugUI() noexcept {
+    return impl_ ? impl_->debugUI.get() : nullptr;
+}
 FramePixels MaterialLabModule::Readback() {
     error_.clear();
     if (!impl_) { error_ = "MaterialLab is not started"; return {}; }
@@ -1094,6 +1470,59 @@ std::vector<glm::vec4> MaterialLabModule::ReadbackLumenSurfaceCache(bool directL
 std::vector<glm::vec4> MaterialLabModule::ReadbackLumenGather() {
     error_.clear();if(!impl_){error_="MaterialLab is not started";return {};}
     try{return impl_->ReadLumenGather();}catch(const std::exception& e){error_=e.what();return {};}
+}
+ScreenProbePlacementReadback MaterialLabModule::ReadbackScreenProbePlacement() {
+    error_.clear();if(!impl_){error_="MaterialLab is not started";return {};}
+    try{return impl_->ReadScreenProbePlacement();}catch(const std::exception& e){error_=e.what();return {};}
+}
+ScreenProbeTraceReadback MaterialLabModule::ReadbackScreenProbeTrace(bool includeSources,bool screenOnly) {
+    if(!impl_){error_="Material lab not started";return {};}
+    try{return impl_->ReadScreenProbeTrace(includeSources,screenOnly);}catch(const std::exception& e){error_=e.what();return {};}
+}
+std::shared_ptr<const Render::ProbeSdfScene> MaterialLabModule::PreparedProbeSdfScene() const {return impl_?impl_->probeSdfScene:nullptr;}
+ProbeSdfQualityStatus MaterialLabModule::ProbeSdfQualityStatistics() const {return impl_?impl_->probeSdfQualityStatus:ProbeSdfQualityStatus{};}
+std::shared_ptr<const Render::SurfaceCacheScene> MaterialLabModule::PreparedSurfaceCache() const {return impl_?impl_->surfaceCacheScene:nullptr;}
+std::vector<glm::vec4> MaterialLabModule::ReadbackSurfaceCacheAtlas() {
+    error_.clear();if(!impl_){error_="MaterialLab is not started";return {};}
+    try{return impl_->ReadFloatTexture(impl_->pipeline->DebugTextures().surfaceCacheAtlas);}catch(const std::exception& e){error_=e.what();return {};}
+}
+std::vector<glm::vec4> MaterialLabModule::ReadbackSurfaceCacheRawGi() {
+    error_.clear();if(!impl_){error_="MaterialLab is not started";return {};}
+    try{return impl_->ReadFloatTexture(impl_->pipeline->DebugTextures().surfaceCacheRawGi);}catch(const std::exception& e){error_=e.what();return {};}
+}
+std::vector<glm::vec4> MaterialLabModule::ReadbackSurfaceCacheProbeIrradiance() {
+    error_.clear();if(!impl_){error_="MaterialLab is not started";return {};}
+    try{return impl_->ReadFloatTexture(impl_->pipeline->DebugTextures().surfaceCacheProbeIrradiance);}catch(const std::exception& e){error_=e.what();return {};}
+}
+std::vector<glm::vec4> MaterialLabModule::ReadbackSurfaceCacheTemporalGi() {
+    if(!impl_||!impl_->pipeline)return {};
+    try{return impl_->ReadFloatTexture(impl_->pipeline->DebugTextures().surfaceCacheTemporalGi);}catch(const std::exception& e){error_=e.what();return {};}
+}
+std::vector<glm::vec4> MaterialLabModule::ReadbackSurfaceCacheTemporalHistory() {
+    if(!impl_||!impl_->pipeline)return {};
+    try{return impl_->ReadFloatTexture(impl_->pipeline->DebugTextures().surfaceCacheTemporalHistory);}catch(const std::exception& e){error_=e.what();return {};}
+}
+bool MaterialLabModule::SetSurfaceCacheReceiverAlbedoForTest(std::uint32_t objectIndex,glm::vec3 albedo) {
+    error_.clear();
+    if(!impl_||objectIndex>=impl_->surfaceCacheMaterials.size()){error_="Invalid Surface Cache receiver object";return false;}
+    return impl_->materials.SetParameter(impl_->surfaceCacheMaterials[objectIndex],"baseColor",glm::vec4(albedo,1),&error_);
+}
+std::vector<glm::vec4> MaterialLabModule::ReadbackSurfaceCacheCoverage() {
+    error_.clear();if(!impl_){error_="MaterialLab is not started";return {};}
+    try{return impl_->ReadFloatTexture(impl_->pipeline->DebugTextures().surfaceCacheCoverage);}catch(const std::exception& e){error_=e.what();return {};}
+}
+std::vector<glm::vec4> MaterialLabModule::ReadbackProbeGlobalSdf() {
+    error_.clear();if(!impl_){error_="MaterialLab is not started";return {};}
+    try{return impl_->ReadFloatTexture(impl_->pipeline->DebugTextures().probeGlobalSdf);}catch(const std::exception& e){error_=e.what();return {};}
+}
+std::vector<glm::vec4> MaterialLabModule::ReadbackProbeSdfVolume() {
+    error_.clear();if(!impl_){error_="MaterialLab is not started";return {};}
+    try{return impl_->ReadFloatTexture(impl_->pipeline->DebugTextures().probeSdfVolumeView);}catch(const std::exception& e){error_=e.what();return {};}
+}
+std::vector<glm::vec4> MaterialLabModule::ReadbackProbeSdfRanges() {
+    error_.clear();if(!impl_){error_="MaterialLab is not started";return {};}
+    try{return impl_->ReadFloatTexture(impl_->pipeline->DebugTextures().probeSdfRanges);}
+    catch(const std::exception& e){error_=e.what();return {};}
 }
 glm::vec3 MaterialLabModule::InspectPipelineBuffers() {
     error_.clear();

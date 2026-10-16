@@ -1,8 +1,9 @@
 @echo off
 setlocal
 pushd "%~dp0..\.."
-set "giRoomExecutable=bin\material_lab_demo.exe"
-if exist "output\Release\bin\material_lab_demo.exe" set "giRoomExecutable=output\Release\bin\material_lab_demo.exe"
+set "giRoomExecutable=output\sdf-banquet\Debug\bin\material_lab_demo.exe"
+if not exist "%giRoomExecutable%" set "giRoomExecutable=output\Release\bin\material_lab_demo.exe"
+if not exist "%giRoomExecutable%" set "giRoomExecutable=bin\material_lab_demo.exe"
 if not exist "%giRoomExecutable%" (
     echo Build material_lab_demo before launching the sealed GI room.
     pause

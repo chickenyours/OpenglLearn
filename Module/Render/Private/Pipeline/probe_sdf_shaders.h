@@ -317,11 +317,10 @@ void PSTrace(int rayGlobal,out vec4 color,out vec4 hit,out vec4 metadata,out vec
         // the same view-independent outgoing radiance as off-screen hits,
         // rather than borrowing specular highlights from the scene HDR.
         if(cacheOnlyRadiance) {
-            ivec2 pixel=ivec2(metadata.xy);int cached;
+            ivec2 pixel=ivec2(metadata.xy);vec3 value;
             vec4 hitNormal=texelFetch(psWorldNormals,pixel,0);
             if(psAtlas.w>=3&&hitNormal.w>.5&&PSFinite(hitNormal.xyz)&&
-                dot(hitNormal.xyz,hitNormal.xyz)>.5&&SCLookup(hit.xyz,normalize(hitNormal.xyz),cached)) {
-                vec3 value=SCValue(cached);
+                dot(hitNormal.xyz,hitNormal.xyz)>.5&&SCSampleLighting(hit.xyz,normalize(hitNormal.xyz),value)) {
                 color=PSFinite(value)?vec4(value,1):vec4(0,0,0,7);
             } else color=vec4(0,0,0,17);
         }
@@ -372,9 +371,9 @@ void PSTrace(int rayGlobal,out vec4 color,out vec4 hit,out vec4 metadata,out vec
     // Cached outgoing radiance remains available outside the current view.
     // The packed triangle owner prevents borrowing a neighbouring object's page.
     if(!readable&&psAtlas.w>=3&&dot(hitNormal,-direction)>0) {
-        int cached,owner=SCTriangleOwner(triangle);
-        if(owner>=0&&SCLookupObject(hit.xyz,hitNormal,owner,cached)) {
-            radiance=SCValue(cached);pixel=ivec2(-1);invalidRadiance=!PSFinite(radiance);
+        int owner=SCTriangleOwner(triangle);
+        if(owner>=0&&SCSampleLightingObject(hit.xyz,hitNormal,owner,radiance)) {
+            pixel=ivec2(-1);invalidRadiance=!PSFinite(radiance);
             readable=!invalidRadiance;if(invalidRadiance)radiance=vec3(0);
         }
     }

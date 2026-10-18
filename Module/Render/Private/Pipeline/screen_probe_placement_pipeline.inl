@@ -92,12 +92,14 @@ void RecordScreenProbePlacement(RHIFrameEncoder& encoder,const RenderFrame& fram
         return;
     }
     const auto currentViewProjection=camera.projection*camera.view;
+    const auto geometryGeneration=s.trace.cosineHemisphere&&s.trace.sdf.scene?s.trace.sdf.scene->GeometryGeneration():0;
     bool cameraCompatible=true;
     if(s.trace.cosineHemisphere)for(int col=0;col<4;++col)for(int row=0;row<4;++row)
         cameraCompatible&=std::abs(placementCompleted.viewProjection[col][row]-currentViewProjection[col][row])<1e-6f;
     // GI reconstruction addresses screen tiles, so a camera change must
     // regenerate that stencil even when diagnostic placement is frozen.
-    const bool compatible=placementCompleted.valid&&cameraCompatible&&placementCompleted.sourceWidth==width&&placementCompleted.sourceHeight==height&&
+    const glm::vec4 refinement{s.cornerRefinement&&s.trace.cosineHemisphere?1.f:0.f,s.cornerDetectionRadius,s.cornerProbeSupport,std::cos(glm::radians(s.cornerNormalAngleDegrees))};
+    const bool compatible=placementCompleted.valid&&cameraCompatible&&placementCompleted.refinement==refinement&&placementCompleted.geometryGeneration==geometryGeneration&&placementCompleted.sourceWidth==width&&placementCompleted.sourceHeight==height&&
         placementCompleted.spacing==s.baseSpacing&&placementCompleted.candidates==s.candidateCount&&
         placementCompleted.threshold==s.relativeDepthThreshold&&placementCompleted.adaptive==s.adaptive&&
         placementCompleted.cosineHemisphere==s.trace.cosineHemisphere;
@@ -109,6 +111,7 @@ void RecordScreenProbePlacement(RHIFrameEncoder& encoder,const RenderFrame& fram
     c.viewProjection=camera.projection*camera.view;c.view=camera.view;
     c.grid=glm::ivec4(int(placementUniform[image].width/2),int(placementUniform[image].height),int(s.candidateCount),int(s.baseSpacing));
     c.screen=glm::ivec4(int(width),int(height),int(phase),int(s.debugView));c.options=glm::vec4(s.relativeDepthThreshold,s.markerRadiusPixels,s.adaptive?1:0,0);
+    c.refinement=refinement;
     const auto rayImage=traceCompleted.valid?1-traceCompleted.image:0;
     if(s.trace.enabled) {
         const auto mode=1u|(s.trace.cosineHemisphere?2u:0u)|(s.trace.samplingSeed<<2);
@@ -149,7 +152,7 @@ void RecordScreenProbePlacement(RHIFrameEncoder& encoder,const RenderFrame& fram
         draw(placementUniform[image],placementUniformProgram);
         draw(placementMarked[image],placementMarkProgram);
         draw(placementSpawned[image],placementSpawnProgram);
-        placementPending={true,image,phase,s.baseSpacing,s.candidateCount,width,height,s.relativeDepthThreshold,s.adaptive,sequence+1,s.trace.cosineHemisphere,currentViewProjection};
+        placementPending={true,image,phase,s.baseSpacing,s.candidateCount,width,height,s.relativeDepthThreshold,s.adaptive,sequence+1,s.trace.cosineHemisphere,currentViewProjection,geometryGeneration,refinement};
     } else placementPending=placementCompleted;
     if(s.trace.enabled) {
         // Snapshot HDR before every visualization pass. Diagnostics must never

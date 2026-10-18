@@ -107,7 +107,7 @@ struct Options {
     double maxFps=-1; // Automatic: interactive 60; benchmark/smoke uncapped.
     std::uint32_t captureEvery=6;
     std::string curveBone,focusBone;
-    int regionCategory=-1;
+    int regionCategory=-1,frameRegion=-2;
     std::uint32_t frames=0;
     std::uint32_t benchmarkWarmup=30;
 };
@@ -129,7 +129,7 @@ Options Parse(const std::vector<std::string>& args) {
         else if (a=="--vsync"){result.noVsync=false;result.vsyncExplicit=true;}
         else if (a=="--sync-cloth")result.syncCloth=true;
         else if (a=="--async-cloth-test"){result.asyncClothTest=true;result.benchmark=true;}
-        else if (a=="--source"||a=="--package"||a=="--screenshot"||a=="--frames"||a=="--retarget-source"||a=="--animation"||a=="--vmd"||a=="--time"||a=="--curve-bone"||a=="--focus-bone"||a=="--character"||a=="--capture-dir"||a=="--capture-every"||a=="--cloth-hold-at"||a=="--yaw"||a=="--distance"||a=="--benchmark-frames"||a=="--benchmark-warmup"||a=="--benchmark-output"||a=="--max-fps"||a=="--hair"||a=="--region-category") {
+        else if (a=="--source"||a=="--package"||a=="--screenshot"||a=="--frames"||a=="--retarget-source"||a=="--animation"||a=="--vmd"||a=="--time"||a=="--curve-bone"||a=="--focus-bone"||a=="--character"||a=="--capture-dir"||a=="--capture-every"||a=="--cloth-hold-at"||a=="--yaw"||a=="--distance"||a=="--benchmark-frames"||a=="--benchmark-warmup"||a=="--benchmark-output"||a=="--max-fps"||a=="--hair"||a=="--region-category"||a=="--frame-region") {
             Check(++i<args.size(),"Missing value for "+a);
             if(a=="--source")result.source=Path(args[i]);
             else if(a=="--package")result.package=Path(args[i]);
@@ -143,12 +143,13 @@ Options Parse(const std::vector<std::string>& args) {
             else if(a=="--vmd")result.vmds.push_back(Path(args[i]));
             else if(a=="--curve-bone")result.curveBone=args[i];
             else if(a=="--focus-bone")result.focusBone=args[i];
-            else if(a=="--region-category") {
+            else if(a=="--region-category"||a=="--frame-region") {
                 auto category=args[i];std::transform(category.begin(),category.end(),category.begin(),[](unsigned char c){return char(std::tolower(c));});
                 const std::array<std::string,6> names{"all","unknown","body","hair","garment","accessory"};
                 const auto found=std::find(names.begin(),names.end(),category);
                 Check(found!=names.end(),"Invalid region category (use all, unknown, body, hair, garment or accessory)");
-                result.regionCategory=int(found-names.begin())-1;result.meshRegions=true;
+                if(a=="--frame-region")result.frameRegion=int(found-names.begin())-1;
+                else {result.regionCategory=int(found-names.begin())-1;result.meshRegions=true;}
             }
             else if(a=="--time"){result.startTime=std::stod(args[i]);Check(std::isfinite(result.startTime)&&result.startTime>=0,"Invalid preview time");}
             else if(a=="--cloth-hold-at"){result.holdAt=std::stod(args[i]);Check(std::isfinite(result.holdAt)&&result.holdAt>=0,"Invalid cloth hold time");}
@@ -572,10 +573,10 @@ class Editor {
         selectedMesh_=selectedVertex_=0;addRoleBone_=selectedBone_;enableIk_=false;bindPose_=false;fontsDirty_=true;
         selectedRegionMesh_=0;regionCategoryFilter_=-1;isolateRegion_=regionEdits_=false;regionFilter_.fill(0);
         for(const auto& region:asset_->meshRegions)if(region.kind==MeshRegionKind::Garment){selectedRegionMesh_=int(region.mesh);break;}
-        // A Blender source with no authored clip opens as a static asset
+        // An interchange source with no authored clip opens as a static asset
         // inspection. Do not skin/upload a high-resolution mesh continuously
         // just to play the generated diagnostic sequence.
-        if(asset_->sourceFormat=="blend"&&std::all_of(asset_->animations.begin(),asset_->animations.end(),[](const auto& clip){return clip.generated;})) {
+        if((asset_->sourceFormat=="blend"||asset_->sourceFormat=="fbx")&&std::all_of(asset_->animations.begin(),asset_->animations.end(),[](const auto& clip){return clip.generated;})) {
             selectedClip_=std::max(0,GeneratedClip(*asset_,"BindPose"));bindPose_=true;playing_=false;
         }
         if(asset_->sourceFormat=="blend")if(const auto sourcePose=GeneratedClip(*asset_,"SourcePose");sourcePose>=0) {
@@ -795,6 +796,27 @@ class Editor {
         const auto* region=RegionInfo(mesh);
         const auto kind=region?region->kind:MeshRegionKind::Unknown;
         return regionCategoryFilter_<0||int(kind)==regionCategoryFilter_;
+    }
+    void FramePreviewRegions(int kind=-1,bool visibleOnly=false) {
+        Model::Bounds bounds;
+        // Eight cached bound corners per instance, independent of high-poly
+        // vertex count. Keep the model placement unchanged when focusing.
+        for(const auto& instance:deformed_.instances) {
+            if(instance.meshIndex>=deformed_.meshes.size())continue;
+            if(visibleOnly&&!RegionVisible(instance.meshIndex))continue;
+            const auto* region=RegionInfo(instance.meshIndex);
+            if(kind>=0&&(!region||int(region->kind)!=kind))continue;
+            const auto& local=deformed_.meshes[instance.meshIndex].bounds;
+            if(!local.valid)continue;
+            const auto transform=placement_*instance.transform;
+            for(unsigned corner=0;corner<8;++corner)bounds.Include(glm::dvec3(transform*glm::dvec4(
+                corner&1?local.maximum.x:local.minimum.x,
+                corner&2?local.maximum.y:local.minimum.y,
+                corner&4?local.maximum.z:local.minimum.z,1)));
+        }
+        if(!bounds.valid){status_="No matching visible sections to frame";return;}
+        trackedCameraBone_=-1;cameraFocus_=glm::vec3(bounds.Center());
+        distance_=std::clamp(float(glm::length(bounds.Extent())*.56/std::sin(glm::radians(21.5))),1.f,20.f);
     }
     void AppendPreviewBody(Render::RenderFrame& frame,std::string& error)const {
         if(!RegionPreviewFilter()){Check(resource_->AppendTo(frame,placement_,glm::dvec3(0),camera_.view,&error),error);return;}
@@ -1016,6 +1038,7 @@ class Editor {
         }
         ImGui::Checkbox("Isolate selected section",&isolateRegion_);
         ImGui::SameLine();if(ImGui::Button("Show all")){isolateRegion_=false;regionCategoryFilter_=-1;}
+        if(ImGui::Button("Frame visible"))FramePreviewRegions(-1,true);
         ImGui::BeginChild("region-sections",ImVec2(0,190),ImGuiChildFlags_Borders);
         for(const auto& region:asset_->meshRegions) {
             if(region.mesh>=asset_->geometry->meshes.size())continue;
@@ -1024,9 +1047,10 @@ class Editor {
             const auto& material=region.sourceMaterial;
             const auto name=material.empty()?mesh.name:material;
             if(regionFilter_[0]&&name.find(regionFilter_.data())==std::string::npos&&
-                mesh.name.find(regionFilter_.data())==std::string::npos&&region.sourceObject.find(regionFilter_.data())==std::string::npos)continue;
+                mesh.name.find(regionFilter_.data())==std::string::npos&&region.sourceObject.find(regionFilter_.data())==std::string::npos&&
+                std::none_of(region.evidence.begin(),region.evidence.end(),[&](const auto& item){return item.find(regionFilter_.data())!=std::string::npos;}))continue;
             ImGui::PushID(int(region.mesh));
-            const auto label="#"+std::to_string(region.mesh)+" "+name;
+            const auto label="#"+std::to_string(region.mesh)+" "+(region.sourceObject.empty()?std::string{}:region.sourceObject+" | ")+name;
             if(ImGui::Selectable(label.c_str(),selectedRegionMesh_==int(region.mesh)))selectedRegionMesh_=int(region.mesh);
             ImGui::TextDisabled("%s | %.0f%%%s%s",MeshRegionKindName(region.kind),region.confidence*100,region.authoredCloth?" | Cloth":"",region.requiresReview?" | Review":"");
             ImGui::PopID();
@@ -1612,6 +1636,7 @@ public:
             std::cout<<"Mesh region preview: category="<<category<<"; expected visible sections="<<visible<<" / "<<asset_->geometry->meshes.size()<<'\n';
         }
         yaw_=float(options.yaw);distance_=float(options.distance);
+        if(options.frameRegion>=-1)FramePreviewRegions(options.frameRegion);
         if(!options.focusBone.empty()){for(std::size_t i=0;i<asset_->skeleton.bones.size();++i)if(asset_->skeleton.bones[i].name==options.focusBone||asset_->skeleton.bones[i].englishName==options.focusBone){trackedCameraBone_=int(i);break;}Check(trackedCameraBone_>=0,"Camera focus bone was not found");}
         Check(toon_.Initialize(),toon_.LastError());settings_.backgroundColor=glm::vec4(.95f,.96f,.98f,1);settings_.groundHeight=-1.5f;
         IMGUI_CHECKVERSION();ImGui::CreateContext();guiReady_=true;

@@ -101,8 +101,8 @@ inline AreaLightsConstants MakeAreaLightsConstants(const AreaLightsSettings& set
 // uses no textures, screen derivatives, random phase or external global state.
 // It integrates unoccluded rectangle lights; area shadows need a visibility
 // solution and are deliberately not approximated by the directional CSM.
-inline std::string AreaLightsGLSL() {
-    return R"GLSL(
+inline std::string AreaLightsGLSL(bool shadowVisibility = false) {
+    std::string source = R"GLSL(
 struct RectAreaLightData {
     vec4 centerEnabled;
     vec4 halfAxisU;
@@ -226,6 +226,19 @@ void EvaluateAreaLighting(vec3 worldPosition, vec3 viewDirection, vec3 shadingNo
                          perceptualRoughness, directDiffuse, directSpecular, 0.05);
 }
 )GLSL";
+    if (shadowVisibility) {
+        // The opt-in caller supplies AreaLightVisibility. Keep the ordinary
+        // PBR shader byte-for-byte unchanged, including its unoccluded path.
+        const auto incoming = source.find("            vec3 incoming =");
+        source.insert(incoming,
+            "            float areaVisibility = AreaLightVisibility(worldPosition, Ng, L, distanceToLight, index, y * grid + x);\n"
+            "            if (areaVisibility <= 0.0) continue;\n");
+        const std::string factor = "(cellArea * emitterCosine * NdotL * geometricHorizon / distanceSquared)";
+        const auto weight = source.find(factor);
+        source.replace(weight, factor.size(),
+            "(cellArea * emitterCosine * NdotL * geometricHorizon * areaVisibility / distanceSquared)");
+    }
+    return source;
 }
 
 } // namespace Render

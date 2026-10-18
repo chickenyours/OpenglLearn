@@ -83,6 +83,7 @@ struct MaterialLabModule::Impl {
     std::size_t pendingCreates = 0;
     std::shared_ptr<const void> owner;
     MaterialPassResources common;
+    MaterialPassResources sealedRoomCommon;
     MaterialPassResources translucent;
     struct Entry {
         std::string name;
@@ -103,10 +104,13 @@ struct MaterialLabModule::Impl {
     std::array<MaterialHandle,std::size_t(ProbePlacementMaterial::Count)> placementMaterials{};
     bool placementMaterialsReady=false;
     std::vector<MaterialHandle> surfaceCacheMaterials;
-    bool surfaceCacheMaterialsBanquet=false;
+    bool surfaceCacheMaterialsBanquet=false,surfaceCacheMaterialsSealed=false;
+    bool sealedRoomEmissionReady=false;
+    glm::vec3 sealedRoomEmission{0};
     std::shared_ptr<SurfaceCacheScene> surfaceCacheScene;
     std::array<std::shared_ptr<const ProbeMeshSdf>,3> probeSdfAssets;
     std::shared_ptr<ProbeSdfScene> probeSdfScene;
+    bool probeSdfSealedRoom=false;
     std::unique_ptr<ProbeSdfLodCache> probeSdfLod;
     std::array<std::uint32_t,3> probeSdfAssetIds{};
     std::vector<ProbeSdfQuality> probeSdfRequestedTiers;
@@ -180,6 +184,7 @@ struct MaterialLabModule::Impl {
         materials.Clear();
         entries.clear();
         common = {};
+        sealedRoomCommon = {};
         translucent = {};
         meshes.reset();
         owner.reset();
@@ -541,25 +546,54 @@ struct MaterialLabModule::Impl {
         if(object==10)return {.035f,.55f,.07f};
         return object==0?glm::vec3(.65f):glm::vec3(.70f);
     }
-    void InitializeSurfaceCacheMaterials(bool banquet) {
-        if(!surfaceCacheMaterials.empty()&&surfaceCacheMaterialsBanquet==banquet)return;
-        surfaceCacheMaterials.clear();surfaceCacheMaterialsBanquet=banquet;
-        const auto count=banquet?16u:unsigned(ProbeSdfObjects().size());
+    void InitializeSealedRoomPass() {
+        if(sealedRoomCommon.pipeline.IsValid())return;
+        // The ordinary material path remains unchanged. Only this room opts in
+        // to software visibility for each rectangle-light sample.
+        sealedRoomCommon=common;
+        CreateGraphicShaderDesc sources;
+        sources.vertexShaderSource=Shader(ShaderSourceType::Vertex,PbrVertexShader());
+        sources.fragmentShaderSource=Shader(ShaderSourceType::Fragment,PbrFragmentShader(Domain::Surface,PbrOutput::Surface,true));
+        const auto program=Create<ShaderProgramSpec>([&](auto cb){device.async_CreateGraphicShader(sources,cb);},"sealed room PBR program");
+        CreatePipelineDesc desc{PbrPipelineSpec(program)};
+        sealedRoomCommon.pipeline=Create<PipelineSpec>([&](auto cb){device.async_CreatePipeline(desc,cb);},"sealed room PBR pipeline");
+        owned.dependencies.push_back(owner);
+        sealedRoomCommon.lifetime=RetainMaterialResources(device,std::exchange(owned,{}));
+    }
+    void InitializeSurfaceCacheMaterials(bool banquet,bool sealed=false) {
+        if(!surfaceCacheMaterials.empty()&&surfaceCacheMaterialsBanquet==banquet&&surfaceCacheMaterialsSealed==sealed)return;
+        surfaceCacheMaterials.clear();surfaceCacheMaterialsBanquet=banquet;surfaceCacheMaterialsSealed=sealed;
+        sealedRoomEmissionReady=false;
+        if(sealed)InitializeSealedRoomPass();
+        const auto count=sealed?unsigned(SealedGiRoomObjects().size()):banquet?16u:unsigned(ProbeSdfObjects().size());
         for(unsigned object=0;object<count;++object) {
-            auto asset=MaterialAsset::Create(common.expectedTemplate,{{"baseColor",glm::vec4(SurfaceCacheAlbedo(object,banquet),1)},
-                {"roughness",.9f},{"metallic",0.f}});
-            Require(bool(asset),"Invalid Surface Cache scene material");surfaceCacheMaterials.push_back(Register(asset,common));
+            const auto material=sealed?SealedGiRoomObjectMaterial(object):SealedGiRoomMaterial{SurfaceCacheAlbedo(object,banquet),.9f,glm::vec3(0)};
+            const auto& pass=sealed?sealedRoomCommon:common;
+            auto asset=sealed?MaterialAsset::Create(pass.expectedTemplate,{{"baseColor",glm::vec4(material.albedo,1)},
+                {"roughness",material.roughness},{"metallic",0.f},
+                {"emissiveColor",glm::vec4(material.emission,0)},{"emissiveIntensity",1.f}}):
+                MaterialAsset::Create(pass.expectedTemplate,{{"baseColor",glm::vec4(SurfaceCacheAlbedo(object,banquet),1)},
+                    {"roughness",.9f},{"metallic",0.f}});
+            Require(bool(asset),"Invalid Surface Cache scene material");surfaceCacheMaterials.push_back(Register(asset,pass));
         }
+    }
+    void UpdateSealedRoomEmission(const AreaLightsSettings& lights) {
+        const auto radiance=lights.count&&lights.lights[0].enabled?lights.lights[0].radiance:glm::vec3(0);
+        if(sealedRoomEmissionReady&&sealedRoomEmission==radiance)return;
+        std::string error;
+        Require(materials.SetParameter(surfaceCacheMaterials.at(SealedGiRoomLampIndex),"emissiveColor",glm::vec4(radiance,0),&error),error);
+        sealedRoomEmission=radiance;sealedRoomEmissionReady=true;
     }
     void AddProbePlacementHud(RenderFrame& frame,const FrameSettings& settings) {
         const auto& s=settings.effects.screenProbePlacement;
         if(settings.surfaceCacheStudy) {
             const auto& gi=settings.effects.surfaceCacheGi;
-            const char* views[]{"TOTAL DIFFUSE GI","SURFACE CACHE LIGHTING","INDIRECT GI","CACHE COVERAGE","CARD ATLAS","HISTORY LENGTH"};
-            std::string text="SURFACE CACHE / "+std::string(views[std::min(gi.view,5u)])+"\n";
+            const char* views[]{"TOTAL DIFFUSE GI","SURFACE CACHE LIGHTING","INDIRECT GI","CACHE COVERAGE","CARD ATLAS","HISTORY LENGTH","PROBE GEOMETRIC COVERAGE"};
+            std::string text=std::string(settings.sealedGiRoomStudy?"SEALED CERAMIC ROOM / ":"SURFACE CACHE / ")+views[std::min(gi.view,6u)]+"\n";
             text+=gi.useScreenProbes?"ADAPTIVE SURFACE PROBES / "+std::to_string(s.trace.rayResolution*s.trace.rayResolution)+" RAYS PER PROBE / SPACING "+std::to_string(s.baseSpacing)+"\n":
                 "PIXEL REFERENCE / "+std::to_string(gi.raysPerPixel)+" RAYS PER PIXEL\n";
             text+=gi.temporal.enabled&&gi.useScreenProbes?"TEMPORAL GI / "+std::to_string(gi.temporal.maxFrames)+" FRAMES / "+std::to_string(gi.temporal.directionPhases)+" PHASES / T ON-OFF / G RESET\n":"SINGLE FRAME GI / T TEMPORAL / G RESET\n";
+            text+=gi.spatial.enabled&&gi.useScreenProbes?"SPATIAL GI / "+std::to_string(gi.spatial.passes)+" PASSES / H ON-OFF / B PROBE COVERAGE\n":"SPATIAL OFF / H ON-OFF / B PROBE COVERAGE\n";
             text+="V VIEW / F5 GI / F6 REFERENCE / F7 RAYS / P PROBES\n";
             text+="F2 ADAPTIVE / F3 SPACING / J SEED / SPACE FREEZE\n";
             text+="1 OVERVIEW / 2 SIDE / 3 CLOSE / ARROWS MOVE BLOCK\n";
@@ -671,7 +705,17 @@ struct MaterialLabModule::Impl {
         if(settings.displayFps>0)text+=" / FPS "+std::to_string(int(settings.displayFps));
         AddLabHud(frame,settings,text);
     }
-    void PrepareProbeSdf(const ProbePlacementSceneSettings& state,const ProbeSdfTracingSettings& quality,glm::vec3 cameraPosition) {
+    void PrepareProbeSdf(const ProbePlacementSceneSettings& state,const ProbeSdfTracingSettings& quality,glm::vec3 cameraPosition,bool sealed=false) {
+        const auto& objects=sealed?SealedGiRoomObjects():ProbeSdfObjects();
+        if(probeSdfSealedRoom!=sealed) {
+            // Legacy and sealed rooms share primitive fields, but have different
+            // instance orders/counts. Never reuse a scene keyed only by MDFs.
+            if(probeSdfPendingScene.valid())probeSdfPendingScene.get();
+            probeSdfScene.reset();probeSdfSceneCache.clear();
+            probeSdfActiveKey.clear();probeSdfPendingKey.clear();
+            probeSdfRequestedTiers.assign(objects.size(),ProbeSdfQuality::Medium);
+            surfaceCacheScene.reset();probeSdfSealedRoom=sealed;
+        }
         if(!probeSdfAssets[0]) {
             const std::array<MeshData,3> meshes{MakePlane(),MakeBox(),MakeSphere(48,64)};
             for(unsigned index=0;index<meshes.size();++index){std::vector<ProbeTriangle> triangles;const auto& mesh=meshes[index];
@@ -686,10 +730,10 @@ struct MaterialLabModule::Impl {
                 probeSdfLod->Request(probeSdfAssetIds[index],ProbeSdfQuality::Low);
                 probeSdfLod->Request(probeSdfAssetIds[index],ProbeSdfQuality::High);
             }
-            probeSdfRequestedTiers.assign(ProbeSdfObjects().size(),ProbeSdfQuality::Medium);
+            probeSdfRequestedTiers.assign(objects.size(),ProbeSdfQuality::Medium);
         }
         std::vector<ProbeSdfInstance> instances;SdfSceneKey key;unsigned index=0;bool assetsPending=false;
-        for(const auto& object:ProbeSdfObjects()) {
+        for(const auto& object:objects) {
             const auto asset=object.mesh==ShowcaseMesh::Plane?0:object.mesh==ShowcaseMesh::Box?1:2;
             const auto transform=ProbePlacementTransform(object,state);
             auto desired=static_cast<ProbeSdfQuality>(quality.meshQuality);
@@ -707,7 +751,7 @@ struct MaterialLabModule::Impl {
         }
         if(assetsPending&&!quality.automaticQuality) {
             key.clear();
-            for(unsigned i=0;i<instances.size();++i){const auto& object=ProbeSdfObjects()[i];
+            for(unsigned i=0;i<instances.size();++i){const auto& object=objects[i];
                 const auto asset=object.mesh==ShowcaseMesh::Plane?0:object.mesh==ShowcaseMesh::Box?1:2;
                 instances[i].mesh=probeSdfScene?probeSdfScene->Instances()[i].mesh:probeSdfAssets[asset];
                 key.push_back(reinterpret_cast<std::uintptr_t>(instances[i].mesh.get()));}
@@ -932,6 +976,9 @@ void main(){outColor=texture(hud,vUV);}
             Require(!settings.giRoom&&!settings.showcase&&!settings.lightingStudy&&!settings.shadowStudy,"Probe placement is an independent scene");
             Require(std::isfinite(settings.screenProbeStudyState.occluderOffset),"Invalid placement block transform");
         }
+        if(settings.sealedGiRoomStudy)
+            Require(settings.screenProbeStudy&&settings.sdfProbeStudy&&settings.surfaceCacheStudy&&!settings.sdfModelStudy,
+                "Sealed GI room requires the independent Surface Cache primitive scene");
         if(settings.showcase) {
             Require(settings.showcaseState.selected>=0&&settings.showcaseState.selected<int(ShowcaseMovableCount),"Invalid showcase selection");
             for(std::size_t i=0;i<ShowcaseMovableCount;++i) {
@@ -982,9 +1029,11 @@ void main(){outColor=texture(hud,vUV);}
 #endif
         } else if(settings.screenProbeStudy) {
             InitializeProbePlacement();
-            if(settings.surfaceCacheStudy)InitializeSurfaceCacheMaterials(false);
+            if(settings.surfaceCacheStudy)InitializeSurfaceCacheMaterials(false,settings.sealedGiRoomStudy);
+            if(settings.sealedGiRoomStudy)UpdateSealedRoomEmission(settings.effects.areaLights);
             unsigned objectIndex=0;
-            for(const auto& object:settings.sdfProbeStudy?ProbeSdfObjects():ProbePlacementObjects()) {
+            const auto& objects=settings.sealedGiRoomStudy?SealedGiRoomObjects():settings.sdfProbeStudy?ProbeSdfObjects():ProbePlacementObjects();
+            for(const auto& object:objects) {
                 const auto mesh=object.mesh==ShowcaseMesh::Sphere?sphere:object.mesh==ShowcaseMesh::Plane?plane:box;
                 const auto indices=object.mesh==ShowcaseMesh::Sphere?sphereIndices:object.mesh==ShowcaseMesh::Plane?planeIndices:boxIndices;
                 frame.items.push_back(item(settings.surfaceCacheStudy?surfaceCacheMaterials[objectIndex]:placementMaterials[std::size_t(object.material)],mesh,indices,
@@ -1086,14 +1135,18 @@ void main(){outColor=texture(hud,vUV);}
         }
         auto effects = settings.effects;
         if(settings.sdfModelStudy)effects.screenProbePlacement.trace.sdf.scene=probeSdfScene;
-        else if(settings.sdfProbeStudy){PrepareProbeSdf(settings.screenProbeStudyState,effects.screenProbePlacement.trace.sdf,settings.camera?settings.camera->position:ProbePlacementCameraPreset(0,settings.OutputAspect()).position);
+        else if(settings.sdfProbeStudy){PrepareProbeSdf(settings.screenProbeStudyState,effects.screenProbePlacement.trace.sdf,settings.camera?settings.camera->position:
+            settings.sealedGiRoomStudy?SealedGiRoomCameraPreset(0,settings.OutputAspect()).position:ProbePlacementCameraPreset(0,settings.OutputAspect()).position,settings.sealedGiRoomStudy);
             if(!effects.screenProbePlacement.trace.sdf.scene)effects.screenProbePlacement.trace.sdf.scene=probeSdfScene;}
         if(settings.surfaceCacheStudy) {
             Require(bool(probeSdfScene),"Surface Cache study requires a prepared SDF scene");
             std::vector<SurfaceCacheMaterial> cacheMaterials;
             cacheMaterials.reserve(probeSdfScene->Instances().size());
             for(unsigned object=0;object<probeSdfScene->Instances().size();++object)
-                cacheMaterials.push_back({SurfaceCacheAlbedo(object,settings.sdfModelStudy),glm::vec3(0)});
+                // The ceiling diffuser is sampled analytically as an area
+                // light. Its card must not inject the same direct light again.
+                cacheMaterials.push_back({settings.sealedGiRoomStudy?SealedGiRoomObjectMaterial(object).albedo:
+                    SurfaceCacheAlbedo(object,settings.sdfModelStudy),glm::vec3(0)});
             if(!surfaceCacheScene)surfaceCacheScene=BuildSurfaceCache(*probeSdfScene,cacheMaterials);
             else surfaceCacheScene->Update(*probeSdfScene,cacheMaterials);
             if(!effects.surfaceCacheGi.cache)effects.surfaceCacheGi.cache=surfaceCacheScene;
@@ -1132,7 +1185,7 @@ void main(){outColor=texture(hud,vUV);}
         camera.view = glm::lookAt(eye, target, glm::vec3(0, 1, 0));
         camera.projection = glm::perspective(glm::radians(42.0f), settings.OutputAspect(), 0.1f, 100.0f);
         if(settings.camera)camera=*settings.camera;
-        else if(settings.screenProbeStudy)camera=ProbePlacementCameraPreset(0,settings.OutputAspect());
+        else if(settings.screenProbeStudy)camera=settings.sealedGiRoomStudy?SealedGiRoomCameraPreset(0,settings.OutputAspect()):ProbePlacementCameraPreset(0,settings.OutputAspect());
         else if(settings.giRoom)camera=GiRoomCameraPreset(0,settings.OutputAspect());
         else if(settings.showcase)camera=ShowcaseCameraPreset(0,settings.OutputAspect());
         if(settings.giRoom) {
@@ -1288,11 +1341,11 @@ void main(){outColor=texture(hud,vUV);}
         const auto raw=ReadFloatTexture(screenOnly?debug.screenProbeScreenRays:debug.screenProbeRays);
         const auto rays=std::size_t(result.probeSlots)*result.rayResolution*result.rayResolution;
         Require(raw.size()>=rays*4,"Invalid screen ray atlas");
-        result.radianceStatus.reserve(rays);result.hitWorldDistance.reserve(rays);
-        result.hitPixelStepsMip.reserve(rays);result.rayDirectionDepthFetches.reserve(rays);
+        result.radianceStatus.resize(rays);result.hitWorldDistance.resize(rays);
+        result.hitPixelStepsMip.resize(rays);result.rayDirectionDepthFetches.resize(rays);
         for(std::size_t ray=0;ray<rays;++ray) {
-            result.radianceStatus.push_back(raw[ray*4]);result.hitWorldDistance.push_back(raw[ray*4+1]);
-            result.hitPixelStepsMip.push_back(raw[ray*4+2]);result.rayDirectionDepthFetches.push_back(raw[ray*4+3]);
+            result.radianceStatus[ray]=raw[ray*4];result.hitWorldDistance[ray]=raw[ray*4+1];
+            result.hitPixelStepsMip[ray]=raw[ray*4+2];result.rayDirectionDepthFetches[ray]=raw[ray*4+3];
         }
         if(includeSources) {
             result.sourceHdr=ReadFloatTexture(debug.screenProbeTraceSource);
@@ -1479,6 +1532,16 @@ ScreenProbeTraceReadback MaterialLabModule::ReadbackScreenProbeTrace(bool includ
     if(!impl_){error_="Material lab not started";return {};}
     try{return impl_->ReadScreenProbeTrace(includeSources,screenOnly);}catch(const std::exception& e){error_=e.what();return {};}
 }
+ScreenProbeTraceReadback MaterialLabModule::ReadbackScreenProbeSources() {
+    error_.clear();if(!impl_||!impl_->pipeline){error_="MaterialLab is not started";return {};}
+    try {
+        const auto debug=impl_->pipeline->DebugTextures();ScreenProbeTraceReadback result;
+        result.sourceSize={debug.screenProbeSourceWidth,debug.screenProbeSourceHeight};
+        result.sourceViewPositions=impl_->ReadFloatTexture(debug.screenProbeTracePositions);
+        result.sourceWorldNormals=impl_->ReadFloatTexture(debug.surfaceNormals);
+        return result;
+    }catch(const std::exception& e){error_=e.what();return {};}
+}
 std::shared_ptr<const Render::ProbeSdfScene> MaterialLabModule::PreparedProbeSdfScene() const {return impl_?impl_->probeSdfScene:nullptr;}
 ProbeSdfQualityStatus MaterialLabModule::ProbeSdfQualityStatistics() const {return impl_?impl_->probeSdfQualityStatus:ProbeSdfQualityStatus{};}
 std::shared_ptr<const Render::SurfaceCacheScene> MaterialLabModule::PreparedSurfaceCache() const {return impl_?impl_->surfaceCacheScene:nullptr;}
@@ -1497,6 +1560,23 @@ std::vector<glm::vec4> MaterialLabModule::ReadbackSurfaceCacheProbeIrradiance() 
 std::vector<glm::vec4> MaterialLabModule::ReadbackSurfaceCacheTemporalGi() {
     if(!impl_||!impl_->pipeline)return {};
     try{return impl_->ReadFloatTexture(impl_->pipeline->DebugTextures().surfaceCacheTemporalGi);}catch(const std::exception& e){error_=e.what();return {};}
+}
+std::vector<glm::vec4> MaterialLabModule::ReadbackSurfaceCacheSpatialGi() {
+    error_.clear();if(!impl_||!impl_->pipeline){error_="MaterialLab is not started";return {};}
+    try{return impl_->ReadFloatTexture(impl_->pipeline->DebugTextures().surfaceCacheSpatialGi);}catch(const std::exception& e){error_=e.what();return {};}
+}
+std::vector<glm::vec4> MaterialLabModule::ReadbackSurfaceCacheProbeCoverage() {
+    error_.clear();if(!impl_||!impl_->pipeline){error_="MaterialLab is not started";return {};}
+    if(!impl_->pipeline->Statistics().surfaceCacheProbeCoverageCollected){error_="Probe coverage was not collected for the current frame";return {};}
+    try{return impl_->ReadFloatTexture(impl_->pipeline->DebugTextures().surfaceCacheProbeCoverage);}catch(const std::exception& e){error_=e.what();return {};}
+}
+std::vector<glm::vec4> MaterialLabModule::ReadbackSurfaceCacheSpatialRays() {
+    error_.clear();if(!impl_||!impl_->pipeline){error_="MaterialLab is not started";return {};}
+    try{return impl_->ReadFloatTexture(impl_->pipeline->DebugTextures().surfaceCacheSpatialRays);}catch(const std::exception& e){error_=e.what();return {};}
+}
+std::vector<glm::vec4> MaterialLabModule::ReadbackSurfaceCacheSpatialNeighbors() {
+    error_.clear();if(!impl_||!impl_->pipeline){error_="MaterialLab is not started";return {};}
+    try{return impl_->ReadFloatTexture(impl_->pipeline->DebugTextures().surfaceCacheSpatialNeighbors);}catch(const std::exception& e){error_=e.what();return {};}
 }
 std::vector<glm::vec4> MaterialLabModule::ReadbackSurfaceCacheTemporalHistory() {
     if(!impl_||!impl_->pipeline)return {};

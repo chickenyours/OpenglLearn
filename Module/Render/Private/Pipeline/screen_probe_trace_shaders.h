@@ -7,11 +7,12 @@ layout(std140,binding=9) uniform PlacementData {
     mat4 spInverseView; mat4 spInverseProjection; mat4 spViewProjection; mat4 spView;
     ivec4 spGrid; ivec4 spScreen; vec4 spOptions;
     ivec4 spTracing; vec4 spTraceParams; ivec4 spTraceAtlas; ivec4 spTraceDisplay;
+    vec4 spRefinement;
 };
 )GLSL";}
 
 // This helper is also appended to the placement marker shader, whose constants
-// already declare the shared 368-byte layout. No fallback color source exists.
+// already declare the shared 384-byte layout. No fallback color source exists.
 inline std::string MarkerTraceGLSL(){return R"GLSL(
 layout(binding=7) uniform sampler2D stRays;
 vec3 STRayDirection(int ray) {

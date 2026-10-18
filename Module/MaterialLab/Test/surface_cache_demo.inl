@@ -11,6 +11,8 @@ FrameSettings MakeSurfaceCacheGiFrame(const Options& options) {
     auto& gi=e.surfaceCacheGi;gi.useScreenProbes=!options.surfaceCacheReference;
     gi.temporal.enabled=!options.surfaceCacheNoTemporal;gi.temporal.maxFrames=options.surfaceCacheHistoryFrames;
     gi.temporal.directionPhases=options.surfaceCacheHistoryDirections;
+    gi.spatial.enabled=!options.surfaceCacheNoSpatial;gi.spatial.passes=options.surfaceCacheSpatialPasses;
+    gi.spatial.halfKernelSize=options.surfaceCacheSpatialRadius;
     placement.enabled=gi.useScreenProbes;placement.adaptive=true;placement.baseSpacing=options.surfaceCacheProbeSpacing;
     placement.frameIndex=0;placement.freeze=false;placement.debugView=0;placement.markerRadiusPixels=3;
     placement.trace.enabled=true;placement.trace.showPanel=false;placement.trace.cosineHemisphere=gi.useScreenProbes;
@@ -27,11 +29,19 @@ FrameSettings MakeSurfaceCacheGiFrame(const Options& options) {
     e.sky.enabled=false;e.probes.enabled=false;e.realtimeGi.enabled=false;e.lumenGi.enabled=false;e.indirect.enabled=false;
     e.temporal.antialiasing=Render::AntialiasingMode::None;e.temporal.motionBlurEnabled=false;
     e.post.bloomEnabled=false;e.post.ssaoEnabled=false;e.post.filter=Render::PostFilter::None;
+    if(options.sealedGiRoom) {
+        frame.sealedGiRoomStudy=true;
+        frame.screenProbeStudyHud=false;
+        ConfigureSealedGiRoomLighting(e);
+        gi.areaLightShadows=true;
+        frame.camera=SealedGiRoomCameraPreset(0,frame.OutputAspect());
+    }
     return frame;
 }
 
 void SurfaceCacheInteractive(MaterialLabModule& lab,ApplicationWindow::Window& window,const Options& options) {
     auto frame=MakeSurfaceCacheGiFrame(options);
+    frame.effects.surfaceCacheGi.collectProbeCoverage=false;
     auto* native=static_cast<GLFWwindow*>(window.GetNativeWindow());
     DebugPanelHost panels(lab,native,false);FramePacer pacer;
     std::array<bool,GLFW_KEY_LAST+1> previous{};
@@ -39,14 +49,15 @@ void SurfaceCacheInteractive(MaterialLabModule& lab,ApplicationWindow::Window& w
     const auto pose=[&](const Render::PipelineCamera& camera){frame.camera=camera;position=camera.position;
         const auto direction=-glm::vec3(glm::inverse(camera.view)[2]);yaw=std::atan2(direction.x,-direction.z);pitch=std::asin(glm::clamp(direction.y,-1.f,1.f));};
     const auto preset=[&](unsigned n){
+        if(options.sealedGiRoom)return SealedGiRoomCameraPreset(n,frame.OutputAspect());
 #ifdef MATERIAL_LAB_HAS_MODEL
         if(options.sdfBanquet)return SdfModelCameraPreset(n,frame.OutputAspect());
 #endif
         return ProbePlacementCameraPreset(n,frame.OutputAspect());};
-    pose(preset(0));bool looking=false,saved=false;double lastX=0,lastY=0,last=glfwGetTime(),sample=last;
+    pose(preset(0));bool looking=false,saved=false;unsigned screenshotWarmup=0;double lastX=0,lastY=0,last=glfwGetTime(),sample=last;
     double smoothMs=16.7;
     std::cout<<"Surface Cache GI: adaptive probes | V views | F5 GI | F6 pixel reference | F7 rays | P probe overlay\n"
-        "F2 adaptive | F3 spacing | J sampling seed | Space freeze placement | T temporal | G reset history\n"
+        "F2 adaptive | F3 spacing | J sampling seed | Space freeze placement | H spatial | T temporal | G reset history | B probe coverage\n"
         "1/2/3 cameras | Arrows move object | RMB look | WASD move | Q/E height | Shift fast | R reset | Esc exit\n";
     while(!window.ShouldClose()) {
         const auto started=std::chrono::steady_clock::now();window.PollEvents();DebugPanelFrame ui(panels);
@@ -63,10 +74,13 @@ void SurfaceCacheInteractive(MaterialLabModule& lab,ApplicationWindow::Window& w
             frame.effects.outputSize={unsigned(width),unsigned(height)};
         }
         auto& gi=frame.effects.surfaceCacheGi;
+        if(options.sealedGiRoom&&pressed(GLFW_KEY_L))frame.effects.areaLights.lights[0].enabled=!frame.effects.areaLights.lights[0].enabled;
         if(!lab.GetDebugUI()&&pressed(GLFW_KEY_F1))frame.screenProbeStudyHud=!frame.screenProbeStudyHud;
-        if(pressed(GLFW_KEY_V))gi.view=(gi.view+1)%6;
+        if(pressed(GLFW_KEY_V))gi.view=(gi.view+1)%7;
+        if(pressed(GLFW_KEY_B))gi.view=gi.view==6?0:6;
         if(pressed(GLFW_KEY_F5))gi.enabled=!gi.enabled;
         if(pressed(GLFW_KEY_T))gi.temporal.enabled=!gi.temporal.enabled;
+        if(pressed(GLFW_KEY_H))gi.spatial.enabled=!gi.spatial.enabled;
         if(pressed(GLFW_KEY_G))gi.temporal.reset=true;
         auto& placement=frame.effects.screenProbePlacement;
         if(pressed(GLFW_KEY_F6)){gi.useScreenProbes=!gi.useScreenProbes;placement.reset=true;}
@@ -83,12 +97,17 @@ void SurfaceCacheInteractive(MaterialLabModule& lab,ApplicationWindow::Window& w
             (float(down(GLFW_KEY_RIGHT))-float(down(GLFW_KEY_LEFT)))*dt,-1.2f,2.5f);
         double x=0,y=0;glfwGetCursorPos(native,&x,&y);
         const bool rmb=!ui.WantsMouse()&&glfwGetWindowAttrib(native,GLFW_FOCUSED)&&glfwGetMouseButton(native,GLFW_MOUSE_BUTTON_RIGHT)==GLFW_PRESS;
-        if(rmb!=looking){glfwSetInputMode(native,GLFW_CURSOR,rmb?GLFW_CURSOR_DISABLED:GLFW_CURSOR_NORMAL);glfwGetCursorPos(native,&x,&y);}
+        if(rmb!=looking){
+            glfwSetInputMode(native,GLFW_CURSOR,rmb?GLFW_CURSOR_DISABLED:GLFW_CURSOR_NORMAL);
+            if(glfwRawMouseMotionSupported())glfwSetInputMode(native,GLFW_RAW_MOUSE_MOTION,rmb?GLFW_TRUE:GLFW_FALSE);
+            glfwGetCursorPos(native,&x,&y);
+        }
         if(rmb&&looking){yaw+=float(x-lastX)*.0025f;pitch=std::clamp(pitch-float(y-lastY)*.0025f,-1.5f,1.5f);}lastX=x;lastY=y;looking=rmb;
         const auto forward=ShowcaseForward(yaw,0),right=glm::normalize(glm::cross(forward,glm::vec3(0,1,0)));
         const auto motion=forward*(float(down(GLFW_KEY_W))-float(down(GLFW_KEY_S)))+right*(float(down(GLFW_KEY_D))-float(down(GLFW_KEY_A)))+
             glm::vec3(0,float(down(GLFW_KEY_E))-float(down(GLFW_KEY_Q)),0);
         if(glm::dot(motion,motion)>0)position+=glm::normalize(motion)*2.5f*dt*(down(GLFW_KEY_LEFT_SHIFT)?3.f:1.f);
+        if(options.sealedGiRoom)position=glm::clamp(position,glm::vec3(-3.75f,.2f,-3.25f),glm::vec3(3.75f,4.25f,3.25f));
         auto camera=frame.camera.value();camera.position=position;camera.view=glm::lookAt(position,position+ShowcaseForward(yaw,pitch),glm::vec3(0,1,0));
         camera.projection=glm::perspective(glm::radians(55.f),frame.OutputAspect(),camera.nearPlane,camera.farPlane);frame.camera=camera;
         ui.Finish(frame);
@@ -97,12 +116,14 @@ void SurfaceCacheInteractive(MaterialLabModule& lab,ApplicationWindow::Window& w
         frame.present=true;Check(lab.Render(frame),lab.LastError());
         frame.effects.cameraCut=false;frame.effects.screenProbePlacement.reset=false;gi.temporal.reset=false;
         if(now-sample>=1){frame.displayFps=float(1000/smoothMs);sample=now;}
-        if(!saved&&!options.screenshot.empty()&&!lab.ProbeSdfQualityStatistics().pending){
+        ++screenshotWarmup;
+        if(!saved&&!options.screenshot.empty()&&!lab.ProbeSdfQualityStatistics().pending&&(!options.sealedGiRoom||screenshotWarmup>=32)){
             frame.present=false;Check(lab.Render(frame),lab.LastError());Save(lab.Readback(),options.screenshot);saved=true;}
         const auto rayLabel=gi.useScreenProbes?std::to_string(placement.trace.rayResolution*placement.trace.rayResolution)+" rays / probe":std::to_string(gi.raysPerPixel)+" rays / pixel";
-        glfwSetWindowTitle(native,("Surface Cache GI | "+rayLabel+" | Temporal "+(gi.temporal.enabled&&gi.useScreenProbes?std::to_string(gi.temporal.maxFrames)+" frames":"off")+" | V views").c_str());
+        glfwSetWindowTitle(native,((options.sealedGiRoom?"Sealed ceramic GI | L ceiling lamp | ":"Surface Cache GI | ")+rayLabel+" | Spatial "+(gi.spatial.enabled&&gi.useScreenProbes?"on":"off")+" | Temporal "+(gi.temporal.enabled&&gi.useScreenProbes?std::to_string(gi.temporal.maxFrames)+" frames":"off")+" | V views").c_str());
         if(options.fpsLimit>0)pacer.WaitUntil(started+std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(1./options.fpsLimit)));
     }
+    if(glfwRawMouseMotionSupported())glfwSetInputMode(native,GLFW_RAW_MOUSE_MOTION,GLFW_FALSE);
     glfwSetInputMode(native,GLFW_CURSOR,GLFW_CURSOR_NORMAL);
 }
 
@@ -125,6 +146,7 @@ void SurfaceCacheQuality(MaterialLabModule& lab,const Options& options) {
     auto fixtureOptions=options;fixtureOptions.sdfBanquet=false;fixtureOptions.sdfClipmaps=false;
     auto frame=MakeSurfaceCacheGiFrame(fixtureOptions);frame.width=160;frame.height=120;frame.effects.outputSize={0,0};
     frame.effects.surfaceCacheGi.temporal.enabled=false;
+    frame.effects.surfaceCacheGi.spatial.enabled=false;
     frame.effects.surfaceCacheGi.useScreenProbes=false;frame.effects.screenProbePlacement.enabled=false;
     frame.effects.screenProbePlacement.trace.cosineHemisphere=false;
     frame.camera=ProbePlacementCameraPreset(0,frame.OutputAspect());frame.present=false;frame.screenProbeStudyHud=false;
@@ -233,6 +255,7 @@ void SurfaceCacheQuality(MaterialLabModule& lab,const Options& options) {
 void SurfaceCachePerformance(MaterialLabModule& lab,const Options& options) {
     auto frame=MakeSurfaceCacheGiFrame(options);frame.present=false;frame.screenProbeStudyHud=false;
     frame.effects.surfaceCacheGi.temporal.enabled=false;
+    frame.effects.surfaceCacheGi.spatial.enabled=false;
     const auto render=[&]{Check(lab.Render(frame),lab.LastError());frame.effects.cameraCut=false;frame.effects.screenProbePlacement.reset=false;};
     const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(240);
     do{render();Check(std::chrono::steady_clock::now()<deadline,"Surface Cache source bake timed out");}while(lab.ProbeSdfQualityStatistics().pending);
@@ -241,6 +264,7 @@ void SurfaceCachePerformance(MaterialLabModule& lab,const Options& options) {
             <<" elapsed_ms="<<t.elapsedMilliseconds<<" rays="<<p.surfaceCacheRays<<" cache_texels="<<p.surfaceCacheTexels
             <<" updated="<<p.surfaceCacheUpdatedTexels<<" lighting_update="<<p.surfaceCacheLightingUpdated
             <<" probe_slots="<<p.surfaceCacheProbeSlots<<" probe_passes="<<p.surfaceCacheProbePasses
+            <<" spatial_passes="<<p.surfaceCacheSpatialPasses
             <<" temporal_passes="<<p.surfaceCacheTemporalPasses<<" history_used="<<p.surfaceCacheHistoryUsed<<std::endl;};
     frame.effects.surfaceCacheGi.enabled=false;frame.effects.screenProbePlacement.enabled=false;measure("direct_only");
     frame.effects.surfaceCacheGi.enabled=true;
@@ -248,6 +272,8 @@ void SurfaceCachePerformance(MaterialLabModule& lab,const Options& options) {
     gi.useScreenProbes=true;placement.enabled=true;placement.baseSpacing=32;placement.trace.cosineHemisphere=true;
     placement.trace.rayResolution=4;measure("probe_16rays_spacing32");
     placement.trace.rayResolution=8;measure("probe_64rays_spacing32");
+    gi.spatial.enabled=true;measure("probe_64rays_spacing32_spatial");
+    gi.temporal.enabled=true;measure("probe_64rays_spacing32_spatial_temporal");gi.temporal.enabled=false;gi.spatial.enabled=false;
     gi.temporal.enabled=true;measure("probe_64rays_spacing32_temporal");gi.temporal.enabled=false;
     placement.trace.rayResolution=16;measure("probe_256rays_spacing32");
     placement.trace.rayResolution=8;placement.baseSpacing=16;placement.reset=true;measure("probe_64rays_spacing16");
@@ -262,6 +288,7 @@ void SurfaceCachePerformance(MaterialLabModule& lab,const Options& options) {
     std::cout<<"SURFACE CACHE PERF dynamic gpu_ms="<<t.gpuMilliseconds<<" elapsed_ms="<<t.elapsedMilliseconds
         <<" updated="<<p.surfaceCacheUpdatedTexels<<" cache_cpu_ms="<<lab.PreparedSurfaceCache()->Statistics().updateMilliseconds<<std::endl;
     if(!options.screenshot.empty()){
+        gi.spatial.enabled=!options.surfaceCacheNoSpatial;
         gi.temporal.enabled=!options.surfaceCacheNoTemporal;frame.screenProbeStudyHud=true;
         for(unsigned i=0;i<std::max(12u,gi.temporal.maxFrames);++i)render();
         Save(lab.Readback(),options.screenshot);

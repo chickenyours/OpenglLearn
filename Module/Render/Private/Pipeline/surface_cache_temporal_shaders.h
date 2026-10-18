@@ -33,10 +33,12 @@ layout(binding=5) uniform sampler2D stHistoryNormals;
 
 // A compatible current-frame neighborhood can bound moving history. It only
 // clips history; the current sample is never replaced by a spatial average.
-// Restrict this to fast update, as UE's optional diffuse neighborhood clamp
-// does. Static reconstructed probe lighting is spatially correlated, so an
-// unconditional 3x3 clamp would stop independent ray phases from converging.
-vec3 STClampMovingHistory(ivec2 pixel,vec3 world,vec3 normal,float tolerance,vec3 current,vec3 history) {
+// The frame-count cap uses its configurable motion threshold independently.
+// Our view-dependent probe reconstruction also needs this optional bound at
+// slow camera motion; UE instead gates its optional clamp by moving lighting.
+// Static reconstructed lighting is spatially correlated, so it remains free
+// to converge across independent ray phases without an unconditional clamp.
+vec3 STClampMovingHistory(ivec2 pixel,vec3 world,vec3 normal,float tolerance,float sigma,vec3 current,vec3 history) {
     vec3 sum=vec3(0),squareSum=vec3(0);float count=0.0;
     for(int y=-1;y<=1;++y)for(int x=-1;x<=1;++x) {
         ivec2 at=pixel+ivec2(x,y);
@@ -52,8 +54,34 @@ vec3 STClampMovingHistory(ivec2 pixel,vec3 world,vec3 normal,float tolerance,vec
     if(count<2.0)return history;
     vec3 mean=sum/count;
     vec3 deviation=sqrt(max(squareSum/count-mean*mean,vec3(0)));
-    vec3 extent=max(stClamp.x,0.0)*deviation;
+    vec3 extent=max(sigma,0.0)*deviation;
     return clamp(history,min(mean-extent,current),max(mean+extent,current));
+}
+
+// A local safety adaptation for this renderer's view-dependent probe
+// reconstruction, rather than UE's moving-light classification. Preserve long
+// histories on moving flat walls; only a narrow moving geometry-edge band
+// needs the former fast response. Static edges continue accumulating normally.
+bool STNearGeometryEdge(ivec2 pixel,vec3 world,vec3 normal,float planeTolerance) {
+    const ivec2 offsets[24]=ivec2[24](
+        ivec2(-1,0),ivec2(1,0),ivec2(0,-1),ivec2(0,1),
+        ivec2(-2,0),ivec2(2,0),ivec2(0,-2),ivec2(0,2),
+        ivec2(-1,-1),ivec2(1,-1),ivec2(-1,1),ivec2(1,1),
+        ivec2(-2,-1),ivec2(2,-1),ivec2(-2,1),ivec2(2,1),
+        ivec2(-1,-2),ivec2(1,-2),ivec2(-1,2),ivec2(1,2),
+        ivec2(-2,-2),ivec2(2,-2),ivec2(-2,2),ivec2(2,2));
+    float normalCosine=max(stReject.y,.9);
+    for(int sampleIndex=0;sampleIndex<24;++sampleIndex) {
+        ivec2 at=pixel+offsets[sampleIndex];
+        if(any(lessThan(at,ivec2(0)))||any(greaterThanEqual(at,stScreen.xy)))return true;
+        vec4 p=texelFetch(stViewPositions,at,0),n=texelFetch(stWorldNormals,at,0);
+        if(!STGeometryValid(p,n))return true;
+        vec3 neighborWorld=(stCurrentInverseView*vec4(p.xyz,1)).xyz,neighborNormal=normalize(n.xyz);
+        if(!STFinite(neighborWorld)||dot(normal,neighborNormal)<normalCosine)return true;
+        vec3 delta=neighborWorld-world;
+        if(abs(dot(delta,normal))>planeTolerance||abs(dot(delta,neighborNormal))>planeTolerance)return true;
+    }
+    return false;
 }
 
 void main() {
@@ -101,9 +129,23 @@ void main() {
     vec3 history=sum/weightSum;
     float count=min(countSum/weightSum+1.0,float(stScreen.w));
     float motion=length(historyPixel-vec2(pixel));
-    if(motion>stReject.w) {
-        count=min(count,max(stReject.z,1.0));
-        if(stClamp.y>.5)history=STClampMovingHistory(pixel,world,normal,baseTolerance,current,history);
+    bool fastUpdate=motion>stReject.w;
+    if(fastUpdate)count=min(count,max(stReject.z,1.0));
+    bool edgeFast=false;
+    if(stClamp.w>0.0&&motion>.1) {
+        float edgeTolerance=max(stClamp.z,min(baseTolerance,.002*expectedDepth));
+        edgeFast=weightSum<.9||STNearGeometryEdge(pixel,world,normal,edgeTolerance);
+    }
+    if(edgeFast) {
+        // stClamp.w is the edge history cap; zero exactly disables this path.
+        count=min(count,max(stClamp.w,1.0));
+        history=STClampMovingHistory(pixel,world,normal,baseTolerance,min(stClamp.x,3.0),current,history);
+    } else if(stClamp.y>.5&&(fastUpdate||(stClamp.y>1.5&&motion>.1))) {
+        // Gentle bounds also rectify slowly moving reconstruction changes;
+        // only the separate fastUpdate threshold shortens the frame count.
+        // stClamp.y: 0 disables, 1 preserves fast-only legacy bounds, 2 also
+        // bounds slow camera motion, independently of the geometry-edge cap.
+        history=STClampMovingHistory(pixel,world,normal,baseTolerance,stClamp.x,current,history);
     }
     // With count 1 this is exactly the current frame; thereafter it is a
     // running average until the configured history cap, then a bounded EMA.

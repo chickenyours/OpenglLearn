@@ -268,24 +268,60 @@ private:
         auto& e=c.frame.effects; auto& g=e.lumenGi;
         if(c.frame.surfaceCacheStudy) {
             auto& gi=e.surfaceCacheGi;
+            if(c.frame.sealedGiRoomStudy) {
+                ImGui::SeparatorText("Recessed ceiling fixture");
+                auto& lamp=e.areaLights.lights[0];
+                ImGui::Checkbox("Ceiling lamp (L)",&lamp.enabled);
+                float radiance=lamp.radiance.r;
+                if(ImGui::SliderFloat("Ceiling emitted radiance",&radiance,0,80,"%.1f"))lamp.radiance=radiance*glm::vec3(1,.96f,.89f);
+                ImGui::TextWrapped("Sealed room, rectangular area emitter with cached soft shadows. High-albedo dielectric ceramic. F5 compares direct lighting with GI; V selects indirect GI. No sun or ambient fill.");
+                ImGui::Separator();
+            }
             ImGui::Checkbox("Surface Cache GI",&gi.enabled);
-            Combo("GI inspection",gi.view,"Total diffuse GI\0Surface Cache lighting\0Indirect GI\0Cache coverage\0Card atlas\0History length\0");
+            Combo("GI inspection",gi.view,"Total diffuse GI\0Surface Cache lighting\0Indirect GI\0Cache coverage\0Card atlas\0History length\0Probe geometric coverage\0");
+            ImGui::Checkbox("Geometry-aware cache bilinear",&gi.cacheBilinear);
+            if(gi.view==2&&gi.useScreenProbes)
+                Combo("Probe reconstruction check",gi.reconstructionDebug,"Real lighting\0Constant illumination\0Base / adaptive weights\0");
             auto& placement=e.screenProbePlacement;
             if(ImGui::Checkbox("Gather from surface probes",&gi.useScreenProbes))placement.reset=true;
             if(gi.useScreenProbes) {
                 if(ImGui::Checkbox("Adaptive placement",&placement.adaptive))placement.reset=true;
+                if(ImGui::Checkbox("Refine geometric intersections",&placement.cornerRefinement))placement.reset=true;
+                if(FloatSlider("Intersection detection (probe tiles)",&placement.cornerDetectionRadius,.25f,2))placement.reset=true;
+                if(FloatSlider("Intersection blend width (tiles)",&placement.cornerProbeSupport,.25f,1.5f))placement.reset=true;
+                if(FloatSlider("Intersection normal angle",&placement.cornerNormalAngleDegrees,15,75))placement.reset=true;
                 if(UIntSlider("Probe spacing (pixels)",placement.baseSpacing,4,128))placement.reset=true;
+                int candidates=placement.candidateCount==4?0:placement.candidateCount==8?1:2;
+                if(ImGui::Combo("Adaptive candidates / tile",&candidates,"4\0 8\0 16\0")){placement.candidateCount=4u<<candidates;placement.reset=true;}
                 int resolution=placement.trace.rayResolution==4?0:placement.trace.rayResolution==8?1:2;
                 if(ImGui::Combo("Rays / probe",&resolution,"16 (4 x 4)\0 64 (8 x 8)\0 256 (16 x 16)\0"))placement.trace.rayResolution=4u<<resolution;
                 UIntSlider("Sampling seed",placement.trace.samplingSeed,0,4096);
                 ImGui::Checkbox("Freeze probe positions",&placement.freeze);
                 if(ImGui::Button("New ray realization"))++placement.trace.samplingSeed;
                 if(ImGui::Button("Rebuild probe positions"))placement.reset=true;
+                if(ImGui::Button("Inspect active probe counts")) {
+                    const auto probes=c.lab.ReadbackScreenProbePlacement();
+                    c.frame.placementUniformCount=unsigned(std::count_if(probes.uniform.begin(),probes.uniform.end(),[](const auto& p){return p.w>.5f;}));
+                    c.frame.placementAdaptiveCount=unsigned(std::count_if(probes.spawned.begin(),probes.spawned.end(),[](const auto& p){return p.w>.5f;}));
+                }
+                ImGui::Text("Last inspected active probes: %u base / %u adaptive",c.frame.placementUniformCount,c.frame.placementAdaptiveCount);
             } else UIntSlider("Reference rays / pixel",gi.raysPerPixel,1,32);
             FloatSlider("Indirect intensity",&gi.intensity,0,4);
             FloatSlider("Ray distance",&gi.maxDistance,.1f,100);
             ImGui::Checkbox("Show probe / ray overlay",&gi.probeDiagnostics);
             if(gi.useScreenProbes) {
+                auto& spatial=gi.spatial;
+                ImGui::SeparatorText("GI spatial filtering");
+                ImGui::Checkbox("Spatial filtering (H)",&spatial.enabled);
+                UIntSlider("Spatial passes",spatial.passes,1,4);
+                UIntSlider("Spatial half kernel (probe tiles)",spatial.halfKernelSize,1,2);
+                FloatSlider("Spatial strength",&spatial.strength,0,1);
+                FloatSlider("Spatial position weight scale",&spatial.positionWeightScale,100,10000);
+                FloatSlider("Spatial hit angle (degrees)",&spatial.maxHitAngleDegrees,1,60);
+                FloatSlider("Spatial normal threshold (degrees)",&spatial.normalThresholdDegrees,5,60);
+                FloatSlider("Spatial plane / view depth",&spatial.planeDistanceThreshold,.001f,.05f);
+                ImGui::Checkbox("Spatial pair visibility test",&spatial.visibilityCheck);
+                ImGui::TextWrapped("Filter probe ray radiance before integration, then accumulate in time. Larger kernels and more passes cost more and smooth a wider area. Larger position weights and tighter angle / plane thresholds preserve edges more strictly. Visibility rejects probe pairs separated by geometry. Unknown rays remain unknown. B shows geometric coverage: green base probes, orange adaptive, magenta unsupported; colored ray markers alone do not mean the pixel has no probe.");
                 auto& temporal=gi.temporal;
                 ImGui::SeparatorText("GI temporal accumulation");
                 ImGui::Checkbox("Temporal accumulation (T)",&temporal.enabled);
@@ -297,11 +333,18 @@ private:
                 temporal.movingMaxFrames=std::min(temporal.movingMaxFrames,float(temporal.maxFrames));
                 FloatSlider("Motion threshold (pixels)",&temporal.motionThresholdPixels,.1f,32);
                 ImGui::Checkbox("History neighborhood clamp",&temporal.neighborhoodClamp);
-                if(temporal.neighborhoodClamp)FloatSlider("History clamp sigma",&temporal.clampSigma,1,8);
+                if(temporal.neighborhoodClamp){
+                    ImGui::Checkbox("Clamp slow camera motion",&temporal.clampSlowMotion);
+                    FloatSlider("History clamp sigma",&temporal.clampSigma,1,8);
+                }
+                ImGui::Checkbox("Geometry edge protection",&temporal.edgeProtection);
+                if(temporal.edgeProtection)FloatSlider("Edge history frames",&temporal.edgeMaxFrames,1,
+                    std::min(float(temporal.maxFrames),temporal.movingMaxFrames));
+                temporal.edgeMaxFrames=std::min(temporal.edgeMaxFrames,temporal.movingMaxFrames);
                 if(ImGui::Button("Reset GI history (G)"))temporal.reset=true;
-                ImGui::TextWrapped("More frames reduce sampling noise but respond more slowly. Direction phases cycle independent ray realizations; use more than one for noise reduction. Tighter geometry thresholds reject more history. Moving pixels use a shorter history; only moving pixels apply the optional neighborhood clamp. Lighting or object edits clear history.");
+                ImGui::TextWrapped("Camera motion reuses geometrically compatible history. Moving history frames caps accumulation above the pixel-motion threshold; larger caps reduce moving noise. Clamp slow camera motion also bounds history below that threshold to reduce reconstruction lag. A wider clamp preserves more history. Geometry edge protection uses a short history and tighter clamp only around moving silhouettes and thin surfaces. More frames respond more slowly. Tighter geometry thresholds reject more history. Lighting or object edits clear history.");
             }
-            ImGui::TextWrapped("One diffuse bounce from a two-dimensional stratified cosine hemisphere. Pixels reconstruct irradiance from compatible surface probes, then apply their own albedo. Missing card coverage is magenta. GI history is separate from final-image TAA.");
+            ImGui::TextWrapped("One diffuse bounce from a two-dimensional stratified cosine hemisphere. Pixels reconstruct irradiance from compatible surface probes, then apply their own albedo. Cache coverage and probe geometric coverage are separate diagnostics. GI history is separate from final-image TAA.");
             return;
         }
         if (c.frame.screenProbeStudy) {
@@ -396,6 +439,8 @@ private:
             ImGui::Text("Cards: %u texels | updated %u",s.surfaceCacheTexels,s.surfaceCacheUpdatedTexels);
             ImGui::Text("Software GI rays %llu | lighting %s",static_cast<unsigned long long>(s.surfaceCacheRays),s.surfaceCacheLightingUpdated?"updated":"reused");
             ImGui::Text("Probe slots %u | gather passes %u",s.surfaceCacheProbeSlots,s.surfaceCacheProbePasses);
+            ImGui::Text("Last inspected active: %u base / %u adaptive",c.frame.placementUniformCount,c.frame.placementAdaptiveCount);
+            ImGui::Text("GI spatial passes %u",s.surfaceCacheSpatialPasses);
             ImGui::Text("GI temporal passes %u | history %s",s.surfaceCacheTemporalPasses,s.surfaceCacheHistoryUsed?"reused":"new / disabled");
             ImGui::TextDisabled("Ray count is a capacity budget; inactive probes exit early.");
             return;

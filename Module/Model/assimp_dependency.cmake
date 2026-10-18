@@ -47,15 +47,17 @@ function(_model_add_assimp_source source_dir)
         file(READ "${source_dir}/CMakeLists.txt" _model_assimp_project)
         if(_model_assimp_project MATCHES "PROJECT\\(Assimp VERSION 6[.]0[.]5[ \r\n]")
             get_filename_component(_model_assimp_checked_source "${source_dir}" ABSOLUTE BASE_DIR "${CMAKE_SOURCE_DIR}")
-            execute_process(
-                COMMAND "${CMAKE_COMMAND}" "-DASSIMP_SOURCE_DIR=${_model_assimp_checked_source}"
-                    -DCHECK_ONLY=ON -P "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../cmake/PatchAssimp605GltfDouble.cmake"
-                RESULT_VARIABLE _model_assimp_check_result
-                OUTPUT_VARIABLE _model_assimp_check_output
-                ERROR_VARIABLE _model_assimp_check_error)
-            if(NOT _model_assimp_check_result STREQUAL "0")
-                message(FATAL_ERROR "Assimp 6.0.5 double-precision source validation failed:\n${_model_assimp_check_output}${_model_assimp_check_error}")
-            endif()
+            foreach(_model_assimp_patch IN ITEMS PatchAssimp605GltfDouble PatchAssimp605MaterialDouble)
+                execute_process(
+                    COMMAND "${CMAKE_COMMAND}" "-DASSIMP_SOURCE_DIR=${_model_assimp_checked_source}"
+                        -DCHECK_ONLY=ON -P "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../cmake/${_model_assimp_patch}.cmake"
+                    RESULT_VARIABLE _model_assimp_check_result
+                    OUTPUT_VARIABLE _model_assimp_check_output
+                    ERROR_VARIABLE _model_assimp_check_error)
+                if(NOT _model_assimp_check_result STREQUAL "0")
+                    message(FATAL_ERROR "Assimp 6.0.5 double-precision source validation failed:\n${_model_assimp_check_output}${_model_assimp_check_error}")
+                endif()
+            endforeach()
         endif()
     endif()
     set(BUILD_SHARED_LIBS OFF)
@@ -111,7 +113,9 @@ elseif(MODEL_ASSIMP_FETCH)
         # -DASSIMP_SOURCE_DIR=<writable-checkout> before configuring.
         list(APPEND _model_assimp_patch_command PATCH_COMMAND
             "${CMAKE_COMMAND}" "-DASSIMP_SOURCE_DIR=<SOURCE_DIR>"
-            -P "${CMAKE_CURRENT_LIST_DIR}/../../cmake/PatchAssimp605GltfDouble.cmake")
+            -P "${CMAKE_CURRENT_LIST_DIR}/../../cmake/PatchAssimp605GltfDouble.cmake"
+            COMMAND "${CMAKE_COMMAND}" "-DASSIMP_SOURCE_DIR=<SOURCE_DIR>"
+            -P "${CMAKE_CURRENT_LIST_DIR}/../../cmake/PatchAssimp605MaterialDouble.cmake")
     endif()
     FetchContent_Declare(model_assimp_source
         GIT_REPOSITORY https://github.com/assimp/assimp.git

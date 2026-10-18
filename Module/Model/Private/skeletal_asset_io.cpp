@@ -9,10 +9,12 @@
 #include <bit>
 #include <chrono>
 #include <cmath>
+#include <cstring>
 #include <fstream>
 #include <limits>
 #include <set>
 #include <sstream>
+#include <span>
 #include <stdexcept>
 #include <type_traits>
 #include <unordered_set>
@@ -216,14 +218,50 @@ glm::dmat4 ReadMatrix(const Json::Value& value) {
 
 // Every scalar is encoded explicitly. These payloads do not depend on native
 // struct padding, GLM alignment, compiler ABI, or the host's endian order.
+constexpr std::size_t BinaryBufferBytes = 64 * 1024;
+struct PayloadHash {
+    std::uint64_t value = 14695981039346656037ull;
+    void Append(std::span<const std::uint8_t> bytes) {
+        for (const auto byte : bytes) { value ^= byte; value *= 1099511628211ull; }
+    }
+    std::string String() const { std::ostringstream stream; stream << std::hex << value; return stream.str(); }
+};
 struct BinaryWriter {
-    std::vector<std::uint8_t> bytes;
+    std::ofstream stream;
+    std::array<std::uint8_t, BinaryBufferBytes> buffer{};
+    std::size_t buffered = 0, size = 0;
+    PayloadHash hash;
+    explicit BinaryWriter(const fs::path& path) {
+        fs::create_directories(path.parent_path());
+        stream.open(path, std::ios::binary | std::ios::trunc);
+        Require(bool(stream), "Cannot create payload.");
+    }
+    std::size_t Size() const { return size; }
+    void Flush() {
+        if (!buffered) return;
+        stream.write(reinterpret_cast<const char*>(buffer.data()), static_cast<std::streamsize>(buffered));
+        Require(bool(stream), "Failed writing payload."); buffered = 0;
+    }
+    void Raw(std::span<const std::uint8_t> bytes) {
+        if (bytes.size() > MaxBinaryBytes - size) throw std::runtime_error("Asset payload exceeds format limit.");
+        hash.Append(bytes); size += bytes.size();
+        while (!bytes.empty()) {
+            if (!buffered && bytes.size() >= buffer.size()) {
+                stream.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+                Require(bool(stream), "Failed writing payload."); return;
+            }
+            const auto count = std::min(bytes.size(), buffer.size() - buffered);
+            std::memcpy(buffer.data() + buffered, bytes.data(), count);
+            buffered += count; bytes = bytes.subspan(count);
+            if (buffered == buffer.size()) Flush();
+        }
+    }
     template <typename T> void Scalar(T value) {
         static_assert(std::is_arithmetic_v<T>);
         if constexpr (std::is_floating_point_v<T>) Finite(value);
-        const auto raw = std::bit_cast<std::array<std::uint8_t, sizeof(T)>>(value);
-        if constexpr (std::endian::native == std::endian::little) bytes.insert(bytes.end(), raw.begin(), raw.end());
-        else bytes.insert(bytes.end(), raw.rbegin(), raw.rend());
+        auto raw = std::bit_cast<std::array<std::uint8_t, sizeof(T)>>(value);
+        if constexpr (std::endian::native != std::endian::little) std::reverse(raw.begin(), raw.end());
+        Raw(raw);
     }
     template <typename V> void Vec(const V& value) {
         for (glm::length_t i = 0; i < value.length(); ++i) Scalar(value[i]);
@@ -233,34 +271,73 @@ struct BinaryWriter {
         range["offset"] = Json::UInt64(offset); range["count"] = Json::UInt64(count); range["stride"] = Json::UInt64(stride);
         return range;
     }
-    void Save(const fs::path& path) const {
-        Require(bytes.size() <= MaxBinaryBytes, "Asset payload exceeds format limit.");
-        std::ofstream stream(path, std::ios::binary | std::ios::trunc);
-        Require(bool(stream), "Cannot create payload.");
-        stream.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+    void Save() {
+        Flush();
         stream.close(); Require(bool(stream), "Failed writing payload.");
     }
 };
 
 struct BinaryReader {
-    std::vector<std::uint8_t> bytes;
+    std::ifstream stream;
+    std::array<std::uint8_t, BinaryBufferBytes> buffer{};
+    std::size_t size = 0, bufferedOffset = 0, bufferedCount = 0;
     std::size_t position = 0, end = 0;
+    std::string hash;
+    // At the unchanged 2-GiB limit this index occupies at most 256 KiB.
+    // It binds later decoded bytes to the initial checksum scan, preserving
+    // the old memory-snapshot check when another process changes the file.
+    std::vector<std::uint64_t> blockHashes;
     std::map<std::size_t, std::size_t> ranges;
     explicit BinaryReader(const fs::path& path) {
-        std::error_code ec; const auto size = fs::file_size(path, ec);
-        Require(!ec && size <= MaxBinaryBytes, "Missing or oversized asset payload.");
-        bytes.resize(static_cast<std::size_t>(size));
-        std::ifstream stream(path, std::ios::binary);
+        std::error_code ec; const auto fileSize = fs::file_size(path, ec);
+        Require(!ec && fileSize <= MaxBinaryBytes, "Missing or oversized asset payload.");
+        size = end = static_cast<std::size_t>(fileSize);
+        stream.open(path, std::ios::binary);
         Require(bool(stream), "Cannot open asset payload.");
-        stream.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
-        Require(bool(stream), "Truncated asset payload."); end = bytes.size();
+        PayloadHash checksum;
+        blockHashes.reserve((size + buffer.size() - 1) / buffer.size());
+        for (std::size_t offset = 0; offset < size;) {
+            const auto count = std::min(buffer.size(), size - offset);
+            stream.read(reinterpret_cast<char*>(buffer.data()), static_cast<std::streamsize>(count));
+            Require(bool(stream), "Truncated asset payload.");
+            const std::span<const std::uint8_t> bytes(buffer.data(), count);
+            checksum.Append(bytes);
+            PayloadHash block; block.Append(bytes); blockHashes.push_back(block.value);
+            offset += count;
+        }
+        hash = checksum.String();
+    }
+    void Raw(std::span<std::uint8_t> destination) {
+        if (position > end || destination.size() > end - position) throw std::runtime_error("Truncated binary scalar.");
+        while (!destination.empty()) {
+            if (position < bufferedOffset || position - bufferedOffset >= bufferedCount) {
+                bufferedOffset = position / buffer.size() * buffer.size();
+                stream.clear(); stream.seekg(static_cast<std::streamoff>(bufferedOffset));
+                Require(bool(stream), "Cannot seek asset payload.");
+                bufferedCount = std::min(buffer.size(), size - bufferedOffset);
+                stream.read(reinterpret_cast<char*>(buffer.data()), static_cast<std::streamsize>(bufferedCount));
+                Require(bool(stream), "Truncated asset payload.");
+                PayloadHash block; block.Append(std::span(buffer.data(), bufferedCount));
+                Require(block.value == blockHashes[bufferedOffset / buffer.size()],
+                    "Asset payload changed after checksum verification.");
+            }
+            const auto count = std::min(destination.size(), bufferedCount - (position - bufferedOffset));
+            std::memcpy(destination.data(), buffer.data() + position - bufferedOffset, count);
+            position += count; destination = destination.subspan(count);
+        }
+    }
+    bool Signature() {
+        std::array<std::uint8_t, 8> signature{};
+        if (size < signature.size()) return false;
+        position = 0; end = size; Raw(signature);
+        return std::equal(signature.begin(), signature.end(), "SKASSET1");
     }
     std::size_t Range(const Json::Value& range, std::size_t expectedStride,
         std::uint64_t maximumCount = MaxElements) {
         Require(range.isObject() && range["offset"].isUInt64() && range["count"].isUInt64() && range["stride"].isUInt64(), "Invalid binary range.");
         const auto offset = range["offset"].asUInt64(), count = range["count"].asUInt64(), stride = range["stride"].asUInt64();
-        Require(stride == expectedStride && count <= maximumCount && offset >= 8 && offset <= bytes.size()
-            && count <= (bytes.size() - offset) / expectedStride, "Binary range exceeds its payload.");
+        Require(stride == expectedStride && count <= maximumCount && offset >= 8 && offset <= size
+            && count <= (size - offset) / expectedStride, "Binary range exceeds its payload.");
         position = static_cast<std::size_t>(offset); end = position + static_cast<std::size_t>(count) * expectedStride;
         if (count) {
             const auto next = ranges.lower_bound(position);
@@ -273,10 +350,8 @@ struct BinaryReader {
     template <typename T> T Scalar() {
         Require(position <= end && sizeof(T) <= end - position, "Truncated binary scalar.");
         std::array<std::uint8_t, sizeof(T)> raw{};
-        for (std::size_t i = 0; i < sizeof(T); ++i) {
-            const auto destination = std::endian::native == std::endian::little ? i : sizeof(T) - 1 - i;
-            raw[destination] = bytes[position++];
-        }
+        Raw(raw);
+        if constexpr (std::endian::native != std::endian::little) std::reverse(raw.begin(), raw.end());
         const auto value = std::bit_cast<T>(raw);
         if constexpr (std::is_floating_point_v<T>) Finite(value);
         return value;
@@ -414,12 +489,6 @@ std::vector<MeshRegionInfo> ReadMeshRegions(const Json::Value& values, std::size
     }
     return result;
 }
-std::string Hash(const std::vector<std::uint8_t>& bytes) {
-    std::uint64_t hash = 14695981039346656037ull;
-    for (const auto value : bytes) { hash ^= value; hash *= 1099511628211ull; }
-    std::ostringstream stream; stream << std::hex << hash; return stream.str();
-}
-
 Json::Value SkeletonJson(const SkeletonAsset& skeleton) {
     auto root = Header("Skeleton", skeleton.id, skeleton.name); root["bones"] = Json::Value(Json::arrayValue);
     for (const auto& bone : skeleton.bones) {
@@ -555,8 +624,9 @@ PbrMaterial ReadMaterial(const Json::Value& m) {
     return result;
 }
 
-Json::Value MeshJson(const SkeletalAssetPackage& asset, BinaryWriter& binary) {
-    auto root = Header("SkeletalMesh", StableId("mesh", asset.id), asset.name); root["skeletonId"] = asset.skeleton.id;
+Json::Value MeshJson(const SkeletalAssetPackage& asset, BinaryWriter& binary,
+    const std::string& packageId, const std::string& packageName, const std::string& skeletonId) {
+    auto root = Header("SkeletalMesh", StableId("mesh", packageId), packageName); root["skeletonId"] = skeletonId;
     root["payload"] = "model.skmesh.bin"; root["byteOrder"] = "little"; root["vertexStride"] = 60;
     root["bounds"] = BoundsJson(asset.geometry->bounds); root["warnings"] = Strings(asset.geometry->warnings);
     root["meshes"] = Json::Value(Json::arrayValue); root["instances"] = Json::Value(Json::arrayValue);
@@ -565,25 +635,25 @@ Json::Value MeshJson(const SkeletalAssetPackage& asset, BinaryWriter& binary) {
     for (std::size_t i = 0; i < asset.geometry->meshes.size(); ++i) {
         const auto& mesh = asset.geometry->meshes[i]; const auto& skin = asset.skins[i]; Json::Value m;
         m["name"] = mesh.name; m["materialIndex"] = mesh.materialIndex; m["bounds"] = BoundsJson(mesh.bounds);
-        auto offset = binary.bytes.size();
+        auto offset = binary.Size();
         for (const auto& v : mesh.vertices) { binary.Vec(v.position); binary.Vec(v.normal); binary.Vec(v.uv); binary.Vec(v.tangent); }
-        m["vertices"] = binary.Range(offset, mesh.vertices.size(), 60); offset = binary.bytes.size();
+        m["vertices"] = binary.Range(offset, mesh.vertices.size(), 60); offset = binary.Size();
         for (auto index : mesh.indices) binary.Scalar(index);
-        m["indices"] = binary.Range(offset, mesh.indices.size(), 4); offset = binary.bytes.size();
+        m["indices"] = binary.Range(offset, mesh.indices.size(), 4); offset = binary.Size();
         for (const auto& v : skin.vertices) {
             for (auto joint : v.joints) binary.Scalar(joint);
             binary.Vec(v.weights); binary.Scalar(static_cast<std::uint8_t>(v.mode)); binary.Vec(v.sdefC); binary.Vec(v.sdefR0); binary.Vec(v.sdefR1);
         }
-        m["skin"] = binary.Range(offset, skin.vertices.size(), 69); offset = binary.bytes.size();
+        m["skin"] = binary.Range(offset, skin.vertices.size(), 69); offset = binary.Size();
         if (!skin.influenceOffsets.empty()) {
             for (const auto begin : skin.influenceOffsets) binary.Scalar(begin);
             m["fullInfluenceOffsets"] = binary.Range(offset, skin.influenceOffsets.size(), 4);
-            offset = binary.bytes.size();
+            offset = binary.Size();
             for (const auto& influence : skin.influences) {
                 binary.Scalar(influence.joint); binary.Scalar(influence.weight);
             }
             m["fullInfluences"] = binary.Range(offset, skin.influences.size(), 8);
-            offset = binary.bytes.size();
+            offset = binary.Size();
         }
         for (const auto index : skin.sourceVertexIds) binary.Scalar(index);
         m["sourceVertexIds"] = binary.Range(offset, skin.sourceVertexIds.size(), 4);
@@ -598,12 +668,12 @@ Json::Value MeshJson(const SkeletalAssetPackage& asset, BinaryWriter& binary) {
     for (const auto& texture : asset.geometry->textures) {
         Json::Value t; t["name"] = texture.name; t["width"] = texture.width; t["height"] = texture.height;
         t["hasAlpha"] = texture.hasAlpha; t["linearColor"] = texture.linearColor; t["format"] = texture.rgba.empty() ? "RGBA32F" : "RGBA8";
-        const auto offset = binary.bytes.size();
+        const auto offset = binary.Size();
         if (!texture.rgba.empty()) {
             // Bytes have no endian conversion. Large decoded albedo atlases
             // must be appended once instead of invoking scalar encoding for
             // every channel (particularly expensive in Debug builds).
-            binary.bytes.insert(binary.bytes.end(), texture.rgba.begin(), texture.rgba.end());
+            binary.Raw(texture.rgba);
             t["pixels"] = binary.Range(offset, texture.rgba.size(), 1);
         }
         else { for (const auto channel : texture.rgba32f) binary.Scalar(channel); t["pixels"] = binary.Range(offset, texture.rgba32f.size(), 4); }
@@ -611,20 +681,20 @@ Json::Value MeshJson(const SkeletalAssetPackage& asset, BinaryWriter& binary) {
     }
     for (const auto& morph : asset.morphs) {
         Json::Value m; m["name"] = morph.name; m["englishName"] = morph.englishName; m["panel"] = morph.panel; m["sourceType"] = morph.sourceType;
-        const auto offset = binary.bytes.size();
+        const auto offset = binary.Size();
         for (const auto& delta : morph.deltas) { binary.Scalar(delta.mesh); binary.Scalar(delta.vertex); binary.Vec(delta.position); binary.Vec(delta.normal); }
         m["deltas"] = binary.Range(offset, morph.deltas.size(), 44); root["morphs"].append(m);
     }
-    root["payloadBytes"] = Json::UInt64(binary.bytes.size()); root["payloadHashFNV1a64"] = Hash(binary.bytes); return root;
+    root["payloadBytes"] = Json::UInt64(binary.Size()); root["payloadHashFNV1a64"] = binary.hash.String(); return root;
 }
 
 void ReadMesh(const Json::Value& root, const fs::path& directory, SkeletalAssetPackage& asset) {
     CheckVersion(root, "SkeletalMesh"); Require(root["byteOrder"].asString() == "little", "Unsupported payload byte order.");
     Require(root["skeletonId"].asString() == asset.skeleton.id, "Skeletal mesh references another skeleton.");
     BinaryReader binary(Child(directory, root["payload"]));
-    Require(root["payloadBytes"].isUInt64() && root["payloadBytes"].asUInt64() == binary.bytes.size(), "Payload size mismatch.");
-    Require(root["payloadHashFNV1a64"].asString() == Hash(binary.bytes), "Payload checksum mismatch.");
-    Require(binary.bytes.size() >= 8 && std::equal(binary.bytes.begin(), binary.bytes.begin() + 8, "SKASSET1"), "Invalid payload signature.");
+    Require(root["payloadBytes"].isUInt64() && root["payloadBytes"].asUInt64() == binary.size, "Payload size mismatch.");
+    Require(root["payloadHashFNV1a64"].asString() == binary.hash, "Payload checksum mismatch.");
+    Require(binary.Signature(), "Invalid payload signature.");
     asset.geometry = std::make_shared<StaticModel>(); auto& geometry = *asset.geometry;
     geometry.sourcePath = asset.sourcePath; geometry.bounds = ReadBounds(root["bounds"]); geometry.warnings = ReadStrings(root["warnings"]);
     Array(root["meshes"], "meshes"); Array(root["instances"], "instances"); Array(root["materials"], "materials");
@@ -681,8 +751,7 @@ void ReadMesh(const Json::Value& root, const fs::path& directory, SkeletalAssetP
         const auto count = binary.Range(t["pixels"], channelBytes, pixels); Require(count == pixels, "Texture dimensions do not match pixel payload.");
         if (format == "RGBA8") {
             // Range() already checked the complete span and overlap rules.
-            texture.rgba.assign(binary.bytes.begin() + binary.position, binary.bytes.begin() + binary.end);
-            binary.position = binary.end;
+            texture.rgba.resize(count); binary.Raw(texture.rgba);
         }
         else { texture.rgba32f.resize(count); for (auto& channel : texture.rgba32f) channel = binary.Scalar<float>(); }
         geometry.textures.push_back(std::move(texture));
@@ -973,42 +1042,46 @@ bool SaveSkeletalAssetPackage(const SkeletalAssetPackage& source, const fs::path
             if (fs::create_directory(path)) { candidate = fs::absolute(path).lexically_normal(); break; }
         }
         Require(!candidate.empty() && candidate.parent_path() == target.parent_path(), "Could not create an isolated package candidate.");
-        auto asset = source;
-        if (asset.id.empty()) asset.id = StableId("package", asset.name + ":" + Utf8(asset.sourcePath));
-        if (asset.name.empty()) asset.name = "SkeletalAsset";
-        if (asset.skeleton.id.empty()) asset.skeleton.id = StableId("skeleton", asset.id);
-        if (asset.skeleton.name.empty()) asset.skeleton.name = asset.name + "_Skeleton";
-        if (asset.ikRig.id.empty()) asset.ikRig.id = StableId("ikrig", asset.id);
-        if (asset.ikRig.name.empty()) asset.ikRig.name = asset.name + "_IKRig";
-        asset.ikRig.skeletonId = asset.skeleton.id;
-        auto manifest = Header("SkeletalAssetPackage", asset.id, asset.name);
-        manifest["sourcePath"] = Utf8(asset.sourcePath); manifest["sourceFormat"] = asset.sourceFormat;
-        manifest["sourceRigidBodies"] = asset.sourceRigidBodies; manifest["sourceJoints"] = asset.sourceJoints;
-        if(!asset.rigidBodies.empty())manifest["rigidBodies"]=SourcePhysicsJson::Bodies(asset.rigidBodies);
-        if(!asset.physicsJoints.empty())manifest["physicsJoints"]=SourcePhysicsJson::Joints(asset.physicsJoints);
-        if (!asset.meshRegions.empty()) manifest["meshRegions"] = MeshRegionsJson(asset.meshRegions);
-        manifest["warnings"] = Strings(asset.warnings); manifest["skeleton"] = "Skeletons/model.skeleton.json";
+        // Normalize only small headers. Copying the whole package duplicates
+        // every skin, sparse morph and animation while the source stays live.
+        const auto packageId = source.id.empty() ? StableId("package", source.name + ":" + Utf8(source.sourcePath)) : source.id;
+        const auto packageName = source.name.empty() ? std::string("SkeletalAsset") : source.name;
+        auto skeleton = source.skeleton; auto rig = source.ikRig;
+        if (skeleton.id.empty()) skeleton.id = StableId("skeleton", packageId);
+        if (skeleton.name.empty()) skeleton.name = packageName + "_Skeleton";
+        if (rig.id.empty()) rig.id = StableId("ikrig", packageId);
+        if (rig.name.empty()) rig.name = packageName + "_IKRig";
+        rig.skeletonId = skeleton.id;
+        auto manifest = Header("SkeletalAssetPackage", packageId, packageName);
+        manifest["sourcePath"] = Utf8(source.sourcePath); manifest["sourceFormat"] = source.sourceFormat;
+        manifest["sourceRigidBodies"] = source.sourceRigidBodies; manifest["sourceJoints"] = source.sourceJoints;
+        if(!source.rigidBodies.empty())manifest["rigidBodies"]=SourcePhysicsJson::Bodies(source.rigidBodies);
+        if(!source.physicsJoints.empty())manifest["physicsJoints"]=SourcePhysicsJson::Joints(source.physicsJoints);
+        if (!source.meshRegions.empty()) manifest["meshRegions"] = MeshRegionsJson(source.meshRegions);
+        manifest["warnings"] = Strings(source.warnings); manifest["skeleton"] = "Skeletons/model.skeleton.json";
         manifest["skeletalMesh"] = "SkeletalMeshes/model.skmesh.json"; manifest["ikRig"] = "IKRigs/model.ikrig.json";
         manifest["animations"] = Json::Value(Json::arrayValue); manifest["assets"] = Json::Value(Json::arrayValue);
         auto reference = [&](const std::string& id, const char* type, const std::string& path) {
             Json::Value ref; ref["id"] = id; ref["assetType"] = type; ref["path"] = path; manifest["assets"].append(ref);
         };
-        WriteJson(candidate / "Skeletons/model.skeleton.json", SkeletonJson(asset.skeleton));
-        WriteJson(candidate / "IKRigs/model.ikrig.json", RigJson(asset.ikRig));
+        WriteJson(candidate / "Skeletons/model.skeleton.json", SkeletonJson(skeleton));
+        WriteJson(candidate / "IKRigs/model.ikrig.json", RigJson(rig));
         Json::Value mesh;
         {
-            BinaryWriter binary; mesh = MeshJson(asset, binary);
-            WriteJson(candidate / "SkeletalMeshes/model.skmesh.json", mesh); binary.Save(candidate / "SkeletalMeshes/model.skmesh.bin");
-        } // Release the full payload before candidate verification reads it.
-        reference(asset.skeleton.id, "Skeleton", manifest["skeleton"].asString());
+            BinaryWriter binary(candidate / "SkeletalMeshes/model.skmesh.bin");
+            mesh = MeshJson(source, binary, packageId, packageName, skeleton.id); binary.Save();
+            WriteJson(candidate / "SkeletalMeshes/model.skmesh.json", mesh);
+        } // Only a fixed-size IO buffer was held; verify the actual disk bytes.
+        reference(skeleton.id, "Skeleton", manifest["skeleton"].asString());
         reference(mesh["id"].asString(), "SkeletalMesh", manifest["skeletalMesh"].asString());
-        reference(asset.ikRig.id, "IKRig", manifest["ikRig"].asString());
-        for (std::size_t index = 0; index < asset.animations.size(); ++index) {
-            auto& sequence = asset.animations[index]; sequence.skeletonId = asset.skeleton.id;
-            if (sequence.id.empty()) sequence.id = StableId("animation", asset.id + ":" + sequence.name + ":" + std::to_string(index));
+        reference(rig.id, "IKRig", manifest["ikRig"].asString());
+        for (std::size_t index = 0; index < source.animations.size(); ++index) {
+            const auto& sequence = source.animations[index];
+            const auto sequenceId = sequence.id.empty() ? StableId("animation", packageId + ":" + sequence.name + ":" + std::to_string(index)) : sequence.id;
             const auto relative = "Animations/" + Filename(sequence.name, index);
-            WriteJson(candidate / Path(relative), AnimationJson(sequence), true); manifest["animations"].append(relative);
-            reference(sequence.id, "AnimationSequence", relative);
+            auto json = AnimationJson(sequence); json["id"] = sequenceId; json["skeletonId"] = skeleton.id;
+            WriteJson(candidate / Path(relative), json, true); manifest["animations"].append(relative);
+            reference(sequenceId, "AnimationSequence", relative);
         }
         WriteJson(candidate / "Package.asset.json", manifest);
         // Validate the actual candidate bytes before making the package visible.

@@ -18,6 +18,7 @@
 #include "Render/Private/Pipeline/probe_sdf_visualization_shaders.h"
 #include "Render/Private/Pipeline/surface_cache_probe_shaders.h"
 #include "Render/Private/Pipeline/surface_cache_temporal_shaders.h"
+#include "Render/Private/Pipeline/surface_cache_spatial_shaders.h"
 #include "Render/Private/Pipeline/surface_cache_shaders.h"
 #include "Render/Public/Pipeline/surface_cache.h"
 #include "Render/Public/Pipeline/probe_sdf_scene.h"
@@ -123,6 +124,8 @@ struct MaterialRenderPipeline::Impl {
         bool valid=false;std::uint32_t image=0,phase=0,spacing=0,candidates=0,sourceWidth=0,sourceHeight=0;
         float threshold=0;bool adaptive=false;std::uint64_t sequence=0;bool cosineHemisphere=false;
         glm::mat4 viewProjection{1};
+        std::uint64_t geometryGeneration=0;
+        glm::vec4 refinement{0};
     } placementCompleted,placementPending;
     std::shared_ptr<const void> traceProgramsOwner,traceTargetsOwner;
     RenderResourceHandle<PipelineSpec> traceHzbBaseProgram,traceHzbReduceProgram,traceRayProgram,traceDisplayProgram;
@@ -144,20 +147,31 @@ struct MaterialRenderPipeline::Impl {
     unsigned sdfGlobalHeight=0,sdfObjectHeight=0,sdfGeometryHeight=0,sdfRangeHeight=0;
     struct SdfMeshUpload {RenderResourceHandle<RHITextureSpec> texture;std::shared_ptr<const void> owner;std::vector<std::shared_ptr<const ProbeMeshSdf>> assets;};
     std::map<std::vector<std::uintptr_t>,SdfMeshUpload> sdfMeshUploads;
-    std::shared_ptr<const void> surfaceCacheProgramsOwner,surfaceCacheDataOwner,surfaceCacheViewOwner;
+    std::shared_ptr<const void> surfaceCacheProgramsOwner,surfaceCacheDataOwner,surfaceCacheViewOwner,surfaceCacheConstantsOwner;
+    std::shared_ptr<const void> areaLightShadowConstantsOwner;
+    RenderResourceHandle<UniformBufferSpec> areaLightShadowBuffer;
+    struct AreaLightShadowState {
+        bool valid=false;std::uint64_t key=0;Target atlas;std::shared_ptr<const void> owner;
+    } areaLightShadowCompleted,areaLightShadowPending;
     std::shared_ptr<const void> surfaceCacheProbeOwner;
     std::shared_ptr<const SurfaceCacheScene> surfaceCacheAsset;
     std::shared_ptr<const ProbeSdfScene> surfaceCacheGeometryScene;
     RenderResourceHandle<UniformBufferSpec> surfaceCacheBuffer;
     RenderResourceHandle<PipelineSpec> surfaceCacheLightingProgram,surfaceCacheGatherProgram,surfaceCacheResolveProgram,surfaceCacheCoverageProgram;
-    RenderResourceHandle<PipelineSpec> surfaceCacheProbeIntegrateProgram,surfaceCacheProbeReconstructProgram;
+    RenderResourceHandle<PipelineSpec> surfaceCacheProbeIntegrateProgram,surfaceCacheProbeReconstructProgram,surfaceCacheProbeCoverageProgram;
     RenderResourceHandle<RHITextureSpec> surfaceCacheAttributes,surfaceCacheMetadata,surfaceCacheGeometry;
     Target surfaceCacheLighting,surfaceCacheRaw,surfaceCacheResolved,surfaceCacheCoverage,surfaceCacheSource;
     Target surfaceCacheProbeIrradiance;
+    Target surfaceCacheProbeCoverage;
     ScreenProbePlacementConstants placementFrameConstants;
     std::uint64_t surfaceCacheGeneration=0,surfaceCacheGeometryGeneration=0;
     unsigned surfaceCacheAttributeHeight=0,surfaceCacheMetadataHeight=0,surfaceCacheGeometryHeight=0;
-    struct SurfaceCacheState {bool valid=false;std::uint64_t lightingKey=0;bool probes=false;} surfaceCacheCompleted,surfaceCachePending;
+    struct SurfaceCacheState {bool valid=false;std::uint64_t lightingKey=0;bool probes=false;bool spatial=false;unsigned spatialImage=0;} surfaceCacheCompleted,surfaceCachePending;
+    std::shared_ptr<const void> surfaceCacheSpatialProgramsOwner,surfaceCacheSpatialOwner;
+    RenderResourceHandle<UniformBufferSpec> surfaceCacheSpatialBuffer;
+    RenderResourceHandle<PipelineSpec> surfaceCacheSpatialNeighborsProgram,surfaceCacheSpatialFilterProgram;
+    std::array<Target,2> surfaceCacheSpatialRays;
+    Target surfaceCacheSpatialNeighbors,surfaceCacheSpatialIrradiance,surfaceCacheSpatialGi;
     std::shared_ptr<const void> surfaceCacheTemporalProgramsOwner,surfaceCacheTemporalOwner;
     RenderResourceHandle<UniformBufferSpec> surfaceCacheTemporalBuffer;
     RenderResourceHandle<PipelineSpec> surfaceCacheTemporalProgram,surfaceCacheTemporalPositionProgram,surfaceCacheTemporalNormalProgram;
@@ -437,6 +451,14 @@ void main() {
         add(settings.lighting.ambientAndExposure.x); add(settings.lighting.ambientAndExposure.y); add(settings.lighting.ambientAndExposure.z);
         add(settings.lighting.specularAA);
         const auto areas = MakeAreaLightsConstants(settings.areaLights); bytes(&areas, sizeof(areas));
+        const auto& areaShadow=settings.surfaceCacheGi;
+        add(areaShadow.cacheBilinear);
+        add(areaShadow.reconstructionDebug);
+        add(areaShadow.areaLightShadows);
+        if(areaShadow.areaLightShadows) {
+            add(areaShadow.areaShadows.tileResolution);add(areaShadow.areaShadows.nearPlane);
+            add(areaShadow.areaShadows.depthBiasTexels);add(areaShadow.areaShadows.normalBiasTexels);
+        }
         const auto spot=MakeSpotLightConstants(settings.spotLight);
         add(spot.positionRadius.w);add(spot.directionOuter.w);add(spot.intensityInner);
         add(settings.indirect.enabled); add(settings.indirect.intensity); add(settings.indirect.radius);
@@ -463,6 +485,7 @@ void main() {
         if(placement.enabled) {
             add(placement.adaptive);add(placement.freeze);add(placement.baseSpacing);add(placement.candidateCount);
             add(placement.relativeDepthThreshold);add(placement.markerRadiusPixels);add(placement.debugView);add(placement.frameIndex);
+            add(placement.cornerRefinement);add(placement.cornerDetectionRadius);add(placement.cornerProbeSupport);add(placement.cornerNormalAngleDegrees);
             add(placement.trace.enabled);add(placement.trace.rayResolution);add(placement.trace.maxSteps);add(placement.trace.maxMip);
             add(placement.trace.displayMode);add(placement.trace.maxDistance);add(placement.trace.thickness);
             add(placement.trace.normalBias);add(placement.trace.relativeThickness);add(placement.trace.selectedProbe);add(placement.trace.showPanel);
@@ -504,16 +527,13 @@ void main() {
         Require(ValidateLumenGiSettings(settings.lumenGi,&error),"Invalid hybrid Lumen GI settings");
         Require(ValidateScreenProbePlacementSettings(settings.screenProbePlacement),"Invalid screen probe placement settings");
         Require(ValidateSurfaceCacheGiSettings(settings.surfaceCacheGi),"Invalid Surface Cache GI settings");
+        Require(!settings.surfaceCacheGi.areaLightShadows||settings.areaLights.count<=1,
+            "Cached Surface Cache rectangle shadows currently support one area light");
         Require(!settings.surfaceCacheGi.enabled||(!settings.lumenGi.enabled&&!settings.realtimeGi.enabled&&!settings.probes.enabled&&!settings.indirect.enabled),
             "Card Surface Cache GI needs an independent diffuse GI mode");
         if(settings.surfaceCacheGi.enabled) {
             Require(!settings.sky.enabled||settings.sky.intensity<=0||settings.sky.diffuseStrength<=0,
-                "Card Surface Cache GI currently supports point, sun and spot illumination; disable sky diffuse lighting");
-            for(unsigned i=0;i<settings.areaLights.count;++i) {
-                const auto& area=settings.areaLights.lights[i];
-                Require(!area.enabled||glm::all(glm::lessThanEqual(area.radiance,glm::vec3(0))),
-                    "Card Surface Cache GI currently supports point, sun and spot illumination; disable area lights");
-            }
+                "Card Surface Cache GI supports point, sun, spot and rectangle illumination; disable sky diffuse lighting");
         }
         if(settings.surfaceCacheGi.enabled&&settings.surfaceCacheGi.probeDiagnostics&&settings.screenProbePlacement.enabled&&
             settings.screenProbePlacement.trace.enabled&&settings.screenProbePlacement.trace.sdf.enabled)
@@ -692,7 +712,9 @@ void main() {
     #include "Render/Private/Pipeline/screen_probe_placement_pipeline.inl"
     #include "Render/Private/Pipeline/probe_sdf_pipeline.inl"
     #include "Render/Private/Pipeline/surface_cache_temporal_pipeline.inl"
+    #include "Render/Private/Pipeline/surface_cache_spatial_pipeline.inl"
     #include "Render/Private/Pipeline/surface_cache_pipeline.inl"
+    #include "Render/Private/Pipeline/area_light_shadows_pipeline.inl"
     void Record(RHIFrameEncoder& encoder, const RenderFrame& frame, const PipelineCamera& camera,
                 const MaterialPipelineSettings& requested) {
         Validate(frame, camera, requested);
@@ -713,13 +735,14 @@ void main() {
         }
         Require(encoder.IsRecording(), "Pipeline needs a recording frame encoder");
         statistics = {};
+        areaLightShadowPending=areaLightShadowCompleted;
         auto skyAssets=settings.sky;if(settings.lumenGi.enabled&&settings.lumenGi.reflections)skyAssets.enabled=true;
         PrepareSky(skyAssets);
         PrepareProbes(settings.probes);
         PrepareRealtimeGi(settings.realtimeGi);realtimePending={};
         PrepareLumen(settings.lumenGi);lumenPending={};
         const auto& sc=settings.surfaceCacheGi;
-        const bool cacheProbeGather=sc.enabled&&sc.useScreenProbes&&(sc.view==0||sc.view==2||(sc.view==5&&sc.temporal.enabled)||sc.probeDiagnostics);
+        const bool cacheProbeGather=sc.enabled&&sc.useScreenProbes&&(sc.view==0||sc.view==2||sc.view==6||(sc.view==5&&sc.temporal.enabled)||sc.probeDiagnostics);
         const bool doPlacement=settings.screenProbePlacement.enabled&&(!sc.enabled||cacheProbeGather||sc.probeDiagnostics);
         placementPending={};tracePending={};surfaceCachePending={};surfaceCacheTemporalPending={};
         if(doPlacement) {
@@ -729,6 +752,7 @@ void main() {
         }
         PrepareSurfaceCacheGi(settings.surfaceCacheGi,settings.screenProbePlacement);
         PrepareSurfaceCacheTemporal(settings.surfaceCacheGi);
+        PrepareSurfaceCacheSpatial(settings.surfaceCacheGi);
         Require(encoder.KeepAlive(assetsOwner) && encoder.KeepAlive(targetsOwner), "Cannot pin pipeline resources");
         if (skyOwner) Require(encoder.KeepAlive(skyOwner), "Cannot pin sky environment resources");
         if (probeOwner) Require(encoder.KeepAlive(probeOwner), "Cannot pin diffuse probe resources");
@@ -742,10 +766,12 @@ void main() {
         if(doPlacement&&settings.screenProbePlacement.trace.enabled&&settings.screenProbePlacement.trace.sdf.enabled)
             Require(encoder.KeepAlive(sdfProgramsOwner)&&encoder.KeepAlive(sdfMeshOwner)&&encoder.KeepAlive(sdfWorldOwner)&&
                 (sdfVolume||encoder.KeepAlive(sdfViewOwner))&&encoder.KeepAlive(sdfScene),"Cannot pin SDF resources");
-        if(settings.surfaceCacheGi.enabled)Require(encoder.KeepAlive(surfaceCacheProgramsOwner)&&encoder.KeepAlive(surfaceCacheDataOwner)&&
-            encoder.KeepAlive(surfaceCacheViewOwner)&&encoder.KeepAlive(surfaceCacheAsset)&&encoder.KeepAlive(surfaceCacheGeometryScene),"Cannot pin card Surface Cache resources");
+        if(sc.enabled)Require(encoder.KeepAlive(surfaceCacheConstantsOwner)&&encoder.KeepAlive(surfaceCacheDataOwner)&&
+            encoder.KeepAlive(surfaceCacheAsset)&&encoder.KeepAlive(surfaceCacheGeometryScene),"Cannot pin card Surface Cache data");
+        if(sc.enabled)Require(encoder.KeepAlive(surfaceCacheProgramsOwner)&&encoder.KeepAlive(surfaceCacheViewOwner),"Cannot pin card Surface Cache GI resources");
         if(cacheProbeGather)Require(encoder.KeepAlive(surfaceCacheProbeOwner),"Cannot pin probe integration targets");
         if(SurfaceCacheTemporalActive(sc))Require(encoder.KeepAlive(surfaceCacheTemporalOwner)&&encoder.KeepAlive(surfaceCacheTemporalProgramsOwner),"Cannot pin GI temporal history resources");
+        if(SurfaceCacheSpatialActive(sc))Require(encoder.KeepAlive(surfaceCacheSpatialOwner)&&encoder.KeepAlive(surfaceCacheSpatialProgramsOwner),"Cannot pin GI spatial resources");
         const auto& rt=settings.realtimeGi;
         const DiffuseProbeRuntimeConstants probeRuntime{rt.enabled?glm::vec4(2,rt.intensity,rt.normalBias,rt.visibilityBias):
             glm::vec4(settings.probes.enabled?1:0,settings.probes.intensity,settings.probes.normalBias,settings.probes.visibilityBias)};
@@ -820,6 +846,7 @@ void main() {
 
         Require(encoder.BindTexture({}, 12) && encoder.BindTexture({}, 13) && encoder.BindTexture({}, 14), "Cannot reset pass textures");
         Require(encoder.BindTexture({}, 8) && encoder.BindTexture({}, 9) && encoder.BindTexture({}, 15), "Cannot reset advanced pass textures");
+        RecordAreaLightShadows(encoder,frame,settings);
         if(settings.lumenGi.enabled)RecordLumenSurface(encoder,settings);
         // Opaque cache diagnostics reconstruct a traced receiver directly;
         // no transparency/reflection or irradiance fallback consumes probes.
@@ -1085,10 +1112,12 @@ void MaterialRenderPipeline::Shutdown() {
     impl_->traceProgramsOwner.reset();impl_->traceTargetsOwner.reset();impl_->traceCompleted={};impl_->tracePending={};
     impl_->sdfProgramsOwner.reset();impl_->sdfMeshOwner.reset();impl_->sdfWorldOwner.reset();impl_->sdfViewOwner.reset();impl_->sdfScene.reset();
     impl_->sdfMeshUploads.clear();
-    impl_->surfaceCacheProgramsOwner.reset();impl_->surfaceCacheDataOwner.reset();impl_->surfaceCacheViewOwner.reset();
+    impl_->surfaceCacheProgramsOwner.reset();impl_->surfaceCacheDataOwner.reset();impl_->surfaceCacheViewOwner.reset();impl_->surfaceCacheConstantsOwner.reset();
+    impl_->areaLightShadowCompleted={};impl_->areaLightShadowPending={};impl_->areaLightShadowConstantsOwner.reset();impl_->areaLightShadowBuffer={};
     impl_->surfaceCacheProbeOwner.reset();
     impl_->surfaceCacheTemporalOwner.reset();impl_->surfaceCacheTemporalProgramsOwner.reset();
     impl_->surfaceCacheTemporalCompleted={};impl_->surfaceCacheTemporalPending={};
+    impl_->surfaceCacheSpatialOwner.reset();impl_->surfaceCacheSpatialProgramsOwner.reset();
     impl_->surfaceCacheAsset.reset();impl_->surfaceCacheGeometryScene.reset();impl_->surfaceCacheCompleted={};impl_->surfaceCachePending={};
     impl_->surfaceCacheBuffer={};
     impl_->lumenReactiveFrames=0;impl_->lumenGeometryChanged=impl_->realtimeGeometryChanged=false;
@@ -1106,6 +1135,7 @@ bool MaterialRenderPipeline::CompleteFrame(std::uint64_t token) {
     impl_->traceCompleted=impl_->tracePending;impl_->tracePending={};
     impl_->surfaceCacheCompleted=impl_->surfaceCachePending;impl_->surfaceCachePending={};
     impl_->surfaceCacheTemporalCompleted=impl_->surfaceCacheTemporalPending;impl_->surfaceCacheTemporalPending={};
+    impl_->areaLightShadowCompleted=std::move(impl_->areaLightShadowPending);impl_->areaLightShadowPending={};
     return true;
 }
 bool MaterialRenderPipeline::DiscardFrame(std::uint64_t token) {
@@ -1117,6 +1147,7 @@ bool MaterialRenderPipeline::DiscardFrame(std::uint64_t token) {
     impl_->tracePending={};
     impl_->surfaceCachePending={};
     impl_->surfaceCacheTemporalPending={};
+    impl_->areaLightShadowPending={};
     return true;
 }
 void MaterialRenderPipeline::ResetHistory() {
@@ -1172,13 +1203,22 @@ PipelineDebugTextures MaterialRenderPipeline::DebugTextures() const {
     }
     if(impl_->surfaceCacheCompleted.valid) {
         result.surfaceCacheAtlas=impl_->surfaceCacheLighting.color;result.surfaceCacheRawGi=impl_->surfaceCacheRaw.color;
+        result.surfaceCacheSpatialGi=impl_->surfaceCacheRaw.color;
         result.surfaceCacheCoverage=impl_->surfaceCacheCoverage.color;
         result.surfaceCacheWidth=impl_->surfaceCacheLighting.width;result.surfaceCacheHeight=impl_->surfaceCacheLighting.height;
         result.surfaceCacheGiWidth=impl_->surfaceCacheRaw.width;result.surfaceCacheGiHeight=impl_->surfaceCacheRaw.height;
         if(impl_->surfaceCacheCompleted.probes) {
+            result.surfaceCacheProbeCoverage=impl_->surfaceCacheProbeCoverage.color;
+            if(impl_->traceCompleted.valid)result.surfaceCacheSpatialRays=impl_->traceCompleted.sdf?
+                impl_->sdfRays[impl_->traceCompleted.image].color:impl_->traceRays[impl_->traceCompleted.image].color;
             result.surfaceCacheProbeIrradiance=impl_->surfaceCacheProbeIrradiance.color;
             result.surfaceCacheProbeWidth=impl_->surfaceCacheProbeIrradiance.width;
             result.surfaceCacheProbeHeight=impl_->surfaceCacheProbeIrradiance.height;
+        }
+        if(impl_->surfaceCacheCompleted.spatial) {
+            result.surfaceCacheSpatialGi=impl_->surfaceCacheSpatialGi.color;
+            result.surfaceCacheSpatialRays=impl_->surfaceCacheSpatialRays[impl_->surfaceCacheCompleted.spatialImage].color;
+            result.surfaceCacheSpatialNeighbors=impl_->surfaceCacheSpatialNeighbors.color;
         }
         if(impl_->surfaceCacheTemporalCompleted.valid) {
             result.surfaceCacheTemporalGi=impl_->surfaceCacheTemporalGi.color;

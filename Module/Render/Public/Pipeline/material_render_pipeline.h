@@ -98,10 +98,15 @@ struct PipelineStatistics {
     std::uint32_t surfaceCachePasses=0,surfaceCacheTexels=0,surfaceCacheUpdatedTexels=0;
     std::uint64_t surfaceCacheRays=0;
     std::uint32_t surfaceCacheProbePasses=0,surfaceCacheProbeSlots=0;
+    bool surfaceCacheProbeCoverageCollected=false;
     std::uint64_t surfaceCacheProbeRayBudget=0;
     bool surfaceCacheLightingUpdated=false;
     std::uint32_t surfaceCacheTemporalPasses=0;
     bool surfaceCacheHistoryUsed=false;
+    std::uint32_t surfaceCacheSpatialPasses=0;
+    std::uint32_t areaLightShadowPasses=0;
+    std::uint64_t areaLightShadowBytes=0;
+    bool areaLightShadowsUpdated=false,areaLightShadowCacheUsed=false;
 };
 // Borrowed diagnostic handles. Resize/Shutdown or a scene/resource replacement
 // on the next Record can retire them; cache indices can flip each frame.
@@ -137,6 +142,7 @@ struct PipelineDebugTextures {
     // Temporal GI keeps the raw readability alpha; history alpha is the
     // effective accumulated frame count. Both publish after frame completion.
     RenderResourceHandle<RHITextureSpec> surfaceCacheTemporalGi,surfaceCacheTemporalHistory;
+    RenderResourceHandle<RHITextureSpec> surfaceCacheSpatialGi,surfaceCacheSpatialRays,surfaceCacheProbeCoverage,surfaceCacheSpatialNeighbors;
     std::uint32_t surfaceCacheProbeWidth=0,surfaceCacheProbeHeight=0;
     std::uint32_t surfaceCacheWidth=0,surfaceCacheHeight=0,surfaceCacheGiWidth=0,surfaceCacheGiHeight=0;
 };

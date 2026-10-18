@@ -2,6 +2,7 @@
 #include "Model/Private/blend_importer.h"
 #include "Model/Private/blend_metadata.h"
 #include "Model/Private/garment_recognition.h"
+#include "Model/Private/max_metadata.h"
 
 #include <assimp/Importer.hpp>
 #include <assimp/IOStream.hpp>
@@ -22,6 +23,7 @@
 #include <iomanip>
 #include <limits>
 #include <sstream>
+#include <set>
 #include <stdexcept>
 #include <unordered_map>
 
@@ -587,7 +589,7 @@ BoneTransform Transform(const aiMatrix4x4& matrix) {
     return result;
 }
 
-void ReadAssimp(SkeletalAssetPackage& asset,const LoadOptions& options,const std::filesystem::path& importPath) {
+std::vector<detail::SourceMeshSemantics> ReadAssimp(SkeletalAssetPackage& asset,const LoadOptions& options,const std::filesystem::path& importPath) {
     Assimp::Importer importer;
     importer.SetIOHandler(new SourceIO(importPath.parent_path()));
     importer.SetPropertyInteger(AI_CONFIG_PP_SBP_REMOVE,aiPrimitiveType_POINT | aiPrimitiveType_LINE);
@@ -632,9 +634,16 @@ void ReadAssimp(SkeletalAssetPackage& asset,const LoadOptions& options,const std
     }
     if(destinationMesh != asset.geometry->meshes.size()) throw std::runtime_error("Skeletal/static source imports disagree on mesh count");
     asset.skins.resize(asset.geometry->meshes.size());
+    std::vector<detail::SourceMeshSemantics> semantics(asset.geometry->meshes.size());
+    for(std::uint32_t mesh=0;mesh<semantics.size();++mesh)semantics[mesh].mesh=mesh;
     std::vector<std::int32_t> meshNodes(asset.skins.size(),-1);
     std::function<void(const aiNode&)> assignMeshNodes;
     assignMeshNodes = [&](const aiNode& node) {
+        std::set<unsigned> materials;
+        for(unsigned i=0;i<node.mNumMeshes;++i) {
+            if(node.mMeshes[i]>=scene->mNumMeshes)throw std::runtime_error("Node has an invalid source mesh reference");
+            materials.insert(scene->mMeshes[node.mMeshes[i]]->mMaterialIndex);
+        }
         for(unsigned i = 0; i < node.mNumMeshes; ++i) {
             if(node.mMeshes[i] >= meshMap.size()) throw std::runtime_error("Node has an invalid mesh reference");
             const auto mesh = meshMap[node.mMeshes[i]];
@@ -643,6 +652,15 @@ void ReadAssimp(SkeletalAssetPackage& asset,const LoadOptions& options,const std
             if(meshNodes[mesh] >= 0 && meshNodes[mesh] != bone)
                 throw std::runtime_error("Skeletal mesh has multiple node instances with distinct bind transforms; expand instances before import");
             meshNodes[mesh] = bone;
+            auto& input=semantics[mesh];input.mesh=mesh;input.sourceObject=node.mName.C_Str();
+            input.sourceMesh=asset.geometry->meshes[mesh].name;
+            const auto material=asset.geometry->meshes[mesh].materialIndex;
+            if(material<asset.geometry->materials.size())input.sourceMaterial=asset.geometry->materials[material].name;
+            input.sourceObjectMaterialCount=std::max(1u,static_cast<unsigned>(materials.size()));
+            // Preserve original hierarchy names as weak object-level evidence.
+            // Material names remain section-specific and take precedence.
+            for(auto* parent=node.mParent;parent&&parent->mParent;parent=parent->mParent)
+                input.collections.emplace_back(parent->mName.C_Str());
         }
         for(unsigned i = 0; i < node.mNumChildren; ++i) assignMeshNodes(*node.mChildren[i]);
     };
@@ -828,6 +846,8 @@ void ReadAssimp(SkeletalAssetPackage& asset,const LoadOptions& options,const std
     }
     if(asset.skeleton.bones.empty()) throw std::runtime_error("Source has no scene nodes for a skeleton");
     asset.warnings.push_back("Assimp skeleton retains all scene nodes to preserve hierarchy and animation channels; source units retained.");
+    std::erase_if(semantics,[&](const auto& input){return input.mesh>=meshNodes.size()||meshNodes[input.mesh]<0;});
+    return semantics;
 }
 
 } // namespace
@@ -853,6 +873,7 @@ std::shared_ptr<SkeletalAssetPackage> ImportSkeletalSource(const std::filesystem
         if(!result->sourceFormat.empty()) result->sourceFormat.erase(0,1);
         result->skeleton.id = result->id + "/skeleton";
         std::optional<PreparedBlendSource> blend;
+        std::vector<detail::SourceMeshSemantics> nodeSemantics;
         auto importPath = result->sourcePath;
         if(result->sourceFormat == "blend") {
             BlendImportOptions bridgeOptions;
@@ -882,7 +903,7 @@ std::shared_ptr<SkeletalAssetPackage> ImportSkeletalSource(const std::filesystem
                 result->geometry = std::make_shared<StaticModel>(*model);
                 result->warnings = model->warnings;
             } // Release the temporary decoded textures before the skeletal pass.
-            ReadAssimp(*result,options,importPath);
+            nodeSemantics=ReadAssimp(*result,options,importPath);
         }
         result->geometry->sourcePath = result->sourcePath;
         if(blend) {
@@ -895,7 +916,10 @@ std::shared_ptr<SkeletalAssetPackage> ImportSkeletalSource(const std::filesystem
                 region.evidence.push_back("Blender provenance mapping is missing or ambiguous; review this material section.");
             }
             detail::ImportBlendSourcePose(*result,blend->metadataPath);
-        } else result->meshRegions = detail::RecognizeGarmentSections(*result);
+        } else if(result->sourceFormat=="fbx") {
+            auto metadataPath=result->sourcePath;metadataPath+=".max.json";
+            detail::ApplyMaxSceneMetadata(*result,nodeSemantics,metadataPath,bytes);
+        } else result->meshRegions = detail::RecognizeGarmentSections(*result,nodeSemantics);
         std::erase(result->warnings,"Imported static rest/bind pose; skeletal animation and morph targets are not evaluated.");
         result->skeleton.name = result->name + " Skeleton";
         auto nativeChains = std::move(result->ikRig.chains);

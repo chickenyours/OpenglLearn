@@ -1,6 +1,7 @@
 #include "Model/Public/skeletal_asset.h"
 #include <json/json.h>
 #include <glm/gtc/matrix_transform.hpp>
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -97,6 +98,16 @@ int main() {
         Expect(Model::ValidateSkeletalAsset(asset, &error), "Fixture accepts non-topological hierarchy and empty default morph");
         Expect(Model::SaveSkeletalAssetPackage(asset, directory, &error), "Save complete candidate and atomically publish package");
         if (!error.empty()) std::printf("  %s\n", error.c_str());
+        {
+            // Recorded before the bounded-memory IO change, using the v1
+            // in-memory writer. Keep existing payload bytes and offsets stable.
+            const auto legacyBytes = Read(directory / "SkeletalMeshes/model.skmesh.json");
+            Expect(legacyBytes["payloadBytes"].asUInt64() == 487 &&
+                legacyBytes["payloadHashFNV1a64"].asString() == "8b855054feb50f51" &&
+                legacyBytes["meshes"][0]["vertices"]["offset"].asUInt64() == 8 &&
+                legacyBytes["meshes"][0]["skin"]["offset"].asUInt64() == 200,
+                "Streamed writer preserves the historical v1 payload checksum, byte count and ranges");
+        }
         auto loaded = Model::LoadSkeletalAssetPackage(directory, &error);
         if (!Expect(bool(loaded), "Load package without the source model or external textures")) throw std::runtime_error(error);
         Expect(loaded->id == asset.id && loaded->skeleton.id == asset.skeleton.id && loaded->ikRig.id == asset.ikRig.id, "Stable asset IDs roundtrip");
@@ -147,6 +158,9 @@ int main() {
                 "Legacy packages without optional full influences continue to load");
             if (saved) {
                 const auto fullMeshPath = fullDirectory / "SkeletalMeshes/model.skmesh.json"; const auto fullMesh = Read(fullMeshPath);
+                Expect(fullMesh["payloadBytes"].asUInt64() == 631 &&
+                    fullMesh["payloadHashFNV1a64"].asString() == "a351aca4848b1d01",
+                    "Optional full-influence payload remains byte-compatible with the historical v1 writer");
                 auto invalidFull = fullMesh; invalidFull["meshes"][0].removeMember("fullInfluences"); Write(fullMeshPath, invalidFull);
                 Expect(!Model::LoadSkeletalAssetPackage(fullDirectory, &error), "Reject unpaired optional full influence ranges");
                 invalidFull = fullMesh; invalidFull["meshes"][0]["fullInfluenceOffsets"]["count"] = 3; Write(fullMeshPath, invalidFull);
@@ -235,6 +249,49 @@ int main() {
         Expect(Read(directory / "SkeletalMeshes/model.skmesh.json") == Read(overrideDirectory / "SkeletalMeshes/model.skmesh.json")
             && Read(directory / "Skeletons/model.skeleton.json") == Read(overrideDirectory / "Skeletons/model.skeleton.json"),
             "Classification changes leave geometry checksum and skeleton identity unchanged");
+        {
+            // Exercise fixed-size buffers with double positions and 69-byte
+            // skin records spanning block boundaries, then both texture paths.
+            auto bufferedAsset = Fixture();
+            auto& mesh = bufferedAsset.geometry->meshes[0]; auto& skin = bufferedAsset.skins[0];
+            mesh.vertices.resize(8193, mesh.vertices.front());
+            skin.vertices.resize(mesh.vertices.size(), skin.vertices.front());
+            skin.sourceVertexIds.resize(mesh.vertices.size(), 8);
+            auto& rgba = bufferedAsset.geometry->textures[0]; rgba.width = rgba.height = 257;
+            rgba.rgba.resize(std::size_t(rgba.width) * rgba.height * 4);
+            for (std::size_t i = 0; i < rgba.rgba.size(); ++i) rgba.rgba[i] = static_cast<std::uint8_t>((i * 37 + i / 257) % 256);
+            auto& hdr = bufferedAsset.geometry->textures[1]; hdr.width = 17; hdr.height = 1025;
+            hdr.rgba32f.resize(std::size_t(hdr.width) * hdr.height * 4);
+            for (std::size_t i = 0; i < hdr.rgba32f.size(); ++i) hdr.rgba32f[i] = static_cast<float>(i % 4096) * .03125f;
+            const auto bufferedDirectory = directory / "BufferBoundaries";
+            const bool saved = Model::SaveSkeletalAssetPackage(bufferedAsset, bufferedDirectory, &error);
+            Expect(saved, "Save and verify scalar, RGBA8 and float payloads across multiple IO buffer boundaries");
+            if (!saved) std::printf("  %s\n", error.c_str());
+            if (saved) {
+                auto actual = Model::LoadSkeletalAssetPackage(bufferedDirectory, &error);
+                bool preserved = actual && actual->geometry->meshes[0].vertices.size() == mesh.vertices.size() &&
+                    actual->skins[0].sourceVertexIds == skin.sourceVertexIds &&
+                    actual->geometry->textures[0].rgba == rgba.rgba && actual->geometry->textures[1].rgba32f == hdr.rgba32f;
+                if (actual) for (std::size_t i = 0; i < mesh.vertices.size(); ++i)
+                    preserved = preserved && actual->geometry->meshes[0].vertices[i].position == mesh.vertices[i].position &&
+                        actual->skins[0].vertices[i].sdefR1 == skin.vertices[i].sdefR1;
+                Expect(preserved, "Every cross-buffer double position, skin scalar and texture channel roundtrips exactly");
+                const auto path = bufferedDirectory / "SkeletalMeshes/model.skmesh.json";
+                auto json = Read(path); const auto original = json;
+                const auto first = json["textures"][0]; json["textures"][0] = json["textures"][1]; json["textures"][1] = first;
+                for (auto& material : json["materials"]) for (auto& texture : material["textures"])
+                    if (texture.asInt() >= 0) texture = 1 - texture.asInt();
+                Write(path, json); actual = Model::LoadSkeletalAssetPackage(bufferedDirectory, &error);
+                Expect(actual && actual->geometry->textures[0].rgba32f == hdr.rgba32f &&
+                    actual->geometry->textures[1].rgba == rgba.rgba,
+                    "Buffered reader supports non-monotonic, non-overlapping payload ranges without a full-file copy");
+                Write(path, original);
+                const auto binary = bufferedDirectory / "SkeletalMeshes/model.skmesh.bin";
+                const auto length = fs::file_size(binary); fs::resize_file(binary, length - 1);
+                Expect(!Model::LoadSkeletalAssetPackage(bufferedDirectory, &error),
+                    "Streamed reader rejects a truncated multi-buffer payload before decoding");
+            }
+        }
         {
             // Alice's source uses 6144² atlases. RGBA channel count exceeds
             // the ordinary 100-million mesh-element cap while its byte span

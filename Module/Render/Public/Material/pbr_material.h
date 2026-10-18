@@ -16,6 +16,7 @@
 #include "Render/Public/Pipeline/area_lights.h"
 #include "Render/Public/Pipeline/sky_light.h"
 #include "Render/Public/Pipeline/diffuse_probe_volume.h"
+#include "Render/Public/Pipeline/area_light_shadows.h"
 
 namespace Render::Material {
 
@@ -370,8 +371,13 @@ vec4 PbrSampleMap(sampler2D image,vec4 uv) {
 )GLSL";
 }
 
-inline std::string PbrFragmentShader(Domain domain = Domain::Surface, PbrOutput output = PbrOutput::Surface) {
+// The optional opaque Surface Cache variant samples cached rectangle shadows.
+// It dedicates legacy sky/probe bindings to the depth atlas and therefore has no
+// environment/probe fallback. Ordinary callers retain the existing shader.
+inline std::string PbrFragmentShader(Domain domain = Domain::Surface, PbrOutput output = PbrOutput::Surface,
+                                     bool surfaceCacheAreaShadows = false) {
     if (domain != Domain::Surface && domain != Domain::Translucent) return {};
+    if (surfaceCacheAreaShadows && (domain != Domain::Surface || output != PbrOutput::Surface)) return {};
     std::string source = R"GLSL(#version 450 core
 
 layout(binding = 0) uniform sampler2D albedoMap;
@@ -514,10 +520,27 @@ vec3 SurfaceNormal(vec4 flowUVs) {
     return SafeNormalize(mat3(T, B, N) * tangentNormal, N);
 }
 )GLSL";
-    source += Render::AreaLightsGLSL();
-    source += Render::SkyLightGLSL();
-    source += "#define REALTIME_GI_CACHE diffuseIrradiance\n";
-    source += Render::DiffuseProbeGLSL();
+    if (surfaceCacheAreaShadows) {
+        source += Render::AreaLightShadowGLSL();
+        source += R"GLSL(
+// Slot 10 and UBO 12 belong to cached shadows in this sealed-room variant.
+const vec4 probeOptions=vec4(0);
+float EvaluateDiffuseProbes(vec3 p,vec3 N,vec3 R,float roughness,out vec3 irradiance,out float skyVisibility) {
+    irradiance=vec3(0);skyVisibility=1;return 0;
+}
+vec3 EvaluateSkyLighting(vec3 N,vec3 V,vec3 albedo,float metallic,float roughness,
+                        vec3 F0,float ao,float diffuseFraction,float localVisibility,
+                        out vec3 diffuseRadiance,out vec3 diffuseWeight) {
+    diffuseRadiance=vec3(0);diffuseWeight=(vec3(1)-F0)*(1.0-metallic);return vec3(0);
+}
+)GLSL";
+    }
+    source += Render::AreaLightsGLSL(surfaceCacheAreaShadows);
+    if (!surfaceCacheAreaShadows) {
+        source += Render::SkyLightGLSL();
+        source += "#define REALTIME_GI_CACHE diffuseIrradiance\n";
+        source += Render::DiffuseProbeGLSL();
+    }
     source += R"GLSL(
 
 // Produces scene-linear HDR radiance. It deliberately contains no exposure,

@@ -9,6 +9,7 @@ void SurfaceCacheProbeQuality(MaterialLabModule& lab,const Options& options) {
     frame.camera=ProbePlacementCameraPreset(0,frame.OutputAspect());
     auto& gi=frame.effects.surfaceCacheGi;auto& placement=frame.effects.screenProbePlacement;
     gi.temporal.enabled=false;
+    gi.spatial.enabled=false;
     auto& trace=placement.trace;
     gi.useScreenProbes=true;gi.probeDiagnostics=false;gi.view=2;
     placement.enabled=true;placement.adaptive=true;placement.baseSpacing=32;

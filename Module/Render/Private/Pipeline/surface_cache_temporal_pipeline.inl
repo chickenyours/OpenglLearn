@@ -1,7 +1,8 @@
 // Included inside MaterialRenderPipeline::Impl. Final gather histories have
 // their own completion/sequence state; TAA can remain entirely disabled.
 bool SurfaceCacheTemporalActive(const SurfaceCacheGiSettings& s) const {
-    return s.enabled&&s.useScreenProbes&&s.temporal.enabled&&(s.view==0||s.view==2||s.view==5);
+    return s.enabled&&s.useScreenProbes&&s.temporal.enabled&&!(s.view==2&&s.reconstructionDebug!=0)&&
+        (s.view==0||s.view==2||s.view==5);
 }
 void PrepareSurfaceCacheTemporal(const SurfaceCacheGiSettings& s) {
     if(!SurfaceCacheTemporalActive(s))return;
@@ -39,43 +40,47 @@ std::uint64_t SurfaceCacheHistoryKey(const RenderFrame& frame,const MaterialPipe
     // The generic TAA key intentionally ignores spotlight pose for its own
     // reactive filter. This GI stage has no lighting velocity mask yet.
     const auto spot=MakeSpotLightConstants(settings.spotLight);add(spot);
-    add(sc.useScreenProbes);add(sc.maxDistance);add(sc.rayBias);add(sc.intensity);
+    add(sc.useScreenProbes);add(sc.cacheBilinear);add(sc.reconstructionDebug);add(sc.maxDistance);add(sc.rayBias);add(sc.intensity);
     add(settings.temporal.antialiasing);
     add(p.adaptive);add(p.freeze);add(p.baseSpacing);add(p.candidateCount);add(p.relativeDepthThreshold);add(p.frameIndex);
+    add(p.cornerRefinement);add(p.cornerDetectionRadius);add(p.cornerProbeSupport);add(p.cornerNormalAngleDegrees);
     add(t.rayResolution);add(t.samplingSeed);add(t.maxSteps);add(t.maxMip);add(t.thickness);add(t.relativeThickness);
     add(t.sdf.useMesh);add(t.sdf.useGlobal);add(t.sdf.meshTraceDistance);add(t.sdf.hitEpsilon);add(t.sdf.maxSteps);
     const auto& s=sc.temporal;add(s.maxFrames);add(s.directionPhases);add(s.distanceThreshold);add(s.normalThresholdDegrees);
     add(s.movingMaxFrames);add(s.motionThresholdPixels);add(s.neighborhoodClamp);add(s.clampSigma);
+    add(s.edgeProtection);add(s.edgeMaxFrames);add(s.clampSlowMotion);
+    const auto& f=sc.spatial;add(f.enabled);add(f.visibilityCheck);add(f.passes);add(f.halfKernelSize);add(f.strength);
+    add(f.positionWeightScale);add(f.maxHitAngleDegrees);add(f.normalThresholdDegrees);add(f.planeDistanceThreshold);
     return key;
 }
 void RecordSurfaceCacheTemporal(RHIFrameEncoder& encoder,const SurfaceCacheGiSettings& gi,const PipelineCamera& camera,
-    std::uint64_t key,std::uint64_t sequence,bool historyValid) {
+    std::uint64_t key,std::uint64_t sequence,bool historyValid,const Target& signal) {
     const auto& s=gi.temporal;const auto& previous=surfaceCacheTemporalCompleted;
     const auto read=previous.image,write=1-read;
     SurfaceCacheTemporalConstants c;c.currentInverseView=glm::inverse(camera.view);
     c.previousViewProjection=previous.camera.projection*previous.camera.view;c.previousView=previous.camera.view;
     c.screen={int(width),int(height),historyValid?1:0,int(s.maxFrames)};
     c.reject={s.distanceThreshold,std::cos(glm::radians(s.normalThresholdDegrees)),s.movingMaxFrames,s.motionThresholdPixels};
-    c.clamp={s.clampSigma,s.neighborhoodClamp?1.f:0.f,.002f,0};
+    c.clamp={s.clampSigma,s.neighborhoodClamp?(s.clampSlowMotion?2.f:1.f):0.f,.002f,s.edgeProtection?s.edgeMaxFrames:0.f};
     Upload(encoder,surfaceCacheTemporalBuffer,&c,sizeof(c),SurfaceCacheTemporalBinding);
     // A reset/discard still writes the other image. Never destroy the last
     // completed history until this frame has been submitted successfully.
     Require(encoder.BindTexture({},3)&&encoder.BindTexture({},4)&&encoder.BindTexture({},5),"Cannot unbind GI history targets");
     BindTarget(encoder,surfaceCacheTemporalHistory[write]);
     Require(encoder.BindPipeline(surfaceCacheTemporalProgram)&&encoder.BindMesh(fullscreen)&&
-        encoder.BindTexture(surfaceCacheRaw.color,0)&&encoder.BindTexture(indirectPositions.color,1)&&encoder.BindTexture(normalCapture.color,2)&&
+        encoder.BindTexture(signal.color,0)&&encoder.BindTexture(indirectPositions.color,1)&&encoder.BindTexture(normalCapture.color,2)&&
         encoder.BindTexture(surfaceCacheTemporalHistory[read].color,3)&&encoder.BindTexture(surfaceCacheTemporalPositions[read].color,4)&&
         encoder.BindTexture(surfaceCacheTemporalNormals[read].color,5)&&encoder.DrawIndexed(RHICommand::DrawIndexed{3}),"Cannot accumulate GI history");
     const auto saveGeometry=[&](const Target& target,RenderResourceHandle<PipelineSpec> program) {
         BindTarget(encoder,target);Require(encoder.BindPipeline(program)&&encoder.BindMesh(fullscreen)&&
-            encoder.BindTexture(surfaceCacheRaw.color,0)&&encoder.BindTexture(indirectPositions.color,1)&&encoder.BindTexture(normalCapture.color,2)&&
+            encoder.BindTexture(signal.color,0)&&encoder.BindTexture(indirectPositions.color,1)&&encoder.BindTexture(normalCapture.color,2)&&
             encoder.DrawIndexed(RHICommand::DrawIndexed{3}),"Cannot save GI history geometry");
     };
     saveGeometry(surfaceCacheTemporalPositions[write],surfaceCacheTemporalPositionProgram);
     saveGeometry(surfaceCacheTemporalNormals[write],surfaceCacheTemporalNormalProgram);
     BindTarget(encoder,surfaceCacheTemporalGi);
     Require(encoder.BindPipeline(surfaceCacheTemporalDisplayProgram)&&encoder.BindMesh(fullscreen)&&
-        encoder.BindTexture(surfaceCacheTemporalHistory[write].color,0)&&encoder.BindTexture(surfaceCacheRaw.color,1)&&
+        encoder.BindTexture(surfaceCacheTemporalHistory[write].color,0)&&encoder.BindTexture(signal.color,1)&&
         encoder.DrawIndexed(RHICommand::DrawIndexed{3}),"Cannot resolve GI temporal radiance");
     surfaceCacheTemporalPending={true,write,key,sequence+1,camera};
     statistics.surfaceCacheTemporalPasses=4;statistics.surfaceCacheHistoryUsed=historyValid;

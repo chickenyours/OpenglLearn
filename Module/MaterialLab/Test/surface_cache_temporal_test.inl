@@ -6,9 +6,11 @@ void SurfaceCacheTemporalQuality(MaterialLabModule& lab,const Options& options) 
     frame.width=256;frame.height=192;frame.effects.outputSize={0,0};frame.present=false;frame.screenProbeStudyHud=false;
     frame.camera=ProbePlacementCameraPreset(0,frame.OutputAspect());
     auto& gi=frame.effects.surfaceCacheGi;auto& temporal=gi.temporal;
+    gi.spatial.enabled=false;
     auto& placement=frame.effects.screenProbePlacement;auto& trace=placement.trace;
     gi.enabled=true;gi.useScreenProbes=true;gi.view=2;gi.probeDiagnostics=false;
     temporal.enabled=true;temporal.maxFrames=8;temporal.directionPhases=8;temporal.neighborhoodClamp=false;
+    temporal.edgeProtection=false;temporal.clampSigma=3;temporal.clampSlowMotion=false; // Keep the original accumulation baseline independent.
     placement.baseSpacing=24;placement.frameIndex=0;placement.adaptive=true;placement.freeze=false;placement.reset=true;
     trace.rayResolution=4;trace.samplingSeed=0;trace.maxSteps=512;trace.sdf.maxSteps=256;
     const auto render=[&]{Check(lab.Render(frame),lab.LastError());frame.effects.cameraCut=false;placement.reset=false;temporal.reset=false;};
@@ -111,7 +113,9 @@ void SurfaceCacheTemporalQuality(MaterialLabModule& lab,const Options& options) 
     // A modest translation should retain compatible world-space receivers,
     // while newly exposed pixels must start at one frame.
     for(unsigned i=0;i<10;++i)render();
-    temporal.neighborhoodClamp=true;render();
+    // Exercise the deliberately aggressive fast-update path independently of
+    // the interactive preset, which may retain more history during camera motion.
+    temporal.neighborhoodClamp=true;temporal.movingMaxFrames=2;temporal.motionThresholdPixels=1;render();
     for(unsigned i=0;i<8;++i)render();
     auto camera=*frame.camera;const auto translation=glm::vec3(.12f,0,0);
     camera.position+=translation;camera.view=camera.view*glm::translate(glm::mat4(1),-translation);frame.camera=camera;

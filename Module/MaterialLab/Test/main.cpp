@@ -26,6 +26,8 @@
 #include "Render/Public/Pipeline/probe_sdf_clipmap.h"
 #include "Render/Public/Pipeline/surface_cache.h"
 #include "MaterialLab/Public/gi_room_scene.h"
+#include "MaterialLab/Public/sealed_gi_room_scene.h"
+#include "MaterialLab/Public/lab_geometry.h"
 #ifdef MATERIAL_LAB_HAS_MODEL
 #include "MaterialLab/Public/sdf_model_scene.h"
 #endif
@@ -35,6 +37,10 @@
 
 namespace {
 using namespace MaterialLab;
+// Literal diagnostics must stay allocation-free on successful per-pixel checks.
+void Check(bool condition, const char* message) {
+    if (!condition) throw std::runtime_error(message);
+}
 void Check(bool condition, const std::string& message) {
     if (!condition) throw std::runtime_error(message);
 }
@@ -55,6 +61,12 @@ struct Options {
     bool sdfClipmapPerformance=false;
     bool surfaceCacheGi=false,surfaceCacheTest=false,surfaceCachePerformance=false,surfaceCacheProbeTest=false,surfaceCacheReference=false;
     bool surfaceCacheTemporalTest=false,surfaceCacheNoTemporal=false;
+    bool surfaceCacheSpatialTest=false,surfaceCacheNoSpatial=false;
+    bool surfaceCacheMotionTest=false,surfaceCacheMotionTune=false;
+    bool sealedGiRoom=false,sealedGiRoomTest=false;
+    bool surfaceCacheCornerTest=false,surfaceCacheCornerFiltered=false,surfaceCacheCornerSweep=false;
+    bool surfaceCacheEdgeTest=false,surfaceCacheEdgeDiagnosticsOnly=false;
+    std::uint32_t surfaceCacheSpatialPasses=3,surfaceCacheSpatialRadius=1;
     std::uint32_t surfaceCacheHistoryFrames=10,surfaceCacheHistoryDirections=8;
     std::uint32_t surfaceCacheView=0,surfaceCacheRays=1;
     std::uint32_t surfaceCacheProbeRays=8,surfaceCacheProbeSpacing=32;
@@ -93,9 +105,22 @@ Options Parse(int argc, char** argv) {
         else if(arg=="--sdf-clipmap-test") result.sdfClipmapTest=true;
         else if(arg=="--sdf-clipmap-performance-test") result.sdfClipmapPerformance=true;
         else if(arg=="--surface-cache-gi") result.surfaceCacheGi=true;
+        else if(arg=="--surface-cache-sealed-room"){result.sealedGiRoom=true;result.surfaceCacheGi=true;}
+        else if(arg=="--sealed-gi-room-test"){result.sealedGiRoom=true;result.sealedGiRoomTest=true;result.surfaceCacheGi=true;}
         else if(arg=="--surface-cache-test") result.surfaceCacheTest=true;
         else if(arg=="--surface-cache-probe-test") result.surfaceCacheProbeTest=true;
         else if(arg=="--surface-cache-temporal-test") result.surfaceCacheTemporalTest=true;
+        else if(arg=="--surface-cache-spatial-test") result.surfaceCacheSpatialTest=true;
+        else if(arg=="--surface-cache-corner-test") {result.surfaceCacheCornerTest=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;}
+        else if(arg=="--surface-cache-corner-filtered-test") {result.surfaceCacheCornerTest=true;result.surfaceCacheCornerFiltered=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;}
+        else if(arg=="--surface-cache-corner-sweep") {result.surfaceCacheCornerTest=true;result.surfaceCacheCornerFiltered=true;result.surfaceCacheCornerSweep=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;}
+        else if(arg=="--surface-cache-edge-test") {result.surfaceCacheEdgeTest=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;}
+        else if(arg=="--surface-cache-edge-diagnostics") {result.surfaceCacheEdgeTest=true;result.surfaceCacheEdgeDiagnosticsOnly=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;}
+        else if(arg=="--surface-cache-motion-test") result.surfaceCacheMotionTest=true;
+        else if(arg=="--surface-cache-motion-tune"){result.surfaceCacheMotionTest=true;result.surfaceCacheMotionTune=true;}
+        else if(arg=="--surface-cache-no-spatial") result.surfaceCacheNoSpatial=true;
+        else if(arg=="--surface-cache-spatial-passes"&&i+1<argc){result.surfaceCacheSpatialPasses=unsigned(std::stoul(argv[++i]));Check(result.surfaceCacheSpatialPasses>=1&&result.surfaceCacheSpatialPasses<=4,"GI spatial filter passes must be 1..4");}
+        else if(arg=="--surface-cache-spatial-radius"&&i+1<argc){result.surfaceCacheSpatialRadius=unsigned(std::stoul(argv[++i]));Check(result.surfaceCacheSpatialRadius>=1&&result.surfaceCacheSpatialRadius<=2,"GI spatial half kernel size must be 1 or 2 probe tiles");}
         else if(arg=="--surface-cache-no-temporal") result.surfaceCacheNoTemporal=true;
         else if(arg=="--surface-cache-history-frames"&&i+1<argc){result.surfaceCacheHistoryFrames=unsigned(std::stoul(argv[++i]));Check(result.surfaceCacheHistoryFrames>=1&&result.surfaceCacheHistoryFrames<=64,"GI history frames must be 1..64");}
         else if(arg=="--surface-cache-history-directions"&&i+1<argc){result.surfaceCacheHistoryDirections=unsigned(std::stoul(argv[++i]));Check(result.surfaceCacheHistoryDirections>=1&&result.surfaceCacheHistoryDirections<=64,"GI temporal direction phases must be 1..64");}
@@ -105,8 +130,8 @@ Options Parse(int argc, char** argv) {
         else if(arg=="--surface-cache-performance-test") result.surfaceCachePerformance=true;
         else if(arg=="--surface-cache-rays"&&i+1<argc){result.surfaceCacheRays=unsigned(std::stoul(argv[++i]));Check(result.surfaceCacheRays>=1&&result.surfaceCacheRays<=32,"Surface Cache rays must be 1..32");}
         else if(arg=="--surface-cache-view"&&i+1<argc){const std::string value=argv[++i];
-            Check(value=="total"||value=="cache"||value=="indirect"||value=="coverage"||value=="atlas"||value=="history","Surface Cache view must be total, cache, indirect, coverage, atlas or history");
-            result.surfaceCacheView=value=="total"?0:value=="cache"?1:value=="indirect"?2:value=="coverage"?3:value=="atlas"?4:5;}
+            Check(value=="total"||value=="cache"||value=="indirect"||value=="coverage"||value=="atlas"||value=="history"||value=="probe-coverage","Surface Cache view must be total, cache, indirect, coverage, atlas, history or probe-coverage");
+            result.surfaceCacheView=value=="total"?0:value=="cache"?1:value=="indirect"?2:value=="coverage"?3:value=="atlas"?4:value=="history"?5:6;}
         else if(arg=="--sdf-auto") result.sdfAutomatic=true;
         else if(arg=="--sdf-voxel-grid") result.sdfVoxelGrid=true;
         else if(arg=="--sdf-isolate") result.sdfIsolate=true;
@@ -181,17 +206,18 @@ Options Parse(int argc, char** argv) {
         else if ((arg == "--screenshot" || arg == "--legacy-textures") && i + 1 < argc) {
             if (arg == "--screenshot") result.screenshot = argv[++i];
             else result.legacyDirectory = argv[++i];
-        } else throw std::runtime_error("Usage: material_lab_demo [--surface-cache-gi|--surface-cache-test|--surface-cache-temporal-test|--surface-cache-performance-test|--sdf-quality-test|--sdf-probe-tracing|--sdf-probe-trace-test|--screen-probe-tracing|--screen-probe-trace-test|--probe-placement|--probe-placement-test|--gi-room|--gi-room-test|--gi-room-performance-test|--showcase|--showcase-test|--showcase-motion-test|--showcase-performance-test|--showcase-stability-test|--showcase-water-diagnostic|--smoke-test|--quality-test|--shadow-test|--closeup-test|--advanced-test|--advanced-quality-test|--sky-test|--probe-test|--realtime-gi-test|--lumen-gi-test|--lumen-adaptive-test|--lumen-probe-diffuse-test|--realtime-gi-stability-test|--lumen-view-stability-test|--benchmark] [--surface-cache-view total|cache|indirect|coverage|atlas|history --surface-cache-no-temporal --surface-cache-history-frames 1..64 --surface-cache-history-directions 1..64 --surface-cache-rays 1..32 --surface-cache-reference --surface-cache-probe-test --surface-cache-probe-rays 4|8|16 --surface-cache-probe-spacing 4..128] [--vulkan --validation --software-rays] [--sky --probes --realtime-gi --lumen-gi --lumen-adaptive --lumen-probe-diffuse --sky-hdr FILE.hdr] [--lumen-reflection-scale .5..1 --lumen-source-scale .25..1 --lumen-reflection-detail 128..512] [--yaw RADIANS --pitch RADIANS --distance UNITS] [--fps LIMIT --vsync --fullscreen --msaa 1|2|4|8 --no-debug-ui] [--benchmark-width W --benchmark-height H --benchmark-present] [--render-width W --render-height H --render-scale .5..1] [--procedural] [--legacy-textures DIR] [--screenshot FILE.png]");
+        } else throw std::runtime_error("Usage: material_lab_demo [--surface-cache-sealed-room|--sealed-gi-room-test|--surface-cache-gi|--surface-cache-test|--surface-cache-temporal-test|--surface-cache-performance-test|--sdf-quality-test|--sdf-probe-tracing|--sdf-probe-trace-test|--screen-probe-tracing|--screen-probe-trace-test|--probe-placement|--probe-placement-test|--gi-room|--gi-room-test|--gi-room-performance-test|--showcase|--showcase-test|--showcase-motion-test|--showcase-performance-test|--showcase-stability-test|--showcase-water-diagnostic|--smoke-test|--quality-test|--shadow-test|--closeup-test|--advanced-test|--advanced-quality-test|--sky-test|--probe-test|--realtime-gi-test|--lumen-gi-test|--lumen-adaptive-test|--lumen-probe-diffuse-test|--realtime-gi-stability-test|--lumen-view-stability-test|--benchmark] [--surface-cache-view total|cache|indirect|coverage|atlas|history --surface-cache-no-temporal --surface-cache-history-frames 1..64 --surface-cache-history-directions 1..64 --surface-cache-rays 1..32 --surface-cache-reference --surface-cache-probe-test --surface-cache-probe-rays 4|8|16 --surface-cache-probe-spacing 4..128] [--vulkan --validation --software-rays] [--sky --probes --realtime-gi --lumen-gi --lumen-adaptive --lumen-probe-diffuse --sky-hdr FILE.hdr] [--lumen-reflection-scale .5..1 --lumen-source-scale .25..1 --lumen-reflection-detail 128..512] [--yaw RADIANS --pitch RADIANS --distance UNITS] [--fps LIMIT --vsync --fullscreen --msaa 1|2|4|8 --no-debug-ui] [--benchmark-width W --benchmark-height H --benchmark-present] [--render-width W --render-height H --render-scale .5..1] [--procedural] [--legacy-textures DIR] [--screenshot FILE.png]");
     }
     Check(!result.procedural || result.legacyDirectory.empty(), "Choose --procedural or --legacy-textures, not both");
     Check(!result.probes||!result.realtimeGi,"Choose --probes or --realtime-gi");
     Check(!result.lumenGi||(!result.probes&&!result.realtimeGi),"Choose one of --lumen-gi, --probes, --realtime-gi");
     Check(!result.renderSizeSet||result.vulkan,"Explicit render dimensions require --vulkan");
+    Check(!result.sealedGiRoom||(!result.sdfBanquet&&!result.sdfClipmaps),"The sealed ceramic room is independent of the teapot banquet");
     if(result.giRoom||result.giRoomTest||result.giRoomPerformance) {
         Check(result.legacyDirectory.empty(),"The GI room uses only procedural, untextured materials");
         result.procedural=true;
     }
-    if(result.surfaceCacheGi||result.surfaceCacheTest||result.surfaceCacheProbeTest||result.surfaceCacheTemporalTest||result.surfaceCachePerformance||result.probePlacement||result.probePlacementTest||result.screenProbeTracing||result.screenProbeTraceTest||result.sdfProbeTracing||result.sdfProbeTraceTest||result.sdfQualityTest||result.sdfBanquet||result.sdfBanquetTest||result.sdfClipmapTest||result.sdfClipmapPerformance) {
+    if(result.surfaceCacheGi||result.surfaceCacheTest||result.surfaceCacheProbeTest||result.surfaceCacheTemporalTest||result.surfaceCacheSpatialTest||result.surfaceCacheMotionTest||result.surfaceCachePerformance||result.probePlacement||result.probePlacementTest||result.screenProbeTracing||result.screenProbeTraceTest||result.sdfProbeTracing||result.sdfProbeTraceTest||result.sdfQualityTest||result.sdfBanquet||result.sdfBanquetTest||result.sdfClipmapTest||result.sdfClipmapPerformance) {
         Check(!result.giRoom&&!result.showcase&&!result.lumenAdaptive,"Probe placement uses its dedicated scene");
         result.procedural=true;result.msaaSamples=1;
     }
@@ -1420,8 +1446,13 @@ void Benchmark(MaterialLabModule& lab, const Options& options) {
 #include "gi_room_demo.inl"
 #include "probe_placement_demo.inl"
 #include "surface_cache_demo.inl"
+#include "sealed_gi_room_test.inl"
+#include "surface_cache_corner_test.inl"
+#include "surface_cache_edge_test.inl"
 #include "surface_cache_probe_test.inl"
 #include "surface_cache_temporal_test.inl"
+#include "surface_cache_spatial_test.inl"
+#include "surface_cache_motion_test.inl"
 #include "probe_placement_test.inl"
 #include "screen_probe_trace_test.inl"
 #include "probe_sdf_trace_test.inl"
@@ -1949,10 +1980,10 @@ int main(int argc, char** argv) {
     try {
         const auto options = Parse(argc, argv);
         Check(glfwInit() == GLFW_TRUE, "glfwInit failed");
-        const bool hidden = options.surfaceCacheTest || options.surfaceCacheProbeTest || options.surfaceCacheTemporalTest || options.surfaceCachePerformance || options.sdfClipmapPerformance || options.sdfClipmapTest || options.sdfBanquetTest || options.sdfQualityTest || options.sdfProbeTraceTest || options.screenProbeTraceTest || options.probePlacementTest || options.giRoomTest || (options.giRoomPerformance&&!options.benchmarkPresent) || (options.showcaseMotion&&!(options.showcaseMeasureOnly&&options.benchmarkPresent)) || options.showcaseStability || options.showcaseTest || options.smoke || options.quality || options.shadows || options.closeup || options.advanced || options.advancedQuality || options.skyTest || options.probeTest || options.realtimeGiTest || options.realtimeGiStabilityTest || (options.lumenGiTest||options.lumenAdaptiveTest||options.probeDiffuseTest)||options.viewStability|| (options.benchmark&&!options.benchmarkPresent);
+        const bool hidden = options.sealedGiRoomTest || options.surfaceCacheTest || options.surfaceCacheProbeTest || options.surfaceCacheTemporalTest || options.surfaceCacheSpatialTest || options.surfaceCacheMotionTest || options.surfaceCachePerformance || options.sdfClipmapPerformance || options.sdfClipmapTest || options.sdfBanquetTest || options.sdfQualityTest || options.sdfProbeTraceTest || options.screenProbeTraceTest || options.probePlacementTest || options.giRoomTest || (options.giRoomPerformance&&!options.benchmarkPresent) || (options.showcaseMotion&&!(options.showcaseMeasureOnly&&options.benchmarkPresent)) || options.showcaseStability || options.showcaseTest || options.smoke || options.quality || options.shadows || options.closeup || options.advanced || options.advancedQuality || options.skyTest || options.probeTest || options.realtimeGiTest || options.realtimeGiStabilityTest || (options.lumenGiTest||options.lumenAdaptiveTest||options.probeDiffuseTest)||options.viewStability|| (options.benchmark&&!options.benchmarkPresent);
         glfwWindowHint(GLFW_VISIBLE, hidden ? GLFW_FALSE : GLFW_TRUE);
         if(options.fullscreen)glfwWindowHint(GLFW_AUTO_ICONIFY,GLFW_FALSE);
-        const bool sizedStudy=options.benchmark||((options.surfaceCacheGi||options.surfaceCacheTest||options.surfaceCacheProbeTest||options.surfaceCacheTemporalTest||options.surfaceCachePerformance||options.sdfClipmapPerformance||options.sdfClipmapTest||options.sdfBanquet||options.sdfBanquetTest||options.sdfQualityTest||options.sdfProbeTracing||options.sdfProbeTraceTest||options.screenProbeTracing||options.screenProbeTraceTest||options.probePlacement||options.probePlacementTest||options.giRoom||options.giRoomTest||options.giRoomPerformance||options.showcaseMotion||options.showcaseStability||options.showcaseTest||options.viewStability||options.realtimeGiStabilityTest)&&options.studySizeSet);
+        const bool sizedStudy=options.benchmark||((options.surfaceCacheGi||options.surfaceCacheTest||options.surfaceCacheProbeTest||options.surfaceCacheTemporalTest||options.surfaceCacheSpatialTest||options.surfaceCacheMotionTest||options.surfaceCachePerformance||options.sdfClipmapPerformance||options.sdfClipmapTest||options.sdfBanquet||options.sdfBanquetTest||options.sdfQualityTest||options.sdfProbeTracing||options.sdfProbeTraceTest||options.screenProbeTracing||options.screenProbeTraceTest||options.probePlacement||options.probePlacementTest||options.giRoom||options.giRoomTest||options.giRoomPerformance||options.showcaseMotion||options.showcaseStability||options.showcaseTest||options.viewStability||options.realtimeGiStabilityTest)&&options.studySizeSet);
         const std::uint32_t width = sizedStudy ? options.benchmarkWidth : options.giRoomPerformance ? 2560 : options.closeup ? 640 : hidden ? 960 : 1280;
         const std::uint32_t height = sizedStudy ? options.benchmarkHeight : options.giRoomPerformance ? 1440 : options.closeup ? 724 : hidden ? 600 : 800;
         ApplicationWindow::Window window({width, height, "MaterialLab", options.vsync,options.vulkan?Render::BackendType::Vulkan:Render::BackendType::Opengl});
@@ -1973,7 +2004,12 @@ int main(int argc, char** argv) {
         if (!options.noDebugUI && !hidden && !options.benchmark && !options.giRoomPerformance && !options.showcaseMotion)
             Check(lab.EnableDebugUI(window.GetNativeWindow(), options.vulkan ? Render::BackendType::Vulkan : Render::BackendType::Opengl), lab.LastError());
         std::cout << "Legacy textures: " << (options.legacyDirectory.empty() ? "procedural fallback" : options.legacyDirectory) << '\n';
-        if(options.surfaceCacheTemporalTest)SurfaceCacheTemporalQuality(lab,options);
+        if(options.surfaceCacheEdgeTest)SurfaceCacheEdgeQuality(lab,options);
+        else if(options.surfaceCacheCornerTest)SurfaceCacheCornerQuality(lab,options);
+        else if(options.sealedGiRoomTest)SealedGiRoomQuality(lab,options);
+        else if(options.surfaceCacheMotionTest)SurfaceCacheMotionQuality(lab,options);
+        else if(options.surfaceCacheSpatialTest)SurfaceCacheSpatialQuality(lab,options);
+        else if(options.surfaceCacheTemporalTest)SurfaceCacheTemporalQuality(lab,options);
         else if(options.surfaceCacheProbeTest)SurfaceCacheProbeQuality(lab,options);
         else if(options.surfaceCacheTest)SurfaceCacheQuality(lab,options);
         else if(options.surfaceCachePerformance)SurfaceCachePerformance(lab,options);

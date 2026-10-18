@@ -47,3 +47,40 @@ build.md
 
 # Reproducible local intermediate model packages (source assets stay separate).
 /Asset/Generated/
+
+# Asset payloads stay local; retain source code and runtime/import configuration.
+/Asset/**
+!/Asset/**/
+!/Asset/**/*.c
+!/Asset/**/*.cpp
+!/Asset/**/*.h
+!/Asset/**/*.hpp
+!/Asset/**/*.inl
+!/Asset/**/*.cs
+!/Asset/**/*.js
+!/Asset/**/*.py
+!/Asset/**/*.lua
+!/Asset/**/*.glsl
+!/Asset/**/*.vert
+!/Asset/**/*.frag
+!/Asset/**/*.geom
+!/Asset/**/*.comp
+!/Asset/**/*.hlsl
+!/Asset/**/*.json
+!/Asset/**/*.json5
+!/Asset/**/*.yaml
+!/Asset/**/*.yml
+!/Asset/**/*.toml
+!/Asset/**/*.ini
+!/Asset/**/*.cfg
+!/Asset/**/*.tmj
+!/Asset/**/*.tsj
+!/Asset/**/*.tiled-project
+
+# Raw model bundles also contain JSON export reports/sidecars, not project config.
+/Asset/Model/
+/Asset/Generated/
+
+# Python cache files are generated, including those alongside asset scripts.
+__pycache__/
+*.py[cod]

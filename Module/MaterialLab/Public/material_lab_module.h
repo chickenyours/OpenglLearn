@@ -17,6 +17,7 @@
 #include "MaterialLab/Public/showcase_scene.h"
 #include "MaterialLab/Public/gi_room_scene.h"
 #include "MaterialLab/Public/probe_placement_scene.h"
+#include "MaterialLab/Public/sealed_gi_room_scene.h"
 #include "Render/Public/Pipeline/probe_sdf_scene.h"
 #include "Render/Public/Pipeline/probe_sdf_lod.h"
 
@@ -51,6 +52,7 @@ struct FrameSettings {
     bool sdfModelStudy=false; // imported Utah-teapot banquet and distance-driven raster/MDF tiers
     bool sdfClipmapStudy=false; // camera-following multilevel Global distance field
     bool surfaceCacheStudy=false; // camera-independent cards and unfiltered software-ray GI
+    bool sealedGiRoomStudy=false; // closed colored room with a recessed rectangle emitter and porcelain props
     bool sdfModelRasterLod=true;
     ProbePlacementSceneSettings screenProbeStudyState;
     std::uint32_t placementUniformCount = 0, placementAdaptiveCount = 0, placementMarkedCount = 0;
@@ -159,6 +161,7 @@ public:
     std::vector<glm::vec4> ReadbackLumenGather(); // test-only incident irradiance at the internal rendering extent
     ScreenProbePlacementReadback ReadbackScreenProbePlacement(); // diagnostic only; actual active slots, not atlas capacity
     ScreenProbeTraceReadback ReadbackScreenProbeTrace(bool includeSources=true,bool screenOnly=false);
+    ScreenProbeTraceReadback ReadbackScreenProbeSources(); // receiver positions/normals only; no ray atlas or HZB download
     std::shared_ptr<const Render::ProbeSdfScene> PreparedProbeSdfScene() const;
     ProbeSdfQualityStatus ProbeSdfQualityStatistics() const;
     std::vector<glm::vec4> ReadbackProbeGlobalSdf();
@@ -168,6 +171,10 @@ public:
     std::vector<glm::vec4> ReadbackSurfaceCacheAtlas(); // outgoing direct diffuse radiance / validity
     std::vector<glm::vec4> ReadbackSurfaceCacheRawGi(); // raw outgoing indirect diffuse radiance, no history/filter
     std::vector<glm::vec4> ReadbackSurfaceCacheProbeIrradiance(); // probe E/pi, no receiver albedo or history
+    std::vector<glm::vec4> ReadbackSurfaceCacheSpatialGi(); // spatially filtered indirect radiance, before history
+    std::vector<glm::vec4> ReadbackSurfaceCacheProbeCoverage(); // requires collectProbeCoverage or view 6; green base, orange adaptive, magenta unsupported
+    std::vector<glm::vec4> ReadbackSurfaceCacheSpatialRays(); // packed RGBA32F filtered ray atlas; four texels per ray
+    std::vector<glm::vec4> ReadbackSurfaceCacheSpatialNeighbors(); // index+1 / geometric weight, eight entries per probe
     std::vector<glm::vec4> ReadbackSurfaceCacheTemporalGi(); // accumulated indirect radiance / current coverage
     std::vector<glm::vec4> ReadbackSurfaceCacheTemporalHistory(); // accumulated indirect radiance / effective frame count
     // Diagnostic receiver-only edit: the incident card radiance stays fixed,

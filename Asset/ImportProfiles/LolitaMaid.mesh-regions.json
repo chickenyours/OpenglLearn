@@ -1,0 +1,766 @@
+{
+  "assetType": "MaxObjectClassificationProfile",
+  "version": 1,
+  "fbxSha256": "f9b9c42eac2cda0b2343a5700010ccf6d05a03731966757c10124417670a596f",
+  "objects": [
+    {
+      "name": "3DXY_geometry_001",
+      "kind": "accessory",
+      "reviewed": true,
+      "label": "展示背景",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_01.png, object 001.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_002",
+      "kind": "body",
+      "reviewed": true,
+      "label": "身体、面部或解剖细节",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_01.png, object 002.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_003",
+      "kind": "body",
+      "reviewed": true,
+      "label": "身体、面部或解剖细节",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_01.png, object 003.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_004",
+      "kind": "body",
+      "reviewed": true,
+      "label": "身体、面部或解剖细节",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_01.png, object 004.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_005",
+      "kind": "garment",
+      "reviewed": true,
+      "label": "头顶织物蝴蝶结",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_01.png, object 005.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_006",
+      "kind": "body",
+      "reviewed": true,
+      "label": "身体、面部或解剖细节",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_01.png, object 006.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_007",
+      "kind": "body",
+      "reviewed": true,
+      "label": "身体、面部或解剖细节",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_01.png, object 007.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_008",
+      "kind": "body",
+      "reviewed": true,
+      "label": "身体、面部或解剖细节",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_01.png, object 008.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_009",
+      "kind": "body",
+      "reviewed": true,
+      "label": "身体、面部或解剖细节",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_01.png, object 009.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_010",
+      "kind": "body",
+      "reviewed": true,
+      "label": "身体、面部或解剖细节",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_01.png, object 010.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_011",
+      "kind": "garment",
+      "reviewed": true,
+      "label": "衬衫衣领",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_01.png, object 011.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_012",
+      "kind": "body",
+      "reviewed": true,
+      "label": "身体、面部或解剖细节",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_01.png, object 012.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_013",
+      "kind": "garment",
+      "reviewed": true,
+      "label": "领口垂带",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_01.png, object 013.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_014",
+      "kind": "accessory",
+      "reviewed": true,
+      "label": "纽扣",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_01.png, object 014.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_015",
+      "kind": "accessory",
+      "reviewed": true,
+      "label": "纽扣",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_01.png, object 015.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_016",
+      "kind": "garment",
+      "reviewed": true,
+      "label": "头饰织物褶边与飘带",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_01.png, object 016.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_017",
+      "kind": "body",
+      "reviewed": true,
+      "label": "身体、面部或解剖细节",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_01.png, object 017.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_018",
+      "kind": "garment",
+      "reviewed": true,
+      "label": "下层裙边蕾丝",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_01.png, object 018.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_019",
+      "kind": "garment",
+      "reviewed": true,
+      "label": "上层裙边蕾丝",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_01.png, object 019.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_020",
+      "kind": "garment",
+      "reviewed": true,
+      "label": "内衬裙片",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_01.png, object 020.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_021",
+      "kind": "accessory",
+      "reviewed": true,
+      "label": "纽扣",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_01.png, object 021.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_022",
+      "kind": "garment",
+      "reviewed": true,
+      "label": "胸前门襟布片",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_02.png, object 022.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_023",
+      "kind": "accessory",
+      "reviewed": true,
+      "label": "纽扣",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_02.png, object 023.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_024",
+      "kind": "accessory",
+      "reviewed": true,
+      "label": "纽扣",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_02.png, object 024.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_025",
+      "kind": "accessory",
+      "reviewed": true,
+      "label": "纽扣",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_02.png, object 025.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_026",
+      "kind": "garment",
+      "reviewed": true,
+      "label": "腰部褶边",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_02.png, object 026.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_027",
+      "kind": "accessory",
+      "reviewed": true,
+      "label": "纽扣",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_02.png, object 027.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_028",
+      "kind": "garment",
+      "reviewed": true,
+      "label": "胸前蝴蝶结",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_02.png, object 028.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_029",
+      "kind": "accessory",
+      "reviewed": true,
+      "label": "展示底座",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_02.png, object 029.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_030",
+      "kind": "garment",
+      "reviewed": true,
+      "label": "靴筒或袜筒前侧蝴蝶结",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_02.png, object 030.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation.",
+        "Garment component shape is visually confirmed, but clay geometry cannot establish textile versus leather or physical flexibility; review material and constraints before cloth simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_031",
+      "kind": "body",
+      "reviewed": true,
+      "label": "身体、面部或解剖细节",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_02.png, object 031.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_032",
+      "kind": "garment",
+      "reviewed": true,
+      "label": "靴筒或袜筒前侧褶边",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_02.png, object 032.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation.",
+        "Garment component shape is visually confirmed, but clay geometry cannot establish textile versus leather or physical flexibility; review material and constraints before cloth simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_033",
+      "kind": "body",
+      "reviewed": true,
+      "label": "身体、面部或解剖细节",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_02.png, object 033.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_034",
+      "kind": "accessory",
+      "reviewed": true,
+      "label": "鞋主体",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_02.png, object 034.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_035",
+      "kind": "accessory",
+      "reviewed": true,
+      "label": "鞋跟与硬质配件",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_02.png, object 035.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_036",
+      "kind": "accessory",
+      "reviewed": true,
+      "label": "鞋面硬质小件",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_02.png, object 036.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_037",
+      "kind": "accessory",
+      "reviewed": true,
+      "label": "鞋外层",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_02.png, object 037.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_038",
+      "kind": "accessory",
+      "reviewed": true,
+      "label": "鞋跟硬质小件",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_02.png, object 038.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_039",
+      "kind": "accessory",
+      "reviewed": true,
+      "label": "鞋边硬质配件",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_02.png, object 039.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_040",
+      "kind": "body",
+      "reviewed": true,
+      "label": "身体、面部或解剖细节",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_02.png, object 040.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_041",
+      "kind": "garment",
+      "reviewed": true,
+      "label": "长筒袜或软靴覆盖层",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_02.png, object 041.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation.",
+        "Garment component shape is visually confirmed, but clay geometry cannot establish textile versus leather or physical flexibility; review material and constraints before cloth simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_042",
+      "kind": "garment",
+      "reviewed": true,
+      "label": "踝部蝴蝶结",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_02.png, object 042.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_043",
+      "kind": "accessory",
+      "reviewed": true,
+      "label": "鞋底",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_03.png, object 043.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_044",
+      "kind": "garment",
+      "reviewed": true,
+      "label": "上层裙摆",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_03.png, object 044.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_045",
+      "kind": "garment",
+      "reviewed": true,
+      "label": "下层裙摆",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_03.png, object 045.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_046",
+      "kind": "body",
+      "reviewed": true,
+      "label": "身体、面部或解剖细节",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_03.png, object 046.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_047",
+      "kind": "hair",
+      "reviewed": true,
+      "label": "头发片",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_03.png, object 047.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_048",
+      "kind": "hair",
+      "reviewed": true,
+      "label": "头发片",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_03.png, object 048.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_049",
+      "kind": "hair",
+      "reviewed": true,
+      "label": "头发片",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_03.png, object 049.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_050",
+      "kind": "body",
+      "reviewed": true,
+      "label": "身体、面部或解剖细节",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_03.png, object 050.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_051",
+      "kind": "hair",
+      "reviewed": true,
+      "label": "头发片",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_03.png, object 051.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_052",
+      "kind": "hair",
+      "reviewed": true,
+      "label": "头发片",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_03.png, object 052.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_053",
+      "kind": "garment",
+      "reviewed": true,
+      "label": "腰身布片",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_03.png, object 053.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_054",
+      "kind": "hair",
+      "reviewed": true,
+      "label": "头发片",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_03.png, object 054.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_055",
+      "kind": "hair",
+      "reviewed": true,
+      "label": "头发片",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_03.png, object 055.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_056",
+      "kind": "garment",
+      "reviewed": true,
+      "label": "胸衣与肩部织物蕾丝边",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_03.png, object 056.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_057",
+      "kind": "hair",
+      "reviewed": true,
+      "label": "发型内层帽壳",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_03.png, object 057.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_058",
+      "kind": "hair",
+      "reviewed": true,
+      "label": "头发片",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_03.png, object 058.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_059",
+      "kind": "body",
+      "reviewed": true,
+      "label": "身体、面部或解剖细节",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_03.png, object 059.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_060",
+      "kind": "body",
+      "reviewed": true,
+      "label": "身体、面部或解剖细节",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_03.png, object 060.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_061",
+      "kind": "garment",
+      "reviewed": true,
+      "label": "长袖上衣",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_03.png, object 061.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_062",
+      "kind": "body",
+      "reviewed": true,
+      "label": "身体、面部或解剖细节",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_03.png, object 062.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    },
+    {
+      "name": "3DXY_geometry_063",
+      "kind": "body",
+      "reviewed": true,
+      "label": "身体、面部或解剖细节",
+      "evidence": [
+        "Visual review of isolated FBX geometry in mesh_inventory_03.png, object 063.",
+        "Object geometry and source world bounds were checked; this is an explicit visual annotation because source names/materials are generic.",
+        "Textile ornaments are included as garment submeshes; rigid shoes, buckles, buttons and display geometry are excluded.",
+        "No Cloth modifier exists on this source object; classification does not supply constraints or enable simulation."
+      ]
+    }
+  ]
+}

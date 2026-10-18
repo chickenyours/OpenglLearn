@@ -1,6 +1,7 @@
 add_library(model_skeletal STATIC
     Private/skeletal_importer.cpp
     Private/blend_metadata.cpp
+    Private/max_metadata.cpp
     Private/fit_profile.cpp
     Private/garment_recognition.cpp
     Private/skeletal_runtime.cpp
@@ -36,6 +37,10 @@ add_executable(blend_metadata_test Test/blend_metadata_test.cpp)
 target_link_libraries(blend_metadata_test PRIVATE model_skeletal)
 add_test(NAME blend_metadata_test COMMAND blend_metadata_test)
 set_tests_properties(blend_metadata_test PROPERTIES TIMEOUT 30)
+add_executable(max_metadata_test Test/max_metadata_test.cpp)
+target_link_libraries(max_metadata_test PRIVATE model_skeletal jsonloader)
+add_test(NAME max_metadata_test COMMAND max_metadata_test)
+set_tests_properties(max_metadata_test PROPERTIES TIMEOUT 30)
 add_executable(fit_profile_test Test/fit_profile_test.cpp)
 target_link_libraries(fit_profile_test PRIVATE model_skeletal jsonloader)
 target_compile_definitions(fit_profile_test PRIVATE MODEL_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
@@ -186,7 +191,7 @@ if(MODEL_OPTIMIZE_PREVIEW AND CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND MSVC)
 endif()
 
 if(MODEL_ASSIMP_RUNTIME_FILE)
-    foreach(skeletal_executable IN ITEMS skeletal_asset_import skeletal_animation_import skeletal_asset_editor garment_asset_import hair_asset_import hair_asset_test hair_body_collision_test hair_surface_contact_test hair_solver_test hair_preview_worker_test hair_surface_quality_test garment_builder_test garment_recognition_test blend_metadata_test fit_profile_test blend_asset_test blend_pose_reference_test cloth_solver_test cloth_asset_io_test skeletal_asset_io_test skeletal_runtime_test skeletal_import_test vmd_import_test animation_bake_test animation_asset_io_test)
+    foreach(skeletal_executable IN ITEMS skeletal_asset_import skeletal_animation_import skeletal_asset_editor garment_asset_import hair_asset_import hair_asset_test hair_body_collision_test hair_surface_contact_test hair_solver_test hair_preview_worker_test hair_surface_quality_test garment_builder_test garment_recognition_test blend_metadata_test max_metadata_test fit_profile_test blend_asset_test blend_pose_reference_test cloth_solver_test cloth_asset_io_test skeletal_asset_io_test skeletal_runtime_test skeletal_import_test vmd_import_test animation_bake_test animation_asset_io_test)
         add_custom_command(TARGET ${skeletal_executable} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different "${MODEL_ASSIMP_RUNTIME_FILE}" "$<TARGET_FILE_DIR:${skeletal_executable}>")
     endforeach()

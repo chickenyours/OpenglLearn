@@ -1,13 +1,8 @@
 #pragma once
 #include <string>
+#include "Render/Public/Pipeline/software_bvh_visibility.h"
 namespace Render::SurfaceCacheDetail {
-inline std::string LookupGLSL() {return R"GLSL(
-layout(std140,binding=12) uniform SurfaceCacheData {
-    mat4 scInverseView;
-    ivec4 scAtlas,scGeometry,scScreen;
-    vec4 scParameters,scSunDirectionIntensity,scSunColor;
-    vec4 scSpotPositionRadius,scSpotDirectionOuter,scSpotIntensityInner;
-};
+inline std::string LookupGLSL() {return SurfaceCacheDataGLSL()+R"GLSL(
 layout(binding=12) uniform sampler2D scAttributes;
 layout(binding=13) uniform sampler2D scMetadata;
 layout(binding=14) uniform sampler2D scLighting;
@@ -61,58 +56,69 @@ bool SCLookupObject(vec3 p,vec3 n,int object,out int result) {
     return false;
 }
 bool SCLookup(vec3 p,vec3 n,out int result){return SCLookupObject(p,n,-1,result);}
+// Match LumenSurfaceCacheSampling.ush: filter lighting with the bilinear
+// footprint multiplied by geometric visibility. Establish coverage first with
+// the original nearest query, then stay on that exact object's card. A cache
+// hole must not acquire coverage from a different object or projection.
+bool SCSampleLightingObject(vec3 p,vec3 n,int object,out vec3 radiance,out float coverage) {
+    radiance=vec3(0);coverage=0;int anchor;
+    if(!SCLookupObject(p,n,object,anchor))return false;
+    vec4 anchorLighting=texelFetch(scLighting,ivec2(anchor%scAtlas.x,anchor/scAtlas.x),0);
+    if(anchorLighting.w<.5||any(isnan(anchorLighting.rgb))||any(isinf(anchorLighting.rgb)))return false;
+    if((int(scParameters.w+.5)&2)==0) {radiance=anchorLighting.rgb;coverage=1;return true;}
+    vec4 anchorNormal=SCAttribute(scAtlas.y+anchor),anchorPosition=SCAttribute(anchor);
+    int card=int(anchorNormal.w+.5)-1;
+    if(card<0||card>=scAtlas.w||(object>=0&&card/6!=object))return false;
+    vec4 low=SCMeta(card,4),high=SCMeta(card,5),facing=SCMeta(card,6);
+    mat4 inverseTransform=mat4(SCMeta(card,0),SCMeta(card,1),SCMeta(card,2),SCMeta(card,3));
+    vec3 local=(inverseTransform*vec4(p,1)).xyz;
+    int axis=card%6/2,u=(axis+1)%3,v=(axis+2)%3;
+    int resolution=int(SCMeta(card,9).w);
+    vec2 extent=max(vec2(high[u]-low[u],high[v]-low[v]),vec2(1e-8));
+    vec2 at=(vec2(local[u],local[v])-vec2(low[u],low[v]))/extent*float(resolution)-.5;
+    ivec2 base=ivec2(floor(at));vec2 fraction=fract(at);
+    float tolerance=max(facing.w,.00001),weightSum=0;vec3 sum=vec3(0);
+    bool missingLighting=false;
+    for(int y=0;y<2;++y)for(int x=0;x<2;++x) {
+        float bilinear=(x==0?1-fraction.x:fraction.x)*(y==0?1-fraction.y:fraction.y);
+        if(bilinear<=.000001)continue;
+        // Clamp to texel centers in this card only, never the next atlas page.
+        ivec2 cell=clamp(base+ivec2(x,y),ivec2(0),ivec2(resolution-1));
+        int index=int(high.w)+cell.y*resolution+cell.x;
+        vec4 position=SCAttribute(index),normal=SCAttribute(scAtlas.y+index);
+        if(position.w<.5||dot(n,normal.xyz)<.6||int(normal.w+.5)-1!=card)continue;
+        vec3 delta=p-position.xyz;float depth=abs(dot(delta,facing.xyz));
+        if(depth>=tolerance||dot(delta,delta)>tolerance*tolerance*6.25)continue;
+        // A projection can contain separate depth layers with similar normals.
+        // Compare each tap to the covered anchor's tangent plane as well as the
+        // hit plane; allow the second-order change expected on a curved mesh.
+        vec3 fromAnchor=position.xyz-anchorPosition.xyz;
+        float normalDifference=sqrt(max(0.0,2.0*(1-clamp(dot(normal.xyz,anchorNormal.xyz),-1.0,1.0))));
+        float layerSlack=max(.0002,.05*tolerance)+.75*length(fromAnchor)*normalDifference;
+        if(abs(dot(fromAnchor,anchorNormal.xyz))>layerSlack||
+            max(abs(dot(delta,n)),abs(dot(delta,normal.xyz)))>tolerance)continue;
+        float visibility=1-clamp((depth-.8*tolerance)/(.2*tolerance),0.0,1.0);
+        float weight=bilinear*visibility;if(weight<=.000001)continue;
+        vec4 lighting=texelFetch(scLighting,ivec2(index%scAtlas.x,index/scAtlas.x),0);
+        // Alpha denotes captured/relit data, independently of RGB. Valid black
+        // contributes its full weight; unavailable lighting stays unreadable.
+        if(lighting.w<.5||any(isnan(lighting.rgb))||any(isinf(lighting.rgb))) {missingLighting=true;continue;}
+        sum+=lighting.rgb*weight;weightSum+=weight;
+    }
+    if(missingLighting||weightSum<=.000001)return false;
+    radiance=sum/weightSum;coverage=clamp(weightSum,0.0,1.0);return true;
+}
+bool SCSampleLightingObject(vec3 p,vec3 n,int object,out vec3 radiance) {
+    float coverage;return SCSampleLightingObject(p,n,object,radiance,coverage);
+}
+bool SCSampleLighting(vec3 p,vec3 n,out vec3 radiance) {return SCSampleLightingObject(p,n,-1,radiance);}
 )GLSL";}
-inline std::string GeometryGLSL(){return R"GLSL(
-layout(binding=9) uniform sampler2D scTriangles;
+inline std::string GeometryGLSL(){return SoftwareBvhVisibilityGLSL()+R"GLSL(
 layout(std140,binding=3) uniform SCPointLights {
     vec4 scPointPositions[4],scPointColors[4],scUnusedAmbient,scUnusedOutput,scUnusedSpecular;
 };
-vec4 SCGeometry(int index){return texelFetch(scTriangles,ivec2(index%scGeometry.y,index/scGeometry.y),0);}
-bool SCBox(vec3 p,vec3 d,vec3 low,vec3 high,float maximum,out float near) {
-    near=0;float far=maximum;
-    for(int axis=0;axis<3;++axis) {
-        if(abs(d[axis])<1e-9){if(p[axis]<low[axis]||p[axis]>high[axis])return false;continue;}
-        float a=(low[axis]-p[axis])/d[axis],b=(high[axis]-p[axis])/d[axis];
-        near=max(near,min(a,b));far=min(far,max(a,b));if(near>far)return false;
-    }return true;
-}
-bool SCIntersect(vec3 p,vec3 d,inout float maximum,out vec3 n,out int triangle,out bool exhausted,bool anyHit) {
-    n=vec3(0);triangle=-1;exhausted=false;if(scGeometry.z==0)return false;
-    // BuildRealtimeGiScene validates <=2^20 triangles, halves every branch at
-    // its exact median and stops at <=8 triangles: at most 18 root-to-leaf
-    // nodes and 18 simultaneous DFS entries. Refits retain that topology.
-    // Keep ample margin plus an explicit guard against malformed input.
-    int stack[32];stack[0]=0;int size=1;bool found=false;
-    for(int visit=0;visit<16384&&size>0;++visit) {
-        int node=stack[--size];vec4 low=SCGeometry(node*2),high=SCGeometry(node*2+1);float near;
-        if(!SCBox(p,d,low.xyz,high.xyz,maximum,near))continue;
-        if(high.w>=0) {
-            if(size>29){exhausted=true;return found;}
-            int left=int(low.w),right=int(high.w);float ln,rn;
-            bool l=SCBox(p,d,SCGeometry(left*2).xyz,SCGeometry(left*2+1).xyz,maximum,ln);
-            bool r=SCBox(p,d,SCGeometry(right*2).xyz,SCGeometry(right*2+1).xyz,maximum,rn);
-            if(l&&r){stack[size++]=ln<rn?right:left;stack[size++]=ln<rn?left:right;}
-            else if(l)stack[size++]=left;else if(r)stack[size++]=right;
-            continue;
-        }
-        for(int i=0;i<int(-high.w);++i) {
-            int offset=scGeometry.x+(int(low.w)+i)*5;
-            vec3 a=SCGeometry(offset).xyz,ab=SCGeometry(offset+1).xyz-a,ac=SCGeometry(offset+2).xyz-a;
-            vec3 q=cross(d,ac);float determinant=dot(ab,q);if(abs(determinant)<1e-9)continue;
-            // Adjacent triangles must agree on a shared edge despite rounding.
-            vec3 relative=p-a;float u=dot(relative,q)/determinant;if(u< -1e-6||u>1.000001)continue;
-            vec3 r=cross(relative,ab);float v=dot(d,r)/determinant;if(v< -1e-6||u+v>1.000001)continue;
-            float distance=dot(ac,r)/determinant;if(distance<1e-5||distance>=maximum)continue;
-            maximum=distance;n=normalize(cross(ab,ac));triangle=int(low.w)+i;found=true;if(anyHit)return true;
-        }
-    }
-    exhausted=size>0;return found;
-}
-bool SCVisible(vec3 p,vec3 n,vec3 d,float distance) {
-    vec3 unused;int triangle;bool exhausted;distance=max(0.0,distance-2*scParameters.y);
-    bool found=SCIntersect(p+n*scParameters.y,d,distance,unused,triangle,exhausted,true);
-    return !found&&!exhausted;
-}
+struct SCAreaLight {vec4 center,u,v,radiance;};
+layout(std140,binding=8) uniform SCAreaLights {SCAreaLight scAreaLights[4];};
 vec3 SCDirect(vec3 p,vec3 n) {
     vec3 irradiance=vec3(0);vec3 d=-scSunDirectionIntensity.xyz;float cosine=max(dot(n,d),0.0);
     if(scSunDirectionIntensity.w>0&&cosine>0&&SCVisible(p,n,d,scParameters.x))
@@ -133,7 +139,29 @@ vec3 SCDirect(vec3 p,vec3 n) {
             if(cosine>0&&beam>0&&SCVisible(p,n,d,distance-radius))
                 irradiance+=scSpotIntensityInner.rgb*(cosine*beam/max(max(distance*distance,radius*radius),.0001));
         }
-    }return irradiance;
+    }
+    for(int i=0;i<4;++i) {
+        SCAreaLight light=scAreaLights[i];
+        if(light.center.w<.5||all(lessThanEqual(light.radiance.rgb,vec3(0))))continue;
+        vec3 U=light.u.xyz,V=light.v.xyz,areaVector=cross(U,V);
+        float quarterArea=length(areaVector);if(quarterArea<=1e-12)continue;
+        vec3 emitterNormal=areaVector/quarterArea,toCenter=light.center.xyz-p;
+        float emitterSideMax=dot(emitterNormal,-toCenter)+abs(dot(emitterNormal,U))+abs(dot(emitterNormal,V));
+        if(light.radiance.w<.5&&emitterSideMax<=0)continue;
+        if(dot(n,toCenter)+abs(dot(n,U))+abs(dot(n,V))<=0)continue;
+        int grid=light.u.w>6?8:4;float cellArea=4*quarterArea/float(grid*grid);
+        for(int y=0;y<grid;++y)for(int x=0;x<grid;++x) {
+            vec2 parameter=(vec2(x,y)+.5)*(2.0/float(grid))-1;
+            vec3 delta=light.center.xyz+U*parameter.x+V*parameter.y-p;
+            float distanceSquared=max(dot(delta,delta),max(cellArea*1e-8,1e-12)),distance=sqrt(distanceSquared);
+            d=delta/distance;float receiver=max(dot(n,d),0),face=dot(emitterNormal,-d);
+            float geometricHorizon=smoothstep(0.0,.05,dot(n,d));
+            float emitter=light.radiance.w>.5?abs(face):max(face,0.0);
+            if(receiver>0&&emitter>0&&SCVisible(p,n,d,distance))
+                irradiance+=light.radiance.rgb*(cellArea*receiver*emitter*geometricHorizon/distanceSquared);
+        }
+    }
+    return irradiance;
 }
 )GLSL";}
 inline std::string LightingShader(){return std::string("#version 450 core\n")+LookupGLSL()+GeometryGLSL()+R"GLSL(
@@ -156,7 +184,11 @@ void main(){ivec2 pixel=ivec2(gl_FragCoord.xy);vec4 view=texelFetch(scViewPositi
     outColor=vec4(0);if(view.w<.5||normal.w<.5)return;
     vec3 n=normalize(normal.xyz),p=(scInverseView*vec4(view.xyz,1)).xyz;
     vec3 axis=abs(n.z)<.99?vec3(0,0,1):vec3(0,1,0),t=normalize(cross(axis,n)),b=cross(n,t);
-    uint pixelSeed=SCHash(uint(pixel.x)+uint(pixel.y)*uint(scScreen.x));
+    // The unused sun-color W carries a reference-only sampling seed. Seed zero
+    // preserves the original pixel sequence exactly; screen probes use their
+    // independent angular sampler and never read this value.
+    uint pixelSeed=SCHash((uint(pixel.x)+uint(pixel.y)*uint(scScreen.x))^
+        (floatBitsToUint(scSunColor.w)*0x9e3779b9u));
     vec3 sum=vec3(0);int readable=0;
     for(int ray=0;ray<32;++ray){if(ray>=scScreen.z)break;
         uint seed=SCHash(pixelSeed^SCHash(uint(ray)+0x9e3779b9u));
@@ -166,10 +198,10 @@ void main(){ivec2 pixel=ivec2(gl_FragCoord.xy);vec4 view=texelFetch(scViewPositi
         float distance=scParameters.x;
         if(SCIntersect(p+n*scParameters.y,d,distance,hitNormal,triangle,exhausted,false)) {
             // A one-sided diffuse surface emits only into its outward hemisphere.
-            int sampleIndex,owner=SCTriangleOwner(triangle);
+            int owner=SCTriangleOwner(triangle);vec3 sampledLighting;
             if(!exhausted&&dot(hitNormal,-d)<=0)++readable; // Known black, not a cache hole.
-            else if(!exhausted&&owner>=0&&SCLookupObject(p+n*scParameters.y+d*distance,hitNormal,owner,sampleIndex))
-                {sum+=SCValue(sampleIndex);++readable;}
+            else if(!exhausted&&owner>=0&&SCSampleLightingObject(p+n*scParameters.y+d*distance,hitNormal,owner,sampledLighting))
+                {sum+=sampledLighting;++readable;}
         } else if(!exhausted)++readable; // A traced empty ray is valid black.
     }
     vec3 rho=texelFetch(scReceiverAlbedo,pixel,0).rgb;
@@ -196,7 +228,10 @@ void main(){ivec2 pixel=ivec2(gl_FragCoord.xy);vec4 raw=texelFetch(scRawGi,pixel
     outColor=vec4(diagnostic,(scScreen.w==1||scScreen.w==3||scScreen.w==4)?(covered?1:0):raw.a);return;
 #else
     if(!valid)return;
-    if(scScreen.w==1)outColor=vec4(covered?SCValue(index):diagnostic,1);
+    if(scScreen.w==1) {
+        vec3 lighting;bool readable=SCSampleLighting((scInverseView*vec4(view.xyz,1)).xyz,normalize(normal.xyz),lighting);
+        outColor=vec4(readable?lighting:diagnostic,1);
+    }
     else if(scScreen.w==2)outColor=vec4(raw.rgb,1);
     else if(scScreen.w==3)outColor=vec4(diagnostic,1);
     else outColor=vec4(base+raw.rgb,1);

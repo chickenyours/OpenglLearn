@@ -231,6 +231,28 @@ public:
         Warning(message);
     }
 
+    void FinishMaterialTextures() {
+        if(!usedMaxPhysicalCutout_)return;
+        // Only after every material has been converted can a decoded source
+        // image be identified as unused: another material may still reference
+        // it directly while this one uses a derived opacity image. Move image
+        // buffers in place, retaining old relative order and all eight slots.
+        const auto oldCount=model_.textures.size();std::vector<bool> used(oldCount,false);
+        for(const auto& material:model_.materials)for(const auto index:material.textures)if(index>=0) {
+            if(static_cast<std::size_t>(index)>=oldCount)throw std::runtime_error("Invalid texture reference during FBX material compaction");
+            used[index]=true;
+        }
+        std::vector<std::int32_t> remap(oldCount,-1);std::size_t write=0;
+        for(std::size_t read=0;read<oldCount;++read)if(used[read]) {
+            remap[read]=static_cast<std::int32_t>(write);
+            if(write!=read)model_.textures[write]=std::move(model_.textures[read]);++write;
+        }
+        model_.textures.resize(write);
+        for(auto& material:model_.materials)for(auto& index:material.textures)if(index>=0)index=remap[index];
+        if(write<oldCount)Warning("Max Physical FBX retained "+std::to_string(write)+" runtime textures; released "+
+            std::to_string(oldCount-write)+" unreferenced decoded source/derived images after all material slots were resolved.");
+    }
+
     TextureReference FindTexture(const aiMaterial& material, std::initializer_list<aiTextureType> types) {
         for(const auto type : types) {
             if(!material.GetTextureCount(type)) continue;
@@ -254,6 +276,72 @@ public:
             return result;
         }
         return {};
+    }
+
+    TextureReference FindMaxPhysicalCutout(const aiMaterial& material) {
+        // Assimp retains every FBX texture connection in $raw even when it has
+        // no standard semantic mapping. Physical Material cutout_map is absent
+        // from its standard OPACITY table. Keep this exact FBX-only fallback
+        // separate from glTF's UNKNOWN packed metallic/roughness texture.
+        if(Lower(Utf8(model_.sourcePath.extension()))!=".fbx")return {};
+        constexpr const char* prefix="$raw.3dsMax|Parameters|cutout_map";
+        aiString path;
+        if(material.Get((std::string(prefix)+"|file").c_str(),aiTextureType_UNKNOWN,0,path)!=aiReturn_SUCCESS||!path.length)return {};
+        const aiMaterialProperty* enabledProperty=nullptr;
+        if(aiGetMaterialProperty(&material,"$raw.3dsMax|Parameters|cutout_map_on",0,0,&enabledProperty)==aiReturn_SUCCESS) {
+            int enabled=-1;
+            if(!enabledProperty||enabledProperty->mType!=aiPTI_Integer||
+                material.Get("$raw.3dsMax|Parameters|cutout_map_on",0,0,enabled)!=aiReturn_SUCCESS||
+                (enabled!=0&&enabled!=1)) {
+                Warning("Max Physical cutout_map has an unsupported enable flag; skipped its opacity connection: "+std::string(path.C_Str()));return {};
+            }
+            if(!enabled)return {};
+        }else Warning("Max Physical cutout_map has no exported enable flag; using its connected texture: "+std::string(path.C_Str()));
+        int uv=0;
+        if(material.Get((std::string(prefix)+"|uvwsrc").c_str(),aiTextureType_UNKNOWN,0,uv)==aiReturn_SUCCESS&&uv!=0) {
+            TextureIssue("Only UV channel 0 is supported; skipped Max Physical cutout texture: "+std::string(path.C_Str()));return {};
+        }
+        TextureReference result;result.name=path.C_Str();result.type=aiTextureType_OPACITY;result.valid=true;
+        material.Get((std::string(prefix)+"|uvtrafo").c_str(),aiTextureType_UNKNOWN,0,result.transform);
+        // Assimp FlipUVs adjusts only its standard $tex.uvtrafo keys. Apply
+        // the identical change to this raw connection before comparing maps.
+        if(options_.flipUVs){result.transform.mTranslation.y*=-1;result.transform.mRotation*=-1;}
+        if(std::abs(result.transform.mRotation)>1e-6)
+            TextureIssue("Rotated texture UV transforms are unsupported: "+result.name);
+        Warning("Imported Max Physical cutout_map as opacity (white opaque, black transparent). Map amount/channel/output modes were not inferred; inspect the source material: "+result.name);
+        usedMaxPhysicalCutout_=true;
+        return result;
+    }
+
+    void MaxPhysicalScalarFactors(const aiMaterial& source,bool hasMetalMap,bool hasRoughMap,PbrMaterial& material) {
+        if(Lower(Utf8(model_.sourcePath.extension()))!=".fbx")return;
+        aiString signature;
+        if(source.Get("$raw.3dsMax|ORIGINAL_MTL",0,0,signature)!=aiReturn_SUCCESS||
+            std::string(signature.C_Str())!="PHYSICAL_MTL")return;
+        // The FBX legacy Phong exponent supplies an approximate roughness even
+        // when the authored Physical value survives in raw metadata. Prefer
+        // that explicit scalar only for the exact source material signature.
+        if(!hasMetalMap) {
+            float metallic=0;
+            if(ReadScalar(source,"$raw.3dsMax|Parameters|metalness",0,0,metallic)==aiReturn_SUCCESS) {
+                if(std::isfinite(metallic)&&metallic>=0&&metallic<=1)material.metallic=metallic;
+                else Warning("Invalid Max Physical metalness scalar; retained standard material factor: "+material.name);
+            }
+        }
+        float roughness=0;
+        if(ReadScalar(source,"$raw.3dsMax|Parameters|roughness",0,0,roughness)!=aiReturn_SUCCESS)return;
+        if(hasRoughMap) {
+            Warning("Max Physical roughness texture retains standard mapping; raw scalar/glossiness inversion was not inferred for this map: "+material.name);return;
+        }
+        const aiMaterialProperty* inversionProperty=nullptr;int inversion=-1;
+        if(!std::isfinite(roughness)||roughness<0||roughness>1||
+            aiGetMaterialProperty(&source,"$raw.3dsMax|Parameters|roughness_inv",0,0,&inversionProperty)!=aiReturn_SUCCESS||
+            !inversionProperty||inversionProperty->mType!=aiPTI_Integer||
+            source.Get("$raw.3dsMax|Parameters|roughness_inv",0,0,inversion)!=aiReturn_SUCCESS||
+            (inversion!=0&&inversion!=1)) {
+            Warning("Invalid/missing Max Physical roughness or roughness_inv flag; retained standard material factor: "+material.name);return;
+        }
+        material.roughness=inversion?1-roughness:roughness;
     }
 
     std::int32_t Image(const TextureReference& reference) {
@@ -361,6 +449,26 @@ public:
         image.width = color ? color->width : mask.width;
         image.height = color ? color->height : mask.height;
         image.linearColor = color && color->linearColor;
+        // JPEG/opaque RGBA8 albedo + an 8-bit mask is exactly representable in
+        // RGBA8: RGB is unchanged and 1 * mask.red becomes that very same byte.
+        // Decide before allocating; partial alpha products and float/16-bit/HDR
+        // sources retain the existing float path without any quantization.
+        bool exactBytes=!mask.rgba.empty()&&mask.rgba32f.empty()&&
+            (!color||(!color->rgba.empty()&&color->rgba32f.empty()));
+        if(exactBytes&&color)for(std::size_t pixel=0;pixel<color->rgba.size()/4;++pixel)
+            if(color->rgba[pixel*4+3]!=255){exactBytes=false;break;}
+        if(exactBytes) {
+            image.rgba.resize(PixelBytes(image.width,image.height));
+            for(std::uint32_t y=0;y<image.height;++y)for(std::uint32_t x=0;x<image.width;++x) {
+                const auto pixel=static_cast<std::size_t>(y)*image.width+x;
+                for(unsigned channel=0;channel<3;++channel)image.rgba[pixel*4+channel]=color?color->rgba[pixel*4+channel]:255;
+                const auto mx=static_cast<std::uint32_t>(static_cast<std::uint64_t>(x)*mask.width/image.width);
+                const auto my=static_cast<std::uint32_t>(static_cast<std::uint64_t>(y)*mask.height/image.height);
+                image.rgba[pixel*4+3]=mask.rgba[(static_cast<std::size_t>(my)*mask.width+mx)*4];
+                image.hasAlpha|=image.rgba[pixel*4+3]!=255;
+            }
+            const auto index=Append(std::move(image));derivedCache_[key]=index;return index;
+        }
         image.rgba32f.resize(PixelBytes(image.width, image.height));
         for(std::uint32_t y = 0; y < image.height; ++y)
             for(std::uint32_t x = 0; x < image.width; ++x) {
@@ -410,7 +518,12 @@ public:
         const auto rough = FindTexture(source, {aiTextureType_DIFFUSE_ROUGHNESS});
         const auto ao = FindTexture(source, {aiTextureType_AMBIENT_OCCLUSION, aiTextureType_LIGHTMAP});
         const auto emissionMap = FindTexture(source, {aiTextureType_EMISSION_COLOR, aiTextureType_EMISSIVE});
-        const auto opacityMap = FindTexture(source, {aiTextureType_OPACITY});
+        auto opacityMap = FindTexture(source, {aiTextureType_OPACITY});
+        bool maxPhysicalCutout=false;
+        if(!opacityMap.valid) {
+            opacityMap=FindMaxPhysicalCutout(source);
+            maxPhysicalCutout=opacityMap.valid;
+        }
         const auto combined = FindTexture(source, {aiTextureType_UNKNOWN});
 
         material.metallic = metal.valid ? 1.0f : 0.0f;
@@ -422,6 +535,7 @@ public:
             if(ReadScalar(source, AI_MATKEY_SHININESS, shininess) == aiReturn_SUCCESS && std::isfinite(shininess) && shininess > 0)
                 material.roughness = std::sqrt(2.0f / (shininess + 2.0f));
         }
+        MaxPhysicalScalarFactors(source,metal.valid,rough.valid,material);
         material.roughness = std::clamp(Saturate(material.roughness, 0.6f), 0.045f, 1.0f);
         float normalScale = 1;
         if(normal.valid && ReadScalar(source, AI_MATKEY_GLTF_TEXTURE_SCALE(normal.type, 0), normalScale) != aiReturn_SUCCESS)
@@ -432,12 +546,12 @@ public:
             ReadScalar(source, "$tex.file.strength", ao.type, 0, aoStrength);
         aoStrength = Saturate(aoStrength, 1);
 
-        const auto* uvReference = albedo.valid ? &albedo : normal.valid ? &normal : metal.valid ? &metal : rough.valid ? &rough : ao.valid ? &ao : emissionMap.valid ? &emissionMap : nullptr;
+        const auto* uvReference = albedo.valid ? &albedo : normal.valid ? &normal : metal.valid ? &metal : rough.valid ? &rough : ao.valid ? &ao : emissionMap.valid ? &emissionMap : opacityMap.valid ? &opacityMap : nullptr;
         if(uvReference) {
             const auto& uv = uvReference->transform;
             material.uvTransform = {static_cast<float>(uv.mScaling.x), static_cast<float>(uv.mScaling.y),
                 static_cast<float>(uv.mTranslation.x), static_cast<float>(uv.mTranslation.y)};
-            for(const auto* map : {&albedo, &normal, &metal, &rough, &ao, &emissionMap, &opacityMap})
+            for(const auto* map : std::array<const TextureReference*,7>{&albedo, &normal, &metal, &rough, &ao, &emissionMap, &opacityMap})
                 if(map->valid && (std::abs(map->transform.mScaling.x - uv.mScaling.x) > 1e-5 ||
                     std::abs(map->transform.mScaling.y - uv.mScaling.y) > 1e-5 ||
                     std::abs(map->transform.mTranslation.x - uv.mTranslation.x) > 1e-5 ||
@@ -471,7 +585,11 @@ public:
         } else if(material.baseColor.a < 0.999f) {
             material.alphaMode = AlphaMode::Blend;
         } else if(material.textures[0] >= 0 && model_.textures[material.textures[0]].hasAlpha) {
-            material.alphaMode = AlphaMode::Mask;
+            // Autodesk cutout grayscale denotes continuous opacity. Threshold
+            // testing sparse hair/lace loses all coverage in minified mipmaps.
+            // Preserve it through the existing blend pipeline only for this
+            // exact Max Physical fallback; standard/glTF policies stay intact.
+            material.alphaMode=maxPhysicalCutout?AlphaMode::Blend:AlphaMode::Mask;
         }
         ReadScalar(source, AI_MATKEY_GLTF_ALPHACUTOFF, material.alphaCutoff);
         material.alphaCutoff = Saturate(material.alphaCutoff, 0.5f);
@@ -547,6 +665,7 @@ private:
     const aiScene& scene_;
     const LoadOptions& options_;
     std::unordered_map<std::string, std::int32_t> sourceCache_, derivedCache_;
+    bool usedMaxPhysicalCutout_=false;
 };
 
 std::filesystem::path SelectModel(const std::filesystem::path& input) {
@@ -657,6 +776,7 @@ std::shared_ptr<const StaticModel> StaticModelLoader::Load(const std::filesystem
         for(std::uint32_t index = 0; index < scene->mNumMaterials; ++index)
             result->materials.push_back(context.Material(*scene->mMaterials[index], index));
         if(result->materials.empty()) result->materials.push_back(PbrMaterial{});
+        context.FinishMaterialTextures();
         std::vector<std::uint32_t> meshMap(scene->mNumMeshes, std::numeric_limits<std::uint32_t>::max());
         bool hasBones = false, hasMorphs = false;
         for(std::uint32_t index = 0; index < scene->mNumMeshes; ++index) {

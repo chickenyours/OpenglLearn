@@ -1,5 +1,8 @@
 #include "Render/Public/Pipeline/surface_cache.h"
+#include "Render/Public/Pipeline/surface_cache_gi.h"
+#include <cmath>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -74,8 +77,72 @@ void TestUncoveredConcavity() {
     Check(!cache->Lookup({.45f,0,0},{0,0,0}).valid,"Invalid normal accepted");
     Check(!cache->Lookup({100,100,100},{1,0,0}).valid,"Out-of-bounds lookup accepted");
 }
+void TestContactSettings() {
+    Check(ValidateSurfaceCacheContactSettings({}),"Default receiver-contact settings are invalid");
+    Check(ValidateSurfaceCacheGiSettings({}),"Default disabled GI settings are invalid");
+    for(const std::uint32_t rays:{8u,16u,17u,32u}) {
+        SurfaceCacheContactSettings settings;settings.raysPerPixel=rays;
+        Check(ValidateSurfaceCacheContactSettings(settings),"A supported receiver-contact ray budget was rejected");
+    }
+    for(const std::uint32_t rays:{0u,7u,33u,std::numeric_limits<std::uint32_t>::max()}) {
+        SurfaceCacheContactSettings settings;settings.raysPerPixel=rays;
+        Check(!ValidateSurfaceCacheContactSettings(settings),"An out-of-range receiver-contact ray budget was accepted");
+    }
+    for(const std::uint32_t radius:{1u,2u}) {
+        SurfaceCacheContactSettings settings;settings.filterRadius=radius;
+        Check(ValidateSurfaceCacheContactSettings(settings),"A supported receiver-contact filter radius was rejected");
+    }
+    for(const std::uint32_t radius:{0u,3u,std::numeric_limits<std::uint32_t>::max()}) {
+        SurfaceCacheContactSettings settings;settings.filterRadius=radius;
+        Check(!ValidateSurfaceCacheContactSettings(settings),"An out-of-range receiver-contact filter radius was accepted");
+        SurfaceCacheGiSettings gi;gi.contact=settings;
+        Check(!ValidateSurfaceCacheGiSettings(gi),"Parent GI validation ignored an invalid receiver-contact filter radius");
+    }
+    for(const bool enabled:{false,true})for(const bool layers:{false,true}) {
+        SurfaceCacheContactSettings settings;settings.enabled=enabled;settings.layerValidation=layers;
+        Check(ValidateSurfaceCacheContactSettings(settings),"A receiver-contact feature toggle invalidated legal settings");
+        SurfaceCacheGiSettings gi;gi.contact=settings;
+        Check(ValidateSurfaceCacheGiSettings(gi),"Parent GI validation rejected legal receiver-contact feature toggles");
+    }
+    for(const std::uint32_t passes:{0u,1u,2u,3u,4u,std::numeric_limits<std::uint32_t>::max()}) {
+        SurfaceCacheGiSettings gi;gi.contact.filterPasses=passes;
+        Check(ValidateSurfaceCacheGiSettings(gi)==(passes>=1&&passes<=3),"Contact filter-pass bounds were not validated");
+    }
+    for(const std::uint32_t radius:{0u,1u,4u,5u,std::numeric_limits<std::uint32_t>::max()}) {
+        SurfaceCacheGiSettings gi;gi.contact.guideMaxRadius=radius;
+        Check(ValidateSurfaceCacheGiSettings(gi)==(radius>=1&&radius<=4),"Guided contact filter radius bounds were not validated");
+    }
+    for(const bool directions:{false,true})for(const bool confidence:{false,true}) {
+        SurfaceCacheGiSettings gi;gi.contact.temporalDirections=directions;gi.contact.coverageWeightedFilter=confidence;
+        Check(ValidateSurfaceCacheGiSettings(gi),"Legal contact-denoising switches were rejected");
+    }
+    struct Range {float SurfaceCacheContactSettings::*member;float minimum,maximum;const char* message;};
+    const Range ranges[]{
+        {&SurfaceCacheContactSettings::maxDistance,.01f,2.f,"Invalid receiver-contact distance validation"},
+        {&SurfaceCacheContactSettings::parallaxAngleDegrees,1.f,45.f,"Invalid receiver-contact angle validation"},
+        {&SurfaceCacheContactSettings::weightThreshold,.001f,.5f,"Invalid receiver-contact weight validation"},
+        {&SurfaceCacheContactSettings::filterStrength,0.f,1.f,"Invalid receiver-contact filter strength validation"},
+        {&SurfaceCacheContactSettings::guideHitAngleDegrees,1.f,45.f,"Invalid receiver-contact filter hit-angle validation"}};
+    for(const auto& range:ranges) {
+        for(const float value:{range.minimum,range.maximum}) {
+            SurfaceCacheContactSettings settings;settings.*range.member=value;
+            Check(ValidateSurfaceCacheContactSettings(settings),range.message);
+        }
+        for(const float value:{std::nextafter(range.minimum,-std::numeric_limits<float>::infinity()),
+            std::nextafter(range.maximum,std::numeric_limits<float>::infinity()),
+            std::numeric_limits<float>::quiet_NaN(),std::numeric_limits<float>::infinity(),
+            -std::numeric_limits<float>::infinity()}) {
+            SurfaceCacheContactSettings settings;settings.*range.member=value;
+            Check(!ValidateSurfaceCacheContactSettings(settings),range.message);
+            SurfaceCacheGiSettings gi;gi.contact=settings;
+            Check(!ValidateSurfaceCacheGiSettings(gi),"Parent GI validation ignored invalid receiver-contact settings");
+            gi.contact.enabled=false;
+            Check(!ValidateSurfaceCacheGiSettings(gi),"Disabling receiver-contact filtering hid invalid retained settings");
+        }
+    }
+}
 }
 int main() {
-    try {TestSharedAndDynamic();TestUncoveredConcavity();std::cout<<"Surface cache tests passed: shared captures, black validity, stable MDF switch, dynamic/material invalidation and hidden shell rejection\n";return 0;}
+    try {TestSharedAndDynamic();TestUncoveredConcavity();TestContactSettings();std::cout<<"Surface cache tests passed: shared captures, black validity, stable MDF switch, dynamic/material invalidation, hidden shell rejection and receiver-contact settings validation\n";return 0;}
     catch(const std::exception& e){std::cerr<<"Surface cache test failed: "<<e.what()<<'\n';return 1;}
 }

@@ -1,8 +1,14 @@
 # Model：静态网格导入与 PBR 渲染
 
+头部与长披发的独立 PBR 预览见 [HEAD_HAIR_PBR.md](HEAD_HAIR_PBR.md)。运行根目录 [`StartLolitaHeadHairPBR.bat`](../../StartLolitaHeadHairPBR.bat)，仅加载包含 23 个头部／头发网格的派生包；视口可切换 PBR／Toon，默认暂停物理并限制为 30 FPS。
+
 骨骼网格、动画序列、IK 中间资产生成与预览编辑器见 [SKELETAL_ASSETS.md](SKELETAL_ASSETS.md)。运行 `Module/Model/RunSkeletalAssetEditor.cmd` 可打开资产树、骨架、动画时间轴、表情、IK 和重映射详情。
 
 独立裙摆网格、服装插槽、XPBD 布料与身体碰撞见 [CLOTH.md](CLOTH.md)。生成示例后运行 `Module/Model/RunMahiroCloth.cmd`，可在同一预览器检查和替换服装。
+
+3ds Max 洛丽塔女仆高模的 FBX 导出、Max Physical 材质和逐件衣物分类见 [MAX_IMPORT.md](MAX_IMPORT.md)。运行项目根目录的 [`StartLolitaModel.bat`](../../StartLolitaModel.bat) 打开已生成包；追加 `--region-category garment --frame-region garment` 可仅查看并适配 19 个衣物网格，界面的 **Frame visible** 可按当前可见范围重新构图。
+
+该实例包含 63 个网格、5,477,148 个展开面角顶点、1,825,716 个三角形、52 个材质和 32 张 RGBA8 纹理，二进制载荷 2,042,920,580 字节。264 个场景节点用于刚性变换，模型没有作者角色绑定、作者动作或 Cloth。分类为 19 Garment、19 Body、9 Hair、16 Accessory，其中 3 个衣物构件的纺织物／皮革等材料类型仍待确认。Max Physical cutout 保留连续 Alpha 使用 Blend，现有 Blend 不投射阴影；`roughness_inv` 标量按作者标志转换。纹理无损合成、未用图像裁剪和 64 KiB 流式资产 IO 降低高模保存峰值，保留完整候选重载和原有格式校验。最终 12 项相关回归、真实资产完整重载和全身／19 件衣物筛选 GPU 预览均已通过。Intel 集成显卡暂停预览实测 16.06 FPS，稳定后 CPU 蒙皮与上传均为 0 ms；测量条件和预览见上述指南。
 
 `model_importer` 在 CPU 导入模型，不需要窗口或图形上下文。`model_module` 实现 `IModule`，借用已启动的 `Render::RHIDevice`，将模型交给现有 Material 材质系统和 Render 渲染接口。模块不持有窗口，不创建独立渲染循环。
 
@@ -39,6 +45,7 @@ Assimp 6.0.5 原版的 glTF 读取器会把 FLOAT 字节直接复制到 double �
 
 ```powershell
 cmake "-DASSIMP_SOURCE_DIR=C:/Dependencies/assimp-6.0.5" -P cmake/PatchAssimp605GltfDouble.cmake
+cmake "-DASSIMP_SOURCE_DIR=C:/Dependencies/assimp-6.0.5" -P cmake/PatchAssimp605MaterialDouble.cmake
 cmake --preset windows-release "-DMODEL_ASSIMP_SOURCE_DIR=C:/Dependencies/assimp-6.0.5" -DMODEL_GPU_TESTS=ON
 cmake --build --preset windows-release --target skeletal_asset_editor model_viewer static_model_test skeletal_import_test cloth_solver_test
 ctest --test-dir build/windows-release -R "^(static_model_test|skeletal_import_test|cloth_solver_test)$" --output-on-failure
@@ -101,3 +108,28 @@ GPU 使用 Render 现有 float 顶点和矩阵。`AppendTo(frame, placement, ren
 当前是静态网格：骨骼模型显示导入的静态姿态，通常为绑定姿态；不播放动画，不执行蒙皮或表情，也不模拟 PMX 物理。MMD 的 toon、描边、sphere map 及物理参数无法与 PBR 一一对应，只能得到静态 PBR 近似效果。复杂 DCC 节点材质也受 Assimp 可导出的参数和现有 Material shader 功能限制。原模型的单位与坐标保留，应用可用 placement 调整缩放与朝向。
 
 真实 Rikka 回归检查全部 16 个材质组、8745 个三角面、2048×1024 贴图以及原生 UV。另有 OBJ/MTL 非对称 UV、源法线、切线和纹理方向、FBX 父子层级与实例边界、UInt32 大网格、Unicode 路径、目录选择和严格缺图行为的 CPU 检查。独立的 `gltf_material_test` 使用嵌入 buffer/PNG 验证 ORM 通道、AO 强度、自发光与透明度。
+
+### 皮肤材质参考预览与中键平移
+
+视口内按住鼠标中键拖拽可平移相机中心；RMB 旋转，滚轮缩放。
+手动平移会解除骨骼中心追踪，Frame model / Focus selected bone 可重新构图。
+
+杰洛特原分辨率模型与皮肤配置位于 `E:\Asset\Witcher3Save1`。
+运行 `PreviewGeraltSkin.cmd` 查看面部近景，`PreviewWitcher3Save1.cmd` 查看全身。
+首次导入高分辨率模型可能需要约一分钟或更久。
+
+```powershell
+output/Release/bin/skeletal_asset_editor.exe --source E:/Asset/Witcher3Save1/Geralt_CurrentSave_Editor.glb --pipeline pbr --skin-profile E:/Asset/Witcher3Save1/Skin/GeraltSkin.profile.json --bind-pose --focus-bone head --distance 1 --yaw 3.32 --no-cloth --no-hair --max-fps 30
+```
+
+`--skin on|off` 切换皮肤响应；`--lighting studio|side|back` 选择布光。
+右侧 Skin / lighting 提供相同开关和原始材质参数。选择灯光预设时按当前
+相机方向布置灯光，之后旋转相机不会带动灯光。配置仅按精确材质名应用，
+未加载配置时保持标准 PBR。关闭 Skin 仍保留 Ambient.G 的正确粗糙度基线。
+
+脸配置使用从本机游戏编译 shader 恢复的 RGB 漫反射核、微法线和
+直射/环境反射分别的 F0 与粗糙度；控制图 R/G/B 分别为 detail mask、
+roughness、specular input。它不是 AO/厚度图，法线 Alpha 也不是脸粗糙度。
+完整游戏环境、阴影透射和色调映射尚未逐帧匹配，厚度透射默认关闭。
+配置的 `source` 保存证据而非运行时 shader 参数；无控制图时的通用 RGB wrap
+和双 GGX 仅为编辑器近似。相关数学、原图和证据在 Asset 的 Skin 子目录。

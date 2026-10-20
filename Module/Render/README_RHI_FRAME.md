@@ -119,7 +119,7 @@ OpenGL 完整覆写 UBO 时先 orphan 存储，再上传数据，避免逐个 dr
 `Capture()` 复制确定版本的值与绑定，后续编辑、替换或删除实例均不改变已提取的帧。
 未修改的实例重复 Capture 会复用同一个快照；带 draw override 的 Capture 不修改实例。
 
-当前支持 Float、Int、Bool、Vec2/3/4、Mat4，按 std140 打包，最大 256 字节。
+当前支持 Float、Int、Bool、Vec2/3/4、Mat4，按 std140 打包，最大 512 字节。材质块超过单条 RHI 命令的 256 字节载荷时，由提交路径按偏移分块上传。
 Bool 编码为 uint32，GLSL 中用 uint 并通过 `!= 0u` 读取。Vec3 保留 16 字节，
 请使用 `GenerateGLSLUniformBlock()` 自动生成匹配的 padding，避免手写布局分歧。
 数值类型、非有限值、范围、重名、未知参数及未经允许的逐对象覆盖均会返回错误。

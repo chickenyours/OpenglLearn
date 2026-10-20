@@ -6,6 +6,7 @@ void PrepareProbeSdfTrace(const ScreenProbePlacementSettings& placement) {
     if(!sdfProgramsOwner) {
         PipelineDetail::ResourceBuilder b(device);
         sdfFallbackProgram=b.FullscreenPipeline(FullscreenVertexShader(),ProbeSdfDetail::FallbackShader());
+        sdfSafeFallbackProgram=b.FullscreenPipeline(FullscreenVertexShader(),ProbeSdfDetail::FallbackShader(true));
         sdfSliceProgram=b.FullscreenPipeline(FullscreenVertexShader(),ProbeSdfDetail::SliceDisplayShader());
         CreateGraphicShaderDesc desc;
         desc.vertexShaderSource=b.Source(ShaderSourceType::Vertex,ProbeSdfDetail::HitVertexShader());
@@ -241,6 +242,7 @@ ProbeSdfTraceConstants ProbeSdfConstants(const ProbeSdfTracingSettings& s) const
     return c;
 }
 void RecordProbeSdfFallback(RHIFrameEncoder& encoder,const ScreenProbePlacementSettings& s,unsigned probeImage,unsigned rayImage) {
+    const bool safeOrigins=surfaceCachePending.valid&&surfaceCacheSafeOriginsActive&&s.trace.cosineHemisphere;
     auto c=ProbeSdfConstants(s.trace.sdf);c.atlas.w=surfaceCachePending.valid?3:1;
     Upload(encoder,sdfBuffer,&c,sizeof(c),ProbeSdfTracingBinding);
     if(surfaceCachePending.valid) {
@@ -251,12 +253,13 @@ void RecordProbeSdfFallback(RHIFrameEncoder& encoder,const ScreenProbePlacementS
         Require(encoder.BindTexture({},12)&&encoder.BindTexture({},13)&&encoder.BindTexture({},14),"Cannot clear Surface Cache lookup textures");
     }
     BindTarget(encoder,sdfRays[rayImage]);
-    Require(encoder.BindPipeline(sdfFallbackProgram)&&encoder.BindMesh(fullscreen)&&
+    Require(encoder.BindPipeline(safeOrigins?sdfSafeFallbackProgram:sdfFallbackProgram)&&encoder.BindMesh(fullscreen)&&
         encoder.BindTexture(traceRays[rayImage].color,0)&&encoder.BindTexture(traceSource.color,1)&&
         encoder.BindTexture(indirectPositions.color,2)&&encoder.BindTexture(normalCapture.color,3)&&
         encoder.BindTexture(placementUniform[probeImage].color,4)&&encoder.BindTexture(placementSpawned[probeImage].color,5)&&
         encoder.BindTexture(sdfMeshTexture,6)&&encoder.BindTexture(sdfObjectTexture,7)&&encoder.BindTexture(sdfGlobalTexture,8)&&
-        encoder.BindTexture(sdfGeometryTexture,9)&&encoder.BindTexture(sdfRangeTexture,11)&&encoder.DrawIndexed(RHICommand::DrawIndexed{3}),"Cannot record SDF fallback");
+        encoder.BindTexture(sdfGeometryTexture,9)&&encoder.BindTexture(sdfRangeTexture,11)&&
+        encoder.BindTexture(safeOrigins?surfaceCacheProbeOrigins.color:RenderResourceHandle<RHITextureSpec>{},10)&&encoder.DrawIndexed(RHICommand::DrawIndexed{3}),"Cannot record SDF fallback");
     ++statistics.screenProbeTracePasses;
 }
 void RecordProbeSdfSlice(RHIFrameEncoder& encoder,const ScreenProbePlacementSettings& s,const PostProcessConstants& post) {

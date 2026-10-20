@@ -8,6 +8,7 @@ void SurfaceCacheProbeQuality(MaterialLabModule& lab,const Options& options) {
     frame.present=false;frame.screenProbeStudyHud=false;
     frame.camera=ProbePlacementCameraPreset(0,frame.OutputAspect());
     auto& gi=frame.effects.surfaceCacheGi;auto& placement=frame.effects.screenProbePlacement;
+    gi.contact.enabled=false; // This fixture validates the independent probe integration stage.
     gi.temporal.enabled=false;
     gi.spatial.enabled=false;
     auto& trace=placement.trace;

@@ -7,6 +7,7 @@
 namespace Render {
 inline constexpr std::uint32_t AreaLightShadowBinding=12,AreaLightShadowTextureSlot=10;
 struct AreaLightShadowSettings {
+    bool enabled=true; // runtime visibility switch for the opt-in material variant
     // 4x4 emitter grid uses this tile size; 8x8 uses half, keeping 24 MiB at 256.
     std::uint32_t tileResolution=256;
     float nearPlane=.015f,depthBiasTexels=.3f,normalBiasTexels=.25f;

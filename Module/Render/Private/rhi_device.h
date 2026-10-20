@@ -172,6 +172,12 @@ private:
             case 16:
                 ok = DispatchFrameCommand<RHICommand::ResolveRenderTarget>(
                     buffer, cursor, &IBackend::ResolveRenderTarget); break;
+            case 17:
+                ok = DispatchFrameCommand<RHICommand::BeginGpuTiming>(
+                    buffer, cursor, &IBackend::BeginGpuTiming); break;
+            case 18:
+                ok = DispatchFrameCommand<RHICommand::EndGpuTiming>(
+                    buffer, cursor, &IBackend::EndGpuTiming); break;
             default:
                 break;
             }

@@ -119,10 +119,10 @@ void CheckSchemaRejection() {
 
     desc = {};
     desc.name = "MaximumBlock";
-    for (int i = 0; i < 4; ++i)
+    for (std::size_t i = 0; i < MaterialTemplate::MaxParameterBytes / sizeof(glm::mat4); ++i)
         desc.parameters.push_back({"matrix" + std::to_string(i), ParameterType::Mat4, glm::mat4(1.0f)});
     const auto maximum = MaterialTemplate::Create(desc, &error);
-    assert(maximum && maximum->ByteSize() == 256 && error.empty());
+    assert(maximum && maximum->ByteSize() == MaterialTemplate::MaxParameterBytes && error.empty());
     desc.parameters.push_back({"overflow", ParameterType::Float, 0.0f});
     reject(desc);
 

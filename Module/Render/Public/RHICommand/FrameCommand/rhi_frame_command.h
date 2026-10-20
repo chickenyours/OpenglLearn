@@ -49,6 +49,23 @@ struct DrawInstance {
 
 struct DrawRect {};
 
+// Optional per-frame GPU profiling. Scope ids are stable and query storage is
+// fixed; a scope may be recorded once in a frame. Unsupported backends return
+// an unavailable result instead of substituting CPU submission time.
+enum class GpuTimingScope : uint32_t {
+    SurfaceCacheContactFilter = 0,
+    SurfaceCacheContactTrace,
+    Count
+};
+inline constexpr size_t GpuTimingScopeCount = static_cast<size_t>(GpuTimingScope::Count);
+struct GpuTimingResult {
+    double milliseconds = 0;
+    uint64_t frameIndex = 0;
+    bool available = false;
+};
+struct BeginGpuTiming { GpuTimingScope scope = GpuTimingScope::SurfaceCacheContactFilter; };
+struct EndGpuTiming { GpuTimingScope scope = GpuTimingScope::SurfaceCacheContactFilter; };
+
 struct BeginFrame {
     uint64_t frameIndex = 0;
     uint32_t framebufferWidth = 1;
@@ -57,6 +74,7 @@ struct BeginFrame {
     glm::vec4 clearColor{0.45f, 0.68f, 0.92f, 1.0f};
     float clearDepth = 1.0f;
     int32_t clearStencil = 0;
+    bool collectGpuTimings = false;
 };
 
 struct EndFrame {
@@ -162,7 +180,9 @@ using FrameCommandsSet = CommandTable<
     DrawIndexed,
     DrawInstance,
     SetRenderTarget,
-    ResolveRenderTarget
+    ResolveRenderTarget,
+    BeginGpuTiming,
+    EndGpuTiming
 >;
 
 } // namespace Render::RHICommand

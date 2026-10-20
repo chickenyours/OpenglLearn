@@ -397,8 +397,11 @@ void main() { outColor=texture(image,vTexCoord); }
             target.clearFlags = RHICommand::ClearColor;
             if (probe) target.clearColor=glm::vec4(.125f,.25f,.5f,1);
             Check(encoder.SetRenderTarget(target), "Cannot select PBR test target");
+            for (std::uint32_t offset=0;offset<material.Bytes().size();offset+=RHICommand::MaxInlineUniformBytes)
+                Check(encoder.UpdateUniformBufferBytes(material_,material.Bytes().data()+offset,
+                    std::min<std::uint32_t>(RHICommand::MaxInlineUniformBytes,material.Bytes().size()-offset),offset),
+                    "Cannot upload PBR test material");
             Check(encoder.UpdateUniformBuffer(view_, view) && encoder.BindUniformBuffer(view_, 0) &&
-                  encoder.UpdateUniformBufferBytes(material_, material.Bytes().data(), material.Bytes().size()) &&
                   encoder.BindUniformBuffer(material_, Material::MaterialParameterBinding) &&
                   encoder.UpdateUniformBuffer(lighting_, lighting) && encoder.BindUniformBuffer(lighting_, 3) &&
                   encoder.UpdateUniformBuffer(surface_, surface) && encoder.BindUniformBuffer(surface_, SurfacePassBinding) &&

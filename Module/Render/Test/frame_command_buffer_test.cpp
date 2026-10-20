@@ -35,9 +35,32 @@ int main() {
     assert(frame.BindPipeline(pipeline));
     assert(frame.BindMesh(mesh));
     assert(frame.DrawIndexed({.indexCount = 36, .instanceCount = 4}));
+    // Profiling calls in ordinary rendering preserve the exact command stream.
+    const auto scope = Render::RHICommand::GpuTimingScope::SurfaceCacheContactFilter;
+    assert(frame.BeginGpuTiming(scope));
+    assert(frame.EndGpuTiming(scope));
+    assert(!frame.BeginGpuTiming(Render::RHICommand::GpuTimingScope::Count));
     assert(frame.End());
     assert(frame.IsEnded());
     assert(frame.GetCommandBuffer()->GetCommandCount() == 8);
     assert(!frame.DrawIndexed());
+    assert(!frame.BeginGpuTiming(scope));
+
+    Render::RHIFrameEncoder profiled(pool.threadAny_GetBuffer());
+    begin.collectGpuTimings = true;
+    assert(!profiled.BeginGpuTiming(scope));
+    assert(profiled.Begin(begin));
+    const auto traceScope = Render::RHICommand::GpuTimingScope::SurfaceCacheContactTrace;
+    assert(profiled.BeginGpuTiming(traceScope));
+    assert(profiled.Draw({3}));
+    assert(profiled.EndGpuTiming(traceScope));
+    assert(profiled.BeginGpuTiming(scope));
+    assert(profiled.Draw({3}));
+    assert(profiled.EndGpuTiming(scope));
+    assert(profiled.End(false));
+    assert(profiled.GetCommandBuffer()->GetCommandCount() == 8);
+    assert(!profiled.EndGpuTiming(scope));
+    assert(frame.Cancel());
+    assert(profiled.Cancel());
     return 0;
 }

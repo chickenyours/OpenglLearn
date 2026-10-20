@@ -48,6 +48,7 @@ void PrepareScreenProbeTrace(const ScreenProbePlacementSettings& placement) {
         traceHzbBaseProgram=b.FullscreenPipeline(vertex,ScreenProbeTraceDetail::HzbBaseShader());
         traceHzbReduceProgram=b.FullscreenPipeline(vertex,ScreenProbeTraceDetail::HzbReduceShader());
         traceRayProgram=b.FullscreenPipeline(vertex,ScreenProbeTraceDetail::TraceShader());
+        traceSafeRayProgram=b.FullscreenPipeline(vertex,ScreenProbeTraceDetail::TraceShader(true));
         traceDisplayProgram=b.FullscreenPipeline(vertex,ScreenProbeTraceDetail::DisplayShader());
         traceProgramsOwner=b.Finish();
     }
@@ -98,8 +99,14 @@ void RecordScreenProbePlacement(RHIFrameEncoder& encoder,const RenderFrame& fram
         cameraCompatible&=std::abs(placementCompleted.viewProjection[col][row]-currentViewProjection[col][row])<1e-6f;
     // GI reconstruction addresses screen tiles, so a camera change must
     // regenerate that stencil even when diagnostic placement is frozen.
-    const glm::vec4 refinement{s.cornerRefinement&&s.trace.cosineHemisphere?1.f:0.f,s.cornerDetectionRadius,s.cornerProbeSupport,std::cos(glm::radians(s.cornerNormalAngleDegrees))};
-    const bool compatible=placementCompleted.valid&&cameraCompatible&&placementCompleted.refinement==refinement&&placementCompleted.geometryGeneration==geometryGeneration&&placementCompleted.sourceWidth==width&&placementCompleted.sourceHeight==height&&
+    const unsigned refinementFlags=(s.cornerRefinement&&s.trace.cosineHemisphere?1u:0u)|
+        (s.reconstructionVisibility&&s.trace.cosineHemisphere?2u:0u)|
+        (s.cornerRefinement&&s.curvatureRefinement&&s.trace.cosineHemisphere?4u:0u)|
+        (s.curvatureAwareWeights&&s.trace.cosineHemisphere?8u:0u);
+    const glm::vec4 refinement{float(refinementFlags),s.cornerDetectionRadius,s.cornerProbeSupport,std::cos(glm::radians(s.cornerNormalAngleDegrees))};
+    const glm::vec4 curvature{std::cos(glm::radians(s.curvatureNormalAngleDegrees)),s.curvaturePlaneErrorPixels,0,s.continuousInterpolation?1.f:0.f};
+    const glm::vec2 visibilityParameters=(refinementFlags&2u)?glm::vec2(s.trace.normalBias,s.trace.relativeThickness):glm::vec2(0);
+    const bool compatible=placementCompleted.valid&&cameraCompatible&&placementCompleted.refinement==refinement&&placementCompleted.curvature==curvature&&placementCompleted.visibilityParameters==visibilityParameters&&placementCompleted.geometryGeneration==geometryGeneration&&placementCompleted.sourceWidth==width&&placementCompleted.sourceHeight==height&&
         placementCompleted.spacing==s.baseSpacing&&placementCompleted.candidates==s.candidateCount&&
         placementCompleted.threshold==s.relativeDepthThreshold&&placementCompleted.adaptive==s.adaptive&&
         placementCompleted.cosineHemisphere==s.trace.cosineHemisphere;
@@ -112,6 +119,9 @@ void RecordScreenProbePlacement(RHIFrameEncoder& encoder,const RenderFrame& fram
     c.grid=glm::ivec4(int(placementUniform[image].width/2),int(placementUniform[image].height),int(s.candidateCount),int(s.baseSpacing));
     c.screen=glm::ivec4(int(width),int(height),int(phase),int(s.debugView));c.options=glm::vec4(s.relativeDepthThreshold,s.markerRadiusPixels,s.adaptive?1:0,0);
     c.refinement=refinement;
+    c.curvature=curvature;
+    // Runtime transport validity is distinct from persistent allocation data.
+    c.curvature.z=surfaceCachePending.valid&&surfaceCacheSafeOriginsActive&&s.trace.cosineHemisphere?1.f:0.f;
     const auto rayImage=traceCompleted.valid?1-traceCompleted.image:0;
     if(s.trace.enabled) {
         const auto mode=1u|(s.trace.cosineHemisphere?2u:0u)|(s.trace.samplingSeed<<2);
@@ -128,10 +138,7 @@ void RecordScreenProbePlacement(RHIFrameEncoder& encoder,const RenderFrame& fram
         BindTarget(encoder,diffuseCapture,RHICommand::ClearColor|RHICommand::ClearDepth);
         Depth(encoder,frame,c.viewProjection,false);
         BindTarget(encoder,normalCapture,RHICommand::ClearColor);CaptureSurface(encoder,frame,camera,true);
-        IndirectLightingSettings geometrySettings;
-        const auto geometry=MakeIndirectLightingConstants(geometrySettings,camera.projection,camera.view);
-        Upload(encoder,indirectBuffer,&geometry,sizeof(geometry),IndirectLightingBinding);
-        Fullscreen(encoder,indirectPositions,indirectGeometry,{},{},diffuseCapture.depth,post);
+        CaptureSurfacePositions(encoder,frame,camera,captureSurface);
         statistics.screenProbePlacementPasses+=3;
     }
     Upload(encoder,placementBuffer,&c,sizeof(c),ScreenProbePlacementBinding);
@@ -152,9 +159,19 @@ void RecordScreenProbePlacement(RHIFrameEncoder& encoder,const RenderFrame& fram
         draw(placementUniform[image],placementUniformProgram);
         draw(placementMarked[image],placementMarkProgram);
         draw(placementSpawned[image],placementSpawnProgram);
-        placementPending={true,image,phase,s.baseSpacing,s.candidateCount,width,height,s.relativeDepthThreshold,s.adaptive,sequence+1,s.trace.cosineHemisphere,currentViewProjection,geometryGeneration,refinement};
+        placementPending={true,image,phase,s.baseSpacing,s.candidateCount,width,height,s.relativeDepthThreshold,s.adaptive,sequence+1,s.trace.cosineHemisphere,currentViewProjection,geometryGeneration,refinement,visibilityParameters,curvature};
     } else placementPending=placementCompleted;
     if(s.trace.enabled) {
+        const bool safeOrigins=surfaceCachePending.valid&&surfaceCacheSafeOriginsActive&&s.trace.cosineHemisphere;
+        if(safeOrigins) {
+            Require(encoder.BindTexture({},0)&&encoder.BindTexture({},10)&&encoder.BindTexture({},11),"Cannot unbind probe origin output");
+            BindTarget(encoder,surfaceCacheProbeOrigins);
+            Require(encoder.BindPipeline(surfaceCacheProbeOriginProgram)&&encoder.BindMesh(fullscreen)&&
+                encoder.BindTexture(placementUniform[image].color,0)&&encoder.BindTexture(placementSpawned[image].color,1)&&
+                encoder.BindTexture(surfaceCacheGeometry,9)&&encoder.DrawIndexed(RHICommand::DrawIndexed{3}),"Cannot constrain probe ray origins");
+            statistics.surfaceCacheProbeOriginsCollected=true;
+            ++statistics.screenProbeTracePasses;
+        }
         // Snapshot HDR before every visualization pass. Diagnostics must never
         // become next frame's radiance or leak into the trace source.
         Fullscreen(encoder,traceSource,copy,surfaceCachePending.valid?surfaceCacheSource.color:scene.color,{},{},post);
@@ -167,7 +184,7 @@ void RecordScreenProbePlacement(RHIFrameEncoder& encoder,const RenderFrame& fram
         hzbDraw(traceHzb[0],traceHzbBaseProgram,indirectPositions.color);
         for(unsigned level=1;level<traceHzbLevels;++level)hzbDraw(traceHzb[level],traceHzbReduceProgram,traceHzb[level-1].color);
         BindTarget(encoder,traceRays[rayImage]);
-        Require(encoder.BindPipeline(traceRayProgram)&&encoder.BindMesh(fullscreen)&&encoder.BindTexture(traceSource.color,0)&&
+        Require(encoder.BindPipeline(safeOrigins?traceSafeRayProgram:traceRayProgram)&&encoder.BindMesh(fullscreen)&&encoder.BindTexture(safeOrigins?surfaceCacheProbeOrigins.color:traceSource.color,0)&&
             encoder.BindTexture(normalCapture.color,1)&&encoder.BindTexture(indirectPositions.color,2)&&
             encoder.BindTexture(placementUniform[image].color,3)&&encoder.BindTexture(placementSpawned[image].color,4),"Cannot bind screen trace sources");
         for(unsigned level=0;level<ScreenProbeTraceMaxHzbLevels;++level)

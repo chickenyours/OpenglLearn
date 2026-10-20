@@ -33,7 +33,7 @@ struct alignas(16) Surface {
     glm::vec4 position{0};
     glm::vec4 normalRoughness{0,1,0,.5f};
     glm::vec4 viewMetallic{0,1,0,0};
-    glm::vec4 albedoMode{1,1,1,0}; // 0=diffuse, 1=specular, 2=both
+    glm::vec4 albedoMode{1,1,1,0}; // 0=diffuse, 1=specular, 2=both, 3=sample-count diagnostic
     glm::vec4 spanX{0}, spanY{0};
 };
 static_assert(sizeof(Surface) == 96);
@@ -54,13 +54,20 @@ void main() {
 )GLSL";
 }
 std::string DiagnosticShader() {
-    // Keep the real PBR BRDF and area integration implementation. Only the
-    // entry point changes, isolating linear diffuse/specular from AO, CSM,
-    // exposure, temporal history and arbitrary material texture contents.
+    // Keep the real PBR BRDF and area integration implementation. Replace the
+    // entry point to isolate linear diffuse/specular from AO, CSM, exposure,
+    // temporal history and material textures. A counter inside the production
+    // loop independently exposes the decoded 4x4/8x8 sample count.
     auto source = Material::PbrFragmentShader();
     const auto main = source.rfind("void main()");
     Check(main != std::string::npos, "Production PBR entry point missing");
     source.resize(main);
+    const auto integrator = source.find("void EvaluateAreaLightingInternal(");
+    Check(integrator != std::string::npos, "Production area integrator missing");
+    source.insert(integrator,"int areaTestSampleCount;\n");
+    const auto sample = source.find("            vec2 parameter = AreaLightSampleParameters(");
+    Check(sample != std::string::npos, "Production area sampling loop missing");
+    source.insert(sample,"            areaTestSampleCount += 1;\n");
     source += R"GLSL(
 layout(std140,binding=10) uniform TestSurface {
     vec4 testPosition;
@@ -74,9 +81,14 @@ void main() {
     vec3 P = testPosition.xyz + (vTexCoord.x * 2.0 - 1.0) * testSpanX.xyz +
                                (vTexCoord.y * 2.0 - 1.0) * testSpanY.xyz;
     vec3 diffuse, specular;
+    areaTestSampleCount = 0;
     EvaluateAreaLighting(P, testViewMetallic.xyz, testNormalRoughness.xyz,
                          testAlbedoMode.rgb, testViewMetallic.w, testNormalRoughness.w,
                          diffuse, specular);
+    if (testAlbedoMode.w > 2.5) {
+        outColor = vec4(vec3(float(areaTestSampleCount)),1);
+        return;
+    }
     vec3 color = testAlbedoMode.w < 0.5 ? diffuse :
                  (testAlbedoMode.w < 1.5 ? specular : diffuse + specular);
     outColor = vec4(color,1);
@@ -197,6 +209,7 @@ private:
 void TestValidation() {
     AreaLightsSettings settings;
     Check(ValidateAreaLightsSettings(settings), "Default area-light settings invalid");
+    Check(!settings.stratifiedSamples, "Ordinary area lights no longer default to cell midpoints");
     Check(MakeAreaLightsConstants(settings).lights[0].centerEnabled.w == 0, "Default area light is active");
     settings.count = 5;
     Check(!ValidateAreaLightsSettings(settings), "Too many area lights accepted");
@@ -222,6 +235,50 @@ void TestValidation() {
     Check(packed.lights[0].centerEnabled.w == 1 && packed.lights[0].halfAxisU.w == 8 &&
           packed.lights[0].halfAxisV.w == .5f && packed.lights[0].radianceTwoSided.z == 3 &&
           packed.lights[1].centerEnabled.w == 0, "Area-light packing/count mismatch");
+    for (const auto grid : {4u,8u}) for (const bool stratified : {false,true}) {
+        settings.samplesPerAxis = grid;
+        settings.stratifiedSamples = stratified;
+        const auto constants = MakeAreaLightsConstants(settings);
+        Check(constants.lights[0].halfAxisU.w == (stratified ? -float(grid) : float(grid)) &&
+              constants.lights[0].halfAxisV.w == .5f && constants.lights[0].centerEnabled.w == 1 &&
+              constants.lights[1].centerEnabled.w == 0,
+              "Signed area sampling mode changed the grid, filter strength or active-light slots");
+    }
+}
+
+void TestSamplingStructure() {
+    for (const auto grid : {4u,8u}) {
+        std::vector<unsigned> projectedU(grid * grid), projectedV(grid * grid);
+        glm::dvec2 centroid(0);
+        for (std::uint32_t y = 0; y < grid; ++y) for (std::uint32_t x = 0; x < grid; ++x) {
+            const auto midpoint = AreaLightSampleParameters(x,y,grid,false);
+            const glm::vec2 expectedMidpoint((float(x) + .5f) * (2.f / float(grid)) - 1.f,
+                                             (float(y) + .5f) * (2.f / float(grid)) - 1.f);
+            Check(midpoint == expectedMidpoint, "Ordinary area-light cell midpoint changed");
+            const auto point = AreaLightSampleParameters(x,y,grid,true);
+            Check(std::isfinite(point.x) && std::isfinite(point.y) &&
+                  point.x > -1 && point.x < 1 && point.y > -1 && point.y < 1,
+                  "Stratified area sample escaped the emitter interior");
+            const auto unit = (glm::dvec2(point) + 1.0) * .5;
+            Check(std::uint32_t(std::floor(unit.x * grid)) == x &&
+                  std::uint32_t(std::floor(unit.y * grid)) == y,
+                  "Stratified area sampling left an original 2D quadrature cell empty");
+            const auto uLayer = std::uint32_t(std::floor(unit.x * grid * grid));
+            const auto vLayer = std::uint32_t(std::floor(unit.y * grid * grid));
+            Check(uLayer < projectedU.size() && vLayer < projectedV.size(),
+                  "Stratified sample projected outside the emitter sublayers");
+            ++projectedU[uLayer]; ++projectedV[vLayer];
+            centroid += glm::dvec2(point);
+            const auto opposite = AreaLightSampleParameters(grid - 1 - x,grid - 1 - y,grid,true);
+            Check(glm::length(point + opposite) < 1e-7f,
+                  "Stratified area pattern lost central symmetry");
+        }
+        Check(std::all_of(projectedU.begin(),projectedU.end(),[](unsigned count) { return count == 1; }) &&
+              std::all_of(projectedV.begin(),projectedV.end(),[](unsigned count) { return count == 1; }),
+              "Stratified area pattern does not occupy every projected sublayer exactly once");
+        Check(glm::length(centroid / double(grid * grid)) < 1e-9,
+              "Stratified area pattern shifted the emitter centroid");
+    }
 }
 
 AreaLightsSettings Light(float height = 2, float halfU = .5f, float halfV = .5f) {
@@ -240,21 +297,24 @@ double RectangleIrradiance(double a, double b, double distance) {
     const double y = std::sqrt(distance * distance + b * b);
     return 2 * (a / x * std::atan(b / x) + b / y * std::atan(a / y));
 }
-// Unculled double-precision quadrature. This reference visits every midpoint,
-// so a shader whole-light rejection must preserve the summed emitted energy.
-glm::dvec3 DiffuseQuadrature(const AreaLightsSettings& settings,const Surface& surface) {
+// Unculled double-precision midpoint quadrature, independent of the production
+// sample helper and mode. The optional dense grid approximates the continuous
+// emitter; its default retains the exact ordinary-midpoint rejection oracle.
+glm::dvec3 DiffuseQuadrature(const AreaLightsSettings& settings,const Surface& surface,
+                           std::uint32_t referenceGrid = 0) {
     const auto N=glm::normalize(glm::dvec3(surface.normalRoughness));
     const auto V=glm::normalize(glm::dvec3(surface.viewMetallic));
     glm::dvec3 result(0);
+    const auto grid = referenceGrid ? referenceGrid : settings.samplesPerAxis;
     const double diffuseFraction=1-std::clamp(double(surface.viewMetallic.w),0.0,1.0);
     for(unsigned index=0;index<settings.count;++index) {
         const auto& light=settings.lights[index];if(!light.enabled)continue;
         const auto U=glm::dvec3(light.halfAxisU),W=glm::dvec3(light.halfAxisV);
         const auto emitterN=glm::normalize(glm::cross(U,W));
-        const double cellArea=4*glm::length(glm::cross(U,W))/double(settings.samplesPerAxis*settings.samplesPerAxis);
-        for(unsigned y=0;y<settings.samplesPerAxis;++y)for(unsigned x=0;x<settings.samplesPerAxis;++x) {
+        const double cellArea=4*glm::length(glm::cross(U,W))/double(grid*grid);
+        for(unsigned y=0;y<grid;++y)for(unsigned x=0;x<grid;++x) {
             const auto delta=glm::dvec3(light.center)-glm::dvec3(surface.position)+
-                U*((double(x)+.5)*2/settings.samplesPerAxis-1)+W*((double(y)+.5)*2/settings.samplesPerAxis-1);
+                U*((double(x)+.5)*2/grid-1)+W*((double(y)+.5)*2/grid-1);
             const double distanceSquared=glm::dot(delta,delta);const auto L=delta/std::sqrt(distanceSquared);
             const double nl=std::max(0.0,glm::dot(N,L)),face=glm::dot(emitterN,-L);
             const double emitter=light.twoSided?std::abs(face):std::max(0.0,face);
@@ -266,6 +326,68 @@ glm::dvec3 DiffuseQuadrature(const AreaLightsSettings& settings,const Surface& s
         }
     }
     return result;
+}
+
+void TestSamplingModeEnergy(Fixture& fixture) {
+    for (const auto grid : {4u,8u}) for (const bool stratified : {false,true}) {
+        auto settings = Light();
+        settings.samplesPerAxis = grid;
+        settings.stratifiedSamples = stratified;
+        Surface countSurface;
+        countSurface.albedoMode.w = 3;
+        Check(fixture.Draw(settings,countSurface) == glm::dvec3(grid * grid),
+              "Production area integrator decoded the signed 4x4/8x8 grid incorrectly");
+    }
+    const auto checkDense = [&](AreaLightsSettings settings, const Surface& surface) {
+        // This oracle never uses AreaLightSampleParameters or the signed grid.
+        // Verify reference convergence before judging the 16/64-sample shader.
+        const auto dense = DiffuseQuadrature(settings,surface,512);
+        const auto coarser = DiffuseQuadrature(settings,surface,256);
+        Check(glm::length(dense) > 0 && glm::length(coarser / dense - glm::dvec3(1)) < 1e-5,
+              "Dense area-light reference has not converged");
+        const auto observed = fixture.Draw(settings,surface);
+        const auto relative = glm::abs(observed / dense - glm::dvec3(1));
+        const double worst = std::max({relative.x,relative.y,relative.z});
+        Check(worst < .008, "Area sampling mode disagrees with independent dense unoccluded integration");
+        return worst;
+    };
+    double worstRelativeError = 0;
+    for (const auto shape : {glm::vec3(.5f,.5f,2),glm::vec3(.4f,.8f,3),glm::vec3(1,.75f,4)}) {
+        for (const auto grid : {4u,8u}) for (const bool stratified : {false,true}) {
+            auto settings = Light(shape.z,shape.x,shape.y);
+            settings.samplesPerAxis = grid;
+            settings.stratifiedSamples = stratified;
+            worstRelativeError = std::max(worstRelativeError,checkDense(settings,{}));
+        }
+    }
+    Surface oblique;
+    oblique.position = {.2f,0,.15f,0};
+    oblique.normalRoughness = glm::vec4(glm::normalize(glm::vec3(.1f,1,.05f)),.5f);
+    oblique.viewMetallic = glm::vec4(glm::normalize(glm::vec3(.2f,1,.1f)),0);
+    for (const auto grid : {4u,8u}) for (const bool stratified : {false,true}) {
+        auto settings = Light(3,.4f,.8f);
+        settings.samplesPerAxis = grid;
+        settings.stratifiedSamples = stratified;
+        worstRelativeError = std::max(worstRelativeError,checkDense(settings,oblique));
+    }
+    // These wide-emitter cases make the signed mode/grid observable through
+    // the actual production integral. A negative 4 misread as midpoint has
+    // >1.3% error; a negative 8 misread as stratified 4 has >1.2% error.
+    // Both must still meet the existing 0.8% energy tolerance, without a
+    // low-sample CPU mirror of the new production pattern.
+    auto signedFour = Light(1.4f,1.1f,.6f);
+    signedFour.stratifiedSamples = true;
+    worstRelativeError = std::max(worstRelativeError,checkDense(signedFour,{}));
+    auto signedEight = Light(2,2,2);
+    signedEight.samplesPerAxis = 8;
+    signedEight.stratifiedSamples = true;
+    worstRelativeError = std::max(worstRelativeError,checkDense(signedEight,{}));
+    auto ordinary = Light(3,.4f,.8f);
+    const auto defaultOutput = fixture.Draw(ordinary);
+    ordinary.stratifiedSamples = false;
+    Check(fixture.Draw(ordinary) == defaultOutput, "Explicit midpoint mode changed ordinary default lighting");
+    std::cout << "Area midpoint/stratified 4x4/8x8 independent dense max relative error="
+              << worstRelativeError << "; signed mode/grid and ordinary default verified\n";
 }
 void TestWholeLightRejection(Fixture& fixture) {
     for(const auto grid:{4u,8u}) {
@@ -400,6 +522,7 @@ int main() {
     int result = 0;
     try {
         TestValidation();
+        TestSamplingStructure();
         Check(glfwInit() == GLFW_TRUE, "glfwInit failed");
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
         ApplicationWindow::Window window({64,64,"Rectangle area light GPU test",false});
@@ -410,6 +533,7 @@ int main() {
         fixture.Initialize();
         std::cout << std::unitbuf << std::fixed << std::setprecision(6);
         TestGeometryAndEnergy(fixture);
+        TestSamplingModeEnergy(fixture);
         TestWholeLightRejection(fixture);
         TestSpecularCells(fixture);
         fixture.Shutdown();

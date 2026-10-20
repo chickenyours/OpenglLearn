@@ -272,6 +272,8 @@ private:
                 ImGui::SeparatorText("Recessed ceiling fixture");
                 auto& lamp=e.areaLights.lights[0];
                 ImGui::Checkbox("Ceiling lamp (L)",&lamp.enabled);
+                ImGui::Checkbox("Stratified emitter samples",&e.areaLights.stratifiedSamples);
+                ImGui::Checkbox("Direct area shadows enabled",&gi.areaShadows.enabled);
                 float radiance=lamp.radiance.r;
                 if(ImGui::SliderFloat("Ceiling emitted radiance",&radiance,0,80,"%.1f"))lamp.radiance=radiance*glm::vec3(1,.96f,.89f);
                 ImGui::TextWrapped("Sealed room, rectangular area emitter with cached soft shadows. High-albedo dielectric ceramic. F5 compares direct lighting with GI; V selects indirect GI. No sun or ambient fill.");
@@ -281,14 +283,62 @@ private:
             Combo("GI inspection",gi.view,"Total diffuse GI\0Surface Cache lighting\0Indirect GI\0Cache coverage\0Card atlas\0History length\0Probe geometric coverage\0");
             ImGui::Checkbox("Geometry-aware cache bilinear",&gi.cacheBilinear);
             if(gi.view==2&&gi.useScreenProbes)
-                Combo("Probe reconstruction check",gi.reconstructionDebug,"Real lighting\0Constant illumination\0Base / adaptive weights\0");
+                Combo("Probe reconstruction check",gi.reconstructionDebug,"Real lighting\0Constant illumination\0Base / adaptive weights\0Actual-position affine\0Selected probe support\0");
             auto& placement=e.screenProbePlacement;
             if(ImGui::Checkbox("Gather from surface probes",&gi.useScreenProbes))placement.reset=true;
             if(gi.useScreenProbes) {
+                ImGui::Checkbox("Directional probe reconstruction",&gi.directionalReconstruction);
+                ImGui::Checkbox("Constrain probe ray origins",&gi.safeProbeOrigins);
+                if(gi.safeProbeOrigins) {
+                    FloatSlider("Origin clearance fraction",&gi.originSafetyFraction,.05f,.95f);
+                    FloatSlider("Origin numeric clearance",&gi.originSafetyEpsilon,.000001f,.001f,"%.6f");
+                    ImGui::Checkbox("Show actual ray origins",&gi.probeOriginDiagnostics);
+                    if(ImGui::Button("Inspect origin validity")) {
+                        const auto origins=c.lab.ReadbackSurfaceCacheProbeOrigins();
+                        auto& counts=c.frame.probeOriginInspection;counts.fill(0);
+                        for(const auto& origin:origins)if(origin.w!=0) {
+                            ++counts[0];const int status=int(std::lround(origin.w));
+                            if(status>0&&status<=3)++counts[unsigned(status)];
+                            else if(status<0&&status>=-5)++counts[unsigned(3-status)];
+                        }
+                    }
+                    const auto& origins=c.frame.probeOriginInspection;
+                    ImGui::Text("Last inspected: %u active / %u full / %u clipped / %u uncertain",origins[0],origins[1],origins[2],origins[3]);
+                    ImGui::Text("Invalid: data %u / source %u / precision %u / facing %u / clearance %u",origins[4],origins[5],origins[6],origins[7],origins[8]);
+                    if(ImGui::Button("Inspect ray status counts")) {
+                        const auto rays=c.lab.ReadbackScreenProbeTrace(false);
+                        auto& counts=c.frame.probeRayInspection;counts.fill(0);
+                        for(const auto& value:rays.radianceStatus) {
+                            const int status=int(std::lround(value.w));
+                            if(status>=0&&status<int(counts.size()))++counts[unsigned(status)];
+                        }
+                    }
+                    const auto& rays=c.frame.probeRayInspection;
+                    ImGui::Text("Last rays: source %llu / launch %llu / outside field %llu / budget %llu",
+                        static_cast<unsigned long long>(rays[6]),static_cast<unsigned long long>(rays[16]),
+                        static_cast<unsigned long long>(rays[14]),static_cast<unsigned long long>(rays[15]));
+                    ImGui::TextWrapped("P shows the status of a ray on each probe marker. Actual origins: cyan full bias, orange clipped, magenta near/backface uncertainty, red invalid. Origin overlay has no depth test. Invalid launch points do not provide black lighting samples; valid black and partially unreadable ray integrals keep their weights.");
+                }
+                if(ImGui::Checkbox("Probe segment visibility",&placement.reconstructionVisibility))placement.reset=true;
+                if(ImGui::Checkbox("Continuous probe interpolation",&placement.continuousInterpolation))placement.reset=true;
+                if(ImGui::Checkbox("Curved surface lighting weights",&placement.curvatureAwareWeights))placement.reset=true;
+                bool placementJitter=placement.frameIndex==std::numeric_limits<std::uint32_t>::max();
+                if(ImGui::Checkbox("Temporal placement jitter",&placementJitter)){placement.frameIndex=placementJitter?std::numeric_limits<std::uint32_t>::max():0;placement.reset=true;}
+                if(gi.reconstructionDebug==4) {
+                    auto& selected=placement.trace.selectedProbe;
+                    const auto maximum=std::max(c.lab.PipelineStatistics().surfaceCacheProbeSlots,1u)-1u;
+                    if(selected==std::numeric_limits<std::uint32_t>::max())selected=0;
+                    selected=std::min(selected,maximum);
+                    UIntSlider("Support diagnostic probe",selected,0,maximum);
+                }
                 if(ImGui::Checkbox("Adaptive placement",&placement.adaptive))placement.reset=true;
                 if(ImGui::Checkbox("Refine geometric intersections",&placement.cornerRefinement))placement.reset=true;
+                if(ImGui::Checkbox("Refine surface curvature",&placement.curvatureRefinement))placement.reset=true;
+                if(FloatSlider("Curvature normal budget (degrees)",&placement.curvatureNormalAngleDegrees,1,60))placement.reset=true;
+                if(FloatSlider("Curvature plane budget (pixels)",&placement.curvaturePlaneErrorPixels,.05f,8))placement.reset=true;
+                ImGui::TextWrapped("Lower curvature budgets activate more existing representative slots on curved surfaces. Capacity and rays per probe stay fixed; active work can increase. Requires geometric intersection refinement.");
                 if(FloatSlider("Intersection detection (probe tiles)",&placement.cornerDetectionRadius,.25f,2))placement.reset=true;
-                if(FloatSlider("Intersection blend width (tiles)",&placement.cornerProbeSupport,.25f,1.5f))placement.reset=true;
+                if(FloatSlider("Intersection refinement band (tiles)",&placement.cornerProbeSupport,.25f,1.5f))placement.reset=true;
                 if(FloatSlider("Intersection normal angle",&placement.cornerNormalAngleDegrees,15,75))placement.reset=true;
                 if(UIntSlider("Probe spacing (pixels)",placement.baseSpacing,4,128))placement.reset=true;
                 int candidates=placement.candidateCount==4?0:placement.candidateCount==8?1:2;
@@ -321,12 +371,41 @@ private:
                 FloatSlider("Spatial normal threshold (degrees)",&spatial.normalThresholdDegrees,5,60);
                 FloatSlider("Spatial plane / view depth",&spatial.planeDistanceThreshold,.001f,.05f);
                 ImGui::Checkbox("Spatial pair visibility test",&spatial.visibilityCheck);
+                ImGui::Checkbox("Local adaptive probe neighbors",&spatial.localAdaptiveNeighbors);
                 ImGui::TextWrapped("Filter probe ray radiance before integration, then accumulate in time. Larger kernels and more passes cost more and smooth a wider area. Larger position weights and tighter angle / plane thresholds preserve edges more strictly. Visibility rejects probe pairs separated by geometry. Unknown rays remain unknown. B shows geometric coverage: green base probes, orange adaptive, magenta unsupported; colored ray markers alone do not mean the pixel has no probe.");
+                auto& contact=gi.contact;
+                ImGui::SeparatorText("GI contact reconstruction");
+                ImGui::Checkbox("Actual receiver contact rays",&contact.enabled);
+                if(contact.enabled) {
+                    ImGui::Checkbox("Contact parallel layer validation",&contact.layerValidation);
+                    UIntSlider("Contact rays per pixel",contact.raysPerPixel,8,32);
+                    FloatSlider("Contact risk distance",&contact.maxDistance,.01f,1.f);
+                    FloatSlider("Contact parallax angle (degrees)",&contact.parallaxAngleDegrees,1,45);
+                    FloatSlider("Contact risky weight threshold",&contact.weightThreshold,.001f,.5f);
+                    UIntSlider("Contact current filter radius",contact.filterRadius,1,2);
+                    UIntSlider("Contact current filter passes",contact.filterPasses,1,3);
+                    FloatSlider("Contact current filter strength",&contact.filterStrength,0,1);
+                    ImGui::Checkbox("Independent contact ray sequence",&contact.temporalDirections);
+                    ImGui::Checkbox("Contact coverage-weighted filter",&contact.coverageWeightedFilter);
+                    ImGui::Checkbox("Contact hit-distance / curved filter",&contact.geometryGuidedFilter);
+                    ImGui::Checkbox("Receiver screen contact detection",&contact.screenContactDetection);
+                    ImGui::Checkbox("Coherent near-contact probe risk",&contact.coherentProbeRisk);
+                    if(contact.geometryGuidedFilter) {
+                        UIntSlider("Contact guided max radius",contact.guideMaxRadius,1,4);
+                        FloatSlider("Contact filter hit angle (degrees)",&contact.guideHitAngleDegrees,1,45);
+                    }
+                }
+                ImGui::TextWrapped("A narrow contact shadow at a probe may not represent another pixel on the same plane. Geometry-only risk selects receivers for real local rays before GI history. Higher ray counts cost more; larger risk distance, smaller angle or smaller weight threshold retrace a wider area. Actual rays retain black occlusion and unknown samples in the full ray count. Raw and spatial diagnostics keep their original probe reconstruction.");
                 auto& temporal=gi.temporal;
                 ImGui::SeparatorText("GI temporal accumulation");
                 ImGui::Checkbox("Temporal accumulation (T)",&temporal.enabled);
+                ImGui::Checkbox("Static probe convergence (64 frames)",&temporal.staticConvergence);
                 UIntSlider("Max accumulated frames",temporal.maxFrames,1,64);
+                ImGui::BeginDisabled(temporal.staticConvergence&&temporal.maxFrames>1);
                 UIntSlider("Temporal direction phases",temporal.directionPhases,1,64);
+                ImGui::EndDisabled();
+                if(temporal.staticConvergence&&temporal.maxFrames>1)
+                    ImGui::TextWrapped("Static views accumulate up to 64 frames with fresh samples. Moving views keep the shorter history limit above.");
                 FloatSlider("History distance / view depth",&temporal.distanceThreshold,.001f,.05f);
                 FloatSlider("History normal threshold (degrees)",&temporal.normalThresholdDegrees,5,90);
                 FloatSlider("Moving history frames",&temporal.movingMaxFrames,1,float(temporal.maxFrames));
@@ -341,8 +420,20 @@ private:
                 if(temporal.edgeProtection)FloatSlider("Edge history frames",&temporal.edgeMaxFrames,1,
                     std::min(float(temporal.maxFrames),temporal.movingMaxFrames));
                 temporal.edgeMaxFrames=std::min(temporal.edgeMaxFrames,temporal.movingMaxFrames);
+                ImGui::Checkbox("Young history spatial recovery",&temporal.youngFilter);
+                if(temporal.youngFilter) {
+                    UIntSlider("Recovery radius (pixels)",temporal.youngFilterRadius,1,4);
+                    FloatSlider("Recovery below frames",&temporal.youngFilterMaxFrames,2,16);
+                    FloatSlider("Recovery strength",&temporal.youngFilterStrength,0,1);
+                }
+                ImGui::Checkbox("Retain history on movable transforms",&temporal.retainHistoryOnObjectMotion);
+                if(temporal.retainHistoryOnObjectMotion) {
+                    FloatSlider("Dynamic lighting history frames",&temporal.dynamicMaxFrames,1,16);
+                    FloatSlider("Dynamic lighting clamp sigma",&temporal.dynamicClampSigma,.5f,6);
+                    UIntSlider("Dynamic settling frames",temporal.dynamicSettleFrames,0,16);
+                }
                 if(ImGui::Button("Reset GI history (G)"))temporal.reset=true;
-                ImGui::TextWrapped("Camera motion reuses geometrically compatible history. Moving history frames caps accumulation above the pixel-motion threshold; larger caps reduce moving noise. Clamp slow camera motion also bounds history below that threshold to reduce reconstruction lag. A wider clamp preserves more history. Geometry edge protection uses a short history and tighter clamp only around moving silhouettes and thin surfaces. More frames respond more slowly. Tighter geometry thresholds reject more history. Lighting or object edits clear history.");
+                ImGui::TextWrapped("Camera motion reuses geometrically compatible history. Moving history frames caps accumulation above the pixel-motion threshold. Geometry edge protection keeps moving silhouettes responsive. Young history recovery filters only compatible current-frame pixels until the history matures. Certified movable transforms retain history with a short dynamic lighting cap and clamp, including a settling period; this is conservative global reactivity, not exact per-light dependency tracking. Larger caps reduce noise but respond more slowly. Light, material, topology and unsupported object edits clear history.");
             }
             ImGui::TextWrapped("One diffuse bounce from a two-dimensional stratified cosine hemisphere. Pixels reconstruct irradiance from compatible surface probes, then apply their own albedo. Cache coverage and probe geometric coverage are separate diagnostics. GI history is separate from final-image TAA.");
             return;

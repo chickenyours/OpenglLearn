@@ -6,6 +6,7 @@ void SurfaceCacheSpatialQuality(MaterialLabModule& lab,const Options& options) {
     frame.width=256;frame.height=192;frame.effects.outputSize={0,0};frame.present=false;frame.screenProbeStudyHud=false;
     frame.camera=ProbePlacementCameraPreset(0,frame.OutputAspect());
     auto& gi=frame.effects.surfaceCacheGi;auto& spatial=gi.spatial;auto& temporal=gi.temporal;
+    gi.contact.enabled=false; // Keep probe-radiance filtering independent of receiver retracing.
     auto& placement=frame.effects.screenProbePlacement;auto& trace=placement.trace;
     gi.enabled=true;gi.useScreenProbes=true;gi.view=2;gi.probeDiagnostics=false;temporal.enabled=false;
     spatial.enabled=true;spatial.passes=3;spatial.halfKernelSize=1;spatial.strength=1;spatial.visibilityCheck=true;
@@ -177,18 +178,26 @@ void SurfaceCacheSpatialQuality(MaterialLabModule& lab,const Options& options) {
                 glm::vec3(instance.localToWorld*glm::vec4(triangle.a,1)),
                 glm::vec3(instance.localToWorld*glm::vec4(triangle.b,1)),
                 glm::vec3(instance.localToWorld*glm::vec4(triangle.c,1)),triangle.diffuseReflectance});}
-        const auto probePoint=[&](std::size_t index){const bool uniform=index<probes.uniform.size();const auto slot=uniform?index:index-probes.uniform.size();
-            const auto p=uniform?probes.uniform[slot]:probes.spawned[slot],n=uniform?probes.uniformNormals[slot]:probes.spawnedNormals[slot];
-            return glm::dvec3(p)+glm::normalize(glm::dvec3(n))*double(gi.rayBias);};
         const auto inspectPairs=[&](const auto& table,bool checkedVisibility){
-            const auto slots=probes.uniform.size()+probes.spawned.size();Check(table.size()>=slots*8,"Missing spatial neighbor table");
+            const auto slots=probes.uniform.size()+probes.spawned.size();Check(table.size()>=slots*Render::SurfaceCacheSpatialNeighborCount,"Missing spatial neighbor table");
+            const auto origins=gi.safeProbeOrigins?lab.ReadbackSurfaceCacheProbeOrigins():std::vector<glm::vec4>{};
+            if(gi.safeProbeOrigins)Check(origins.size()==slots,"Missing actual spatial visibility endpoints");
+            const auto probePoint=[&](std::size_t index){
+                if(gi.safeProbeOrigins){Check(origins[index].w>0,"Spatial neighbor borrowed light from an unconfirmed ray origin");return glm::dvec3(origins[index]);}
+                const bool uniform=index<probes.uniform.size();const auto slot=uniform?index:index-probes.uniform.size();
+                const auto p=uniform?probes.uniform[slot]:probes.spawned[slot],n=uniform?probes.uniformNormals[slot]:probes.spawnedNormals[slot];
+                return glm::dvec3(p)+glm::normalize(glm::dvec3(n))*double(gi.rayBias);};
             unsigned blocked=0;
-            for(std::size_t probe=0;probe<slots;++probe)for(unsigned pair=0;pair<8;++pair){const auto value=table[probe*8+pair];
+            for(std::size_t probe=0;probe<slots;++probe)for(unsigned pair=0;pair<Render::SurfaceCacheSpatialNeighborCount;++pair){const auto value=table[probe*Render::SurfaceCacheSpatialNeighborCount+pair];
                 if(value.x<.5f||value.y<.0001f)continue;const auto neighbor=std::size_t(std::round(value.x)-1);
                 Check(neighbor<slots,"Spatial filter selected an out-of-range probe");
+                if(gi.safeProbeOrigins&&(origins[probe].w<=0||origins[neighbor].w<=0)) {
+                    Check(!checkedVisibility,"Spatial visibility accepted an unconfirmed ray origin");
+                    continue; // unchecked ablation has no certified segment to query
+                }
                 const auto a=probePoint(probe),b=probePoint(neighbor),delta=b-a;const double distance=glm::length(delta);
-                if(distance<=double(gi.rayBias)*.25)continue;
-                const bool occluded=SurfaceCacheReferenceOccluded(a,delta/distance,std::max(distance-.0001,0.),triangles);
+                if(distance<=(gi.safeProbeOrigins?2.*gi.originSafetyEpsilon:double(gi.rayBias)*.25))continue;
+                const bool occluded=SurfaceCacheReferenceOccluded(a,delta/distance,std::max(distance-(gi.safeProbeOrigins?double(gi.originSafetyEpsilon):.0001),0.),triangles);
                 if(occluded)++blocked;else if(checkedVisibility)++acceptedVisiblePairs;
             }return blocked;
         };

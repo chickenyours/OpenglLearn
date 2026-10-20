@@ -9,7 +9,9 @@ void RecordAreaLightShadows(RHIFrameEncoder& encoder,const RenderFrame& frame,co
     }
     Require(encoder.KeepAlive(areaLightShadowConstantsOwner),"Cannot retain rectangle shadow constants");
     const auto& areas=settings.areaLights;const auto& shadow=sc.areaShadows;
-    const bool active=areas.count==1&&areas.lights[0].enabled&&glm::any(glm::greaterThan(areas.lights[0].radiance,glm::vec3(0)));
+    // Binding 12 is reused by GI later in the frame. Always install either
+    // valid shadow constants or explicit disabled constants before opaque PBR.
+    const bool active=shadow.enabled&&areas.count==1&&areas.lights[0].enabled&&glm::any(glm::greaterThan(areas.lights[0].radiance,glm::vec3(0)));
     AreaLightShadowConstants constants;
     constants.parameters={shadow.nearPlane,sc.maxDistance,shadow.depthBiasTexels,shadow.normalBiasTexels};
     if(active) {
@@ -20,7 +22,7 @@ void RecordAreaLightShadows(RHIFrameEncoder& encoder,const RenderFrame& frame,co
         const auto add=[&](const auto& value){const auto* bytes=reinterpret_cast<const unsigned char*>(&value);
             for(std::size_t i=0;i<sizeof(value);++i){key^=bytes[i];key*=1099511628211ull;}};
         add(sc.scene.get());add(sc.scene->GeometryGeneration());
-        add(light.center);add(light.halfAxisU);add(light.halfAxisV);add(grid);add(tile);
+        add(light.center);add(light.halfAxisU);add(light.halfAxisV);add(grid);add(tile);add(areas.stratifiedSamples);
         add(shadow.nearPlane);add(sc.maxDistance);
         // Raster visibility/caster flags and transforms may be edited without
         // modifying the distance-volume representation. They also affect depth.
@@ -41,7 +43,7 @@ void RecordAreaLightShadows(RHIFrameEncoder& encoder,const RenderFrame& frame,co
             const std::array<glm::vec3,6> forward{{{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}}};
             const std::array<glm::vec3,6> up{{{0,-1,0},{0,-1,0},{0,0,1},{0,0,-1},{0,-1,0},{0,-1,0}}};
             for(unsigned y=0;y<grid;++y)for(unsigned x=0;x<grid;++x) {
-                const auto parameter=(glm::vec2(x,y)+.5f)*(2.f/float(grid))-1.f;
+                const auto parameter=AreaLightSampleParameters(x,y,grid,areas.stratifiedSamples);
                 const auto source=light.center+light.halfAxisU*parameter.x+light.halfAxisV*parameter.y;
                 for(unsigned face=0;face<6;++face) {
                     const auto index=(y*grid+x)*6+face;

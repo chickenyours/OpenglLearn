@@ -84,6 +84,7 @@ void ConfigureSealedGiRoomLighting(Render::MaterialPipelineSettings& effects) {
         effects.lighting.lightColors[index]={0,0,0,0};
     }
     effects.areaLights={};effects.areaLights.count=1;effects.areaLights.samplesPerAxis=8;
+    effects.areaLights.stratifiedSamples=true;
     auto& light=effects.areaLights.lights[0];
     light.center=SealedGiRoomEmitterCenter;
     light.halfAxisU=SealedGiRoomEmitterHalfAxisU;light.halfAxisV=SealedGiRoomEmitterHalfAxisV;

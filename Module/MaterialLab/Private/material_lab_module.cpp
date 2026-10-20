@@ -108,6 +108,7 @@ struct MaterialLabModule::Impl {
     bool sealedRoomEmissionReady=false;
     glm::vec3 sealedRoomEmission{0};
     std::shared_ptr<SurfaceCacheScene> surfaceCacheScene;
+    std::uint64_t probeSceneOverrideHash=0;
     std::array<std::shared_ptr<const ProbeMeshSdf>,3> probeSdfAssets;
     std::shared_ptr<ProbeSdfScene> probeSdfScene;
     bool probeSdfSealedRoom=false;
@@ -560,20 +561,20 @@ struct MaterialLabModule::Impl {
         owned.dependencies.push_back(owner);
         sealedRoomCommon.lifetime=RetainMaterialResources(device,std::exchange(owned,{}));
     }
-    void InitializeSurfaceCacheMaterials(bool banquet,bool sealed=false) {
+    void InitializeSurfaceCacheMaterials(bool banquet,bool sealed=false,const std::vector<SealedGiRoomMaterial>* custom=nullptr) {
         if(!surfaceCacheMaterials.empty()&&surfaceCacheMaterialsBanquet==banquet&&surfaceCacheMaterialsSealed==sealed)return;
         surfaceCacheMaterials.clear();surfaceCacheMaterialsBanquet=banquet;surfaceCacheMaterialsSealed=sealed;
         sealedRoomEmissionReady=false;
-        if(sealed)InitializeSealedRoomPass();
-        const auto count=sealed?unsigned(SealedGiRoomObjects().size()):banquet?16u:unsigned(ProbeSdfObjects().size());
+        if(sealed||custom)InitializeSealedRoomPass();
+        const auto count=custom?unsigned(custom->size()):sealed?unsigned(SealedGiRoomObjects().size()):banquet?16u:unsigned(ProbeSdfObjects().size());
         for(unsigned object=0;object<count;++object) {
-            const auto material=sealed?SealedGiRoomObjectMaterial(object):SealedGiRoomMaterial{SurfaceCacheAlbedo(object,banquet),.9f,glm::vec3(0)};
-            const auto& pass=sealed?sealedRoomCommon:common;
-            auto asset=sealed?MaterialAsset::Create(pass.expectedTemplate,{{"baseColor",glm::vec4(material.albedo,1)},
+            const auto material=custom?(*custom)[object]:sealed?SealedGiRoomObjectMaterial(object):SealedGiRoomMaterial{SurfaceCacheAlbedo(object,banquet),.9f,glm::vec3(0)};
+            const auto& pass=(sealed||custom)?sealedRoomCommon:common;
+            auto asset=(sealed||custom)?MaterialAsset::Create(pass.expectedTemplate,{{"baseColor",glm::vec4(material.albedo,1)},
                 {"roughness",material.roughness},{"metallic",0.f},
                 {"emissiveColor",glm::vec4(material.emission,0)},{"emissiveIntensity",1.f}}):
-                MaterialAsset::Create(pass.expectedTemplate,{{"baseColor",glm::vec4(SurfaceCacheAlbedo(object,banquet),1)},
-                    {"roughness",.9f},{"metallic",0.f}});
+                MaterialAsset::Create(pass.expectedTemplate,{{"baseColor",glm::vec4(material.albedo,1)},
+                    {"roughness",material.roughness},{"metallic",0.f}});
             Require(bool(asset),"Invalid Surface Cache scene material");surfaceCacheMaterials.push_back(Register(asset,pass));
         }
     }
@@ -592,7 +593,11 @@ struct MaterialLabModule::Impl {
             std::string text=std::string(settings.sealedGiRoomStudy?"SEALED CERAMIC ROOM / ":"SURFACE CACHE / ")+views[std::min(gi.view,6u)]+"\n";
             text+=gi.useScreenProbes?"ADAPTIVE SURFACE PROBES / "+std::to_string(s.trace.rayResolution*s.trace.rayResolution)+" RAYS PER PROBE / SPACING "+std::to_string(s.baseSpacing)+"\n":
                 "PIXEL REFERENCE / "+std::to_string(gi.raysPerPixel)+" RAYS PER PIXEL\n";
-            text+=gi.temporal.enabled&&gi.useScreenProbes?"TEMPORAL GI / "+std::to_string(gi.temporal.maxFrames)+" FRAMES / "+std::to_string(gi.temporal.directionPhases)+" PHASES / T ON-OFF / G RESET\n":"SINGLE FRAME GI / T TEMPORAL / G RESET\n";
+            if(gi.temporal.enabled&&gi.useScreenProbes) {
+                text+=gi.temporal.staticConvergence&&gi.temporal.maxFrames>1?
+                    "TEMPORAL GI / STATIC UP TO 64 / MOVING "+std::to_string(gi.temporal.maxFrames)+" / FRESH SAMPLES / T ON-OFF\n":
+                    "TEMPORAL GI / "+std::to_string(gi.temporal.maxFrames)+" FRAMES / "+std::to_string(gi.temporal.directionPhases)+" PHASES / T ON-OFF / G RESET\n";
+            } else text+="SINGLE FRAME GI / T TEMPORAL / G RESET\n";
             text+=gi.spatial.enabled&&gi.useScreenProbes?"SPATIAL GI / "+std::to_string(gi.spatial.passes)+" PASSES / H ON-OFF / B PROBE COVERAGE\n":"SPATIAL OFF / H ON-OFF / B PROBE COVERAGE\n";
             text+="V VIEW / F5 GI / F6 REFERENCE / F7 RAYS / P PROBES\n";
             text+="F2 ADAPTIVE / F3 SPACING / J SEED / SPACE FREEZE\n";
@@ -705,8 +710,9 @@ struct MaterialLabModule::Impl {
         if(settings.displayFps>0)text+=" / FPS "+std::to_string(int(settings.displayFps));
         AddLabHud(frame,settings,text);
     }
-    void PrepareProbeSdf(const ProbePlacementSceneSettings& state,const ProbeSdfTracingSettings& quality,glm::vec3 cameraPosition,bool sealed=false) {
-        const auto& objects=sealed?SealedGiRoomObjects():ProbeSdfObjects();
+    void PrepareProbeSdf(const ProbePlacementSceneSettings& state,const ProbeSdfTracingSettings& quality,glm::vec3 cameraPosition,bool sealed=false,
+        const std::vector<ProbePlacementObject>* custom=nullptr) {
+        const auto& objects=custom?*custom:sealed?SealedGiRoomObjects():ProbeSdfObjects();
         if(probeSdfSealedRoom!=sealed) {
             // Legacy and sealed rooms share primitive fields, but have different
             // instance orders/counts. Never reuse a scene keyed only by MDFs.
@@ -967,11 +973,47 @@ void main(){outColor=texture(hud,vUV);}
         // explicitly selected, but is not traced redundantly for this preset.
         effects.indirect.enabled=false;
     }
-    void Draw(const FrameSettings& settings, double* gpuMilliseconds = nullptr) {
+    void Draw(const FrameSettings& settings, double* gpuMilliseconds = nullptr,
+              RHICommand::GpuTimingResult* contactFilterGpuTiming = nullptr,
+              RHICommand::GpuTimingResult* contactTraceGpuTiming = nullptr) {
         lastWidth = lastHeight = 0;
         lastPresented = true;
         Require(settings.width > 0 && settings.height > 0 && settings.width <= 8192 && settings.height <= 8192,
                 "Invalid framebuffer dimensions");
+        Require(bool(settings.probeSceneOverride)==bool(settings.probeSceneMaterialsOverride),"Primitive test scene requires aligned object and material overrides");
+        std::uint64_t overrideHash=0;
+        if(settings.probeSceneOverride) {
+            Require(settings.screenProbeStudy&&settings.sdfProbeStudy&&settings.surfaceCacheStudy&&!settings.sdfModelStudy&&!settings.sealedGiRoomStudy,
+                "Primitive test scene override requires the independent unsealed Surface Cache study");
+            const auto& objects=*settings.probeSceneOverride;const auto& customMaterials=*settings.probeSceneMaterialsOverride;
+            Require(!objects.empty()&&objects.size()==customMaterials.size()&&objects.size()<=128,"Invalid primitive test scene array sizes");
+            overrideHash=1469598103934665603ull;
+            const auto add=[&](std::uint32_t value){overrideHash^=value;overrideHash*=1099511628211ull;};
+            const auto scalar=[&](float value){Require(std::isfinite(value),"Nonfinite primitive test scene parameter");std::uint32_t bits;std::memcpy(&bits,&value,sizeof(bits));add(bits);};
+            const auto vector=[&](glm::vec3 value){scalar(value.x);scalar(value.y);scalar(value.z);};
+            add(std::uint32_t(objects.size()));
+            for(std::size_t index=0;index<objects.size();++index) {
+                const auto& object=objects[index];const auto& material=customMaterials[index];
+                Require(object.mesh==ShowcaseMesh::Plane||object.mesh==ShowcaseMesh::Box||object.mesh==ShowcaseMesh::Sphere,"Invalid primitive test mesh");
+                Require(std::min({object.scale.x,object.scale.y,object.scale.z})>0,"Primitive test scale must be positive");
+                add(unsigned(object.mesh));add(unsigned(object.material));add(object.movable);
+                vector(object.position);vector(object.scale);scalar(object.yaw);scalar(object.tilt);vector(object.tiltAxis);
+                vector(material.albedo);scalar(material.roughness);vector(material.emission);
+                Require(glm::all(glm::greaterThanEqual(material.albedo,glm::vec3(0)))&&glm::all(glm::lessThanEqual(material.albedo,glm::vec3(1)))&&
+                    material.roughness>=0&&material.roughness<=1&&glm::all(glm::greaterThanEqual(material.emission,glm::vec3(0))),"Invalid primitive test material");
+            }
+            if(overrideHash==0)overrideHash=1;
+        }
+        if(overrideHash!=probeSceneOverrideHash) {
+            // Content-keyed, including material values: pointer identity alone
+            // would allow stale cards/history after a caller edits its arrays.
+            if(probeSdfPendingScene.valid())probeSdfPendingScene.get();
+            probeSdfScene.reset();probeSdfSceneCache.clear();probeSdfActiveKey.clear();probeSdfPendingKey.clear();
+            surfaceCacheScene.reset();surfaceCacheMaterials.clear();sealedRoomEmissionReady=false;
+            const auto count=settings.probeSceneOverride?settings.probeSceneOverride->size():settings.sealedGiRoomStudy?SealedGiRoomObjects().size():ProbeSdfObjects().size();
+            probeSdfRequestedTiers.assign(count,ProbeSdfQuality::Medium);
+            pipeline->ResetHistory();probeSceneOverrideHash=overrideHash;
+        }
         if(settings.screenProbeStudy) {
             Require(!settings.giRoom&&!settings.showcase&&!settings.lightingStudy&&!settings.shadowStudy,"Probe placement is an independent scene");
             Require(std::isfinite(settings.screenProbeStudyState.occluderOffset),"Invalid placement block transform");
@@ -1029,10 +1071,10 @@ void main(){outColor=texture(hud,vUV);}
 #endif
         } else if(settings.screenProbeStudy) {
             InitializeProbePlacement();
-            if(settings.surfaceCacheStudy)InitializeSurfaceCacheMaterials(false,settings.sealedGiRoomStudy);
+            if(settings.surfaceCacheStudy)InitializeSurfaceCacheMaterials(false,settings.sealedGiRoomStudy,settings.probeSceneMaterialsOverride.get());
             if(settings.sealedGiRoomStudy)UpdateSealedRoomEmission(settings.effects.areaLights);
             unsigned objectIndex=0;
-            const auto& objects=settings.sealedGiRoomStudy?SealedGiRoomObjects():settings.sdfProbeStudy?ProbeSdfObjects():ProbePlacementObjects();
+            const auto& objects=settings.probeSceneOverride?*settings.probeSceneOverride:settings.sealedGiRoomStudy?SealedGiRoomObjects():settings.sdfProbeStudy?ProbeSdfObjects():ProbePlacementObjects();
             for(const auto& object:objects) {
                 const auto mesh=object.mesh==ShowcaseMesh::Sphere?sphere:object.mesh==ShowcaseMesh::Plane?plane:box;
                 const auto indices=object.mesh==ShowcaseMesh::Sphere?sphereIndices:object.mesh==ShowcaseMesh::Plane?planeIndices:boxIndices;
@@ -1136,7 +1178,7 @@ void main(){outColor=texture(hud,vUV);}
         auto effects = settings.effects;
         if(settings.sdfModelStudy)effects.screenProbePlacement.trace.sdf.scene=probeSdfScene;
         else if(settings.sdfProbeStudy){PrepareProbeSdf(settings.screenProbeStudyState,effects.screenProbePlacement.trace.sdf,settings.camera?settings.camera->position:
-            settings.sealedGiRoomStudy?SealedGiRoomCameraPreset(0,settings.OutputAspect()).position:ProbePlacementCameraPreset(0,settings.OutputAspect()).position,settings.sealedGiRoomStudy);
+            settings.sealedGiRoomStudy?SealedGiRoomCameraPreset(0,settings.OutputAspect()).position:ProbePlacementCameraPreset(0,settings.OutputAspect()).position,settings.sealedGiRoomStudy,settings.probeSceneOverride.get());
             if(!effects.screenProbePlacement.trace.sdf.scene)effects.screenProbePlacement.trace.sdf.scene=probeSdfScene;}
         if(settings.surfaceCacheStudy) {
             Require(bool(probeSdfScene),"Surface Cache study requires a prepared SDF scene");
@@ -1145,8 +1187,8 @@ void main(){outColor=texture(hud,vUV);}
             for(unsigned object=0;object<probeSdfScene->Instances().size();++object)
                 // The ceiling diffuser is sampled analytically as an area
                 // light. Its card must not inject the same direct light again.
-                cacheMaterials.push_back({settings.sealedGiRoomStudy?SealedGiRoomObjectMaterial(object).albedo:
-                    SurfaceCacheAlbedo(object,settings.sdfModelStudy),glm::vec3(0)});
+                cacheMaterials.push_back(settings.probeSceneMaterialsOverride?SurfaceCacheMaterial{(*settings.probeSceneMaterialsOverride)[object].albedo,(*settings.probeSceneMaterialsOverride)[object].emission}:
+                    SurfaceCacheMaterial{settings.sealedGiRoomStudy?SealedGiRoomObjectMaterial(object).albedo:SurfaceCacheAlbedo(object,settings.sdfModelStudy),glm::vec3(0)});
             if(!surfaceCacheScene)surfaceCacheScene=BuildSurfaceCache(*probeSdfScene,cacheMaterials);
             else surfaceCacheScene->Update(*probeSdfScene,cacheMaterials);
             if(!effects.surfaceCacheGi.cache)effects.surfaceCacheGi.cache=surfaceCacheScene;
@@ -1218,6 +1260,7 @@ void main(){outColor=texture(hud,vUV);}
             effects.temporal.msaaSamples, effects.reflection.resolutionScale), pipeline->LastError());
         RHICommand::BeginFrame begin;
         begin.frameIndex = frameIndex;
+        begin.collectGpuTimings = contactFilterGpuTiming != nullptr || contactTraceGpuTiming != nullptr;
         const auto output=settings.OutputExtent();
         begin.framebufferWidth = output.x; begin.framebufferHeight = output.y;
         begin.clearColor = glm::vec4(0.027f, 0.035f, 0.052f, 1);
@@ -1234,21 +1277,30 @@ void main(){outColor=texture(hud,vUV);}
             throw std::runtime_error("PBR frame recording failed: " +
                 (debugUI && !debugUI->LastError().empty() ? debugUI->LastError() : pipeline->LastError()));
         }
-        struct FrameCompletion { bool frameDone=false,timingDone=false; double gpuMilliseconds=0; };
+        struct FrameCompletion {
+            bool frameDone=false,timingDone=false;
+            double gpuMilliseconds=0;
+            RHICommand::GpuTimingResult contactFilterGpuTiming;
+            RHICommand::GpuTimingResult contactTraceGpuTiming;
+        };
         auto completion = std::make_shared<FrameCompletion>();
-        completion->timingDone=gpuMilliseconds==nullptr;
+        completion->timingDone=gpuMilliseconds==nullptr&&contactFilterGpuTiming==nullptr&&contactTraceGpuTiming==nullptr;
         if (!device.async_SubmitFrameCommands(encoder.GetCommandBuffer(), [completion] { completion->frameDone = true; })) {
             encoder.Cancel();
             pipeline->DiscardFrame(pipeline->RecordedFrameToken());
             throw std::runtime_error("PBR frame submission failed");
         }
-        if(gpuMilliseconds) {
+        if(gpuMilliseconds||contactFilterGpuTiming||contactTraceGpuTiming) {
             // The reliable frame queue runs before diagnostic work. Enqueue
             // the timestamp read before waiting, so Measure does not add a
             // second application/render-thread round trip to every frame.
             // Backend diagnostics remain confined to the render thread.
             device.async_ExecuteCode([this,completion] {
                 completion->gpuMilliseconds=device.BackendDiagnostics()->LastGpuMilliseconds();
+                completion->contactFilterGpuTiming=device.BackendDiagnostics()->LastGpuTiming(
+                    RHICommand::GpuTimingScope::SurfaceCacheContactFilter);
+                completion->contactTraceGpuTiming=device.BackendDiagnostics()->LastGpuTiming(
+                    RHICommand::GpuTimingScope::SurfaceCacheContactTrace);
             },[completion] { completion->timingDone=true; });
         }
         // Drivers may compile pipeline variants lazily on the first draw.
@@ -1257,6 +1309,8 @@ void main(){outColor=texture(hud,vUV);}
         Wait([completion] { return completion->frameDone&&completion->timingDone; }, "PBR frame completion",frameIndex==1?30s:10s);
         Require(pipeline->CompleteFrame(pipeline->RecordedFrameToken()), pipeline->LastError());
         if(gpuMilliseconds)*gpuMilliseconds=completion->gpuMilliseconds;
+        if(contactFilterGpuTiming)*contactFilterGpuTiming=completion->contactFilterGpuTiming;
+        if(contactTraceGpuTiming)*contactTraceGpuTiming=completion->contactTraceGpuTiming;
         lastWidth = output.x; lastHeight = output.y; lastPresented = settings.present;
     }
     FramePixels ReadPixels() {
@@ -1293,15 +1347,19 @@ void main(){outColor=texture(hud,vUV);}
     }
     std::vector<glm::vec4> ReadFloatTexture(RenderResourceHandle<RHITextureSpec> handle) {
         Require(handle.IsValid(),"Draw hybrid GI before reading its lighting texture");
-        struct Result {std::vector<glm::vec4> pixels;GLenum error=GL_NO_ERROR;};
+        struct Result {std::vector<glm::vec4> pixels;GLenum error=GL_NO_ERROR,priorError=GL_NO_ERROR;};
         auto result=std::make_shared<Completion<Result>>();
         device.async_ExecuteCode([this,result,handle]{
             const auto* t=device.GetResourcePool().TextureTable.Get(handle);if(!t){result->value.error=GL_INVALID_OPERATION;return;}
             auto& pixels=result->value.pixels;pixels.resize(std::size_t(t->width)*t->height);
             if(device.GetBackendType()==BackendType::Vulkan){auto data=device.BackendDiagnostics()->ReadTexture(handle);if(data.size()!=pixels.size()*4){result->value.error=GL_INVALID_OPERATION;return;}std::memcpy(pixels.data(),data.data(),data.size()*4);return;}
+            result->value.priorError=glGetError();
             glGetTextureImage(t->rhi_id,0,GL_RGBA,GL_FLOAT,GLsizei(pixels.size()*sizeof(glm::vec4)),pixels.data());result->value.error=glGetError();
         },[result]{result->done=true;});
-        Wait([result]{return result->done;},"Hybrid lighting texture readback");Require(result->value.error==GL_NO_ERROR,"Error reading hybrid lighting texture");return std::move(result->value.pixels);
+        Wait([result]{return result->done;},"Hybrid lighting texture readback");
+        Require(result->value.error==GL_NO_ERROR&&result->value.priorError==GL_NO_ERROR,
+            "Error reading hybrid lighting texture: prior="+std::to_string(result->value.priorError)+
+            ", readback="+std::to_string(result->value.error));return std::move(result->value.pixels);
     }
     std::vector<glm::vec4> ReadLumenCache(bool direct=false) {
         const auto debug=pipeline->DebugTextures();return ReadFloatTexture(direct?debug.lumenDirectLighting:debug.lumenSurfaceCache);
@@ -1362,14 +1420,41 @@ void main(){outColor=texture(hud,vUV);}
         Require(std::isfinite(timeStep)&&timeStep>=0&&timeStep<=1,"Invalid animation step for timing");
         auto frame=settings;
         if(device.GetBackendType()==BackendType::Vulkan) {
-            const auto begin=std::chrono::steady_clock::now();double sum=0;
+            const auto begin=std::chrono::steady_clock::now();
+            FrameTiming timing;
+            timing.gpuFrameMilliseconds.reserve(count);
+            timing.contactFilterFrameMilliseconds.reserve(count);
+            timing.contactTraceFrameMilliseconds.reserve(count);
+            double sum=0,contactFilterSum=0,contactTraceSum=0;
             for(uint32_t i=0;i<count;++i) {
                 frame.lightTime=settings.lightTime+i*timeStep;double gpuMilliseconds=0;
-                Draw(frame,&gpuMilliseconds);
+                RHICommand::GpuTimingResult contactFilterGpuTiming,contactTraceGpuTiming;
+                Draw(frame,&gpuMilliseconds,&contactFilterGpuTiming,&contactTraceGpuTiming);
                 Require(std::isfinite(gpuMilliseconds)&&gpuMilliseconds>0,"Invalid Vulkan frame timestamp");
                 sum+=gpuMilliseconds;
+                timing.gpuFrameMilliseconds.push_back(gpuMilliseconds);
+                if(contactFilterGpuTiming.available) {
+                    Require(contactFilterGpuTiming.frameIndex==frameIndex&&
+                        std::isfinite(contactFilterGpuTiming.milliseconds)&&contactFilterGpuTiming.milliseconds>=0,
+                        "Invalid or stale Vulkan contact filter timestamp");
+                    contactFilterSum+=contactFilterGpuTiming.milliseconds;
+                    timing.contactFilterFrameMilliseconds.push_back(contactFilterGpuTiming.milliseconds);
+                }
+                if(contactTraceGpuTiming.available) {
+                    Require(contactTraceGpuTiming.frameIndex==frameIndex&&
+                        std::isfinite(contactTraceGpuTiming.milliseconds)&&contactTraceGpuTiming.milliseconds>=0,
+                        "Invalid or stale Vulkan contact trace timestamp");
+                    contactTraceSum+=contactTraceGpuTiming.milliseconds;
+                    timing.contactTraceFrameMilliseconds.push_back(contactTraceGpuTiming.milliseconds);
+                }
             }
-            return {sum/count,std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begin).count()/count};
+            timing.gpuMilliseconds=sum/count;
+            timing.elapsedMilliseconds=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begin).count()/count;
+            if(!timing.contactFilterFrameMilliseconds.empty())
+                timing.contactFilterGpuMilliseconds=contactFilterSum/timing.contactFilterFrameMilliseconds.size();
+            if(!timing.contactTraceFrameMilliseconds.empty())
+                timing.contactTraceGpuMilliseconds=contactTraceSum/timing.contactTraceFrameMilliseconds.size();
+            return timing;
         }
         auto started = std::make_shared<Completion<GLuint>>();
         device.async_ExecuteCode([started] {
@@ -1557,6 +1642,16 @@ std::vector<glm::vec4> MaterialLabModule::ReadbackSurfaceCacheProbeIrradiance() 
     error_.clear();if(!impl_){error_="MaterialLab is not started";return {};}
     try{return impl_->ReadFloatTexture(impl_->pipeline->DebugTextures().surfaceCacheProbeIrradiance);}catch(const std::exception& e){error_=e.what();return {};}
 }
+std::vector<glm::vec4> MaterialLabModule::ReadbackSurfaceCacheProbeDirectional() {
+    error_.clear();if(!impl_){error_="MaterialLab is not started";return {};}
+    if(!impl_->pipeline->Statistics().surfaceCacheDirectionalCollected){error_="Directional probe lighting was not collected for this frame";return {};}
+    try{return impl_->ReadFloatTexture(impl_->pipeline->DebugTextures().surfaceCacheProbeDirectional);}catch(const std::exception& e){error_=e.what();return {};}
+}
+std::vector<glm::vec4> MaterialLabModule::ReadbackSurfaceCacheProbeOrigins() {
+    error_.clear();if(!impl_||!impl_->pipeline){error_="MaterialLab is not started";return {};}
+    if(!impl_->pipeline->Statistics().surfaceCacheProbeOriginsCollected){error_="Safe probe origins were not collected for this frame";return {};}
+    try{return impl_->ReadFloatTexture(impl_->pipeline->DebugTextures().surfaceCacheProbeOrigins);}catch(const std::exception& e){error_=e.what();return {};}
+}
 std::vector<glm::vec4> MaterialLabModule::ReadbackSurfaceCacheTemporalGi() {
     if(!impl_||!impl_->pipeline)return {};
     try{return impl_->ReadFloatTexture(impl_->pipeline->DebugTextures().surfaceCacheTemporalGi);}catch(const std::exception& e){error_=e.what();return {};}
@@ -1564,6 +1659,26 @@ std::vector<glm::vec4> MaterialLabModule::ReadbackSurfaceCacheTemporalGi() {
 std::vector<glm::vec4> MaterialLabModule::ReadbackSurfaceCacheSpatialGi() {
     error_.clear();if(!impl_||!impl_->pipeline){error_="MaterialLab is not started";return {};}
     try{return impl_->ReadFloatTexture(impl_->pipeline->DebugTextures().surfaceCacheSpatialGi);}catch(const std::exception& e){error_=e.what();return {};}
+}
+std::vector<glm::vec4> MaterialLabModule::ReadbackSurfaceCacheContactGi() {
+    error_.clear();if(!impl_||!impl_->pipeline){error_="MaterialLab is not started";return {};}
+    if(!impl_->pipeline->Statistics().surfaceCacheContactCollected){error_="Contact resolve was not collected for this frame";return {};}
+    try{return impl_->ReadFloatTexture(impl_->pipeline->DebugTextures().surfaceCacheContactGi);}catch(const std::exception& e){error_=e.what();return {};}
+}
+std::vector<glm::vec4> MaterialLabModule::ReadbackSurfaceCacheContactMask() {
+    error_.clear();if(!impl_||!impl_->pipeline){error_="MaterialLab is not started";return {};}
+    if(!impl_->pipeline->Statistics().surfaceCacheContactCollected){error_="Contact resolve was not collected for this frame";return {};}
+    try{return impl_->ReadFloatTexture(impl_->pipeline->DebugTextures().surfaceCacheContactMask);}catch(const std::exception& e){error_=e.what();return {};}
+}
+std::vector<glm::vec4> MaterialLabModule::ReadbackSurfaceCacheContactUnfilteredGi() {
+    error_.clear();if(!impl_||!impl_->pipeline){error_="MaterialLab is not started";return {};}
+    if(!impl_->pipeline->Statistics().surfaceCacheContactCollected){error_="Contact resolve was not collected for this frame";return {};}
+    try{return impl_->ReadFloatTexture(impl_->pipeline->DebugTextures().surfaceCacheContactUnfilteredGi);}catch(const std::exception& e){error_=e.what();return {};}
+}
+std::vector<glm::vec4> MaterialLabModule::ReadbackSurfaceCacheContactProbeRisk() {
+    error_.clear();if(!impl_||!impl_->pipeline){error_="MaterialLab is not started";return {};}
+    if(!impl_->pipeline->Statistics().surfaceCacheContactCollected){error_="Contact resolve was not collected for this frame";return {};}
+    try{return impl_->ReadFloatTexture(impl_->pipeline->DebugTextures().surfaceCacheContactProbeRisk);}catch(const std::exception& e){error_=e.what();return {};}
 }
 std::vector<glm::vec4> MaterialLabModule::ReadbackSurfaceCacheProbeCoverage() {
     error_.clear();if(!impl_||!impl_->pipeline){error_="MaterialLab is not started";return {};}

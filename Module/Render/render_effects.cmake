@@ -90,6 +90,9 @@ target_link_libraries(ssao_quality_gpu_test PRIVATE render_effects)
 add_executable(pbr_specular_aa_gpu_test Render/Test/pbr_specular_aa_gpu_test.cpp)
 target_link_libraries(pbr_specular_aa_gpu_test PRIVATE render_effects)
 
+add_executable(skin_material_gpu_test Render/Test/skin_material_gpu_test.cpp)
+target_link_libraries(skin_material_gpu_test PRIVATE render_effects)
+
 add_executable(area_light_gpu_test Render/Test/area_light_gpu_test.cpp)
 target_link_libraries(area_light_gpu_test PRIVATE render_effects)
 add_executable(indirect_lighting_gpu_test Render/Test/indirect_lighting_gpu_test.cpp)
@@ -131,7 +134,7 @@ target_link_libraries(lumen_reflection_gpu_test PRIVATE render_effects)
 # executables remain available for direct invocation in the normal build.
 option(RENDER_EFFECTS_GPU_TESTS "Register OpenGL rendering quality regression tests" OFF)
 if(RENDER_EFFECTS_GPU_TESTS)
-    foreach(gpu_test bloom_stability_test temporal_effects_gpu_test material_pipeline_history_test shadow_quality_gpu_test ssao_quality_gpu_test pbr_specular_aa_gpu_test area_light_gpu_test indirect_lighting_gpu_test lumen_reflection_gpu_test)
+    foreach(gpu_test bloom_stability_test temporal_effects_gpu_test material_pipeline_history_test shadow_quality_gpu_test ssao_quality_gpu_test pbr_specular_aa_gpu_test skin_material_gpu_test area_light_gpu_test indirect_lighting_gpu_test lumen_reflection_gpu_test)
         if(TARGET ${gpu_test})
             add_test(NAME ${gpu_test} COMMAND ${gpu_test})
             set_tests_properties(${gpu_test} PROPERTIES TIMEOUT 60 LABELS "gpu" RUN_SERIAL TRUE)

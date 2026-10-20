@@ -9,10 +9,17 @@ FrameSettings MakeSurfaceCacheGiFrame(const Options& options) {
     frame.surfaceCacheStudy=true;
     auto& e=frame.effects;auto& placement=e.screenProbePlacement;
     auto& gi=e.surfaceCacheGi;gi.useScreenProbes=!options.surfaceCacheReference;
+    gi.safeProbeOrigins=!options.surfaceCacheNoSafeOrigins;
+    gi.rasterSourcePositions=!options.surfaceCacheDepthPositions;
+    gi.probeOriginDiagnostics=options.surfaceCacheOriginOverlay;
+    placement.curvatureRefinement=!options.surfaceCacheNoCurvature;
     gi.temporal.enabled=!options.surfaceCacheNoTemporal;gi.temporal.maxFrames=options.surfaceCacheHistoryFrames;
     gi.temporal.directionPhases=options.surfaceCacheHistoryDirections;
+    gi.temporal.youngFilter=!options.surfaceCacheNoYoungRecovery;
+    gi.temporal.retainHistoryOnObjectMotion=!options.surfaceCacheResetOnObjectMotion;
     gi.spatial.enabled=!options.surfaceCacheNoSpatial;gi.spatial.passes=options.surfaceCacheSpatialPasses;
     gi.spatial.halfKernelSize=options.surfaceCacheSpatialRadius;
+    gi.spatial.localAdaptiveNeighbors=!options.surfaceCacheNoLocalNeighbors;
     placement.enabled=gi.useScreenProbes;placement.adaptive=true;placement.baseSpacing=options.surfaceCacheProbeSpacing;
     placement.frameIndex=0;placement.freeze=false;placement.debugView=0;placement.markerRadiusPixels=3;
     placement.trace.enabled=true;placement.trace.showPanel=false;placement.trace.cosineHemisphere=gi.useScreenProbes;
@@ -120,7 +127,9 @@ void SurfaceCacheInteractive(MaterialLabModule& lab,ApplicationWindow::Window& w
         if(!saved&&!options.screenshot.empty()&&!lab.ProbeSdfQualityStatistics().pending&&(!options.sealedGiRoom||screenshotWarmup>=32)){
             frame.present=false;Check(lab.Render(frame),lab.LastError());Save(lab.Readback(),options.screenshot);saved=true;}
         const auto rayLabel=gi.useScreenProbes?std::to_string(placement.trace.rayResolution*placement.trace.rayResolution)+" rays / probe":std::to_string(gi.raysPerPixel)+" rays / pixel";
-        glfwSetWindowTitle(native,((options.sealedGiRoom?"Sealed ceramic GI | L ceiling lamp | ":"Surface Cache GI | ")+rayLabel+" | Spatial "+(gi.spatial.enabled&&gi.useScreenProbes?"on":"off")+" | Temporal "+(gi.temporal.enabled&&gi.useScreenProbes?std::to_string(gi.temporal.maxFrames)+" frames":"off")+" | V views").c_str());
+        const auto historyLabel=gi.temporal.enabled&&gi.useScreenProbes?
+            (gi.temporal.staticConvergence&&gi.temporal.maxFrames>1?"static 64 / moving "+std::to_string(gi.temporal.maxFrames):std::to_string(gi.temporal.maxFrames)+" frames"):"off";
+        glfwSetWindowTitle(native,((options.sealedGiRoom?"Sealed ceramic GI | L ceiling lamp | ":"Surface Cache GI | ")+rayLabel+" | Spatial "+(gi.spatial.enabled&&gi.useScreenProbes?"on":"off")+" | Temporal "+historyLabel+" | V views").c_str());
         if(options.fpsLimit>0)pacer.WaitUntil(started+std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(1./options.fpsLimit)));
     }
     if(glfwRawMouseMotionSupported())glfwSetInputMode(native,GLFW_RAW_MOUSE_MOTION,GLFW_FALSE);

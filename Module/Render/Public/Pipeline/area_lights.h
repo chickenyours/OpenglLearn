@@ -29,11 +29,38 @@ struct RectAreaLight {
 struct AreaLightsSettings {
     std::array<RectAreaLight, MaxAreaLights> lights{};
     std::uint32_t count = 0;
-    std::uint32_t samplesPerAxis = 4; // 4x4 or 8x8 midpoint area quadrature
+    std::uint32_t samplesPerAxis = 4; // 4x4 or 8x8 area quadrature
     // Conservative GGX filtering over each quadrature cell's angular extent.
     // Zero is a diagnostic unfiltered reference; this is not shadow filtering.
     float specularFilter = 1.0f;
+    bool stratifiedSamples = false; // fixed multi-jitter pattern; false retains cell midpoints
 };
+
+// A deterministic sample in every 2D cell, and exactly one sample in each of
+// grid*grid projected sublayers along either axis. The 4/8 patterns are also
+// centrally symmetric. Share these positions with shadow-atlas source points.
+inline glm::vec2 AreaLightSampleParameters(std::uint32_t x, std::uint32_t y,
+    std::uint32_t grid, bool stratifiedSamples) {
+    glm::vec2 cellOffset(.5f);
+    if (stratifiedSamples) {
+        const auto uSub = (5u * y + 2u * x + 3u) % grid;
+        const auto vSub = (3u * x + 4u * y + 3u) % grid;
+        cellOffset = (glm::vec2(uSub, vSub) + .5f) / float(grid);
+    }
+    return (glm::vec2(x, y) + cellOffset) * (2.f / float(grid)) - 1.f;
+}
+
+inline std::string AreaLightSamplingGLSL() { return R"GLSL(
+vec2 AreaLightSampleParameters(int x, int y, int grid, bool stratifiedSamples) {
+    vec2 cellOffset = vec2(0.5);
+    if (stratifiedSamples) {
+        int uSub = (5 * y + 2 * x + 3) % grid;
+        int vSub = (3 * x + 4 * y + 3) % grid;
+        cellOffset = (vec2(uSub, vSub) + 0.5) / float(grid);
+    }
+    return (vec2(x, y) + cellOffset) * (2.0 / float(grid)) - 1.0;
+}
+)GLSL"; }
 
 inline bool ValidateAreaLightsSettings(const AreaLightsSettings& settings, std::string* error = nullptr) {
     if (error) error->clear();
@@ -67,7 +94,7 @@ inline bool ValidateAreaLightsSettings(const AreaLightsSettings& settings, std::
 
 struct alignas(16) RectAreaLightConstants {
     glm::vec4 centerEnabled{0};
-    glm::vec4 halfAxisU{0}; // xyz=world half axis, w=samples per axis
+    glm::vec4 halfAxisU{0}; // xyz=world half axis, abs(w)=grid; negative selects fixed multi-jitter
     glm::vec4 halfAxisV{0}; // xyz=world half axis, w=GGX cell-filter strength
     glm::vec4 radianceTwoSided{0};
 };
@@ -89,7 +116,8 @@ inline AreaLightsConstants MakeAreaLightsConstants(const AreaLightsSettings& set
         const auto& light = settings.lights[i];
         if (!light.enabled) continue;
         result.lights[i].centerEnabled = glm::vec4(light.center, 1);
-        result.lights[i].halfAxisU = glm::vec4(light.halfAxisU, float(settings.samplesPerAxis));
+        const float signedGrid = float(settings.samplesPerAxis) * (settings.stratifiedSamples ? -1.f : 1.f);
+        result.lights[i].halfAxisU = glm::vec4(light.halfAxisU, signedGrid);
         result.lights[i].halfAxisV = glm::vec4(light.halfAxisV, settings.specularFilter);
         result.lights[i].radianceTwoSided = glm::vec4(light.radiance, light.twoSided ? 1.0f : 0.0f);
     }
@@ -102,7 +130,7 @@ inline AreaLightsConstants MakeAreaLightsConstants(const AreaLightsSettings& set
 // It integrates unoccluded rectangle lights; area shadows need a visibility
 // solution and are deliberately not approximated by the directional CSM.
 inline std::string AreaLightsGLSL(bool shadowVisibility = false) {
-    std::string source = R"GLSL(
+    std::string source = AreaLightSamplingGLSL() + R"GLSL(
 struct RectAreaLightData {
     vec4 centerEnabled;
     vec4 halfAxisU;
@@ -138,7 +166,7 @@ float AreaCellRoughness(float roughness, vec3 V, vec3 L, vec3 H, float distanceT
 
 void EvaluateAreaLightingInternal(vec3 worldPosition, vec3 viewDirection, vec3 shadingNormal,
                           vec3 geometricNormal, vec3 albedo, float metallic, float perceptualRoughness,
-                          out vec3 directDiffuse, out vec3 directSpecular, float dielectricF0,
+                          out vec3 directDiffuse, out vec3 directSpecular, vec3 dielectricF0,
                           bool enforceGeometricHorizon) {
     directDiffuse = vec3(0);
     directSpecular = vec3(0);
@@ -150,7 +178,7 @@ void EvaluateAreaLightingInternal(vec3 worldPosition, vec3 viewDirection, vec3 s
     metallic = clamp(metallic, 0.0, 1.0);
     float roughness = clamp(perceptualRoughness, 0.045, 1.0);
     albedo = max(albedo, vec3(0));
-    vec3 F0 = mix(vec3(clamp(dielectricF0, 0.0, 1.0)), albedo, metallic);
+    vec3 F0 = mix(clamp(dielectricF0, vec3(0), vec3(1)), albedo, metallic);
     const float areaPi = 3.14159265358979323846;
     for (int index = 0; index < 4; ++index) {
         RectAreaLightData light = rectangleLights[index];
@@ -170,27 +198,44 @@ void EvaluateAreaLightingInternal(vec3 worldPosition, vec3 viewDirection, vec3 s
         // A center-only horizon test would discard a straddling rectangle.
         // The support of both half axes bounds every corner and every sample.
         float receiverHorizonMax = dot(Ng,toCenter) + abs(dot(Ng,U)) + abs(dot(Ng,W));
-        if (enforceGeometricHorizon && receiverHorizonMax <= 0.0) continue;
-        if (dot(N,toCenter) + abs(dot(N,U)) + abs(dot(N,W)) <= 0.0) continue;
-        int grid = light.halfAxisU.w > 6.0 ? 8 : 4;
+#if defined(PBR_SKIN_LIGHTING)
+        bool nativeSkinWrap=PbrSkinActive() && useSkinControlMap!=0u;
+#else
+        bool nativeSkinWrap=false;
+#endif
+        if (!nativeSkinWrap && enforceGeometricHorizon && receiverHorizonMax <= 0.0) continue;
+        if (!nativeSkinWrap && dot(N,toCenter) + abs(dot(N,U)) + abs(dot(N,W)) <= 0.0) continue;
+        int grid = abs(light.halfAxisU.w) > 6.0 ? 8 : 4;
         vec3 cellU = U * (2.0 / float(grid)), cellV = W * (2.0 / float(grid));
         float cellArea = 4.0 * quarterArea / float(grid * grid);
         for (int y = 0; y < grid; ++y) for (int x = 0; x < grid; ++x) {
-            vec2 parameter = (vec2(x, y) + 0.5) * (2.0 / float(grid)) - 1.0;
+            vec2 parameter = AreaLightSampleParameters(x, y, grid, light.halfAxisU.w < 0.0);
             vec3 toLight = light.centerEnabled.xyz + U * parameter.x + W * parameter.y - worldPosition;
             float distanceSquared = max(dot(toLight, toLight), max(cellArea * 1e-8, 1e-12));
             float distanceToLight = sqrt(distanceSquared);
             vec3 L = toLight / distanceToLight;
             float NdotL = max(dot(N, L), 0.0);
             float geometricHorizon = enforceGeometricHorizon ? smoothstep(0.0, 0.05, dot(Ng, L)) : 1.0;
+#if defined(PBR_SKIN_LIGHTING)
+            if(nativeSkinWrap)geometricHorizon=PbrSkinHorizon(Ng,L);
+#endif
             float emitterCosine = dot(emitterNormal, -L);
             emitterCosine = light.radianceTwoSided.w > 0.5 ? abs(emitterCosine) : max(emitterCosine, 0.0);
-            if (NdotL <= 0.0 || geometricHorizon <= 0.0 || emitterCosine <= 0.0) continue;
+            if ((!nativeSkinWrap && NdotL <= 0.0) || geometricHorizon <= 0.0 || emitterCosine <= 0.0) continue;
             vec3 H = AreaSafeNormalize(V + L, N);
             vec3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
             vec3 incoming = max(light.radianceTwoSided.rgb, vec3(0)) *
                             (cellArea * emitterCosine * NdotL * geometricHorizon / distanceSquared);
+#if defined(PBR_SKIN_LIGHTING)
+            // The PBR caller supplies its opt-in skin kernel. Other area-light
+            // callers retain the original Lambert integral and API.
+            directDiffuse += ((vec3(1)-F)*(1.0-metallic)*albedo/areaPi)*
+                max(light.radianceTwoSided.rgb,vec3(0))*(cellArea*emitterCosine*geometricHorizon/distanceSquared)*
+                PbrSkinDiffuseKernel(N,Ng,L);
+#else
             directDiffuse += ((vec3(1) - F) * (1.0 - metallic) * albedo / areaPi) * incoming;
+#endif
+            if(NdotL<=0.0)continue; // Skin diffuse may wrap, GGX remains front-facing.
             float filteredRoughness = AreaCellRoughness(roughness, V, L, H, distanceToLight,
                                                        cellU, cellV, clamp(light.halfAxisV.w, 0.0, 2.0));
             float distribution = DistributionGGX(N, H, filteredRoughness);
@@ -202,10 +247,17 @@ void EvaluateAreaLightingInternal(vec3 worldPosition, vec3 viewDirection, vec3 s
 
 void EvaluateAreaLighting(vec3 worldPosition, vec3 viewDirection, vec3 shadingNormal,
                           vec3 geometricNormal, vec3 albedo, float metallic, float perceptualRoughness,
-                          out vec3 directDiffuse, out vec3 directSpecular, float dielectricF0) {
+                          out vec3 directDiffuse, out vec3 directSpecular, vec3 dielectricF0) {
     EvaluateAreaLightingInternal(worldPosition, viewDirection, shadingNormal, geometricNormal,
                                  albedo, metallic, perceptualRoughness, directDiffuse, directSpecular,
                                  dielectricF0, true);
+}
+
+void EvaluateAreaLighting(vec3 worldPosition, vec3 viewDirection, vec3 shadingNormal,
+                          vec3 geometricNormal, vec3 albedo, float metallic, float perceptualRoughness,
+                          out vec3 directDiffuse, out vec3 directSpecular, float dielectricF0) {
+    EvaluateAreaLighting(worldPosition,viewDirection,shadingNormal,geometricNormal,albedo,metallic,
+                         perceptualRoughness,directDiffuse,directSpecular,vec3(dielectricF0));
 }
 
 // Existing callers without a separate geometric normal retain the original
@@ -213,10 +265,17 @@ void EvaluateAreaLighting(vec3 worldPosition, vec3 viewDirection, vec3 shadingNo
 // the normal-map geometric horizon constraint.
 void EvaluateAreaLighting(vec3 worldPosition, vec3 viewDirection, vec3 shadingNormal,
                           vec3 albedo, float metallic, float perceptualRoughness,
-                          out vec3 directDiffuse, out vec3 directSpecular, float dielectricF0) {
+                          out vec3 directDiffuse, out vec3 directSpecular, vec3 dielectricF0) {
     EvaluateAreaLightingInternal(worldPosition, viewDirection, shadingNormal, shadingNormal,
                                  albedo, metallic, perceptualRoughness, directDiffuse, directSpecular,
                                  dielectricF0, false);
+}
+
+void EvaluateAreaLighting(vec3 worldPosition, vec3 viewDirection, vec3 shadingNormal,
+                          vec3 albedo, float metallic, float perceptualRoughness,
+                          out vec3 directDiffuse, out vec3 directSpecular, float dielectricF0) {
+    EvaluateAreaLighting(worldPosition,viewDirection,shadingNormal,albedo,metallic,
+                         perceptualRoughness,directDiffuse,directSpecular,vec3(dielectricF0));
 }
 
 void EvaluateAreaLighting(vec3 worldPosition, vec3 viewDirection, vec3 shadingNormal,
@@ -237,6 +296,13 @@ void EvaluateAreaLighting(vec3 worldPosition, vec3 viewDirection, vec3 shadingNo
         const auto weight = source.find(factor);
         source.replace(weight, factor.size(),
             "(cellArea * emitterCosine * NdotL * geometricHorizon * areaVisibility / distanceSquared)");
+        // The PBR skin diffuse kernel replaces NdotL, but must retain the
+        // very same cached visibility as ordinary diffuse and specular.
+        const std::string diffuseFactor="(cellArea*emitterCosine*geometricHorizon/distanceSquared)";
+        const auto diffuseWeight=source.find(diffuseFactor);
+        if(diffuseWeight!=std::string::npos)
+            source.replace(diffuseWeight,diffuseFactor.size(),
+                "(cellArea*emitterCosine*geometricHorizon*areaVisibility/distanceSquared)");
     }
     return source;
 }

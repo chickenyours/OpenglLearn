@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <array>
 #include <algorithm>
 #include <cmath>
 #include <memory>
@@ -55,7 +56,15 @@ struct FrameSettings {
     bool sealedGiRoomStudy=false; // closed colored room with a recessed rectangle emitter and porcelain props
     bool sdfModelRasterLod=true;
     ProbePlacementSceneSettings screenProbeStudyState;
+    // Test-only primitive scene. Rasterization, SDF instances and Surface Cache
+    // all consume these same objects/materials. Both arrays must be provided.
+    std::shared_ptr<const std::vector<ProbePlacementObject>> probeSceneOverride;
+    std::shared_ptr<const std::vector<SealedGiRoomMaterial>> probeSceneMaterialsOverride;
     std::uint32_t placementUniformCount = 0, placementAdaptiveCount = 0, placementMarkedCount = 0;
+    // Last explicitly inspected GPU origin result: active, full, clipped,
+    // uncertain, then negative failure reasons 1..5. No per-frame readback.
+    std::array<std::uint32_t,9> probeOriginInspection{};
+    std::array<std::uint64_t,18> probeRayInspection{};
     std::uint32_t traceHitCount=0,traceActiveCount=0;
     std::uint32_t sdfMeshHitCount=0,sdfGlobalHitCount=0,sdfUnreadableCount=0;
     float displayFps = 0; // optional HUD sample; update infrequently outside the renderer
@@ -90,6 +99,14 @@ struct FramePixels {
 struct FrameTiming {
     double gpuMilliseconds = 0;
     double elapsedMilliseconds = 0;
+    // Vulkan only: GPU spans of the current-frame contact filter and upstream
+    // risk/mask/receiver trace group, allowing their added costs to be separated.
+    // Empty samples mean the scope did not execute or the backend lacks it.
+    double contactFilterGpuMilliseconds = 0;
+    std::vector<double> gpuFrameMilliseconds;
+    std::vector<double> contactFilterFrameMilliseconds;
+    double contactTraceGpuMilliseconds = 0;
+    std::vector<double> contactTraceFrameMilliseconds;
 };
 
 struct ScreenProbePlacementReadback {
@@ -171,10 +188,18 @@ public:
     std::vector<glm::vec4> ReadbackSurfaceCacheAtlas(); // outgoing direct diffuse radiance / validity
     std::vector<glm::vec4> ReadbackSurfaceCacheRawGi(); // raw outgoing indirect diffuse radiance, no history/filter
     std::vector<glm::vec4> ReadbackSurfaceCacheProbeIrradiance(); // probe E/pi, no receiver albedo or history
+    std::vector<glm::vec4> ReadbackSurfaceCacheProbeDirectional(); // 4 horizontal texels/probe: E/pi, world bx/by/bz; current raw or filtered integration
+    std::vector<glm::vec4> ReadbackSurfaceCacheProbeOrigins(); // exact ray origin.xyz / 0 inactive, 1 full corrected bias, 2 clipped, 3 uncertain, negative unresolved reason
     std::vector<glm::vec4> ReadbackSurfaceCacheSpatialGi(); // spatially filtered indirect radiance, before history
+    std::vector<glm::vec4> ReadbackSurfaceCacheContactGi(); // actual receiver contact resolve, before history; raw/spatial readbacks remain unchanged
+    std::vector<glm::vec4> ReadbackSurfaceCacheContactUnfilteredGi(); // actual receiver resolve before its local current-frame filter
+    std::vector<glm::vec4> ReadbackSurfaceCacheContactMask(); // x retrace blend / y risky probe mass / z reconstruction mass / w valid receiver
+    std::vector<glm::vec4> ReadbackSurfaceCacheContactProbeRisk(); // x full-budget harmonic inverse near distance / y near-hit fraction / z minimum hit / w collected
     std::vector<glm::vec4> ReadbackSurfaceCacheProbeCoverage(); // requires collectProbeCoverage or view 6; green base, orange adaptive, magenta unsupported
     std::vector<glm::vec4> ReadbackSurfaceCacheSpatialRays(); // packed RGBA32F filtered ray atlas; four texels per ray
-    std::vector<glm::vec4> ReadbackSurfaceCacheSpatialNeighbors(); // index+1 / geometric weight, eight entries per probe
+    // Linear 16-entry table per probe: index+1 / geometric weight; entries 0-7
+    // are remote, 8-15 local. Entry 8.z is the local active-candidate count.
+    std::vector<glm::vec4> ReadbackSurfaceCacheSpatialNeighbors();
     std::vector<glm::vec4> ReadbackSurfaceCacheTemporalGi(); // accumulated indirect radiance / current coverage
     std::vector<glm::vec4> ReadbackSurfaceCacheTemporalHistory(); // accumulated indirect radiance / effective frame count
     // Diagnostic receiver-only edit: the incident card radiance stays fixed,
@@ -186,6 +211,8 @@ public:
     // Diagnostic batch; settings.present selects presentation. No pixel readback.
     // Vulkan sums per-frame GPU timestamps; the GL batch interval also includes
     // idle gaps between submissions. Wall time includes submission/completion.
+    // Vulkan also enables optional scope timestamps and preserves individual
+    // samples for interleaved/warmed A/B comparisons and robust statistics.
     FrameTiming MeasureFrames(const FrameSettings& settings, std::uint32_t count = 24, float timeStep = 0);
 
 private:

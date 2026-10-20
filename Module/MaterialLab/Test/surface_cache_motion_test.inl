@@ -8,11 +8,18 @@ void SurfaceCacheMotionQuality(MaterialLabModule& lab,const Options& options) {
     frame.effects.outputSize={0,0};frame.present=false;frame.screenProbeStudyHud=false;
     frame.camera=ProbePlacementCameraPreset(0,frame.OutputAspect());
     auto& gi=frame.effects.surfaceCacheGi;auto& temporal=gi.temporal;
+    // Isolate the legacy history curve; temporal/probe-imprint fixtures cover static convergence.
+    temporal.staticConvergence=false;
+    // Legacy geometry edits require a full reset; temporal/recovery fixtures cover certified motion reuse and its four-frame cap.
+    temporal.retainHistoryOnObjectMotion=false;
     auto& placement=frame.effects.screenProbePlacement;auto& trace=placement.trace;
     // The compact fixture stresses 16-ray noise. An explicit render size
     // validates the viewer at its configured angular resolution (64 by default).
     const unsigned motionRayResolution=options.renderSizeSet?options.surfaceCacheProbeRays:4u;
     gi.enabled=true;gi.useScreenProbes=true;gi.view=2;gi.probeDiagnostics=false;
+    // Evaluate final-gather history against probe/spatial readability and the raw reference.
+    // Actual-receiver retracing is covered by contact, temporal and probe-imprint fixtures.
+    gi.contact.enabled=false;
     gi.spatial.enabled=true;gi.spatial.passes=3;gi.spatial.halfKernelSize=1;
     placement.baseSpacing=std::clamp(unsigned(std::round(32.*double(frame.height)/800.)),4u,128u);
     placement.candidateCount=8;placement.frameIndex=0;placement.adaptive=true;
@@ -76,7 +83,7 @@ void SurfaceCacheMotionQuality(MaterialLabModule& lab,const Options& options) {
     }};
     // Default regressions compare the original and shipped presets at either
     // extent. The explicit tuning entry retains the focused yaw exploration.
-    const Render::SurfaceCacheTemporalSettings shipped;
+    Render::SurfaceCacheTemporalSettings shipped;shipped.staticConvergence=false;shipped.retainHistoryOnObjectMotion=false;
     unsigned selected=unsigned(candidates.size());
     for(unsigned i=0;i<candidates.size();++i){const auto& c=candidates[i];
         if(c.frames==shipped.maxFrames&&c.moving==shipped.movingMaxFrames&&c.threshold==shipped.motionThresholdPixels&&

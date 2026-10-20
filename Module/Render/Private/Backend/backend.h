@@ -56,6 +56,8 @@ namespace Render{
             virtual void BeginFrame(const RHICommand::BeginFrame& command) = 0;
             virtual void SetRenderTarget(const RHICommand::SetRenderTarget&) {}
             virtual void ResolveRenderTarget(const RHICommand::ResolveRenderTarget&) {}
+            virtual void BeginGpuTiming(const RHICommand::BeginGpuTiming&) {}
+            virtual void EndGpuTiming(const RHICommand::EndGpuTiming&) {}
             virtual void EndFrame(const RHICommand::EndFrame& command) = 0;
             virtual void SetViewport(const RHICommand::SetViewport& command) = 0;
             virtual void SetScissor(const RHICommand::SetScissor& command) = 0;
@@ -72,6 +74,7 @@ namespace Render{
             virtual std::vector<float> ReadTexture(RenderResourceHandle<RHITextureSpec>) { return {}; }
             virtual std::vector<uint8_t> ReadWindow() { return {}; }
             virtual double LastGpuMilliseconds() const { return 0; }
+            virtual RHICommand::GpuTimingResult LastGpuTiming(RHICommand::GpuTimingScope) const { return {}; }
             virtual void AbortFrame() {}
             virtual uint32_t ValidationErrorCount() const { return 0; }
             virtual std::optional<BackendUniformBlock> ReflectUniformBlock(RenderResourceHandle<ShaderProgramSpec>, const std::string&) { return {}; }

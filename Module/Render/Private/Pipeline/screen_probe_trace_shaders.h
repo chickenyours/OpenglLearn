@@ -7,12 +7,12 @@ layout(std140,binding=9) uniform PlacementData {
     mat4 spInverseView; mat4 spInverseProjection; mat4 spViewProjection; mat4 spView;
     ivec4 spGrid; ivec4 spScreen; vec4 spOptions;
     ivec4 spTracing; vec4 spTraceParams; ivec4 spTraceAtlas; ivec4 spTraceDisplay;
-    vec4 spRefinement;
+    vec4 spRefinement;vec4 spCurvature;
 };
 )GLSL";}
 
 // This helper is also appended to the placement marker shader, whose constants
-// already declare the shared 384-byte layout. No fallback color source exists.
+// already declare the shared 400-byte layout. No fallback color source exists.
 inline std::string MarkerTraceGLSL(){return R"GLSL(
 layout(binding=7) uniform sampler2D stRays;
 vec3 STRayDirection(int ray) {
@@ -89,9 +89,16 @@ void main(){ivec2 source=ivec2(gl_FragCoord.xy)*2,size=textureSize(stPreviousHzb
     outColor=vec4(closest,0,0,1);}
 )GLSL";}
 
-inline std::string TraceShader(){return std::string("#version 450 core\n")+ConstantsGLSL()+MarkerTraceGLSL()+R"GLSL(
+inline std::string TraceShader(bool safeOrigins=false){return std::string("#version 450 core\n#define ST_SAFE_ORIGINS ")+
+    (safeOrigins?"1\n":"0\n")+ConstantsGLSL()+MarkerTraceGLSL()+R"GLSL(
 in vec2 vUV;layout(location=0) out vec4 outColor;
+#if ST_SAFE_ORIGINS
+// The GI variant needs screen visibility only. Its hit radiance is read from
+// the Surface Cache in the fallback stage, leaving slot zero for this atlas.
+layout(binding=0) uniform sampler2D stSafeOrigins;
+#else
 layout(binding=0) uniform sampler2D stSceneColor;
+#endif
 layout(binding=1) uniform sampler2D stWorldNormals;
 layout(binding=2) uniform sampler2D stViewPositions;
 layout(binding=3) uniform sampler2D stUniformAtlas;
@@ -174,11 +181,17 @@ void STTrace(int probe,int ray,out vec4 color,out vec4 hit,out vec4 metadata,out
     float probeViewDepth=-(spView*vec4(position.xyz,1)).z;
     float sourceTolerance=spTraceParams.y+spTraceParams.w*max(probeViewDepth,.0001);
     if(sourceGeometry.w<.5||!STFinite(sourceGeometry.xyz)||abs(-sourceGeometry.z-probeViewDepth)>sourceTolerance){color.w=6;return;}
+#if ST_SAFE_ORIGINS
+    vec4 safeOrigin=texelFetch(stSafeOrigins,ivec2(probe%spGrid.x,probe/spGrid.x),0);
+    if(!(safeOrigin.w>0)||!STFinite(safeOrigin.xyz)){color.w=16;return;}
+    vec3 origin=safeOrigin.xyz;float bias=length(origin-position.xyz);
+#else
     vec4 cornerView=spInverseProjection*vec4(probeNdc.xy+1.0/vec2(spScreen.xy),probeNdc.z,1);
     cornerView/=cornerView.w;
     vec3 cornerWorld=(spInverseView*vec4(cornerView.xyz,1)).xyz;
     float bias=max(spTraceParams.z,2.0*abs(dot(cornerWorld-position.xyz,normal)));
     vec3 origin=position.xyz+normal*bias;
+#endif
     vec4 startClip=spViewProjection*vec4(origin,1);vec3 startNdc=startClip.xyz/startClip.w;
     if(startClip.w<=0||any(greaterThanEqual(abs(startNdc),vec3(1)))){color.w=2;return;}
     vec3 originView=(spView*vec4(origin,1)).xyz,viewDirection=mat3(spView)*direction;
@@ -243,11 +256,15 @@ void STTrace(int probe,int ray,out vec4 color,out vec4 hit,out vec4 metadata,out
     if(distance<=max(2.0*bias,spTraceParams.y)||
         (dot(normalize(hitNormal.xyz),normal)>.95&&abs(dot(world-position.xyz,normal))<bias*.5)){color.w=4;return;}
     if(dot(normalize(hitNormal.xyz),-direction)<=.02){color.w=5;return;}
+#if ST_SAFE_ORIGINS
+    color=vec4(0,0,0,1);
+#else
     ivec2 colorSize=textureSize(stSceneColor,0);
     if(any(greaterThanEqual(hitPixel,colorSize))){color.w=7;return;}
     vec3 radiance=texelFetch(stSceneColor,hitPixel,0).rgb;
     if(!STFinite(radiance)){color.w=7;return;}
     color=vec4(radiance,1);
+#endif
 }
 void main(){ivec2 pixel=ivec2(gl_FragCoord.xy);int linear=pixel.y*spTraceAtlas.x+pixel.x;
     int rayGlobal=linear/4,part=linear%4,raysPerProbe=spTracing.x*spTracing.x;

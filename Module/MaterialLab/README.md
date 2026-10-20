@@ -1,5 +1,79 @@
 # MaterialLab：新材质系统的独立试验模块
 
+本次陶瓷椭球场景请启动 [RunSealedGiRoom.cmd](RunSealedGiRoom.cmd)（`--surface-cache-sealed-room`，默认 **1280×800**），按F1切换 `Static probe convergence (64 frames)`；`RunGiRoom.cmd` 是另一条旧点灯房间 / lumenGi路径。近距离静止残余印痕由新样本、64帧历史与匹配角度单元空间复用共同处理。`staticConvergence` 默认开启，仅在历史有效、无动态照明标志且view/projection精确相同时开放64帧上限，保留原运动保护；各probe仍独立jitter，不代表世界方向严格相同或立即无偏。没有新增GPU绑定接口、持久纹理 / UBO、pass、每帧射线数、空间模糊或receiver-query偏移，但静止常量多一份placement UBO版本snapshot，实际成本仍需配对测量。方法与本轮独立结果见 [近距静止椭球的探针采样收敛](SURFACE_CACHE_GI.md#2026-10-19近距静止椭球的探针采样收敛)。
+
+```text
+output\sdf-banquet\Debug\bin\material_lab_demo.exe --vulkan --validation --software-rays --procedural --surface-cache-probe-imprint-test --surface-cache-probe-imprint-convergence --surface-cache-probe-imprint-view 0 --surface-cache-curved-contact-reference-seeds 32 --render-width 640 --render-height 400 --screenshot build\probe_stationary_front.png
+output\sdf-banquet\Debug\bin\material_lab_demo.exe --vulkan --validation --software-rays --procedural --surface-cache-probe-imprint-test --surface-cache-probe-imprint-convergence --surface-cache-probe-imprint-convergence-frames 64 --surface-cache-probe-imprint-view 1 --surface-cache-curved-contact-reference-seeds 32 --render-width 640 --render-height 400 --screenshot build\probe_stationary_near.png
+output\sdf-banquet\Debug\bin\material_lab_demo.exe --vulkan --software-rays --procedural --surface-cache-probe-imprint-performance --surface-cache-probe-imprint-convergence --render-width 1280 --render-height 800
+```
+
+收敛专项固定上一轮两项曲面 / 风险修正开启，仅比较静止收敛开关。质量默认分开报告32/64/128帧的当前GPU图、CPU累计平均及最近32帧平均，`--surface-cache-probe-imprint-convergence-frames 64` 可仅检查32/64帧；性能每批预热64帧、计时16帧。以下曲面颜色过渡章节及其质量 / 成本数字保留上一轮配置范围，不作为本轮静止收敛的实测结论。
+
+[正式正面640×400对照](../../build/probe_stationary_front.log) 已完成128帧：当前GPU temporal图的椭球外壳RGB MSE下降44.8%，phase32残差能量仅下降5.6%，且早期检查点的phase32曾上升。新图MSE已接近1024-spp参考噪声底，因此不能把44.8%称为总噪声或瘢痕降幅。活动探针数和未知覆盖约束通过；[第128帧新旧图与完整限制](SURFACE_CACHE_GI.md)见方法小节，近接触与性能专项单独记录。
+
+[正式近接触640×400对照](../../build/probe_stationary_near.log) 的第64帧当前temporal图中，椭球外壳 / 过渡RGB MSE下降42.39% / 13.55%，方柱核心 / 过渡下降27.51% / 24.25%；核心亮度和对比误差减少。但该视角椭球外壳phase32残差上升17.74%，不能泛化为印痕全面改善。新旧探针数均964，未知覆盖保留；[完整分阶段指标、核心ROI限制与新旧图](SURFACE_CACHE_GI.md#接触近景的正式结果)分开报告。
+
+静止收敛的 [1280×800配对性能](../../build/probe_stationary_perf_1280.log) 为整帧358.082→333.923 ms，差−24.1582 ms（−6.74656%）、95%区间[−48.2311, −0.08528]。区间上界贴近零，证据有限，不能普遍承诺提速；trace与接触filter组区间均跨零。
+
+[2560×1440第一轮](../../build/probe_stationary_perf_2560.log) 为919.460→894.377 ms，差−25.0833 ms、区间[−115.868, 65.701]；[同协议独立复测](../../build/probe_stationary_perf_2560_repeat.log) 为824.312→783.679 ms，差−40.6336 ms、区间[−101.346, 20.0791]。两轮三scope区间都跨零，首轮首对波动明显，结果不合并或挑轮，不能据此宣称零成本或普遍提速。完整三scope分布及测试范围见 [成本与回归](SURFACE_CACHE_GI.md#静止收敛的gpu成本与回归范围)。
+
+[最终构建](../../build/probe_stationary_final_build.log)、[最终CPU设置](../../build/probe_stationary_final_cpu.log)、[Vulkan时域](../../build/probe_stationary_temporal_vk.log)、[OpenGL空间](../../build/probe_stationary_spatial_gl.log) 与 [OpenGL方向契约](../../build/probe_stationary_directional_gl.log) 已通过。OpenGL使用Intel GL4.5，和性能表的RTX 4060 Vulkan设备不同；这些结构 / 数学回归不能宣称两后端视觉等价，也不代表完整edge / recovery GPU覆盖。原Final Gather运动fixture关闭接触补追与新静止收敛以隔离probe覆盖和旧history cap；旧全reset检查另显式关闭运动历史保留，独立认证运动fixture继续测试默认保留路径。候选 / 断言 / 门限不变，[最终连续运动隔离回归](../../build/probe_stationary_legacy_motion.log) 的320×200、16条射线、三路径检查已通过，72个对齐帧raw相位公平性误差为0。
+
+本轮针对椭球上的规则探针印痕与探针 / 接收点补追交接色差，加入受几何命中视差与法线旋转限制的曲面照明支持，并让 Contact mask 使用相同重建支持。物理表面聚类、选点和探针分配覆盖保留独立严格权重；最近真实几何命中限制额外借光，接收点命中视差在 **5–10°** 间退回旧支持；重建与空间过滤另按法线旋转在 **10–20°** 间退回旧支持，coverage与解析诊断使用相同法线支持。复用的 directional part1.w 存几何 `max(1/d)`，含黑色与缓存未知命中，RGB/readability 的完整预算分母不变。近命中比例提供几何风险下限，risk→mask 外带使用更宽渐变；年轻历史恢复按连续置信度处理交接。默认每探针64条、每选中接收点8条射线，复用已有 atlas/UBO；固定场景 / 相位下预期探针数量与位置保持一致，补追覆盖仍可能改变，实际计数和外带扩张的成本以专项核对。方法、元数据契约和最终记录见 [表面探针印痕与补追色彩过渡](SURFACE_CACHE_GI.md#2026-10-19表面探针印痕与补追色彩过渡)。
+
+```text
+output\sdf-banquet\Debug\bin\material_lab_demo.exe --vulkan --validation --software-rays --procedural --surface-cache-probe-imprint-test --surface-cache-probe-imprint-view 3 --surface-cache-curved-contact-reference-seeds 32 --render-width 640 --render-height 400 --screenshot build\probe_imprint_views.png
+output\sdf-banquet\Debug\bin\material_lab_demo.exe --vulkan --software-rays --procedural --surface-cache-probe-imprint-performance --render-width 1280 --render-height 800
+```
+
+质量专项分开检查五级 HDR、平均图RGB误差、相位印痕、参考噪声底与接触剖面；相位/高通下降本身不构成画质证明。性能专项不运行质量 oracle、不回读图像，按四对AB/BA批次分别报告整帧、trace和filter。F1可切换 `Curved surface lighting weights` 与 `Coherent near-contact probe risk`。以下面积灯与接触过滤数据保留对应旧版本的历史范围，不能直接作为这轮组合的质量或成本结果。
+
+[正式1280×800三视图质量对照](../../build/probe_imprint_verified.log) 已通过1024-spp共享Surface Cache参考检查。temporal平均图中，椭球外壳32像素相位残差能量在两近景减少44.78% / 41.97%，这是格相关残差指标，不是总噪声降幅；接触近景椭球过渡RGB MSE为+0.126%、基本持平，部分过渡相位指标仍上升。接触核心与对比约束、未知覆盖、两项历史失效和[8布局几何契约](../../build/probe_imprint_ship_geometry.log)均通过；实际探针数新旧一致，补追覆盖仍变化。完整指标、参考底限制与[新旧同视角图](SURFACE_CACHE_GI.md)见方法小节。
+
+RTX 4060 Laptop、Debug、Vulkan软件射线、contact_near视角的配对性能，每配置64帧：
+
+| 分辨率 | 旧整帧 ms | 新整帧 ms | 新减旧 ms | 配对95%区间 ms |
+| --- | ---: | ---: | ---: | --- |
+| 1280×800 | 253.307 | 257.823 | +4.516（1.783%） | [−10.825, 19.857] |
+| 2560×1440 | 844.059 | 925.243 | **+81.185（9.618%）** | **[27.739, 134.631]** |
+
+2560高分辨率专项的额外成本明确；1280区间跨零，不能称免费。2560的trace组为464.270→508.567 ms，filter（含resolve）20.883→24.506 ms；完整三scope均值、分位数及配对区间见 [GPU成本表](SURFACE_CACHE_GI.md#最终gpu成本与后端回归) 与 [1280日志](../../build/probe_imprint_perf_1280.log)、[2560日志](../../build/probe_imprint_perf_2560.log)。scope不是可相加的独占成本，不能仅用组差之和解释整帧净增；默认无额外pass也不等于无成本。
+
+本轮 [Vulkan方向契约](../../build/probe_imprint_verified_directional.log)、[OpenGL方向契约](../../build/probe_imprint_directional_gl.log)、[Vulkan灯框质量回归](../../build/probe_imprint_lamp_vk.log) 和 [OpenGL灯框结构回归](../../build/probe_imprint_lamp_gl.log) 均完成并通过。后者没有高采样画质断言，直接光RGB8旧问题仍限制其范围，不能据此宣称两后端视觉等价。
+
+墙顶静止宽条带现改为固定分层面光源采样：仍用64个源点和24 MiB缓存阴影atlas，但每个8×8单元的源点错开，让横纵投影各覆盖64个细子层，减少灯框同时遮住整排光源形成的明暗台阶。总光 / 直接光 / 独立GI分图已定位这部分结构性问题；它不是Lumen无法改进的固有限制。本次没有增加RGB模糊或时域抖动，CPU阴影atlas、不透明PBR与Surface Cache BVH三路共享源点。封闭顶灯房间默认开，普通面积灯默认保留旧中点模式；F1提供 `Stratified emitter samples` 和 `Direct area shadows enabled`。方法、UE职责、480×300诊断及高分辨率实测记录见 [墙顶过渡说明](SURFACE_CACHE_GI.md#2026-10-19墙顶静止宽条带与确定性面光源采样)。尚不宣称消除了全部随机GI颗粒或几何锯齿。
+
+```text
+output\sdf-banquet\Debug\bin\material_lab_demo.exe --vulkan --validation --software-rays --procedural --surface-cache-wall-transition-test --render-width 1280 --render-height 800 --screenshot build\wall_transition_stratified_high.png
+output\sdf-banquet\Debug\bin\material_lab_demo.exe --vulkan --software-rays --procedural --surface-cache-wall-transition-performance --render-width 1280 --render-height 800
+```
+
+`--surface-cache-wall-transition-legacy` 切换旧中点诊断；性能专项在同进程自行交错新旧模式，禁用validation、呈现及回读。直接阴影的运行时开关与材质opt-in分离，避免误清普通PBR的天空纹理10 / 静态探针UBO12。下方保留前两轮接触GI结果，其配置、指标和性能范围与本次面光源采样修改不同。
+
+[1280×800新旧三视图分图](../../build/wall_transition_final.log) 与缓存 / 历史断言已通过，原宽平行台阶明显减少：[旧总图](../../build/wall_transition_legacy_final_corner_lamp_total_renderer_ldr.png) · [新总图](../../build/wall_transition_final_corner_lamp_total_renderer_ldr.png)。RTX 4060 Laptop、Debug、Vulkan软件射线的同进程配对性能中，1280×800开启GI均值161.170→162.237 ms，差+1.067 ms、95%区间[-3.876,6.010]；2560×1440为449.073→451.640 ms，差 **+2.567 ms（+0.572%）**、区间[0.262,4.873]。这是仅改变源点分布的稳态整帧成本，接触过滤配置不变；跨零区间不能称为免费，现有GI绝对耗时仍高，也不能当作交互FPS。直接光单独测量、预热范围、GPU单元与灯框回归见[完整结果](SURFACE_CACHE_GI.md#仅改变源点分布的gpu开销)。
+
+[Vulkan灯框质量回归](../../build/wall_transition_lamp_vk.log)（480×300、3视图、13配置、256 spp）和[OpenGL灯框结构回归](../../build/wall_transition_lamp_gl.log)（320×200、无高采样画质断言）均通过；OpenGL直接光RGB8读取为0，此项不作为直接阴影画质验证。独立面积灯GPU单元已在OpenGL中核对真实积分、采样结构和16/64点预算。
+
+密闭 GI 房间的椭球 / 方柱接触现增加接收点几何风险检测、同表面 3×3 软风险扩展、曲率兼容过滤和命中距离视差约束。软扩展填补稀疏 mask 的小孔，只扩展几何风险，不混合 RGB；新增接收点仍独立认证起点并发射真实射线。默认仍为每个选中像素 8 条独立时域射线；三轮过滤逐步扩大支持，近接触保留合法的 1 像素降噪支持，最后只与探针基础光照混合一次。F1 的 `GI contact reconstruction` 可切换 `Contact hit-distance / curved filter` 和 `Receiver screen contact detection` 比较上一轮配置。实现、UE 来源、质量与独立 GPU 性能方法见 [SURFACE_CACHE_GI.md](SURFACE_CACHE_GI.md#2026-10-19椭球--方柱残噪与独立-gpu-计时)。
+
+上一轮约 6% 的曲面最终高通残差下降受 1024-spp 参考噪声和参考起点差异限制，不能直接等同于可见噪声改善。新质量专项使用相同安全起点的 1024 / 2048 / 4096-spp 参考，并检查两侧五档距离的暗接触剖面；性能专项分别测整帧、分类 / 追踪组及过滤组，覆盖新增选区带来的实际射线开销。
+
+最终八 pass 配置已通过 [1280×800、objects、4096-spp 质量专项](../../build/curved_contact_padded_final.log) 和 [640×400、1024-spp 三视图专项](../../build/curved_contact_padded_views.log)。高分辨率结果中，最终亮度 MSE 下降 36.65%、静止帧间方差下降 26.93%，最终静态高通残差下降 2.19%；两侧接触核心绝对误差均减少。当前帧过滤的高通改善为 48.11%，应与最终结果区分；参考噪声底较高，不能据扣底比率宣称约 20% 的最终静态降噪。完整剖面数据见实现说明。
+
+同视角总图：[修改前](../../build/curved_contact_padded_final_objects_previous_total.png) · [修改后](../../build/curved_contact_padded_final_objects_improved_total.png)。CPU 设置与命令缓冲测试、Vulkan 灯框质量回归、OpenGL 灯框结构兼容回归和 GLSL 形参兼容修复后的 Vulkan 烟测均通过，范围与日志见实现说明。
+
+RTX 4060 Laptop、Debug、Vulkan 软件射线的最终性能专项每种配置均测 96 帧、六组批次配对：[1280×800](../../build/curved_contact_padded_perf_1280.log) 的过滤组（含 resolve）均值 3.148 ms，完整方案相对上一轮整帧增加约 14.321 ms；[2560×1440](../../build/curved_contact_padded_perf_2560.log) 的过滤组均值 13.184 ms，完整方案增加 **219.241 ms（约 38.74%）**，95% 区间 [209.006, 230.878]，新增成本主要表现在检测与真实接收点补追组。相同新 mask 下，1280 的过滤开关整帧差区间跨零，2560 则增加 24.274 ms、95% 区间 [16.050, 33.773]；两种分辨率的结论应分别报告。上述2560×1440是高分辨率离屏专项；本场景正确入口 `RunSealedGiRoom.cmd` 默认1280×800，`RunGiRoom.cmd` 属于另一条旧点灯房间路径。分组跨度不能当作实际整帧净开销，也不能按像素数线性外推。
+
+```text
+output\sdf-banquet\Debug\bin\material_lab_demo.exe --vulkan --validation --software-rays --procedural --surface-cache-curved-contact-test --surface-cache-curved-contact-view 0 --surface-cache-curved-contact-reference-seeds 128 --render-width 1280 --render-height 800 --screenshot build\curved_contact_final.png
+output\sdf-banquet\Debug\bin\material_lab_demo.exe --vulkan --validation --software-rays --procedural --surface-cache-curved-contact-test --surface-cache-curved-contact-reference-seeds 32 --render-width 640 --render-height 400 --screenshot build\curved_contact_views.png
+output\sdf-banquet\Debug\bin\material_lab_demo.exe --vulkan --software-rays --procedural --surface-cache-curved-contact-performance-test --surface-cache-curved-contact-view 0 --render-width 1280 --render-height 800
+output\sdf-banquet\Debug\bin\material_lab_demo.exe --vulkan --software-rays --procedural --surface-cache-curved-contact-performance-test --surface-cache-curved-contact-view 0 --render-width 2560 --render-height 1440
+```
+
+质量默认覆盖 objects / near / detail 三个视图；`--surface-cache-curved-contact-view 0|1|2` 可单测。性能需分别指定三个视图，禁止 `--validation`，不呈现、不回读图像。新增 measurement 图相对上一轮增加 15.625 MiB（1280×800）；过滤组包含额外 resolve，整帧数据还包含几何分类及扩大追踪覆盖的成本。历史白噪声条带记录保留在实现说明中。
+
 ## 实时参数调节窗口
 
 所有交互入口接入 Dear ImGui 调节窗口，包括材质画廊、Showcase、密闭 GI 房间、Lumen adaptive 和探针 / SDF 场景。场景查看器启动时先收起窗口，保留原场景与 HUD；按 **F1** 打开或收起，材质画廊仍默认展开。窗口显示时，场景快捷键仍可用；操作控件、输入文本或弹出菜单时，相应输入交给界面。原有场景 HUD 帮助开关在面板的 `Help / scene controls` 中；使用 `--no-debug-ui` 可完全关闭界面，恢复原有 F1 场景帮助操作。离屏质量回归和性能测量自动关闭 UI。
@@ -41,7 +115,11 @@ Lumen 探针布置学习入口：[专用场景说明](PROBE_PLACEMENT.md)，双�
 
 后续 Global 多级滚动：[相机 Clipmap 说明](GLOBAL_SDF_CLIPMAPS.md)。`RunSdfBanquet.cmd` 现默认进入该场景，四级真实距离纹理按命中层级着色；K 检查自动 / L0–L3，C/H 开关层级色与边界，走动时仅合并新进入的砖块。
 
-Surface Cache 与基础软件 GI：[数据结构、光传输和操作说明](SURFACE_CACHE_GI.md)，双击 [RunSurfaceCacheGi.cmd](RunSurfaceCacheGi.cmd) 启动。默认使用红绿墙房间，逐像素软件射线读取相机无关的卡片光照；V 检查总光、卡片光照、原始间接光、覆盖和图集。使用 `--sdf-clipmaps` 可在茶壶宴会中检查同一缓存与 GI 路径。本阶段不使用时空滤波。
+Surface Cache 与基础软件 GI：[数据结构、光传输和操作说明](SURFACE_CACHE_GI.md)，双击 [RunSurfaceCacheGi.cmd](RunSurfaceCacheGi.cmd) 启动。默认使用红绿墙房间，由自适应表面探针发射软件射线读取相机无关的卡片光照，再经探针方向辐射率空间过滤、几何兼容重建与独立 GI 时域累积。H / T 分别开关空间过滤与时域，B 查看实际探针几何覆盖，F1 调节过滤、探针密度与每格候选容量；V 轮换各诊断视图。使用 `--sdf-clipmaps` 可在茶壶宴会中检查同一路径。逐像素路径保留为 F6 显式参考。
+
+GI 时域默认总上限 10 帧、方向相位 8；超过每帧 3 像素时普通表面保留最多 8 帧。Sigma 6 历史裁剪同时覆盖超过 0.1 像素的缓慢相机运动，几何边缘单独采用 2 帧历史与更紧裁剪。实际 1280×800、64 射线的 Vulkan 转向、平移和组合轨迹验证通过：合计平面误差降低约 14.3%，误差变化降低约 31.6%，轮廓指标基本相当；停下后短时间内仍有响应代价。F1 可独立调节 `Clamp slow camera motion` 和边缘保护。默认 AA=None，TAA 抖动尚可能触发运动裁剪；本机 GPU 约 27 ms，仍未达到稳定 60 FPS。完整结果和限制见[相机移动时的噪声与调节](SURFACE_CACHE_GI.md#相机移动时的噪声与调节)。
+
+新的方形顶灯陶瓷场景：[RunSealedGiRoom.cmd](RunSealedGiRoom.cmd)。它使用当前 Surface Cache / 自适应探针 GI：8×7×4.5 的密闭房间、红绿蓝黄四色墙、中央嵌入式方形面积灯和六个釉面陶瓷几何体。L 开关唯一顶灯，F5 比较直接光与 GI，V 切换间接光等视图，1/2/3 切室内镜头；F1 的 GI 面板调灯亮度和采样参数。矩形灯的直接软阴影使用可复用的深度图缓存，GI 卡片照明使用软件 BVH 遮挡；关闭太阳、天空与环境补光。详见 [场景说明](SURFACE_CACHE_GI.md#密闭陶瓷房间与方形顶灯)。
 
 ## 密闭 GI 房间
 
@@ -535,7 +613,7 @@ TAA 使用相机/深度重投影、8 帧 Halton 抖动、邻域约束与亮度�
 
 主视图和镜面各自先画不透明层，再复制颜色与深度到独立快照后画透明层。深度复制使用 depth-only FBO，避免破坏颜色快照；透明 shader 不读取活动颜色附件，也不会把主视图快照当成镜面背景。玻璃默认 `twoSided=false`，防止闭合表面的背面重复混合；水面明确为双面薄片，背面法线翻转后仍按入射面处理。透明层可排序混合，但互相不递归折射；偏移越界或采到前景时使用未扰动背景。
 
-区域灯支持最多四个矩形、4×4 或 8×8 固定面积积分，半轴定义面积和朝向，radiance 是发出辐射而非点光强度。默认 `specularFilter=1` 按积分单元角度范围过滤窄 GGX，抑制离散点斑；区域灯没有独立阴影。受控 GPU 测试中漫反射解析误差最大约 .0685%，窄镜面 33 相位变化约 2.4%–2.9%；有限网格仍有误差，8×8 也不是精确多边形积分。
+区域灯支持最多四个矩形、4×4 或 8×8 固定面积积分，半轴定义面积和朝向，radiance 是发出辐射而非点光强度。默认 `specularFilter=1` 按积分单元角度范围过滤窄 GGX，抑制离散点斑；普通 PBR 路径未启用独立面积阴影，密闭陶瓷场景单独启用缓存软阴影。受控 GPU 测试中漫反射解析误差最大约 .0685%，窄镜面 33 相位变化约 2.4%–2.9%；有限网格仍有误差，8×8 也不是精确多边形积分。
 
 间接光默认为关闭，开启后捕获不透明/裁剪表面的直射/天空漫反射、自发光、几何法线和深度，执行一次屏幕空间反弹。默认平衡档为 12 个余弦半球方向、每方向 24 步，可将 sampleCount 设为 24 取得质量参考。每像素固定整数哈希打散两个采样维度，命中后按射线角度足迹过滤源辐射。追踪与三次去噪工作图为半分辨率、最长边最多 640 像素，最后按全分辨率深度/法线上采样；不模糊最终场景或材质纹理。视空间位置缓存避免逐射线和逐滤波 tap 重新逆投影；UBO9 仍为 224 字节，启用时统计为 9 个间接光 pass。
 

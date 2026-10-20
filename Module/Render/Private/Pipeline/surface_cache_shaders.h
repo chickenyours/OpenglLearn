@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include "Render/Public/Pipeline/area_lights.h"
 #include "Render/Public/Pipeline/software_bvh_visibility.h"
 namespace Render::SurfaceCacheDetail {
 inline std::string LookupGLSL() {return SurfaceCacheDataGLSL()+R"GLSL(
@@ -113,7 +114,7 @@ bool SCSampleLightingObject(vec3 p,vec3 n,int object,out vec3 radiance) {
 }
 bool SCSampleLighting(vec3 p,vec3 n,out vec3 radiance) {return SCSampleLightingObject(p,n,-1,radiance);}
 )GLSL";}
-inline std::string GeometryGLSL(){return SoftwareBvhVisibilityGLSL()+R"GLSL(
+inline std::string GeometryGLSL(){return SoftwareBvhVisibilityGLSL()+AreaLightSamplingGLSL()+R"GLSL(
 layout(std140,binding=3) uniform SCPointLights {
     vec4 scPointPositions[4],scPointColors[4],scUnusedAmbient,scUnusedOutput,scUnusedSpecular;
 };
@@ -149,9 +150,9 @@ vec3 SCDirect(vec3 p,vec3 n) {
         float emitterSideMax=dot(emitterNormal,-toCenter)+abs(dot(emitterNormal,U))+abs(dot(emitterNormal,V));
         if(light.radiance.w<.5&&emitterSideMax<=0)continue;
         if(dot(n,toCenter)+abs(dot(n,U))+abs(dot(n,V))<=0)continue;
-        int grid=light.u.w>6?8:4;float cellArea=4*quarterArea/float(grid*grid);
+        int grid=abs(light.u.w)>6?8:4;float cellArea=4*quarterArea/float(grid*grid);
         for(int y=0;y<grid;++y)for(int x=0;x<grid;++x) {
-            vec2 parameter=(vec2(x,y)+.5)*(2.0/float(grid))-1;
+            vec2 parameter=AreaLightSampleParameters(x,y,grid,light.u.w<0);
             vec3 delta=light.center.xyz+U*parameter.x+V*parameter.y-p;
             float distanceSquared=max(dot(delta,delta),max(cellArea*1e-8,1e-12)),distance=sqrt(distanceSquared);
             d=delta/distance;float receiver=max(dot(n,d),0),face=dot(emitterNormal,-d);

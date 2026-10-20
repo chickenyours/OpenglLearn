@@ -20,6 +20,9 @@
 #define NOMINMAX
 #include <windows.h>
 #include <commdlg.h>
+// Let Optimus select the high-performance adapter for this executable. User
+// and system application profiles still take precedence; no setting is edited.
+extern "C" { __declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001; }
 #endif
 #include <glad/glad.h>
 #include <glm/gtc/matrix_transform.hpp>
@@ -37,7 +40,9 @@
 #include "Model/Private/preview_animation_clock.h"
 #include "Model/Private/garment_recognition.h"
 #include "Render/Private/rhi_device.h"
+#include "Render/Public/Pipeline/material_render_pipeline.h"
 #include "Render/Public/Pipeline/toon_render_pipeline.h"
+#include "skin_preview_profile.h"
 #define STB_IMAGE_WRITE_STATIC
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #define STBIW_WINDOWS_UTF8
@@ -97,11 +102,13 @@ public:
 };
 struct Options {
     fs::path source, package, screenshot, retargetSource,character,captureDirectory,hair;
-    fs::path benchmarkOutput;
+    fs::path benchmarkOutput,skinProfile;
     std::string previewQos="unavailable";
     std::vector<fs::path> animations, vmds;
     bool smoke=false, motionTest=false,clothTest=false,equipTest=false,cleanClothView=false,meshRegions=false;
     bool benchmark=false,noCloth=false,noHair=false,hairTest=false,noVsync=false,vsyncExplicit=false,syncCloth=false,asyncClothTest=false;
+    bool pbr=false,bindPose=false;
+    int skin=-1,lighting=0;
     double startTime=0;
     double holdAt=-1,yaw=.12,distance=4.7;
     double maxFps=-1; // Automatic: interactive 60; benchmark/smoke uncapped.
@@ -121,6 +128,7 @@ Options Parse(const std::vector<std::string>& args) {
         else if (a=="--cloth-equip-test") {result.smoke=true;result.motionTest=true;result.clothTest=true;result.equipTest=true;}
         else if (a=="--clean-cloth-view")result.cleanClothView=true;
         else if (a=="--mesh-regions")result.meshRegions=true;
+        else if (a=="--bind-pose")result.bindPose=true;
         else if (a=="--benchmark")result.benchmark=true;
         else if (a=="--no-cloth")result.noCloth=true;
         else if (a=="--no-hair")result.noHair=true;
@@ -129,7 +137,7 @@ Options Parse(const std::vector<std::string>& args) {
         else if (a=="--vsync"){result.noVsync=false;result.vsyncExplicit=true;}
         else if (a=="--sync-cloth")result.syncCloth=true;
         else if (a=="--async-cloth-test"){result.asyncClothTest=true;result.benchmark=true;}
-        else if (a=="--source"||a=="--package"||a=="--screenshot"||a=="--frames"||a=="--retarget-source"||a=="--animation"||a=="--vmd"||a=="--time"||a=="--curve-bone"||a=="--focus-bone"||a=="--character"||a=="--capture-dir"||a=="--capture-every"||a=="--cloth-hold-at"||a=="--yaw"||a=="--distance"||a=="--benchmark-frames"||a=="--benchmark-warmup"||a=="--benchmark-output"||a=="--max-fps"||a=="--hair"||a=="--region-category"||a=="--frame-region") {
+        else if (a=="--source"||a=="--package"||a=="--screenshot"||a=="--frames"||a=="--retarget-source"||a=="--animation"||a=="--vmd"||a=="--time"||a=="--curve-bone"||a=="--focus-bone"||a=="--character"||a=="--capture-dir"||a=="--capture-every"||a=="--cloth-hold-at"||a=="--yaw"||a=="--distance"||a=="--benchmark-frames"||a=="--benchmark-warmup"||a=="--benchmark-output"||a=="--max-fps"||a=="--hair"||a=="--region-category"||a=="--frame-region"||a=="--pipeline"||a=="--skin-profile"||a=="--skin"||a=="--lighting") {
             Check(++i<args.size(),"Missing value for "+a);
             if(a=="--source")result.source=Path(args[i]);
             else if(a=="--package")result.package=Path(args[i]);
@@ -137,12 +145,25 @@ Options Parse(const std::vector<std::string>& args) {
             else if(a=="--retarget-source")result.retargetSource=Path(args[i]);
             else if(a=="--character")result.character=Path(args[i]);
             else if(a=="--hair")result.hair=Path(args[i]);
+            else if(a=="--skin-profile")result.skinProfile=Path(args[i]);
             else if(a=="--capture-dir")result.captureDirectory=Path(args[i]);
             else if(a=="--benchmark-output")result.benchmarkOutput=Path(args[i]);
             else if(a=="--animation")result.animations.push_back(Path(args[i]));
             else if(a=="--vmd")result.vmds.push_back(Path(args[i]));
             else if(a=="--curve-bone")result.curveBone=args[i];
             else if(a=="--focus-bone")result.focusBone=args[i];
+            else if(a=="--skin") {
+                Check(args[i]=="on"||args[i]=="off","Invalid --skin value (use on or off)");result.skin=args[i]=="on"?1:0;
+            }
+            else if(a=="--lighting") {
+                const std::array<std::string,3> presets{"studio","side","back"};
+                const auto found=std::find(presets.begin(),presets.end(),args[i]);
+                Check(found!=presets.end(),"Invalid --lighting value (use studio, side or back)");result.lighting=int(found-presets.begin());
+            }
+            else if(a=="--pipeline") {
+                auto pipeline=args[i];std::transform(pipeline.begin(),pipeline.end(),pipeline.begin(),[](unsigned char c){return char(std::tolower(c));});
+                Check(pipeline=="toon"||pipeline=="pbr","Invalid pipeline (use pbr or toon)");result.pbr=pipeline=="pbr";
+            }
             else if(a=="--region-category"||a=="--frame-region") {
                 auto category=args[i];std::transform(category.begin(),category.end(),category.begin(),[](unsigned char c){return char(std::tolower(c));});
                 const std::array<std::string,6> names{"all","unknown","body","hair","garment","accessory"};
@@ -170,6 +191,7 @@ Options Parse(const std::vector<std::string>& args) {
         else result.source=Path(MODEL_SOURCE_DIR)/"Asset/Model/Rikka_Uniform/Rikka_Uniform.pmx";
     }
     Check(int(!result.source.empty())+int(!result.package.empty())+int(!result.character.empty())==1,"Choose --source, --package or --character");
+    Check(result.skin!=1||!result.skinProfile.empty(),"--skin on requires --skin-profile with an exact material list");
     if(result.smoke&&!result.frames)result.frames=result.clothTest||result.hairTest?180:7;
     Check(!result.benchmark||!result.smoke,"Benchmark requires real-time delta; do not combine it with fixed-delta smoke tests");
     if(result.benchmark){if(!result.frames)result.frames=300;Check(result.frames>result.benchmarkWarmup,"Benchmark frame count must exceed its warmup");}
@@ -287,6 +309,8 @@ class Editor {
     Render::RHIDevice device_;
     ModelModule models_{device_};
     Render::ToonRenderPipeline toon_{device_};
+    Render::MaterialRenderPipeline pbr_{device_};
+    bool pbrEnabled_=false,pbrReady_=false,toonReady_=false;
     std::shared_ptr<ModelResource> resource_;
     std::shared_ptr<ModelResource> garmentResource_;
     std::optional<ModularCharacterBundle> modular_;
@@ -335,6 +359,10 @@ class Editor {
     SkeletalPose pose_;
     Render::PipelineCamera camera_;
     Render::ToonPipelineSettings settings_;
+    Render::MaterialPipelineSettings pbrSettings_;
+    EditorPreview::SkinPreviewProfile skinProfile_;
+    EditorPreview::SkinPreparedModel skinPrepared_;
+    int lightingPreset_=0;
     glm::dmat4 placement_{1};
     GLFWwindow* window_;
     Render::OpenglBackendContext context_;
@@ -349,7 +377,9 @@ class Editor {
     std::array<char,128> regionFilter_{};
     AnimationBakeOptions bakeOptions_;
     AnimationBakeReport bakeReport_;
+    static constexpr float cameraVerticalFovDegrees_=43.f;
     float yaw_=0.12f,pitch_=0.05f,distance_=4.7f;
+    bool cameraPanning_=false;
     glm::vec3 cameraFocus_{0};
     double time_=0;
     std::vector<float> manualMorphs_;
@@ -363,6 +393,8 @@ class Editor {
     std::string status_,lastError_;
     std::string gpuVendor_,gpuRenderer_;
     GLuint previewTexture_=0;
+    GLuint pbrDisplayTexture_=0;
+    std::uint32_t pbrDisplayWidth_=0,pbrDisplayHeight_=0;
     std::uint64_t frameIndex_=0;
     std::uint32_t previewWidth_=0,previewHeight_=0;
     ImVec2 viewportOrigin_{},viewportSize_{800,700};
@@ -553,12 +585,20 @@ class Editor {
         // report and fill only absent sections with offline recognition.
         const auto recognized=detail::RecognizeGarmentSections(*candidate);
         for(const auto& region:recognized)if(std::none_of(candidate->meshRegions.begin(),candidate->meshRegions.end(),[&](const auto& old){return old.mesh==region.mesh;}))candidate->meshRegions.push_back(region);
-        auto uploaded=models_.Upload(candidate->geometry);
+        const auto skinPrepared=skinProfile_.Prepare(candidate->geometry);
+        auto uploaded=models_.Upload(skinPrepared.geometry);
         Check(bool(uploaded),models_.LastError());
+        skinProfile_.Apply(*uploaded,skinPrepared);
         garmentResource_.reset();modular_.reset();garmentAnimated_={};garmentDeformed_={};clothReset_=true;previousClothTime_=-1;
         hairAsset_.reset();hairSimulator_=HairSimulator{};hairPose_={};hairPath_.clear();hairReset_=true;hairSettingsPending_=false;previousHairTime_=-1;uploadedBodyPoseValid_=false;
         ClearClothPreview();
         resource_=std::move(uploaded);asset_=std::move(candidate);openedPath_=path;trackedCameraBone_=-1;
+        skinPrepared_=skinPrepared;
+        if(skinProfile_.loaded) {
+            std::cout<<"Skin profile: "<<Utf8(skinProfile_.path)<<" | matched "<<skinPrepared_.materialIndices.size()<<" opaque materials | skin="<<(skinProfile_.settings.enabled?"on":"off")<<" | corrected roughness="<<skinProfile_.settings.roughness<<'\n';
+            for(const auto i:skinPrepared_.materialIndices)std::cout<<"  Skin material: "<<resource_->Source().materials[i].name<<" | detail="<<(skinPrepared_.detailMaterials.contains(i)?"original resolution":"none")<<" | control="<<(skinPrepared_.controlMaterials.contains(i)?"RGB + G roughness baseline":"none")<<'\n';
+            for(const auto& name:skinPrepared_.unmatchedNames)std::cout<<"  Skin profile name not present: "<<name<<'\n';
+        }
         deformed_={};deformed_.meshes=asset_->geometry->meshes;deformed_.instances=asset_->geometry->instances;
         const auto bounds=asset_->geometry->bounds;
         const double height=std::max(bounds.Extent().y,1e-5);
@@ -828,35 +868,114 @@ class Editor {
         Check(extracted.items.size()==instances.size(),"Preview section filtering requires one draw item per source instance");
         for(std::size_t i=0;i<instances.size();++i)if(RegionVisible(instances[i].meshIndex))frame.items.push_back(std::move(extracted.items[i]));
     }
+    const std::string& PipelineError()const{return pbrEnabled_?pbr_.LastError():toon_.LastError();}
+    std::uint64_t PipelineToken()const{return pbrEnabled_?pbr_.RecordedFrameToken():toon_.RecordedFrameToken();}
+    void DiscardPipelineFrame(std::uint64_t token){if(pbrEnabled_)pbr_.DiscardFrame(token);else toon_.DiscardFrame(token);}
+    void SelectPipeline(bool pbr) {
+        if(pbr&&!pbrReady_){ConfigurePbrPreview();Check(pbr_.Initialize(),pbr_.LastError());pbrReady_=true;}
+        if(!pbr&&!toonReady_){Check(toon_.Initialize(),toon_.LastError());toonReady_=true;}
+        pbrEnabled_=pbr;
+    }
+    void ConfigurePbrPreview() {
+        // Neutral studio lighting with side/back comparison presets. Optional
+        // skin profiles apply recovered controls only to exact opaque material
+        // names; source assets stay unchanged. Hair uses the isotropic shader.
+        pbrSettings_.shadows.enabled=false;pbrSettings_.shadows.atlasResolution=512;
+        pbrSettings_.shadows.sunIntensity=0;
+        pbrSettings_.reflection.enabled=false;
+        pbrSettings_.post.bloomEnabled=false;pbrSettings_.post.ssaoEnabled=false;
+        pbrSettings_.post.toneMap=Render::ToneMapMode::ACES;
+        pbrSettings_.post.exposure=1.35f;pbrSettings_.post.gamma=2.2f;
+        pbrSettings_.temporal.antialiasing=Render::AntialiasingMode::FXAA;
+        pbrSettings_.temporal.msaaSamples=1;pbrSettings_.temporal.motionBlurEnabled=false;
+        pbrSettings_.indirect.enabled=false;pbrSettings_.probes.enabled=false;
+        pbrSettings_.realtimeGi.enabled=false;pbrSettings_.lumenGi.enabled=false;
+        pbrSettings_.screenProbePlacement.enabled=false;pbrSettings_.surfaceCacheGi.enabled=false;
+        pbrSettings_.areaLights.count=0;pbrSettings_.spotLight.enabled=false;
+        pbrSettings_.sky.enabled=true;pbrSettings_.sky.background=true;pbrSettings_.sky.intensity=1.0f;
+        pbrSettings_.sky.environment=Render::MakeProceduralSkyEnvironment(glm::vec3(.38f),glm::vec3(.25f),glm::vec3(.12f));
+        pbrSettings_.lighting.ambientAndExposure=glm::vec4(.025f,.025f,.025f,1);
+        ApplyLightingPreset();
+    }
+    void ApplyLightingPreset() {
+        pbrSettings_.lighting.ambientAndExposure=glm::vec4(.025f,.025f,.025f,1);
+        pbrSettings_.sky.intensity=1.f;
+        pbrSettings_.lighting.lightPositions={glm::vec4(3,4,5,1),glm::vec4(-4,2,3,1),glm::vec4(0,3,-4,1),glm::vec4(0,-2,3,1)};
+        pbrSettings_.lighting.lightColors={glm::vec4(60,57,54,1.1f),glm::vec4(28,30,33,1.3f),glm::vec4(35,35,35,1),glm::vec4(6,6,6,1)};
+        if(lightingPreset_==1) {
+            pbrSettings_.lighting.ambientAndExposure=glm::vec4(.008f,.008f,.008f,1);pbrSettings_.sky.intensity=.28f;
+            pbrSettings_.lighting.lightPositions={glm::vec4(4,2.2f,1.5f,1),glm::vec4(-4,2,1,1),glm::vec4(0,3,-4,1),glm::vec4(0,-2,3,1)};
+            pbrSettings_.lighting.lightColors={glm::vec4(70,65,60,1.1f),glm::vec4(3,3.2f,3.6f,1.3f),glm::vec4(6,6,6,1),glm::vec4(1,1,1,1)};
+        } else if(lightingPreset_==2) {
+            pbrSettings_.lighting.ambientAndExposure=glm::vec4(.006f,.006f,.006f,1);pbrSettings_.sky.intensity=.18f;
+            pbrSettings_.lighting.lightPositions={glm::vec4(0,2,-3,1),glm::vec4(0,2,4,1),glm::vec4(-4,2,0,1),glm::vec4(4,2,0,1)};
+            pbrSettings_.lighting.lightColors={glm::vec4(75,65,55,1.1f),glm::vec4(8,8,8,1.3f),glm::vec4(2,2,2,1),glm::vec4(2,2,2,1)};
+        }
+        // Orient once when selecting a preset. Subsequent camera orbits keep
+        // world-space lights fixed so the material's moving highlights remain visible.
+        const glm::vec3 right(std::cos(yaw_),0,-std::sin(yaw_));
+        const glm::vec3 up(0,1,0),forwardToCamera(std::sin(yaw_),0,std::cos(yaw_));
+        for(auto& position:pbrSettings_.lighting.lightPositions) {
+            const glm::vec3 local(position);
+            position=glm::vec4(cameraFocus_+right*local.x+up*local.y+forwardToCamera*local.z,position.w);
+        }
+    }
+    void CopyPbrDisplay(std::uint32_t width,std::uint32_t height) {
+        // DebugTextures().sceneColor is linear HDR. Copy the completed display
+        // pass instead, so ImGui receives ACES/exposure/gamma exactly once.
+        // This is a GPU-local copy, with no per-frame CPU pixel readback.
+        if(!pbrDisplayTexture_||width!=pbrDisplayWidth_||height!=pbrDisplayHeight_) {
+            if(pbrDisplayTexture_)glDeleteTextures(1,&pbrDisplayTexture_);
+            glCreateTextures(GL_TEXTURE_2D,1,&pbrDisplayTexture_);
+            glTextureStorage2D(pbrDisplayTexture_,1,GL_RGBA8,GLsizei(width),GLsizei(height));
+            glTextureParameteri(pbrDisplayTexture_,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+            glTextureParameteri(pbrDisplayTexture_,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+            glTextureParameteri(pbrDisplayTexture_,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
+            glTextureParameteri(pbrDisplayTexture_,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
+            pbrDisplayWidth_=width;pbrDisplayHeight_=height;
+        }
+        GLint previousFramebuffer=0,previousBuffer=0;
+        glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING,&previousFramebuffer);glGetIntegerv(GL_READ_BUFFER,&previousBuffer);
+        glBindFramebuffer(GL_READ_FRAMEBUFFER,0);glReadBuffer(GL_BACK);
+        glCopyTextureSubImage2D(pbrDisplayTexture_,0,0,0,0,0,GLsizei(width),GLsizei(height));
+        glBindFramebuffer(GL_READ_FRAMEBUFFER,GLuint(previousFramebuffer));glReadBuffer(GLenum(previousBuffer));
+        previewTexture_=pbrDisplayTexture_;
+    }
     void RenderPreview(std::uint32_t width,std::uint32_t height) {
-        Check(toon_.Resize(width,height,1024,4),toon_.LastError());
+        Check(pbrEnabled_?pbr_.Resize(width,height,pbrSettings_.shadows.atlasResolution,1):toon_.Resize(width,height,1024,4),PipelineError());
         if(trackedCameraBone_>=0&&std::size_t(trackedCameraBone_)<DisplayPose().global.size())cameraFocus_=glm::vec3(placement_*glm::dvec4(glm::dvec3(DisplayPose().global[trackedCameraBone_][3]),1));
         camera_.position=cameraFocus_+glm::vec3(distance_*std::cos(pitch_)*std::sin(yaw_),distance_*std::sin(pitch_),distance_*std::cos(pitch_)*std::cos(yaw_));
         camera_.view=glm::lookAt(camera_.position,cameraFocus_,glm::vec3(0,1,0));
         camera_.nearPlane=.03f;camera_.farPlane=100;
-        camera_.projection=glm::perspective(glm::radians(43.f),float(width)/height,camera_.nearPlane,camera_.farPlane);
+        camera_.projection=glm::perspective(glm::radians(cameraVerticalFovDegrees_),float(width)/height,camera_.nearPlane,camera_.farPlane);
         Render::RenderFrame frame;frame.frameIndex=++frameIndex_;
         std::string error;if(showBody_||!modular_)AppendPreviewBody(frame,error);
         if(modular_&&showGarment_&&garmentResource_&&!RegionPreviewFilter())Check(garmentResource_->AppendTo(frame,placement_,glm::dvec3(0),camera_.view,&error),error);
         Render::RHICommand::BeginFrame begin;begin.frameIndex=frame.frameIndex;begin.framebufferWidth=width;begin.framebufferHeight=height;
         auto encoder=device_.BeginFrame(begin);
-        if(!resource_->KeepAlive(encoder)||(garmentResource_&&!garmentResource_->KeepAlive(encoder))||!toon_.Record(encoder,frame,camera_,settings_)||!encoder.End(false)) {
-            encoder.Cancel();if(auto token=toon_.RecordedFrameToken())toon_.DiscardFrame(token);
-            throw std::runtime_error(toon_.LastError());
+        if(pbrEnabled_){pbrSettings_.time=float(time_);pbrSettings_.deltaSeconds=float(std::max(performance_.acceptedDelta,1./240));}
+        if(!resource_->KeepAlive(encoder)||(garmentResource_&&!garmentResource_->KeepAlive(encoder))||!(pbrEnabled_?pbr_.Record(encoder,frame,camera_,pbrSettings_):toon_.Record(encoder,frame,camera_,settings_))||!encoder.End(false)) {
+            encoder.Cancel();if(auto token=PipelineToken())DiscardPipelineFrame(token);
+            throw std::runtime_error("Preview frame recording failed: "+PipelineError());
         }
-        const auto token=toon_.RecordedFrameToken();
+        const auto token=PipelineToken();
         // The UI backend and GPU timer share this synchronization point. There
         // is no framebuffer readback in the ordinary interactive preview.
         OnRender([this]{ImGui_ImplOpenGL3_NewFrame();BeginGpuTimer();});
         auto done=std::make_shared<bool>(false);
-        Check(device_.async_SubmitFrameCommands(encoder.GetCommandBuffer(),[done]{*done=true;}),"Could not submit editor preview frame");
+        if(!device_.async_SubmitFrameCommands(encoder.GetCommandBuffer(),[done]{*done=true;})) {
+            encoder.Cancel();DiscardPipelineFrame(token);throw std::runtime_error("Could not submit editor preview frame");
+        }
         auto deadline=std::chrono::steady_clock::now()+30s;
         const auto waitStarted=PerfClock::now();
         while(!*done){device_.returnSystem.DrainCallbacks();Check(std::chrono::steady_clock::now()<deadline,"Preview frame timed out");if(!*done)device_.returnSystem.WaitForCallbacks(2ms);}
         performance_.sync+=Milliseconds(PerfClock::now()-waitStarted);
-        Check(toon_.CompleteFrame(token),toon_.LastError());
-        auto handle=toon_.DebugTextures().sceneColor;
-        OnRender([this,handle]{EndGpuTimer();auto texture=device_.GetResourcePool().TextureTable.Get(handle);Check(texture!=nullptr,"Missing preview texture");previewTexture_=texture->rhi_id;});
+        Check(pbrEnabled_?pbr_.CompleteFrame(token):toon_.CompleteFrame(token),PipelineError());
+        if(pbrEnabled_)OnRender([this,width,height]{CopyPbrDisplay(width,height);EndGpuTimer();});
+        else {
+            auto handle=toon_.DebugTextures().sceneColor;
+            OnRender([this,handle]{EndGpuTimer();auto texture=device_.GetResourcePool().TextureTable.Get(handle);Check(texture!=nullptr,"Missing preview texture");previewTexture_=texture->rhi_id;});
+        }
         previewWidth_=width;previewHeight_=height;
     }
     std::optional<ImVec2> Project(const glm::dvec3& point) const {
@@ -1422,9 +1541,58 @@ class Editor {
         }
     }
     template<class Function> void Try(Function function){try{function();lastError_.clear();}catch(const std::exception& e){lastError_=e.what();}}
+    void PreviewMaterialControls() {
+        if(!pbrEnabled_&&!skinProfile_.loaded)return;
+        if(!ImGui::CollapsingHeader("Skin / lighting",ImGuiTreeNodeFlags_DefaultOpen))return;
+        if(!pbrEnabled_)ImGui::TextDisabled("Skin lighting requires the PBR preview.");
+        ImGui::SetNextItemWidth(150);
+        if(ImGui::Combo("Lighting",&lightingPreset_,"Studio\0Side\0Back\0"))ApplyLightingPreset();
+        if(ImGui::IsItemHovered())ImGui::SetTooltip("Lights orient to camera when a preset is selected.\nOrbit afterwards to inspect highlights with fixed world-space lighting.");
+        if(!skinProfile_.loaded){ImGui::TextDisabled("No skin profile loaded.");return;}
+        auto& s=skinProfile_.settings;bool changed=ImGui::Checkbox("Skin response",&s.enabled);
+        ImGui::TextWrapped("Off: base color + corrected roughness baseline.");
+        ImGui::Text("Exact materials: %zu",skinPrepared_.materialIndices.size());
+        if(ImGui::IsItemHovered()){ImGui::BeginTooltip();for(const auto i:skinPrepared_.materialIndices)ImGui::TextUnformatted(resource_->Source().materials[i].name.c_str());ImGui::EndTooltip();}
+        changed|=ImGui::Checkbox("Skin control map",&s.controlEnabled);
+        const bool hasControlMap=!skinPrepared_.controlMaterials.empty();
+        const bool nativeControl=s.controlEnabled&&hasControlMap;
+        ImGui::TextDisabled("G roughness baseline: %zu materials",skinPrepared_.controlMaterials.size());
+        if(nativeControl) {
+            ImGui::TextWrapped("Control R: detail / G: roughness / B: specular.");
+            changed|=ImGui::SliderFloat("Direct roughness bias",&s.roughnessBias,-.5f,.5f,"%.3f");
+            changed|=ImGui::SliderFloat("Environment roughness bias",&s.roughness2Bias,-.5f,.5f,"%.3f");
+            changed|=ImGui::SliderFloat("Direct specular scale",&s.specularScale1,0.f,1.f,"%.3f");
+            changed|=ImGui::SliderFloat("Environment specular scale",&s.specularScale2,0.f,1.f,"%.3f");
+            changed|=ImGui::SliderFloat("Coarse wrap scale",&s.coarseWrapScale,0.f,1.f,"%.3f");
+            changed|=ImGui::SliderFloat("Coarse wrap base",&s.coarseWrapBase,0.f,1.f,"%.3f");
+            changed|=ImGui::SliderFloat("Straight diffuse",&s.diffuseStraight,0.f,1.f,"%.3f");
+            changed|=ImGui::SliderFloat("Steep diffuse",&s.diffuseSteep,0.f,1.f,"%.3f");
+            changed|=ImGui::SliderFloat("Diffuse angle exponent",&s.diffuseAngleExponent,.01f,4.f,"%.3f");
+            changed|=ImGui::SliderFloat("Diffuse distribution",&s.diffuseDistribution,.01f,4.f,"%.3f");
+            changed|=ImGui::SliderFloat("Diffuse scale",&s.diffuseScale,0.f,2.f,"%.3f");
+            changed|=ImGui::ColorEdit3("Coarse color (source / 255)",&s.coarseColor.x);
+            changed|=ImGui::ColorEdit3("Detail bleed (source / 255)",&s.detailColorBleed.x);
+        } else {
+            if(!hasControlMap)changed|=ImGui::SliderFloat("Roughness fallback",&s.roughness,.045f,1.f,"%.3f");
+            changed|=ImGui::ColorEdit3("Scatter color (linear)",&s.scatterColor.x);
+            changed|=ImGui::SliderFloat("Scatter",&s.scatterStrength,0.f,1.f,"%.3f");
+            changed|=ImGui::SliderFloat("Diffuse wrap",&s.wrap,0.f,1.f,"%.3f");
+            changed|=ImGui::SliderFloat("Diffuse normal blend",&s.diffuseNormalBlend,0.f,1.f,"%.3f");
+            changed|=ImGui::SliderFloat("Specular mix",&s.specularMix,0.f,1.f,"%.3f");
+            changed|=ImGui::SliderFloat("Second roughness",&s.roughness2,.045f,1.f,"%.3f");
+        }
+        changed|=ImGui::Checkbox("Detail normal",&s.detailEnabled);
+        changed|=ImGui::SliderFloat("Detail strength",&s.detailStrength,0.f,2.f,"%.3f");
+        changed|=ImGui::DragFloat2("Detail tile XY",&s.detailTiling.x,.1f,.01f,128.f,"%.2f");
+        ImGui::TextDisabled("Transmission: %.3f (no thickness map)",s.transmission);
+        if(!skinPrepared_.unmatchedNames.empty())ImGui::TextWrapped("Unmatched names: %zu (see console)",skinPrepared_.unmatchedNames.size());
+        if(changed)Try([&]{skinProfile_.Apply(*resource_,skinPrepared_);});
+        ImGui::Separator();
+    }
     void DetailsPanel() {
         ImGui::TextColored(ImVec4(.3f,.75f,1,1),"DETAILS / INSPECTOR");
         ImGui::BeginChild("inspector-scroll",ImVec2(0,0));
+        PreviewMaterialControls();
         switch(selection_) {
             case Selection::Mesh:MeshDetails();break;
             case Selection::Skeleton:SkeletonDetails();break;
@@ -1471,7 +1639,7 @@ class Editor {
         ImGui::SameLine();if(ImGui::Button("Import VMD"))ImGui::OpenPopup("Import VMD motion");
         ImGui::SameLine();if(ImGui::Button("Open animation"))Try([&]{auto path=Browse(true,L"Animation (*.anim.json)\0*.anim.json\0All JSON\0*.json\0");if(!path.empty())OpenAnimation(Path(path));});
         ImGui::SameLine();ImGui::Checkbox("Bones",&showBones_);ImGui::SameLine();ImGui::Checkbox("Names",&showNames_);
-        ImGui::SameLine();if(ImGui::Button("Frame model")){cameraFocus_={0,0,0};distance_=4.7f;}
+        ImGui::SameLine();if(ImGui::Button("Frame model")){if(modular_){trackedCameraBone_=-1;cameraFocus_={0,0,0};distance_=4.7f;}else FramePreviewRegions();}
         if(ImGui::BeginPopupModal("Export intermediate assets",nullptr,ImGuiWindowFlags_AlwaysAutoResize)){
             ImGui::TextWrapped("%s",modular_?"Save body, independent garment, cloth settings and character assembly to a new directory.":"A new portable asset package is created; source files are read-only.");
             ImGui::SetNextItemWidth(700);ImGui::InputText("Directory",exportPath_.data(),exportPath_.size());
@@ -1499,14 +1667,30 @@ class Editor {
         ImGui::BeginChild("assets-panel",ImVec2(285,workHeight),ImGuiChildFlags_Borders);AssetsPanel();ImGui::EndChild();ImGui::SameLine();
         const float center=std::max(260.f,ImGui::GetContentRegionAvail().x-374);
         ImGui::BeginChild("viewport-and-timeline",ImVec2(center,workHeight),ImGuiChildFlags_Borders);
+        int pipeline=pbrEnabled_?1:0;ImGui::SetNextItemWidth(85);
+        if(ImGui::Combo("##preview-pipeline",&pipeline,"Toon\0PBR\0"))Try([&]{SelectPipeline(pipeline==1);});
+        if(ImGui::IsItemHovered())ImGui::SetTooltip("PBR: studio / side / back lighting, ACES display transform.\nSkin response is applied only to exact names in --skin-profile; source textures stay unchanged.");
+        ImGui::SameLine();
         if(displayPerformance_.frame>0) {
-            ImGui::Text("Toon | %.1f FPS | frame %.2f ms | %s %.2f | skin %.2f | upload %.2f ms",1000./displayPerformance_.frame,displayPerformance_.frame,clothWorker_?"cloth submit":"cloth CPU",displayPerformance_.cloth,displayPerformance_.skin,displayPerformance_.upload);
-            if(ImGui::IsItemHovered())ImGui::SetTooltip("Pose %.2f ms | cloth apply %.2f ms\nRender %.2f | UI %.2f | swap %.2f | render sync %.2f ms\nGPU scene span %.2f ms | %llu fixed steps in last frame\nRender sync overlaps render/UI/swap timings; upload includes its own wait.\nGPU results are polled without blocking; scene span includes dispatch gaps.\nOrbit: RMB / zoom: wheel",displayPerformance_.pose,displayPerformance_.apply,displayPerformance_.render,displayPerformance_.ui,displayPerformance_.swap,displayPerformance_.sync,std::max(0.,displayPerformance_.gpu),static_cast<unsigned long long>(displayPerformance_.steps));
-        } else ImGui::Text("Toon viewport / CPU skinning | %zu bones | orbit: RMB / zoom: wheel",asset_->skeleton.bones.size());
+            ImGui::Text("%.1f FPS | frame %.2f ms | %s %.2f | skin %.2f | upload %.2f ms",1000./displayPerformance_.frame,displayPerformance_.frame,clothWorker_?"cloth submit":"cloth CPU",displayPerformance_.cloth,displayPerformance_.skin,displayPerformance_.upload);
+            if(ImGui::IsItemHovered())ImGui::SetTooltip("Pose %.2f ms | cloth apply %.2f ms\nRender %.2f | UI %.2f | swap %.2f | render sync %.2f ms\nGPU scene span %.2f ms | %llu fixed steps in last frame\nRender sync overlaps render/UI/swap timings; upload includes its own wait.\nGPU results are polled without blocking; scene span includes dispatch gaps.\nOrbit: RMB / pan: MMB / zoom: wheel",displayPerformance_.pose,displayPerformance_.apply,displayPerformance_.render,displayPerformance_.ui,displayPerformance_.swap,displayPerformance_.sync,std::max(0.,displayPerformance_.gpu),static_cast<unsigned long long>(displayPerformance_.steps));
+        } else ImGui::Text("Viewport / CPU skinning | %zu bones | orbit: RMB / pan: MMB / zoom: wheel",asset_->skeleton.bones.size());
         viewportSize_=ImGui::GetContentRegionAvail();viewportSize_.y=std::max(120.f,viewportSize_.y-118);viewportOrigin_=ImGui::GetCursorScreenPos();
         ImGui::Image(ImTextureID(previewTexture_),viewportSize_,ImVec2(0,1),ImVec2(1,0));
-        if(ImGui::IsItemHovered()) {
-            auto& io=ImGui::GetIO();
+        const bool viewportHovered=ImGui::IsItemHovered();
+        auto& io=ImGui::GetIO();
+        if(viewportHovered&&ImGui::IsMouseClicked(ImGuiMouseButton_Middle))cameraPanning_=true;
+        if(!ImGui::IsMouseDown(ImGuiMouseButton_Middle))cameraPanning_=false;
+        if(cameraPanning_&&(io.MouseDelta.x!=0||io.MouseDelta.y!=0)) {
+            // Capture only drags that start in the viewport. Keep panning when
+            // the cursor leaves it, using logical pixels to match ImGui's size.
+            const glm::vec3 right(std::cos(yaw_),0,-std::sin(yaw_));
+            const glm::vec3 up(-std::sin(pitch_)*std::sin(yaw_),std::cos(pitch_),-std::sin(pitch_)*std::cos(yaw_));
+            const float unitsPerPixel=2.f*distance_*std::tan(glm::radians(cameraVerticalFovDegrees_)*.5f)/std::max(1.f,viewportSize_.y);
+            cameraFocus_+=(-io.MouseDelta.x*right+io.MouseDelta.y*up)*unitsPerPixel;
+            trackedCameraBone_=-1;
+        }
+        if(viewportHovered) {
             if(ImGui::IsMouseDragging(ImGuiMouseButton_Right)){yaw_-=io.MouseDelta.x*.006f;pitch_=std::clamp(pitch_+io.MouseDelta.y*.006f,-1.3f,1.3f);}
             distance_=std::clamp(distance_*std::exp(-io.MouseWheel*.12f),1.f,20.f);
         }
@@ -1584,6 +1768,7 @@ class Editor {
         if(!options.benchmarkOutput.parent_path().empty())fs::create_directories(options.benchmarkOutput.parent_path());
         std::ofstream output(options.benchmarkOutput);Check(bool(output),"Could not create benchmark report");
         output<<std::fixed<<std::setprecision(6)<<"{\n  \"mode\": \"real_time\",\n  \"initialization_excluded\": true,\n  \"warmup_frames\": "<<warmupFrames<<",\n  \"measured_frames\": "<<samples.size()<<",\n  \"visible_window\": true,\n  \"vsync\": "<<(options.noVsync?"false":"true")<<",\n  \"cloth_enabled\": "<<(clothEnabled_?"true":"false")<<",\n  \"capture_enabled\": "<<(!options.captureDirectory.empty()?"true":"false")<<",\n";
+        output<<"  \"pipeline\": \""<<(pbrEnabled_?"pbr":"toon")<<"\",\n";
         output<<"  \"process_id\": "<<processId<<",\n  \"executable\": "<<JsonString(executable)<<",\n  \"logical_processors\": "<<logicalProcessors<<",\n  \"cpu_time_available\": "<<(cpuSamples?"true":"false")<<",\n  \"cpu_time_samples\": "<<cpuSamples<<",\n  \"cpu_accounting_wall_seconds\": "<<cpuWall<<",\n  \"process_user_cpu_seconds\": "<<processUser<<",\n  \"process_kernel_cpu_seconds\": "<<processKernel<<",\n  \"process_cpu_seconds\": "<<processUser+processKernel<<",\n  \"main_thread_user_cpu_seconds\": "<<mainUser<<",\n  \"main_thread_kernel_cpu_seconds\": "<<mainKernel<<",\n  \"main_thread_cpu_seconds\": "<<mainUser+mainKernel<<",\n  \"main_thread_one_core_percent\": "<<mainOneCorePercent<<",\n  \"process_one_core_percent\": "<<processOneCorePercent<<",\n  \"process_machine_percent\": "<<processMachinePercent<<",\n";
 #ifdef NDEBUG
         output<<"  \"build\": \"Release\",\n";
@@ -1608,6 +1793,9 @@ class Editor {
     }
 public:
     Editor(GLFWwindow* window,const Render::OpenglBackendContext& context,const Options& options):window_(window),context_(context) {
+        lightingPreset_=options.lighting;
+        if(!options.skinProfile.empty())skinProfile_=EditorPreview::SkinPreviewProfile::Load(options.skinProfile);
+        if(options.skin>=0)skinProfile_.settings.enabled=options.skin!=0;
         device_.Run(Render::BackendType::Opengl,context_);Check(models_.Startup(),models_.LastError());
         if(!options.character.empty())LoadCharacter(options.character);
         else Load(options.package.empty()?options.source:options.package,!options.package.empty());
@@ -1635,10 +1823,14 @@ public:
             std::transform(category.begin(),category.end(),category.begin(),[](unsigned char c){return char(std::tolower(c));});
             std::cout<<"Mesh region preview: category="<<category<<"; expected visible sections="<<visible<<" / "<<asset_->geometry->meshes.size()<<'\n';
         }
+        if(options.bindPose){selectedClip_=std::max(0,GeneratedClip(*asset_,"BindPose"));time_=0;playing_=false;retargetPlaying_=false;bindPose_=true;enableIk_=false;std::fill(manualMorphs_.begin(),manualMorphs_.end(),0);std::fill(morphOverrides_.begin(),morphOverrides_.end(),0);dirty_=true;clothReset_=true;hairReset_=true;showBones_=false;showNames_=false;}
         yaw_=float(options.yaw);distance_=float(options.distance);
         if(options.frameRegion>=-1)FramePreviewRegions(options.frameRegion);
         if(!options.focusBone.empty()){for(std::size_t i=0;i<asset_->skeleton.bones.size();++i)if(asset_->skeleton.bones[i].name==options.focusBone||asset_->skeleton.bones[i].englishName==options.focusBone){trackedCameraBone_=int(i);break;}Check(trackedCameraBone_>=0,"Camera focus bone was not found");}
-        Check(toon_.Initialize(),toon_.LastError());settings_.backgroundColor=glm::vec4(.95f,.96f,.98f,1);settings_.groundHeight=-1.5f;
+        settings_.backgroundColor=glm::vec4(.95f,.96f,.98f,1);settings_.groundHeight=-1.5f;
+        // Prepare only the selected renderer; switching initializes the other
+        // one lazily and never submits both pipelines for one preview frame.
+        SelectPipeline(options.pbr);
         IMGUI_CHECKVERSION();ImGui::CreateContext();guiReady_=true;
         auto& io=ImGui::GetIO();io.IniFilename=nullptr;io.ConfigFlags|=ImGuiConfigFlags_NavEnableKeyboard;
         RebuildFonts();
@@ -1646,13 +1838,13 @@ public:
         style.Colors[ImGuiCol_WindowBg]=ImVec4(.07f,.085f,.11f,1);style.Colors[ImGuiCol_ChildBg]=ImVec4(.09f,.108f,.14f,1);
         Check(ImGui_ImplGlfw_InitForOpenGL(window_,true),"Could not initialize editor input backend");
         OnRender([this]{Check(ImGui_ImplOpenGL3_Init("#version 450 core"),"Could not initialize editor OpenGL UI");rendererReady_=true;Check(ImGui_ImplOpenGL3_CreateDeviceObjects(),"Could not create editor UI resources");for(auto& timer:gpuTimers_)glGenQueries(GLsizei(timer.query.size()),timer.query.data());if(const auto value=glGetString(GL_VENDOR))gpuVendor_=reinterpret_cast<const char*>(value);if(const auto value=glGetString(GL_RENDERER))gpuRenderer_=reinterpret_cast<const char*>(value);});
-        std::cout<<"Skeletal asset editor: "<<asset_->name<<" | "<<asset_->skeleton.bones.size()<<" bones | "<<asset_->morphs.size()<<" morphs | "<<asset_->animations.size()<<" sequences | "<<asset_->ikRig.chains.size()<<" IK chains\n";
+        std::cout<<"Skeletal asset editor: "<<asset_->name<<" | "<<asset_->skeleton.bones.size()<<" bones | "<<asset_->morphs.size()<<" morphs | "<<asset_->animations.size()<<" sequences | "<<asset_->ikRig.chains.size()<<" IK chains | pipeline="<<(pbrEnabled_?"pbr":"toon")<<" | lighting="<<std::array<const char*,3>{"studio","side","back"}[lightingPreset_]<<'\n';
     }
     ~Editor() {
         clothWorker_.reset();
-        if(rendererReady_)OnRender([this]{for(auto& timer:gpuTimers_)glDeleteQueries(GLsizei(timer.query.size()),timer.query.data());ImGui_ImplOpenGL3_Shutdown();});
+        if(rendererReady_)OnRender([this]{if(pbrDisplayTexture_)glDeleteTextures(1,&pbrDisplayTexture_);for(auto& timer:gpuTimers_)glDeleteQueries(GLsizei(timer.query.size()),timer.query.data());ImGui_ImplOpenGL3_Shutdown();});
         if(guiReady_){ImGui_ImplGlfw_Shutdown();ImGui::DestroyContext();}
-        garmentResource_.reset();resource_.reset();toon_.Shutdown();models_.Shutdown();device_.StopAndRelease();
+        garmentResource_.reset();resource_.reset();pbr_.Shutdown();toon_.Shutdown();models_.Shutdown();device_.StopAndRelease();
         while(!device_.returnSystem.callbacks.empty())device_.returnSystem.DrainCallbacks();
     }
     void Run(const Options& options) {

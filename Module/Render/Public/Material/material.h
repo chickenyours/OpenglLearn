@@ -208,7 +208,7 @@ inline void WriteValue(std::vector<std::byte>& bytes, const ParameterLayout& lay
 // ownership are required to create templates and edit their parameter blocks.
 class MaterialTemplate {
 public:
-    static constexpr std::size_t MaxParameterBytes = 256;
+    static constexpr std::size_t MaxParameterBytes = 512;
 
     static std::shared_ptr<const MaterialTemplate> Create(MaterialTemplateDesc desc,
                                                          std::string* error = nullptr) {
@@ -246,7 +246,7 @@ public:
             layout.offset = (end + layout.alignment - 1) / layout.alignment * layout.alignment;
             end = layout.offset + layout.size;
             if (end > MaxParameterBytes) {
-                Detail::Fail(error, "Material parameter block exceeds 256 bytes");
+                Detail::Fail(error, "Material parameter block exceeds " + std::to_string(MaxParameterBytes) + " bytes");
                 return nullptr;
             }
             result->layouts_.push_back(layout);

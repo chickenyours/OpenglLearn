@@ -17,8 +17,10 @@
 #include "Render/Private/Pipeline/probe_sdf_shaders.h"
 #include "Render/Private/Pipeline/probe_sdf_visualization_shaders.h"
 #include "Render/Private/Pipeline/surface_cache_probe_shaders.h"
+#include "Render/Private/Pipeline/surface_cache_probe_origin_shaders.h"
 #include "Render/Private/Pipeline/surface_cache_temporal_shaders.h"
 #include "Render/Private/Pipeline/surface_cache_spatial_shaders.h"
+#include "Render/Private/Pipeline/surface_cache_contact_shaders.h"
 #include "Render/Private/Pipeline/surface_cache_shaders.h"
 #include "Render/Public/Pipeline/surface_cache.h"
 #include "Render/Public/Pipeline/probe_sdf_scene.h"
@@ -114,7 +116,7 @@ struct MaterialRenderPipeline::Impl {
     Target scene, reflection, sceneMsaa, reflectionMsaa, shadows, aoRaw, aoBlurred, display, filtered, blurred;
     Target opaqueSnapshot, diffuseCapture, normalCapture, indirectHalf, indirectFull;
     std::array<Target, 2> indirectWork;
-    Target indirectPositions;
+    Target indirectPositions, indirectPositionsRaster;
     std::shared_ptr<const void> placementProgramsOwner,placementTargetsOwner;
     RenderResourceHandle<UniformBufferSpec> placementBuffer;
     RenderResourceHandle<PipelineSpec> placementUniformProgram,placementMarkProgram,placementSpawnProgram,placementCoverageProgram,placementMarkerProgram;
@@ -126,9 +128,12 @@ struct MaterialRenderPipeline::Impl {
         glm::mat4 viewProjection{1};
         std::uint64_t geometryGeneration=0;
         glm::vec4 refinement{0};
+        glm::vec2 visibilityParameters{0};
+        glm::vec4 curvature{0};
     } placementCompleted,placementPending;
     std::shared_ptr<const void> traceProgramsOwner,traceTargetsOwner;
     RenderResourceHandle<PipelineSpec> traceHzbBaseProgram,traceHzbReduceProgram,traceRayProgram,traceDisplayProgram;
+    RenderResourceHandle<PipelineSpec> traceSafeRayProgram;
     Target traceSource;
     std::array<Target,ScreenProbeTraceMaxHzbLevels> traceHzb;
     std::array<Target,2> traceRays;
@@ -138,6 +143,7 @@ struct MaterialRenderPipeline::Impl {
     std::shared_ptr<const ProbeSdfScene> sdfScene;
     RenderResourceHandle<UniformBufferSpec> sdfBuffer;
     RenderResourceHandle<PipelineSpec> sdfFallbackProgram,sdfSliceProgram,sdfHitMarkerProgram;
+    RenderResourceHandle<PipelineSpec> sdfSafeFallbackProgram;
     std::array<RenderResourceHandle<PipelineSpec>,3> sdfVolumePrograms;
     std::array<std::shared_ptr<const void>,3> sdfVolumeOwners;
     RenderResourceHandle<RHITextureSpec> sdfMeshTexture,sdfObjectTexture,sdfGlobalTexture,sdfGeometryTexture,sdfRangeTexture;
@@ -157,11 +163,14 @@ struct MaterialRenderPipeline::Impl {
     std::shared_ptr<const SurfaceCacheScene> surfaceCacheAsset;
     std::shared_ptr<const ProbeSdfScene> surfaceCacheGeometryScene;
     RenderResourceHandle<UniformBufferSpec> surfaceCacheBuffer;
+    RenderResourceHandle<UniformBufferSpec> surfaceCacheOriginSafetyBuffer;
+    RenderResourceHandle<PipelineSpec> surfaceCacheProbeOriginProgram,surfaceCacheProbeOriginMarkerProgram;
     RenderResourceHandle<PipelineSpec> surfaceCacheLightingProgram,surfaceCacheGatherProgram,surfaceCacheResolveProgram,surfaceCacheCoverageProgram;
-    RenderResourceHandle<PipelineSpec> surfaceCacheProbeIntegrateProgram,surfaceCacheProbeReconstructProgram,surfaceCacheProbeCoverageProgram;
+    RenderResourceHandle<PipelineSpec> surfaceCacheProbeIntegrateProgram,surfaceCacheProbeActiveMaskProgram,surfaceCacheProbeDirectionalProgram,surfaceCacheProbeReconstructProgram,surfaceCacheProbeCoverageProgram;
     RenderResourceHandle<RHITextureSpec> surfaceCacheAttributes,surfaceCacheMetadata,surfaceCacheGeometry;
     Target surfaceCacheLighting,surfaceCacheRaw,surfaceCacheResolved,surfaceCacheCoverage,surfaceCacheSource;
-    Target surfaceCacheProbeIrradiance;
+    Target surfaceCacheProbeIrradiance,surfaceCacheProbeActiveMask,surfaceCacheProbeDirectional,surfaceCacheProbeOrigins;
+    bool surfaceCacheSafeOriginsActive=false;
     Target surfaceCacheProbeCoverage;
     ScreenProbePlacementConstants placementFrameConstants;
     std::uint64_t surfaceCacheGeneration=0,surfaceCacheGeometryGeneration=0;
@@ -172,14 +181,43 @@ struct MaterialRenderPipeline::Impl {
     RenderResourceHandle<PipelineSpec> surfaceCacheSpatialNeighborsProgram,surfaceCacheSpatialFilterProgram;
     std::array<Target,2> surfaceCacheSpatialRays;
     Target surfaceCacheSpatialNeighbors,surfaceCacheSpatialIrradiance,surfaceCacheSpatialGi;
+    std::shared_ptr<const void> surfaceCacheContactProgramsOwner,surfaceCacheContactOwner;
+    RenderResourceHandle<UniformBufferSpec> surfaceCacheContactBuffer;
+    RenderResourceHandle<PipelineSpec> surfaceCacheContactRiskProgram,surfaceCacheContactMaskProgram,surfaceCacheContactGatherProgram,surfaceCacheContactFilterProgram;
+    RenderResourceHandle<PipelineSpec> surfaceCacheContactResolveProgram,surfaceCacheContactMaskExpandProgram;
+    Target surfaceCacheContactRisk,surfaceCacheContactMask,surfaceCacheContactUnfilteredGi,surfaceCacheContactGi;
+    Target surfaceCacheContactFilterScratch;
+    Target surfaceCacheContactMeasurements,surfaceCacheContactResult;
     std::shared_ptr<const void> surfaceCacheTemporalProgramsOwner,surfaceCacheTemporalOwner;
     RenderResourceHandle<UniformBufferSpec> surfaceCacheTemporalBuffer;
     RenderResourceHandle<PipelineSpec> surfaceCacheTemporalProgram,surfaceCacheTemporalPositionProgram,surfaceCacheTemporalNormalProgram;
     RenderResourceHandle<PipelineSpec> surfaceCacheTemporalDisplayProgram,surfaceCacheTemporalCountProgram;
     std::array<Target,2> surfaceCacheTemporalHistory,surfaceCacheTemporalPositions,surfaceCacheTemporalNormals;
     Target surfaceCacheTemporalGi;
+    // Immutable snapshots contain copied transforms/identities, never a view
+    // into ProbeSdfScene, which callers may update in place before Record().
+    struct SurfaceCacheMotionSnapshot {
+        struct Instance {
+            std::shared_ptr<const ProbeMeshSdf> source;
+            glm::mat4 transform{1};
+            std::uint32_t userId=0;
+            bool movable=false;
+        };
+        std::vector<Instance> instances;
+        std::uint64_t cacheGeneration=0,geometryGeneration=0;
+        bool certified=false;
+    };
+    struct SurfaceCacheTemporalMotionState {
+        std::shared_ptr<const SurfaceCacheMotionSnapshot> snapshot;
+        std::uint64_t stableKey=0;
+        std::uint32_t settleRemaining=0;
+        bool compatible=false,dynamicLighting=false;
+    };
     struct SurfaceCacheTemporalState {
         bool valid=false;unsigned image=0;std::uint64_t key=0,sequence=0;PipelineCamera camera;
+        std::shared_ptr<const SurfaceCacheMotionSnapshot> motionSnapshot;
+        std::uint64_t stableKey=0;
+        std::uint32_t dynamicSettleRemaining=0;
     } surfaceCacheTemporalCompleted,surfaceCacheTemporalPending;
     Target opaqueSnapshotDepth, reflectionSnapshot, reflectionSnapshotDepth;
     std::array<Target, 2> historyColor, historyDepth;
@@ -296,6 +334,12 @@ void main() {
         newIndirectPositions.width=w; newIndirectPositions.height=h;
         newIndirectPositions.color = builder.Texture(w,h,RHITextureFormat::RGBA32F);
         newIndirectPositions.framebuffer = builder.Target(newIndirectPositions.color,{});
+        // The mesh capture compares against the same opaque/cutout prepass as
+        // normal/rho capture. Keep a separate framebuffer: the legacy depth
+        // reconstruction pass still samples newDiffuse.depth and must not
+        // simultaneously attach that image for depth testing.
+        Target newIndirectPositionsRaster=newIndirectPositions;
+        newIndirectPositionsRaster.framebuffer=builder.Target(newIndirectPositions.color,newDiffuse.depth);
         std::array<Target, 2> newHistoryColor, newHistoryDepth;
         for (std::size_t i = 0; i < 2; ++i) {
             newHistoryColor[i] = MakeTarget(builder, w, h, true, false);
@@ -318,6 +362,7 @@ void main() {
         indirectHalf = newIndirectHalf; indirectFull = newIndirectFull;
         indirectWork = newIndirectWork;
         indirectPositions = newIndirectPositions;
+        indirectPositionsRaster = newIndirectPositionsRaster;
         aoRaw = newAoRaw; aoBlurred = newAoBlurred; display = newDisplay;
         bloomDown = newDown; bloomWork = newWork;
         targetsOwner = std::move(newOwner);
@@ -382,6 +427,21 @@ void main() {
             Require(encoder.BindMesh(item.mesh) && encoder.DrawIndexed(item.draw), "Cannot draw indirect source");
         }
     }
+    void CaptureSurfacePositions(RHIFrameEncoder& encoder, const RenderFrame& frame,
+                                 const PipelineCamera& camera, const SurfacePassConstants& sourceSurface) {
+        // Interpolate the visible source position directly rather than
+        // unprojecting quantized device depth. The existing normal variant
+        // retains its alpha/cutout coverage and depth comparison semantics.
+        auto positions=sourceSurface;
+        positions.view=camera.view;positions.projection=camera.projection;
+        positions.options.z=3;
+        Upload(encoder,surfaceBuffer,&positions,sizeof(positions),SurfacePassBinding);
+        BindTarget(encoder,indirectPositionsRaster,RHICommand::ClearColor);
+        CaptureSurface(encoder,frame,camera,true);
+        // Preserve rho/normal capture mode, animation time and every unrelated
+        // surface option for the caller's remaining render passes.
+        Upload(encoder,surfaceBuffer,&sourceSurface,sizeof(sourceSurface),SurfacePassBinding);
+    }
     void Fullscreen(RHIFrameEncoder& encoder, const Target& target, RenderResourceHandle<PipelineSpec> pipeline,
                     RenderResourceHandle<RHITextureSpec> input, RenderResourceHandle<RHITextureSpec> second,
                     RenderResourceHandle<RHITextureSpec> depth, const PostProcessConstants& constants,
@@ -416,7 +476,7 @@ void main() {
     }
     // No object velocity buffer yet. Reset accumulation when geometry/material
     // content changes. Live texture uploads require the caller's ResetHistory().
-    std::uint64_t ContentHash(const RenderFrame& frame, const MaterialPipelineSettings& settings) const {
+    std::uint64_t ContentHash(const RenderFrame& frame, const MaterialPipelineSettings& settings,bool includeModels=true) const {
         std::uint64_t hash = 14695981039346656037ull;
         const auto bytes = [&](const void* data, std::size_t count) {
             const auto* p = static_cast<const unsigned char*>(data);
@@ -425,10 +485,11 @@ void main() {
         const auto add = [&](const auto& value) { bytes(&value, sizeof(value)); };
         for (const auto& item : frame.items) {
             if (item.layer == RenderLayer::Overlay) continue;
-            add(item.mesh); add(item.EffectivePipeline()); add(item.texture); add(item.model);
+            add(item.mesh); add(item.EffectivePipeline()); add(item.texture);
+            if(includeModels)add(item.model);
             add(item.draw.indexCount); add(item.draw.firstIndex); add(item.draw.baseVertex);
             add(item.draw.instanceCount); add(item.draw.firstInstance);
-            add(item.layer); add(item.castsShadows); add(item.visibleInReflections);
+            add(item.layer); add(item.order); add(item.castsShadows); add(item.visibleInReflections);add(item.analyticEmission);
             if (item.material) {
                 add(item.material->Resources().shadowPipeline);
                 add(item.material->Resources().normalPipeline); add(item.material->Resources().diffuseRadiancePipeline);
@@ -451,11 +512,21 @@ void main() {
         add(settings.lighting.ambientAndExposure.x); add(settings.lighting.ambientAndExposure.y); add(settings.lighting.ambientAndExposure.z);
         add(settings.lighting.specularAA);
         const auto areas = MakeAreaLightsConstants(settings.areaLights); bytes(&areas, sizeof(areas));
+        add(settings.areaLights.stratifiedSamples);
         const auto& areaShadow=settings.surfaceCacheGi;
         add(areaShadow.cacheBilinear);
         add(areaShadow.reconstructionDebug);
+        add(areaShadow.directionalReconstruction);
+        add(areaShadow.safeProbeOrigins);add(areaShadow.originSafetyFraction);add(areaShadow.originSafetyEpsilon);
+        add(areaShadow.contact.enabled);add(areaShadow.contact.raysPerPixel);add(areaShadow.contact.maxDistance);
+        add(areaShadow.contact.parallaxAngleDegrees);add(areaShadow.contact.weightThreshold);
+        add(areaShadow.contact.filterRadius);add(areaShadow.contact.filterStrength);add(areaShadow.contact.layerValidation);
+        add(areaShadow.contact.coherentProbeRisk);
+        add(areaShadow.temporal.staticConvergence);
+        add(areaShadow.probeOriginDiagnostics);
         add(areaShadow.areaLightShadows);
         if(areaShadow.areaLightShadows) {
+            add(areaShadow.areaShadows.enabled);
             add(areaShadow.areaShadows.tileResolution);add(areaShadow.areaShadows.nearPlane);
             add(areaShadow.areaShadows.depthBiasTexels);add(areaShadow.areaShadows.normalBiasTexels);
         }
@@ -486,6 +557,10 @@ void main() {
             add(placement.adaptive);add(placement.freeze);add(placement.baseSpacing);add(placement.candidateCount);
             add(placement.relativeDepthThreshold);add(placement.markerRadiusPixels);add(placement.debugView);add(placement.frameIndex);
             add(placement.cornerRefinement);add(placement.cornerDetectionRadius);add(placement.cornerProbeSupport);add(placement.cornerNormalAngleDegrees);
+            add(placement.reconstructionVisibility);
+            add(placement.continuousInterpolation);
+            add(placement.curvatureAwareWeights);
+            add(placement.curvatureRefinement);add(placement.curvatureNormalAngleDegrees);add(placement.curvaturePlaneErrorPixels);
             add(placement.trace.enabled);add(placement.trace.rayResolution);add(placement.trace.maxSteps);add(placement.trace.maxMip);
             add(placement.trace.displayMode);add(placement.trace.maxDistance);add(placement.trace.thickness);
             add(placement.trace.normalBias);add(placement.trace.relativeThickness);add(placement.trace.selectedProbe);add(placement.trace.showPanel);
@@ -713,6 +788,7 @@ void main() {
     #include "Render/Private/Pipeline/probe_sdf_pipeline.inl"
     #include "Render/Private/Pipeline/surface_cache_temporal_pipeline.inl"
     #include "Render/Private/Pipeline/surface_cache_spatial_pipeline.inl"
+    #include "Render/Private/Pipeline/surface_cache_contact_pipeline.inl"
     #include "Render/Private/Pipeline/surface_cache_pipeline.inl"
     #include "Render/Private/Pipeline/area_light_shadows_pipeline.inl"
     void Record(RHIFrameEncoder& encoder, const RenderFrame& frame, const PipelineCamera& camera,
@@ -742,7 +818,7 @@ void main() {
         PrepareRealtimeGi(settings.realtimeGi);realtimePending={};
         PrepareLumen(settings.lumenGi);lumenPending={};
         const auto& sc=settings.surfaceCacheGi;
-        const bool cacheProbeGather=sc.enabled&&sc.useScreenProbes&&(sc.view==0||sc.view==2||sc.view==6||(sc.view==5&&sc.temporal.enabled)||sc.probeDiagnostics);
+        const bool cacheProbeGather=sc.enabled&&sc.useScreenProbes&&(sc.view==0||sc.view==2||sc.view==6||(sc.view==5&&sc.temporal.enabled)||sc.probeDiagnostics||sc.probeOriginDiagnostics);
         const bool doPlacement=settings.screenProbePlacement.enabled&&(!sc.enabled||cacheProbeGather||sc.probeDiagnostics);
         placementPending={};tracePending={};surfaceCachePending={};surfaceCacheTemporalPending={};
         if(doPlacement) {
@@ -753,6 +829,7 @@ void main() {
         PrepareSurfaceCacheGi(settings.surfaceCacheGi,settings.screenProbePlacement);
         PrepareSurfaceCacheTemporal(settings.surfaceCacheGi);
         PrepareSurfaceCacheSpatial(settings.surfaceCacheGi);
+        PrepareSurfaceCacheContact(settings.surfaceCacheGi);
         Require(encoder.KeepAlive(assetsOwner) && encoder.KeepAlive(targetsOwner), "Cannot pin pipeline resources");
         if (skyOwner) Require(encoder.KeepAlive(skyOwner), "Cannot pin sky environment resources");
         if (probeOwner) Require(encoder.KeepAlive(probeOwner), "Cannot pin diffuse probe resources");
@@ -772,6 +849,7 @@ void main() {
         if(cacheProbeGather)Require(encoder.KeepAlive(surfaceCacheProbeOwner),"Cannot pin probe integration targets");
         if(SurfaceCacheTemporalActive(sc))Require(encoder.KeepAlive(surfaceCacheTemporalOwner)&&encoder.KeepAlive(surfaceCacheTemporalProgramsOwner),"Cannot pin GI temporal history resources");
         if(SurfaceCacheSpatialActive(sc))Require(encoder.KeepAlive(surfaceCacheSpatialOwner)&&encoder.KeepAlive(surfaceCacheSpatialProgramsOwner),"Cannot pin GI spatial resources");
+        if(SurfaceCacheContactActive(sc))Require(encoder.KeepAlive(surfaceCacheContactOwner)&&encoder.KeepAlive(surfaceCacheContactProgramsOwner),"Cannot pin GI contact resources");
         const auto& rt=settings.realtimeGi;
         const DiffuseProbeRuntimeConstants probeRuntime{rt.enabled?glm::vec4(2,rt.intensity,rt.normalBias,rt.visibilityBias):
             glm::vec4(settings.probes.enabled?1:0,settings.probes.intensity,settings.probes.normalBias,settings.probes.visibilityBias)};
@@ -1118,6 +1196,7 @@ void MaterialRenderPipeline::Shutdown() {
     impl_->surfaceCacheTemporalOwner.reset();impl_->surfaceCacheTemporalProgramsOwner.reset();
     impl_->surfaceCacheTemporalCompleted={};impl_->surfaceCacheTemporalPending={};
     impl_->surfaceCacheSpatialOwner.reset();impl_->surfaceCacheSpatialProgramsOwner.reset();
+    impl_->surfaceCacheContactOwner.reset();impl_->surfaceCacheContactProgramsOwner.reset();
     impl_->surfaceCacheAsset.reset();impl_->surfaceCacheGeometryScene.reset();impl_->surfaceCacheCompleted={};impl_->surfaceCachePending={};
     impl_->surfaceCacheBuffer={};
     impl_->lumenReactiveFrames=0;impl_->lumenGeometryChanged=impl_->realtimeGeometryChanged=false;
@@ -1134,7 +1213,7 @@ bool MaterialRenderPipeline::CompleteFrame(std::uint64_t token) {
     impl_->placementCompleted=impl_->placementPending;impl_->placementPending={};
     impl_->traceCompleted=impl_->tracePending;impl_->tracePending={};
     impl_->surfaceCacheCompleted=impl_->surfaceCachePending;impl_->surfaceCachePending={};
-    impl_->surfaceCacheTemporalCompleted=impl_->surfaceCacheTemporalPending;impl_->surfaceCacheTemporalPending={};
+    impl_->surfaceCacheTemporalCompleted=std::move(impl_->surfaceCacheTemporalPending);impl_->surfaceCacheTemporalPending={};
     impl_->areaLightShadowCompleted=std::move(impl_->areaLightShadowPending);impl_->areaLightShadowPending={};
     return true;
 }
@@ -1212,6 +1291,8 @@ PipelineDebugTextures MaterialRenderPipeline::DebugTextures() const {
             if(impl_->traceCompleted.valid)result.surfaceCacheSpatialRays=impl_->traceCompleted.sdf?
                 impl_->sdfRays[impl_->traceCompleted.image].color:impl_->traceRays[impl_->traceCompleted.image].color;
             result.surfaceCacheProbeIrradiance=impl_->surfaceCacheProbeIrradiance.color;
+            result.surfaceCacheProbeDirectional=impl_->surfaceCacheProbeDirectional.color;
+            if(impl_->statistics.surfaceCacheProbeOriginsCollected)result.surfaceCacheProbeOrigins=impl_->surfaceCacheProbeOrigins.color;
             result.surfaceCacheProbeWidth=impl_->surfaceCacheProbeIrradiance.width;
             result.surfaceCacheProbeHeight=impl_->surfaceCacheProbeIrradiance.height;
         }
@@ -1219,6 +1300,12 @@ PipelineDebugTextures MaterialRenderPipeline::DebugTextures() const {
             result.surfaceCacheSpatialGi=impl_->surfaceCacheSpatialGi.color;
             result.surfaceCacheSpatialRays=impl_->surfaceCacheSpatialRays[impl_->surfaceCacheCompleted.spatialImage].color;
             result.surfaceCacheSpatialNeighbors=impl_->surfaceCacheSpatialNeighbors.color;
+        }
+        if(impl_->statistics.surfaceCacheContactCollected) {
+            result.surfaceCacheContactGi=impl_->surfaceCacheContactResult.color;
+            result.surfaceCacheContactUnfilteredGi=impl_->surfaceCacheContactUnfilteredGi.color;
+            result.surfaceCacheContactMask=impl_->surfaceCacheContactMask.color;
+            result.surfaceCacheContactProbeRisk=impl_->surfaceCacheContactRisk.color;
         }
         if(impl_->surfaceCacheTemporalCompleted.valid) {
             result.surfaceCacheTemporalGi=impl_->surfaceCacheTemporalGi.color;

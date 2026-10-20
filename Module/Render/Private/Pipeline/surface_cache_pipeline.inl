@@ -4,7 +4,8 @@ void PrepareSurfaceCacheGi(const SurfaceCacheGiSettings& s,const ScreenProbePlac
     if(!s.enabled)return;
     if(!surfaceCacheConstantsOwner) {
         PipelineDetail::ResourceBuilder b(device);
-        surfaceCacheBuffer=b.Uniform(sizeof(SurfaceCacheGiConstants));surfaceCacheConstantsOwner=b.Finish();
+        surfaceCacheBuffer=b.Uniform(sizeof(SurfaceCacheGiConstants));
+        surfaceCacheOriginSafetyBuffer=b.Uniform(sizeof(SurfaceCacheOriginSafetyConstants));surfaceCacheConstantsOwner=b.Finish();
     }
     if(s.enabled&&!surfaceCacheProgramsOwner) {
         PipelineDetail::ResourceBuilder b(device);const auto vertex=FullscreenVertexShader();
@@ -13,16 +14,26 @@ void PrepareSurfaceCacheGi(const SurfaceCacheGiSettings& s,const ScreenProbePlac
         surfaceCacheResolveProgram=b.FullscreenPipeline(vertex,SurfaceCacheDetail::ResolveShader());
         surfaceCacheCoverageProgram=b.FullscreenPipeline(vertex,SurfaceCacheDetail::ResolveShader(true));
         surfaceCacheProbeIntegrateProgram=b.FullscreenPipeline(vertex,SurfaceCacheDetail::ProbeIntegrateShader());
+        surfaceCacheProbeOriginProgram=b.FullscreenPipeline(vertex,SurfaceCacheDetail::ProbeOriginShader());
+        surfaceCacheProbeOriginMarkerProgram=b.FullscreenPipeline(SurfaceCacheDetail::ProbeOriginMarkerVertexShader(),SurfaceCacheDetail::ProbeOriginMarkerFragmentShader());
+        surfaceCacheProbeActiveMaskProgram=b.FullscreenPipeline(vertex,SurfaceCacheDetail::ProbeActiveMaskShader());
+        surfaceCacheProbeDirectionalProgram=b.FullscreenPipeline(vertex,SurfaceCacheDetail::ProbeDirectionalIntegrateShader());
         surfaceCacheProbeReconstructProgram=b.FullscreenPipeline(vertex,SurfaceCacheDetail::ProbeReconstructShader());
         surfaceCacheProbeCoverageProgram=b.FullscreenPipeline(vertex,SurfaceCacheDetail::ProbeReconstructShader(true));
         surfaceCacheProgramsOwner=b.Finish();
     }
-    if(s.enabled&&s.useScreenProbes&&(s.view==0||s.view==2||s.view==6||(s.view==5&&s.temporal.enabled)||s.probeDiagnostics)) {
+    if(s.enabled&&s.useScreenProbes&&(s.view==0||s.view==2||s.view==6||(s.view==5&&s.temporal.enabled)||s.probeDiagnostics||s.probeOriginDiagnostics)) {
         const auto w=placementUniform[0].width/2,h=placementUniform[0].height*(1+placement.candidateCount);
         if(!surfaceCacheProbeOwner||surfaceCacheProbeIrradiance.width!=w||surfaceCacheProbeIrradiance.height!=h) {
             PipelineDetail::ResourceBuilder b(device);Target t;t.width=w;t.height=h;
             t.color=b.Texture(w,h,RHITextureFormat::RGBA32F);t.framebuffer=b.Target(t.color,{});
-            auto owner=b.Finish();surfaceCacheProbeIrradiance=t;surfaceCacheProbeOwner=std::move(owner);
+            Target origins;origins.width=w;origins.height=h;
+            origins.color=b.Texture(w,h,RHITextureFormat::RGBA32F);origins.framebuffer=b.Target(origins.color,{});
+            Target directional;directional.width=w*4;directional.height=h;
+            directional.color=b.Texture(w*4,h,RHITextureFormat::RGBA32F);directional.framebuffer=b.Target(directional.color,{});
+            Target activeMask;activeMask.width=w;activeMask.height=placementUniform[0].height;
+            activeMask.color=b.Texture(activeMask.width,activeMask.height,RHITextureFormat::RGBA32F);activeMask.framebuffer=b.Target(activeMask.color,{});
+            auto owner=b.Finish();surfaceCacheProbeIrradiance=t;surfaceCacheProbeOrigins=origins;surfaceCacheProbeDirectional=directional;surfaceCacheProbeActiveMask=activeMask;surfaceCacheProbeOwner=std::move(owner);
         }
     }
     const auto& cache=*s.cache;const auto& geometry=*s.scene->PackedGeometry();
@@ -80,7 +91,8 @@ SurfaceCacheGiConstants SurfaceCacheConstants(const SurfaceCacheGiSettings& s,co
     c.geometry={int(geometry.NodeCount()*2),int(geometry.Width()),int(geometry.NodeCount()),int(geometry.TriangleCount())};
     c.screen={int(width),int(height),int(s.raysPerPixel),int(s.view)};
     const auto debug=(s.view==2&&s.useScreenProbes)?s.reconstructionDebug:0u;
-    c.parameters={s.maxDistance,s.rayBias,s.intensity,float((s.cacheBilinear?3u:1u)|(debug<<3))};
+    c.parameters={s.maxDistance,s.rayBias,s.intensity,float((s.cacheBilinear?3u:1u)|(debug<<3)|
+        (s.directionalReconstruction?64u:0u)|(settings.screenProbePlacement.curvatureAwareWeights?128u:0u))};
     c.sunDirectionIntensity=glm::vec4(glm::normalize(settings.shadows.sunDirection),settings.shadows.sunIntensity);
     c.sunColor=glm::vec4(settings.shadows.sunColor,glm::uintBitsToFloat(settings.screenProbePlacement.trace.samplingSeed));c.spot=MakeSpotLightConstants(settings.spotLight);return c;
 }
@@ -118,41 +130,77 @@ void RecordSurfaceCacheGi(RHIFrameEncoder& encoder,const RenderFrame& frame,cons
     // under capture mode 2; it includes texture and metallic material factors.
     CaptureSurface(encoder,frame,camera,false);
     BindTarget(encoder,normalCapture,RHICommand::ClearColor);CaptureSurface(encoder,frame,camera,true);
-    const auto geometry=MakeIndirectLightingConstants(IndirectLightingSettings{},camera.projection,camera.view);
-    Upload(encoder,indirectBuffer,&geometry,sizeof(geometry),IndirectLightingBinding);
-    Fullscreen(encoder,indirectPositions,indirectGeometry,{},{},diffuseCapture.depth,post);
+    if(s.rasterSourcePositions)CaptureSurfacePositions(encoder,frame,camera,captureSurface);
+    else {
+        const auto geometry=MakeIndirectLightingConstants(IndirectLightingSettings{},camera.projection,camera.view);
+        Upload(encoder,indirectBuffer,&geometry,sizeof(geometry),IndirectLightingBinding);
+        Fullscreen(encoder,indirectPositions,indirectGeometry,{},{},diffuseCapture.depth,post);
+    }
     Fullscreen(encoder,surfaceCacheSource,copy,scene.color,{},{},post);
     // Leave the lighting attachment before sampling it. Also restore cache
     // bindings after material captures have installed their texture slots.
     BindSurfaceCache(encoder);
     const bool gather=s.view==0||s.view==2||(s.view==5&&SurfaceCacheTemporalActive(s));
-    const bool probes=s.useScreenProbes&&(gather||s.view==6||s.probeDiagnostics);
+    const bool probes=s.useScreenProbes&&(gather||s.view==6||s.probeDiagnostics||s.probeOriginDiagnostics);
     const bool temporal=SurfaceCacheTemporalActive(s);
     const auto historyKey=temporal?SurfaceCacheHistoryKey(frame,settings):0;
-    const bool historyValid=temporal&&surfaceCacheTemporalCompleted.valid&&!s.temporal.reset&&
-        !cameraCut&&surfaceCacheTemporalCompleted.key==historyKey;
+    const bool historyAllowed=temporal&&surfaceCacheTemporalCompleted.valid&&!s.temporal.reset&&!cameraCut;
+    const auto temporalMotion=temporal?ClassifySurfaceCacheTemporalMotion(frame,settings,historyKey,historyAllowed):SurfaceCacheTemporalMotionState{};
+    const bool historyValid=temporal&&temporalMotion.compatible;
     const auto temporalSequence=historyValid?surfaceCacheTemporalCompleted.sequence:0;
+    // Exact camera equality deliberately excludes even slow camera movement.
+    // Certified object motion and its settling window keep responsive history.
+    const bool stationary=historyValid&&s.temporal.staticConvergence&&s.temporal.maxFrames>1&&!temporalMotion.dynamicLighting&&
+        surfaceCacheTemporalCompleted.camera.view==camera.view&&
+        surfaceCacheTemporalCompleted.camera.projection==camera.projection;
     surfaceCachePending={true,key,probes};
+    surfaceCacheSafeOriginsActive=s.safeProbeOrigins&&probes;
     if(probes) {
         // Reuse the receiver capture (including rho). Placement must not
         // overwrite it or render diagnostics before the lighting resolve.
         auto placement=settings.screenProbePlacement;
-        if(temporal)placement.trace.samplingSeed=(placement.trace.samplingSeed+std::uint32_t(temporalSequence%s.temporal.directionPhases))&0x1fffffffu;
+        const SurfaceCacheOriginSafetyConstants safety{glm::vec4(s.originSafetyFraction,s.originSafetyEpsilon,s.rasterSourcePositions?1.f:0.f,0)};
+        Upload(encoder,surfaceCacheOriginSafetyBuffer,&safety,sizeof(safety),SurfaceCacheOriginSafetyBinding);
+        // Keep the sample sequence continuous through stop/start transitions;
+        // only the history limit changes with motion. A fixed eight-phase loop
+        // otherwise leaves a non-vanishing probe-specific Monte Carlo imprint.
+        if(temporal)placement.trace.samplingSeed=(placement.trace.samplingSeed+
+            std::uint32_t(s.temporal.staticConvergence&&s.temporal.maxFrames>1?
+                temporalSequence:temporalSequence%s.temporal.directionPhases))&0x1fffffffu;
         RecordScreenProbePlacement(encoder,frame,camera,placement,effects,surface,post,false,false);
+        // Local cosine-hemisphere strata have an exact one-to-one mapping only
+        // for matching normal frames. Static convergence can afford fresh rays
+        // instead of accumulating curved nearest-direction resampling bias.
+        if(stationary&&s.reconstructionDebug==0)
+            placementFrameConstants.refinement.x=float(int(placementFrameConstants.refinement.x+.5f)|16);
         Upload(encoder,surfaceCacheBuffer,&c,sizeof(c),SurfaceCacheGiBinding);
         Upload(encoder,placementBuffer,&placementFrameConstants,sizeof(placementFrameConstants),ScreenProbePlacementBinding);
         BindSurfaceCache(encoder);
         const auto image=placementPending.image,rayImage=tracePending.image;
+        Require(encoder.BindTexture({},10),"Cannot unbind adaptive activity output");
+        BindTarget(encoder,surfaceCacheProbeActiveMask);
+        Require(encoder.BindPipeline(surfaceCacheProbeActiveMaskProgram)&&encoder.BindMesh(fullscreen)&&
+            encoder.BindTexture(placementSpawned[image].color,1)&&encoder.DrawIndexed(RHICommand::DrawIndexed{3}),"Cannot summarize active adaptive probes");
         BindTarget(encoder,surfaceCacheProbeIrradiance);
         Require(encoder.BindPipeline(surfaceCacheProbeIntegrateProgram)&&encoder.BindMesh(fullscreen)&&
             encoder.BindTexture(placementUniform[image].color,0)&&encoder.BindTexture(placementSpawned[image].color,1)&&
             encoder.BindTexture(sdfRays[rayImage].color,7)&&encoder.DrawIndexed(RHICommand::DrawIndexed{3}),"Cannot integrate probe irradiance");
+        const bool directionalData=(s.directionalReconstruction||settings.screenProbePlacement.curvatureAwareWeights)&&gather;
+        if(directionalData) {
+            Require(encoder.BindTexture({},8),"Cannot unbind directional probe output");
+            BindTarget(encoder,surfaceCacheProbeDirectional);
+            Require(encoder.BindPipeline(surfaceCacheProbeDirectionalProgram)&&encoder.BindMesh(fullscreen)&&
+                encoder.BindTexture(placementUniform[image].color,0)&&encoder.BindTexture(placementSpawned[image].color,1)&&
+                encoder.BindTexture(sdfRays[rayImage].color,7)&&encoder.DrawIndexed(RHICommand::DrawIndexed{3}),"Cannot integrate directional probe irradiance");
+        }
+        statistics.surfaceCacheDirectionalCollected=s.directionalReconstruction&&gather;
         if(gather) {
             BindTarget(encoder,surfaceCacheRaw);
             Require(encoder.BindPipeline(surfaceCacheProbeReconstructProgram)&&encoder.BindMesh(fullscreen)&&
                 encoder.BindTexture(indirectPositions.color,2)&&encoder.BindTexture(normalCapture.color,3)&&encoder.BindTexture(diffuseCapture.color,4)&&
                 encoder.BindTexture(placementUniform[image].color,5)&&encoder.BindTexture(placementSpawned[image].color,6)&&
-                encoder.BindTexture(surfaceCacheProbeIrradiance.color,7)&&encoder.DrawIndexed(RHICommand::DrawIndexed{3}),"Cannot reconstruct probe GI");
+                encoder.BindTexture(surfaceCacheProbeIrradiance.color,7)&&encoder.BindTexture(surfaceCacheProbeDirectional.color,8)&&encoder.BindTexture(surfaceCacheProbeActiveMask.color,10)&&
+                encoder.BindTexture(surfaceCacheSafeOriginsActive?surfaceCacheProbeOrigins.color:RenderResourceHandle<RHITextureSpec>{},11)&&encoder.DrawIndexed(RHICommand::DrawIndexed{3}),"Cannot reconstruct probe GI");
         } else BindTarget(encoder,surfaceCacheRaw,RHICommand::ClearColor);
         const bool collectCoverage=s.collectProbeCoverage||s.view==6;
         if(collectCoverage) {
@@ -160,10 +208,10 @@ void RecordSurfaceCacheGi(RHIFrameEncoder& encoder,const RenderFrame& frame,cons
             Require(encoder.BindPipeline(surfaceCacheProbeCoverageProgram)&&encoder.BindMesh(fullscreen)&&
                 encoder.BindTexture(indirectPositions.color,2)&&encoder.BindTexture(normalCapture.color,3)&&encoder.BindTexture(diffuseCapture.color,4)&&
                 encoder.BindTexture(placementUniform[image].color,5)&&encoder.BindTexture(placementSpawned[image].color,6)&&
-                encoder.BindTexture(surfaceCacheProbeIrradiance.color,7)&&encoder.DrawIndexed(RHICommand::DrawIndexed{3}),"Cannot diagnose geometric probe coverage");
+                encoder.BindTexture(surfaceCacheProbeIrradiance.color,7)&&encoder.BindTexture(surfaceCacheProbeActiveMask.color,10)&&encoder.DrawIndexed(RHICommand::DrawIndexed{3}),"Cannot diagnose geometric probe coverage");
         }
         statistics.surfaceCacheProbeCoverageCollected=collectCoverage;
-        statistics.surfaceCacheProbePasses=unsigned(gather)+1+unsigned(collectCoverage);
+        statistics.surfaceCacheProbePasses=unsigned(gather)+2+unsigned(collectCoverage)+unsigned(directionalData);
         statistics.surfaceCacheProbeSlots=placementFrameConstants.traceAtlas.w;
         statistics.surfaceCacheProbeRayBudget=std::uint64_t(statistics.surfaceCacheProbeSlots)*settings.screenProbePlacement.trace.rayResolution*settings.screenProbePlacement.trace.rayResolution;
         statistics.surfaceCacheRays=statistics.surfaceCacheProbeRayBudget;
@@ -176,8 +224,17 @@ void RecordSurfaceCacheGi(RHIFrameEncoder& encoder,const RenderFrame& frame,cons
     }
     const bool spatial=SurfaceCacheSpatialActive(s);
     if(spatial)RecordSurfaceCacheSpatial(encoder,s);
-    const auto& giSignal=spatial?surfaceCacheSpatialGi:surfaceCacheRaw;
-    if(temporal)RecordSurfaceCacheTemporal(encoder,s,camera,historyKey,temporalSequence,historyValid,giSignal);
+    const Target* giSignalTarget=spatial?&surfaceCacheSpatialGi:&surfaceCacheRaw;
+    if(SurfaceCacheContactActive(s)) {
+        RecordSurfaceCacheContact(encoder,s,*giSignalTarget,settings.screenProbePlacement.trace.samplingSeed,temporalSequence,temporal);giSignalTarget=&surfaceCacheContactResult;
+    }
+    const auto& giSignal=*giSignalTarget;
+    if(temporal) {
+        RecordSurfaceCacheTemporal(encoder,s,camera,historyKey,temporalSequence,historyValid,giSignal,temporalMotion.dynamicLighting,stationary);
+        surfaceCacheTemporalPending.motionSnapshot=temporalMotion.snapshot;
+        surfaceCacheTemporalPending.stableKey=temporalMotion.stableKey;
+        surfaceCacheTemporalPending.dynamicSettleRemaining=temporalMotion.settleRemaining;
+    }
     const auto resolve=[&](const Target& target,RenderResourceHandle<PipelineSpec> program,bool rawCoverage=false) {
         BindTarget(encoder,target);Require(encoder.BindPipeline(program)&&encoder.BindMesh(fullscreen)&&
             encoder.BindTexture(surfaceCacheSource.color,0)&&encoder.BindTexture(rawCoverage?surfaceCacheRaw.color:(temporal?surfaceCacheTemporalGi.color:giSignal.color),1)&&
@@ -197,6 +254,13 @@ void RecordSurfaceCacheGi(RHIFrameEncoder& encoder,const RenderFrame& frame,cons
     else resolve(surfaceCacheResolved,surfaceCacheResolveProgram);
     Fullscreen(encoder,scene,copy,surfaceCacheResolved.color,{},{},post);
     if(probes&&s.probeDiagnostics)RecordScreenProbeDebug(encoder,settings.screenProbePlacement,placementFrameConstants,placementPending.image,tracePending.image,post);
+    if(probes&&s.probeOriginDiagnostics&&statistics.surfaceCacheProbeOriginsCollected) {
+        Upload(encoder,placementBuffer,&placementFrameConstants,sizeof(placementFrameConstants),ScreenProbePlacementBinding);
+        BindTarget(encoder,scene);
+        Require(encoder.BindPipeline(surfaceCacheProbeOriginMarkerProgram)&&encoder.BindMesh(fullscreen)&&
+            encoder.BindTexture(surfaceCacheProbeOrigins.color,0)&&encoder.DrawIndexed(RHICommand::DrawIndexed{3,0,0,unsigned(placementFrameConstants.traceAtlas.w),0}),"Cannot show actual probe ray origins");
+        ++statistics.surfaceCachePasses;
+    }
     Upload(encoder,surfaceBuffer,&surface,sizeof(surface),SurfacePassBinding);Effects(encoder,effects);
-    statistics.surfaceCachePasses+=(gather?9:8)+(probes?statistics.surfaceCacheProbePasses-unsigned(gather):0);
+    statistics.surfaceCachePasses+=(gather?9:8)+(probes?statistics.surfaceCacheProbePasses-unsigned(gather):0)+unsigned(statistics.surfaceCacheProbeOriginsCollected);
 }

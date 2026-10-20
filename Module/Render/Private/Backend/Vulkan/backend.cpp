@@ -242,6 +242,20 @@ class VulkanBackend final : public IBackend {
   std::map<std::array<uint64_t, 34>, VkDescriptorSet> descriptorSnapshots_;
   VkQueryPool timestamps_{};
   double gpuMs_{};
+  uint32_t timestampValidBits_ = 0;
+  bool collectGpuTimings_ = false;
+  uint64_t timingFrameIndex_ = 0;
+  std::array<bool, RHICommand::GpuTimingScopeCount> timingActive_{};
+  std::array<bool, RHICommand::GpuTimingScopeCount> timingRecorded_{};
+  std::array<RHICommand::GpuTimingResult, RHICommand::GpuTimingScopeCount> gpuTimings_{};
+  double TimestampMilliseconds(uint64_t begin, uint64_t end) const {
+    // Only the queue family's declared bits are defined, including when the
+    // device writes a wider uint64 result. Unsigned masked subtraction handles
+    // the hardware counter wrapping between the two markers.
+    const uint64_t mask = timestampValidBits_ >= 64 ? UINT64_MAX :
+        ((uint64_t(1) << timestampValidBits_) - 1);
+    return double((end - begin) & mask) * double(properties_.limits.timestampPeriod) / 1e6;
+  }
   uint32_t validationErrors_ = 0;
   Image fallback_, windowColor_, windowDepth_;
   Target current_{};
@@ -567,6 +581,8 @@ protected:
   void EndFrame(const RHICommand::EndFrame &) override;
   void SetRenderTarget(const RHICommand::SetRenderTarget &) override;
   void ResolveRenderTarget(const RHICommand::ResolveRenderTarget &) override;
+  void BeginGpuTiming(const RHICommand::BeginGpuTiming &) override;
+  void EndGpuTiming(const RHICommand::EndGpuTiming &) override;
   void SetViewport(const RHICommand::SetViewport &c) override {
     viewport_ = {float(c.x),      float(c.y), float(c.width),
                  float(c.height), c.minDepth, c.maxDepth};
@@ -590,6 +606,10 @@ public:
   bool HardwareRayTracingAvailable() const override { return rayQuery_; }
   std::string DeviceName() const override { return properties_.deviceName; }
   double LastGpuMilliseconds() const override { return gpuMs_; }
+  RHICommand::GpuTimingResult LastGpuTiming(RHICommand::GpuTimingScope scope) const override {
+    const auto index = static_cast<size_t>(scope);
+    return index < gpuTimings_.size() ? gpuTimings_[index] : RHICommand::GpuTimingResult{};
+  }
   void AbortFrame() override {
     ++validationErrors_;
     if (recording_) {
@@ -695,6 +715,7 @@ void VulkanBackend::Init(void *data) {
         physical_ = device;
         queueFamily_ = i;
         properties_ = properties;
+        timestampValidBits_ = q[i].timestampValidBits;
         best = score;
       }
       break;
@@ -818,7 +839,7 @@ void VulkanBackend::Init(void *data) {
       MakeBuffer(64 * 1024 * 1024, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
   VkQueryPoolCreateInfo qp{VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO};
   qp.queryType = VK_QUERY_TYPE_TIMESTAMP;
-  qp.queryCount = 2;
+  qp.queryCount = 2 + uint32_t(RHICommand::GpuTimingScopeCount) * 2;
   Check(vkCreateQueryPool(device_, &qp, nullptr, &timestamps_),
         "create timestamp pool");
   fallback_ = MakeImage(1, 1, VK_FORMAT_R8G8B8A8_UNORM, 1);
@@ -2094,7 +2115,13 @@ void VulkanBackend::BeginFrame(const RHICommand::BeginFrame &c) {
   mesh_ = {};
   pipeline_ = {};
   StartCommands();
-  vkCmdResetQueryPool(command_, timestamps_, 0, 2);
+  collectGpuTimings_ = c.collectGpuTimings;
+  timingFrameIndex_ = c.frameIndex;
+  timingActive_.fill(false);
+  timingRecorded_.fill(false);
+  gpuTimings_.fill({});
+  vkCmdResetQueryPool(command_, timestamps_, 0,
+      collectGpuTimings_ ? 2 + uint32_t(RHICommand::GpuTimingScopeCount) * 2 : 2);
   vkCmdWriteTimestamp(command_, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, timestamps_,
                       0);
   SetRenderTarget({{},
@@ -2104,9 +2131,41 @@ void VulkanBackend::BeginFrame(const RHICommand::BeginFrame &c) {
                    c.clearColor,
                    c.clearDepth});
 }
+void VulkanBackend::BeginGpuTiming(const RHICommand::BeginGpuTiming &c) {
+  if (!recording_ || !collectGpuTimings_)
+    return;
+  const auto index = static_cast<size_t>(c.scope);
+  if (index >= timingActive_.size() || timingActive_[index] || timingRecorded_[index])
+    throw std::runtime_error("Vulkan: invalid or repeated GPU timing scope");
+  timingActive_[index] = true;
+  EndRendering();
+  // Use the same completion stage on both sides: the first marker retires
+  // the completed producer render pass and the second includes the filter's
+  // final attachment STORE. These markers sit at existing target changes, so
+  // ending rendering here moves a natural pass boundary before the timestamp.
+  // A TOP_OF_PIPE start could include unrelated unfinished producer work.
+  // There is no additional draw or queue submission.
+  vkCmdWriteTimestamp(command_, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+      timestamps_, 2 + uint32_t(index) * 2);
+}
+void VulkanBackend::EndGpuTiming(const RHICommand::EndGpuTiming &c) {
+  if (!recording_ || !collectGpuTimings_)
+    return;
+  const auto index = static_cast<size_t>(c.scope);
+  if (index >= timingActive_.size() || !timingActive_[index])
+    throw std::runtime_error("Vulkan: GPU timing scope ended without a start");
+  EndRendering();
+  vkCmdWriteTimestamp(command_, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+      timestamps_, 3 + uint32_t(index) * 2);
+  timingActive_[index] = false;
+  timingRecorded_[index] = true;
+}
 void VulkanBackend::EndFrame(const RHICommand::EndFrame &c) {
   if (!recording_)
     return;
+  for (bool active : timingActive_)
+    if (active)
+      throw std::runtime_error("Vulkan: unclosed GPU timing scope");
   EndRendering();
   vkCmdWriteTimestamp(command_, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
                       timestamps_, 1);
@@ -2119,7 +2178,18 @@ void VulkanBackend::EndFrame(const RHICommand::EndFrame &c) {
             device_, timestamps_, 0, 2, sizeof(t), t, sizeof(uint64_t),
             VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT),
         "read GPU timestamps");
-  gpuMs_ = double(t[1] - t[0]) * properties_.limits.timestampPeriod / 1e6;
+  gpuMs_ = TimestampMilliseconds(t[0], t[1]);
+  // Submit/Present has completed this frame's fence. Read only written pairs,
+  // avoiding a wait on reset queries for skipped or disabled filter groups.
+  for (size_t index = 0; index < timingRecorded_.size(); ++index) {
+    if (!timingRecorded_[index])
+      continue;
+    Check(vkGetQueryPoolResults(
+              device_, timestamps_, 2 + uint32_t(index) * 2, 2, sizeof(t), t,
+              sizeof(uint64_t), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT),
+          "read GPU scope timestamps");
+    gpuTimings_[index] = {TimestampMilliseconds(t[0], t[1]), timingFrameIndex_, true};
+  }
 }
 void VulkanBackend::SetRenderTarget(const RHICommand::SetRenderTarget &c) {
   EndRendering();

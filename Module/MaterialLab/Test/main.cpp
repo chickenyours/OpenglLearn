@@ -66,6 +66,21 @@ struct Options {
     bool sealedGiRoom=false,sealedGiRoomTest=false;
     bool surfaceCacheCornerTest=false,surfaceCacheCornerFiltered=false,surfaceCacheCornerSweep=false;
     bool surfaceCacheEdgeTest=false,surfaceCacheEdgeDiagnosticsOnly=false;
+    bool surfaceCacheAdaptiveTest=false,surfaceCacheDirectionalTest=false,surfaceCacheGeometryTest=false,surfaceCacheOriginTest=false;
+    bool surfaceCacheNoSafeOrigins=false,surfaceCacheNoCurvature=false,surfaceCacheOriginOverlay=false;
+    bool surfaceCacheDepthPositions=false;
+    bool surfaceCacheNoLocalNeighbors=false,surfaceCacheNoYoungRecovery=false,surfaceCacheResetOnObjectMotion=false;
+    bool surfaceCacheRecoveryTest=false;
+    bool surfaceCacheLampTest=false,surfaceCacheContactNoiseTest=false;
+    bool surfaceCacheCurvedContactTest=false,surfaceCacheCurvedContactPerformance=false;
+    bool surfaceCacheWallTransitionTest=false,surfaceCacheWallTransitionLegacy=false,surfaceCacheWallTransitionPerformance=false;
+    bool surfaceCacheProbeImprintTest=false,surfaceCacheProbeImprintPerformance=false,surfaceCacheProbeImprintConvergence=false;
+    std::uint32_t surfaceCacheProbeImprintView=3;
+    std::uint32_t surfaceCacheProbeImprintConvergenceFrames=128;
+    std::uint32_t surfaceCacheCurvedContactReferenceSeeds=32,surfaceCacheCurvedContactView=3;
+    bool surfaceCacheTransportTest=false;
+    bool surfaceCacheFeaturePerf=false,surfaceCacheSourcePerf=false;
+    bool surfaceCacheFeatureAblation=false;
     std::uint32_t surfaceCacheSpatialPasses=3,surfaceCacheSpatialRadius=1;
     std::uint32_t surfaceCacheHistoryFrames=10,surfaceCacheHistoryDirections=8;
     std::uint32_t surfaceCacheView=0,surfaceCacheRays=1;
@@ -116,6 +131,36 @@ Options Parse(int argc, char** argv) {
         else if(arg=="--surface-cache-corner-sweep") {result.surfaceCacheCornerTest=true;result.surfaceCacheCornerFiltered=true;result.surfaceCacheCornerSweep=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;}
         else if(arg=="--surface-cache-edge-test") {result.surfaceCacheEdgeTest=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;}
         else if(arg=="--surface-cache-edge-diagnostics") {result.surfaceCacheEdgeTest=true;result.surfaceCacheEdgeDiagnosticsOnly=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;}
+        else if(arg=="--surface-cache-adaptive-test") {result.surfaceCacheAdaptiveTest=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;}
+        else if(arg=="--surface-cache-directional-test") {result.surfaceCacheDirectionalTest=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;}
+        else if(arg=="--surface-cache-geometry-test") {result.surfaceCacheGeometryTest=true;result.sealedGiRoomTest=true;result.surfaceCacheGi=true;}
+        else if(arg=="--surface-cache-origin-test") {result.surfaceCacheOriginTest=true;result.sealedGiRoomTest=true;result.surfaceCacheGi=true;}
+        else if(arg=="--surface-cache-transport-test") {result.surfaceCacheTransportTest=true;result.sealedGiRoomTest=true;result.surfaceCacheGi=true;}
+        else if(arg=="--surface-cache-no-safe-origins")result.surfaceCacheNoSafeOrigins=true;
+        else if(arg=="--surface-cache-depth-positions")result.surfaceCacheDepthPositions=true;
+        else if(arg=="--surface-cache-no-local-neighbors")result.surfaceCacheNoLocalNeighbors=true;
+        else if(arg=="--surface-cache-no-young-recovery")result.surfaceCacheNoYoungRecovery=true;
+        else if(arg=="--surface-cache-reset-on-object-motion")result.surfaceCacheResetOnObjectMotion=true;
+        else if(arg=="--surface-cache-recovery-test") {result.surfaceCacheRecoveryTest=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;}
+        else if(arg=="--surface-cache-lamp-test") {result.surfaceCacheLampTest=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;}
+        else if(arg=="--surface-cache-contact-noise-test") {result.surfaceCacheContactNoiseTest=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;}
+        else if(arg=="--surface-cache-probe-imprint-test") {result.surfaceCacheProbeImprintTest=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;}
+        else if(arg=="--surface-cache-probe-imprint-convergence") result.surfaceCacheProbeImprintConvergence=true;
+        else if(arg=="--surface-cache-probe-imprint-convergence-frames"&&i+1<argc) {result.surfaceCacheProbeImprintConvergenceFrames=unsigned(std::stoul(argv[++i]));Check(result.surfaceCacheProbeImprintConvergenceFrames==64||result.surfaceCacheProbeImprintConvergenceFrames==128,"Static convergence frames must be 64 or 128");}
+        else if(arg=="--surface-cache-probe-imprint-performance") {result.surfaceCacheProbeImprintPerformance=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;}
+        else if(arg=="--surface-cache-probe-imprint-view"&&i+1<argc) {result.surfaceCacheProbeImprintView=unsigned(std::stoul(argv[++i]));Check(result.surfaceCacheProbeImprintView<=3,"Probe imprint view must be 0..2 or 3 for all views");}
+        else if(arg=="--surface-cache-wall-transition-test") {result.surfaceCacheWallTransitionTest=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;}
+        else if(arg=="--surface-cache-wall-transition-legacy") result.surfaceCacheWallTransitionLegacy=true;
+        else if(arg=="--surface-cache-wall-transition-performance") {result.surfaceCacheWallTransitionPerformance=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;}
+        else if(arg=="--surface-cache-curved-contact-test") {result.surfaceCacheCurvedContactTest=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;}
+        else if(arg=="--surface-cache-curved-contact-performance-test") {result.surfaceCacheCurvedContactPerformance=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;}
+        else if(arg=="--surface-cache-curved-contact-reference-seeds"&&i+1<argc) {result.surfaceCacheCurvedContactReferenceSeeds=unsigned(std::stoul(argv[++i]));Check(result.surfaceCacheCurvedContactReferenceSeeds==32||result.surfaceCacheCurvedContactReferenceSeeds==64||result.surfaceCacheCurvedContactReferenceSeeds==128,"Curved contact reference seeds must be 32, 64 or 128 (1024, 2048 or 4096 spp)");}
+        else if(arg=="--surface-cache-curved-contact-view"&&i+1<argc) {result.surfaceCacheCurvedContactView=unsigned(std::stoul(argv[++i]));Check(result.surfaceCacheCurvedContactView<=3,"Curved contact view must be 0..2 or 3 for all views");}
+        else if(arg=="--surface-cache-no-curvature")result.surfaceCacheNoCurvature=true;
+        else if(arg=="--surface-cache-origin-overlay")result.surfaceCacheOriginOverlay=true;
+        else if(arg=="--surface-cache-feature-perf") {result.surfaceCacheFeaturePerf=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;}
+        else if(arg=="--surface-cache-source-perf") {result.surfaceCacheSourcePerf=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;}
+        else if(arg=="--surface-cache-feature-ablation") {result.surfaceCacheFeatureAblation=true;result.surfaceCacheEdgeTest=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;}
         else if(arg=="--surface-cache-motion-test") result.surfaceCacheMotionTest=true;
         else if(arg=="--surface-cache-motion-tune"){result.surfaceCacheMotionTest=true;result.surfaceCacheMotionTune=true;}
         else if(arg=="--surface-cache-no-spatial") result.surfaceCacheNoSpatial=true;
@@ -206,7 +251,7 @@ Options Parse(int argc, char** argv) {
         else if ((arg == "--screenshot" || arg == "--legacy-textures") && i + 1 < argc) {
             if (arg == "--screenshot") result.screenshot = argv[++i];
             else result.legacyDirectory = argv[++i];
-        } else throw std::runtime_error("Usage: material_lab_demo [--surface-cache-sealed-room|--sealed-gi-room-test|--surface-cache-gi|--surface-cache-test|--surface-cache-temporal-test|--surface-cache-performance-test|--sdf-quality-test|--sdf-probe-tracing|--sdf-probe-trace-test|--screen-probe-tracing|--screen-probe-trace-test|--probe-placement|--probe-placement-test|--gi-room|--gi-room-test|--gi-room-performance-test|--showcase|--showcase-test|--showcase-motion-test|--showcase-performance-test|--showcase-stability-test|--showcase-water-diagnostic|--smoke-test|--quality-test|--shadow-test|--closeup-test|--advanced-test|--advanced-quality-test|--sky-test|--probe-test|--realtime-gi-test|--lumen-gi-test|--lumen-adaptive-test|--lumen-probe-diffuse-test|--realtime-gi-stability-test|--lumen-view-stability-test|--benchmark] [--surface-cache-view total|cache|indirect|coverage|atlas|history --surface-cache-no-temporal --surface-cache-history-frames 1..64 --surface-cache-history-directions 1..64 --surface-cache-rays 1..32 --surface-cache-reference --surface-cache-probe-test --surface-cache-probe-rays 4|8|16 --surface-cache-probe-spacing 4..128] [--vulkan --validation --software-rays] [--sky --probes --realtime-gi --lumen-gi --lumen-adaptive --lumen-probe-diffuse --sky-hdr FILE.hdr] [--lumen-reflection-scale .5..1 --lumen-source-scale .25..1 --lumen-reflection-detail 128..512] [--yaw RADIANS --pitch RADIANS --distance UNITS] [--fps LIMIT --vsync --fullscreen --msaa 1|2|4|8 --no-debug-ui] [--benchmark-width W --benchmark-height H --benchmark-present] [--render-width W --render-height H --render-scale .5..1] [--procedural] [--legacy-textures DIR] [--screenshot FILE.png]");
+        } else throw std::runtime_error("Usage: material_lab_demo [--surface-cache-sealed-room|--sealed-gi-room-test|--surface-cache-recovery-test|--surface-cache-lamp-test|--surface-cache-contact-noise-test|--surface-cache-gi|--surface-cache-test|--surface-cache-temporal-test|--surface-cache-performance-test|--sdf-quality-test|--sdf-probe-tracing|--sdf-probe-trace-test|--screen-probe-tracing|--screen-probe-trace-test|--probe-placement|--probe-placement-test|--gi-room|--gi-room-test|--gi-room-performance-test|--showcase|--showcase-test|--showcase-motion-test|--showcase-performance-test|--showcase-stability-test|--showcase-water-diagnostic|--smoke-test|--quality-test|--shadow-test|--closeup-test|--advanced-test|--advanced-quality-test|--sky-test|--probe-test|--realtime-gi-test|--lumen-gi-test|--lumen-adaptive-test|--lumen-probe-diffuse-test|--realtime-gi-stability-test|--lumen-view-stability-test|--benchmark] [--surface-cache-view total|cache|indirect|coverage|atlas|history --surface-cache-no-local-neighbors --surface-cache-no-young-recovery --surface-cache-reset-on-object-motion --surface-cache-no-temporal --surface-cache-history-frames 1..64 --surface-cache-history-directions 1..64 --surface-cache-rays 1..32 --surface-cache-reference --surface-cache-probe-test --surface-cache-probe-rays 4|8|16 --surface-cache-probe-spacing 4..128] [--vulkan --validation --software-rays] [--sky --probes --realtime-gi --lumen-gi --lumen-adaptive --lumen-probe-diffuse --sky-hdr FILE.hdr] [--lumen-reflection-scale .5..1 --lumen-source-scale .25..1 --lumen-reflection-detail 128..512] [--yaw RADIANS --pitch RADIANS --distance UNITS] [--fps LIMIT --vsync --fullscreen --msaa 1|2|4|8 --no-debug-ui] [--benchmark-width W --benchmark-height H --benchmark-present] [--render-width W --render-height H --render-scale .5..1] [--procedural] [--legacy-textures DIR] [--screenshot FILE.png]");
     }
     Check(!result.procedural || result.legacyDirectory.empty(), "Choose --procedural or --legacy-textures, not both");
     Check(!result.probes||!result.realtimeGi,"Choose --probes or --realtime-gi");
@@ -1449,10 +1494,23 @@ void Benchmark(MaterialLabModule& lab, const Options& options) {
 #include "sealed_gi_room_test.inl"
 #include "surface_cache_corner_test.inl"
 #include "surface_cache_edge_test.inl"
+#include "adaptive_surface_test.inl"
+#include "surface_cache_directional_test.inl"
+#include "surface_cache_geometry_quality_test.inl"
+#include "surface_cache_origin_test.inl"
+#include "surface_cache_transport_test.inl"
 #include "surface_cache_probe_test.inl"
 #include "surface_cache_temporal_test.inl"
 #include "surface_cache_spatial_test.inl"
 #include "surface_cache_motion_test.inl"
+#include "surface_cache_recovery_test.inl"
+#include "surface_cache_lamp_transport_diagnostics.inl"
+#include "surface_cache_lamp_test.inl"
+#include "surface_cache_contact_noise_test.inl"
+#include "surface_cache_curved_contact_test.inl"
+#include "surface_cache_wall_transition_test.inl"
+#include "surface_cache_probe_imprint_test.inl"
+#include "surface_cache_probe_imprint_performance.inl"
 #include "probe_placement_test.inl"
 #include "screen_probe_trace_test.inl"
 #include "probe_sdf_trace_test.inl"
@@ -2004,8 +2062,20 @@ int main(int argc, char** argv) {
         if (!options.noDebugUI && !hidden && !options.benchmark && !options.giRoomPerformance && !options.showcaseMotion)
             Check(lab.EnableDebugUI(window.GetNativeWindow(), options.vulkan ? Render::BackendType::Vulkan : Render::BackendType::Opengl), lab.LastError());
         std::cout << "Legacy textures: " << (options.legacyDirectory.empty() ? "procedural fallback" : options.legacyDirectory) << '\n';
-        if(options.surfaceCacheEdgeTest)SurfaceCacheEdgeQuality(lab,options);
+        if(options.surfaceCacheTransportTest)SurfaceCacheTransportQuality(lab,options);
+        else if(options.surfaceCacheOriginTest)SurfaceCacheOriginQuality(lab,options);
+        else if(options.surfaceCacheGeometryTest)SurfaceCacheGeometryQuality(lab,options);
+        else if(options.surfaceCacheAdaptiveTest)SurfaceCacheAdaptiveSurfaceQuality(lab,options);
+        else if(options.surfaceCacheDirectionalTest)SurfaceCacheDirectionalQuality(lab,options);
+        else if(options.surfaceCacheEdgeTest)SurfaceCacheEdgeQuality(lab,options);
         else if(options.surfaceCacheCornerTest)SurfaceCacheCornerQuality(lab,options);
+        else if(options.surfaceCacheRecoveryTest)SurfaceCacheRecoveryQuality(lab,options);
+        else if(options.surfaceCacheLampTest)SurfaceCacheLampQuality(lab,options);
+        else if(options.surfaceCacheContactNoiseTest)SurfaceCacheContactNoiseQuality(lab,options);
+        else if(options.surfaceCacheProbeImprintTest)SurfaceCacheProbeImprintQuality(lab,options);
+        else if(options.surfaceCacheProbeImprintPerformance)SurfaceCacheProbeImprintPerformance(lab,options);
+        else if(options.surfaceCacheCurvedContactTest||options.surfaceCacheCurvedContactPerformance)SurfaceCacheCurvedContactQuality(lab,options);
+        else if(options.surfaceCacheWallTransitionTest||options.surfaceCacheWallTransitionPerformance)SurfaceCacheWallTransitionTest(lab,options);
         else if(options.sealedGiRoomTest)SealedGiRoomQuality(lab,options);
         else if(options.surfaceCacheMotionTest)SurfaceCacheMotionQuality(lab,options);
         else if(options.surfaceCacheSpatialTest)SurfaceCacheSpatialQuality(lab,options);

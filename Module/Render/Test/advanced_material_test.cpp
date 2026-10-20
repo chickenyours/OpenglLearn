@@ -24,7 +24,7 @@ void CheckLayoutAndValues() {
     static_assert(sizeof(SurfacePassConstants)==176 && SurfacePassBinding==7);
     static_assert(offsetof(SurfacePassConstants,screenTime)==128 && offsetof(SurfacePassConstants,options)==144);
     const auto surface=MakePbrTemplate(), glass=MakePbrTemplate(Domain::Translucent);
-    assert(surface && glass && surface->ByteSize()==208 && glass->ByteSize()==208);
+    assert(surface && glass && surface->ByteSize()==448 && glass->ByteSize()==448);
     assert(surface->ByteSize()<=MaterialTemplate::MaxParameterBytes);
     assert(!MakePbrTemplate(Domain::Sprite));
     assert(!MakePbrTemplate(static_cast<Domain>(255)));

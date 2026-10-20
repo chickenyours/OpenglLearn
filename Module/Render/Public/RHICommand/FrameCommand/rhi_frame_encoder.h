@@ -25,11 +25,23 @@ public:
     bool Begin(const RHICommand::BeginFrame& command) {
         if (!HasRecordingLease() || state_ != State::Initial) return false;
         state_ = buffer_->PushCommand(command) ? State::Recording : State::Initial;
+        collectGpuTimings_ = state_ == State::Recording && command.collectGpuTimings;
         return state_ == State::Recording;
     }
 
     bool SetViewport(const RHICommand::SetViewport& command) {
         return Record(command);
+    }
+
+    // Ordinary frames omit both markers from the command buffer entirely.
+    bool BeginGpuTiming(RHICommand::GpuTimingScope scope) {
+        return IsRecording() && static_cast<size_t>(scope) < RHICommand::GpuTimingScopeCount &&
+            (!collectGpuTimings_ || Record(RHICommand::BeginGpuTiming{scope}));
+    }
+
+    bool EndGpuTiming(RHICommand::GpuTimingScope scope) {
+        return IsRecording() && static_cast<size_t>(scope) < RHICommand::GpuTimingScopeCount &&
+            (!collectGpuTimings_ || Record(RHICommand::EndGpuTiming{scope}));
     }
 
     bool SetRenderTarget(const RHICommand::SetRenderTarget& command) {
@@ -143,6 +155,7 @@ private:
     ObjectWeakPtr<RHIFrameCommandBuffer> buffer_;
     uint64_t recordingGeneration_ = 0;
     State state_ = State::Initial;
+    bool collectGpuTimings_ = false;
 };
 
 } // namespace Render

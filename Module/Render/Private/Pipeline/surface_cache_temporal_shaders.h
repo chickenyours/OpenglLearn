@@ -2,7 +2,7 @@
 #include <string>
 
 namespace Render::SurfaceCacheDetail {
-// std140, 240 bytes; binding 13 is independent of SurfaceCacheData (12).
+// std140, 272 bytes; binding 13 is independent of SurfaceCacheData (12).
 // Accumulate the reconstructed per-pixel final gather, never probe indices:
 // adaptive probes may be regenerated in another order on the following frame.
 inline std::string TemporalConstantsGLSL() { return R"GLSL(
@@ -13,6 +13,8 @@ layout(std140,binding=13) uniform SurfaceCacheTemporalData {
     ivec4 stScreen;
     vec4 stReject;
     vec4 stClamp;
+    vec4 stRecovery; // strength, radius in pixels, young frame limit, albedo threshold
+    vec4 stDynamic;  // scene motion active, frame cap, clamp sigma, coherent coverage confidence
 };
 bool STFinite(vec3 value) { return !any(isnan(value))&&!any(isinf(value)); }
 bool STGeometryValid(vec4 position,vec4 normal) {
@@ -30,6 +32,73 @@ layout(binding=2) uniform sampler2D stWorldNormals;
 layout(binding=3) uniform sampler2D stHistory;
 layout(binding=4) uniform sampler2D stHistoryPositions;
 layout(binding=5) uniform sampler2D stHistoryNormals;
+layout(binding=6) uniform sampler2D stCurrentAlbedo;
+
+// A local adaptation of the low-confidence bilateral recovery in UE's
+// LumenReSTIRGather.usf / LumenReflectionDenoiserSpatial.usf. The ordinary
+// ScreenProbeGather instead increases probe-space filtering for moving traces.
+// Filter only the current signal while its history is young; retain the real
+// count and readability, so spatial taps never masquerade as temporal samples.
+vec3 STRecoverYoungCurrent(ivec2 pixel,vec3 world,vec3 normal,float depth,float footprint,
+    vec3 current,float readability,float count) {
+    float youngLimit=max(stRecovery.z,1.0);
+    if(stRecovery.x<=0.0||stRecovery.y<.5||youngLimit<=1.0||count>=youngLimit)return current;
+    bool coherentConfidence=stDynamic.w>.5;
+    vec3 albedo=texelFetch(stCurrentAlbedo,pixel,0).rgb;
+    if(!STFinite(albedo))return current;
+    int radius=clamp(int(floor(stRecovery.y+.5)),1,4);
+    float pixelWorld=clamp(footprint,.000001,max(stClamp.z,.025*depth));
+    if(isnan(pixelWorld)||isinf(pixelWorld))return current;
+    // Depth is allowed to change tangentially on grazing surfaces. Symmetric
+    // plane error remains tightly bounded and cannot grow with the full radius.
+    float planeTolerance=max(stClamp.z,min(.001*depth,.2*pixelWorld));
+    float albedoTolerance=max(stRecovery.w,0.0);
+    const ivec2 directions[8]=ivec2[8](ivec2(-1,0),ivec2(1,0),ivec2(0,-1),ivec2(0,1),
+        ivec2(-1,-1),ivec2(1,-1),ivec2(-1,1),ivec2(1,1));
+    vec3 sum=current;float weightSum=1.0;
+    for(int sampleIndex=0;sampleIndex<8;++sampleIndex) {
+        ivec2 offset=directions[sampleIndex]*radius;
+        bool compatible=true;vec3 endpoint=vec3(0);float endpointNormal=0.0,endpointPlane=0.0,endpointConfidence=1.0;
+        // Walking every pixel prevents an outer tap jumping over an intervening
+        // silhouette, material seam or unreadable strip. Radius is at most four.
+        for(int step=1;step<=4;++step) {
+            if(step>radius)break;
+            ivec2 pathOffset=directions[sampleIndex]*step,at=pixel+pathOffset;
+            if(any(lessThan(at,ivec2(0)))||any(greaterThanEqual(at,stScreen.xy))){compatible=false;break;}
+            vec4 value=texelFetch(stRawGi,at,0),position=texelFetch(stViewPositions,at,0),nd=texelFetch(stWorldNormals,at,0);
+            if(!(value.a>0.0)||(!coherentConfidence&&abs(value.a-readability)>.001)||!STFinite(value.rgb)||!STGeometryValid(position,nd)) {
+                compatible=false;break;
+            }
+            vec3 neighborWorld=(stCurrentInverseView*vec4(position.xyz,1)).xyz,neighborNormal=normalize(nd.xyz);
+            vec3 delta=neighborWorld-world;
+            float agreement=dot(normal,neighborNormal);
+            float plane=max(abs(dot(delta,normal)),abs(dot(delta,neighborNormal)));
+            float worldLimit=1.5*pixelWorld*(length(vec2(pathOffset))+.75);
+            vec3 neighborAlbedo=texelFetch(stCurrentAlbedo,at,0).rgb;
+            vec3 albedoDifference=abs(neighborAlbedo-albedo);
+            if(!STFinite(neighborWorld)||agreement<.9659258263||plane>planeTolerance||
+                length(delta)>max(worldLimit,2.0*planeTolerance)||!STFinite(neighborAlbedo)||
+                max(albedoDifference.x,max(albedoDifference.y,albedoDifference.z))>albedoTolerance) {
+                compatible=false;break;
+            }
+            // Continuous coverage can change within the same surface where
+            // contact and probe estimates blend. It is a confidence rather
+            // than a surface identity. Unknown taps still stop the path, and
+            // neither these weights nor spatial support increase center alpha
+            // or the accumulated temporal sample count.
+            if(coherentConfidence)endpointConfidence=min(endpointConfidence,
+                min(value.a,readability)/max(value.a,readability));
+            endpoint=max(value.rgb,vec3(0));endpointNormal=agreement;endpointPlane=plane;
+        }
+        if(!compatible)continue;
+        float weight=exp2(-1.5*dot(vec2(offset),vec2(offset))/float(radius*radius))*
+            pow(max(endpointNormal,0.0),32.0)*exp2(-2.0*endpointPlane*endpointPlane/(planeTolerance*planeTolerance));
+        if(coherentConfidence)weight*=endpointConfidence;
+        sum+=endpoint*weight;weightSum+=weight;
+    }
+    float young=1.0-smoothstep(1.0,youngLimit,max(count,1.0));
+    return mix(current,sum/weightSum,clamp(stRecovery.x,0.0,1.0)*young);
+}
 
 // A compatible current-frame neighborhood can bound moving history. It only
 // clips history; the current sample is never replaced by a spatial average.
@@ -97,12 +166,18 @@ void main() {
     if(!(raw.a>0.0)||!STFinite(raw.rgb)||!STGeometryValid(view,n)||!STFinite(world))return;
     vec3 current=max(raw.rgb,vec3(0));outColor=vec4(current,1);
     vec3 normal=normalize(n.xyz);
-    if(stScreen.z==0||stScreen.w<=1)return;
+    if(stScreen.z==0||stScreen.w<=1) {
+        outColor.rgb=STRecoverYoungCurrent(pixel,world,normal,-view.z,footprint,current,raw.a,1.0);return;
+    }
     vec4 clip=stPreviousViewProjection*vec4(world,1);
     float expectedDepth=-(stPreviousView*vec4(world,1)).z;
-    if(!STFinite(clip.xyz)||!(clip.w>0.0)||!(expectedDepth>0.0))return;
+    if(!STFinite(clip.xyz)||!(clip.w>0.0)||!(expectedDepth>0.0)) {
+        outColor.rgb=STRecoverYoungCurrent(pixel,world,normal,-view.z,footprint,current,raw.a,1.0);return;
+    }
     vec3 ndc=clip.xyz/clip.w;
-    if(any(lessThan(ndc,vec3(-1)))||any(greaterThan(ndc,vec3(1))))return;
+    if(any(lessThan(ndc,vec3(-1)))||any(greaterThan(ndc,vec3(1)))) {
+        outColor.rgb=STRecoverYoungCurrent(pixel,world,normal,-view.z,footprint,current,raw.a,1.0);return;
+    }
     vec2 historyPixel=(ndc.xy*.5+.5)*vec2(stScreen.xy)-.5;
     ivec2 origin=ivec2(floor(historyPixel));vec2 fraction=fract(historyPixel);
     float baseTolerance=max(stReject.x*expectedDepth,stClamp.z);
@@ -125,18 +200,30 @@ void main() {
         sum+=max(value.rgb,vec3(0))*weight;
         countSum+=min(value.a,float(stScreen.w))*weight;weightSum+=weight;
     }
-    if(weightSum<.0001)return;
+    if(weightSum<.0001) {
+        outColor.rgb=STRecoverYoungCurrent(pixel,world,normal,-view.z,footprint,current,raw.a,1.0);return;
+    }
     vec3 history=sum/weightSum;
     float count=min(countSum/weightSum+1.0,float(stScreen.w));
     float motion=length(historyPixel-vec2(pixel));
     bool fastUpdate=motion>stReject.w;
     if(fastUpdate)count=min(count,max(stReject.z,1.0));
+    bool dynamicUpdate=stDynamic.x>.5;
+    if(dynamicUpdate)count=min(count,max(stDynamic.y,1.0));
     bool edgeFast=false;
     if(stClamp.w>0.0&&motion>.1) {
         float edgeTolerance=max(stClamp.z,min(baseTolerance,.002*expectedDepth));
         edgeFast=weightSum<.9||STNearGeometryEdge(pixel,world,normal,edgeTolerance);
     }
-    if(edgeFast) {
+    if(dynamicUpdate) {
+        // Scene motion is distinct from camera motion: keep compatible static
+        // receivers, but rectify stale lighting even when the camera is still.
+        // Existing plane/normal/depth history rejection above remains required.
+        if(edgeFast)count=min(count,max(stClamp.w,1.0));
+        float sigma=min(stClamp.x,max(stDynamic.z,.5));
+        if(edgeFast)sigma=min(sigma,3.0);
+        history=STClampMovingHistory(pixel,world,normal,baseTolerance,sigma,current,history);
+    } else if(edgeFast) {
         // stClamp.w is the edge history cap; zero exactly disables this path.
         count=min(count,max(stClamp.w,1.0));
         history=STClampMovingHistory(pixel,world,normal,baseTolerance,min(stClamp.x,3.0),current,history);
@@ -147,8 +234,9 @@ void main() {
         // bounds slow camera motion, independently of the geometry-edge cap.
         history=STClampMovingHistory(pixel,world,normal,baseTolerance,stClamp.x,current,history);
     }
-    // With count 1 this is exactly the current frame; thereafter it is a
-    // running average until the configured history cap, then a bounded EMA.
+    current=STRecoverYoungCurrent(pixel,world,normal,-view.z,footprint,current,raw.a,count);
+    // Count measures temporal reuse only. Young-current spatial recovery never
+    // raises it; mature histories retain the previous bounded-EMA behavior.
     outColor=vec4(mix(history,current,1.0/max(count,1.0)),count);
 }
 )GLSL";

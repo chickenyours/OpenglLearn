@@ -88,8 +88,12 @@ public:
                     // Full values in every recorded frame: replacing an older
                     // frame can never discard an update needed by a newer one.
                     if(!bytes.empty()) {
-                        if(!encoder.UpdateUniformBufferBytes(resources.parameterBuffer,
-                            bytes.data(), static_cast<std::uint32_t>(bytes.size()))) return false;
+                        // Material blocks may exceed one command's inline payload.
+                        // Record all chunks in the same frame, with explicit offsets.
+                        const auto size=static_cast<std::uint32_t>(bytes.size());
+                        for(std::uint32_t offset=0;offset<size;offset+=RHICommand::MaxInlineUniformBytes)
+                            if(!encoder.UpdateUniformBufferBytes(resources.parameterBuffer,bytes.data()+offset,
+                                std::min(static_cast<std::uint32_t>(RHICommand::MaxInlineUniformBytes),size-offset),offset)) return false;
                         if(!encoder.BindUniformBuffer(resources.parameterBuffer,
                             resources.parameterBinding)) return false;
                     }

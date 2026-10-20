@@ -1,0 +1,47 @@
+{
+  "assetType": "PreviewSubsetProfile",
+  "version": 1,
+  "name": "Lolita_HeadHair_PBR",
+  "sourcePackageId": "model-2e036a9be3087d38",
+  "sourcePayloadHashFNV1a64": "ab80b29ed3e9b7",
+  "includeObjects": [
+    "3DXY_geometry_002",
+    "3DXY_geometry_003",
+    "3DXY_geometry_004",
+    "3DXY_geometry_006",
+    "3DXY_geometry_009",
+    "3DXY_geometry_010",
+    "3DXY_geometry_012",
+    "3DXY_geometry_017",
+    "3DXY_geometry_031",
+    "3DXY_geometry_033",
+    "3DXY_geometry_040",
+    "3DXY_geometry_047",
+    "3DXY_geometry_048",
+    "3DXY_geometry_049",
+    "3DXY_geometry_050",
+    "3DXY_geometry_051",
+    "3DXY_geometry_052",
+    "3DXY_geometry_054",
+    "3DXY_geometry_055",
+    "3DXY_geometry_057",
+    "3DXY_geometry_058",
+    "3DXY_geometry_059",
+    "3DXY_geometry_060"
+  ],
+  "materialOverrides": [
+    {
+      "sourceMaterialIndex": 1,
+      "expectedName": "3DXY_Material_51",
+      "reason": "Preview-only clear film for the Max Physical eye/cornea material with raw transparency=1. The source opaque black conversion hides the iris; this alpha approximation does not reproduce refraction or absorption.",
+      "baseColor": [
+        1.0,
+        1.0,
+        1.0,
+        0.06
+      ],
+      "roughness": 0.08,
+      "alphaMode": 2
+    }
+  ]
+}

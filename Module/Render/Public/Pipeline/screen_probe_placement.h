@@ -16,10 +16,29 @@ struct ScreenProbePlacementSettings {
     // weight is .01. The default gives UE 5.7.1's exp2(-200 * distance/depth).
     float relativeDepthThreshold=.033219281f;
     float markerRadiusPixels=3;
-    // GI-only refinement around GBuffer plane/normal discontinuities. It does
-    // not alter the standalone placement study or relax surface compatibility.
+    // GI-only junction refinement. The GI allocator additionally reserves two
+    // distinct visible surface representatives per subcell within candidateCount.
+    // Reconstruction uses their actual positions and subcell footprint; support
+    // limits the junction allocation band. Standalone placement is unchanged.
     bool cornerRefinement=true;
+    // Three captured-depth segment taps reject local occluders between the
+    // receiver and a probe. Shared by allocation/reconstruction; no new GI rays.
+    bool reconstructionVisibility=true;
+    // GI-only coarse interpolation between the actual projected uniform-probe
+    // pixels. Disable to compare the legacy expanded bilinear fractions.
+    bool continuousInterpolation=true;
+    // GI lighting reuse follows a continuous surface's midpoint tangent plane.
+    // Physical surface clustering keeps its stricter two-endpoint plane test.
+    // Disable for the original reconstruction/spatial geometry weights.
+    bool curvatureAwareWeights=true;
     float cornerDetectionRadius=.75f,cornerProbeSupport=.5f,cornerNormalAngleDegrees=45;
+    // GI-only continuous-surface refinement. Reuse a reserved representative
+    // as a subcell or its coarse support approaches this geometric error.
+    // Only curvature-only weights smoothly activate from half to 1.5 times
+    // the normalized error budget; at the budget they have half weight.
+    // Plane error is in screen-pixel surface footprints, not world units.
+    bool curvatureRefinement=true;
+    float curvatureNormalAngleDegrees=10,curvaturePlaneErrorPixels=.75f;
     // 0: active markers; 1: all candidates; 2: live screen coverage.
     // Once frozen, coverage falls back to active world markers because its
     // screen tile indices belong to the original placement camera.
@@ -38,16 +57,22 @@ inline bool ValidateScreenProbePlacementSettings(const ScreenProbePlacementSetti
         std::isfinite(s.cornerDetectionRadius)&&s.cornerDetectionRadius>=.25f&&s.cornerDetectionRadius<=2&&
         std::isfinite(s.cornerProbeSupport)&&s.cornerProbeSupport>=.25f&&s.cornerProbeSupport<=1.5f&&
         std::isfinite(s.cornerNormalAngleDegrees)&&s.cornerNormalAngleDegrees>=15&&s.cornerNormalAngleDegrees<=75&&
+        std::isfinite(s.curvatureNormalAngleDegrees)&&s.curvatureNormalAngleDegrees>=1&&s.curvatureNormalAngleDegrees<=60&&
+        std::isfinite(s.curvaturePlaneErrorPixels)&&s.curvaturePlaneErrorPixels>=.05f&&s.curvaturePlaneErrorPixels<=8&&
         ValidateScreenProbeTraceSettings(s.trace);
 }
 
 // All three debug atlases are RGBA32F. One logical probe uses two adjacent
 // horizontal texels: (world position, status), then (world normal, view depth).
 // Uniform: 0 invalid, 1+intersectionStrength valid (strength in [0,1]).
-// Marked: 0 invalid, 1 covered, 2 uncovered, 3+strength GI edge refinement.
-// Spawned: 0 rejected, 1 coverage probe, 2+strength GI edge refinement.
+// Marked: 0 invalid, 1 covered, 2 coverage / distinct-surface obligation,
+//         3+strength GI junction refinement, 5+activation curvature refinement.
+// Spawned: 0 rejected, 1 coverage representative, 2+strength GI junction refinement,
+//          4+activation curvature-only representative (activation in (0,1]).
 // The second texel's alpha is positive depth.
 // Candidate slot (tile.x*candidateCount+sample, tile.y) is sparse, not compacted.
+// GI: sample/2 identifies a subcell, sample%2 its two surface representatives;
+// 4/8/16 slots retain the same budget with 2x1/2x2/4x2 subcells respectively.
 // Atlas capacities are not active counts. Read back even texels to count probes.
 struct ScreenProbePlacementConstants {
     glm::mat4 inverseView{1}, inverseProjection{1}, viewProjection{1}, view{1};
@@ -58,8 +83,9 @@ struct ScreenProbePlacementConstants {
     glm::vec4 traceParams{12,.01f,.02f,.02f}; // max distance, absolute thickness, normal bias, relative thickness
     glm::ivec4 traceAtlas{1,1,0,0}; // width, height, uniform slots, total probe slots
     glm::ivec4 traceDisplay{0,-1,1,1}; // radiance/status mode, selected probe, panel enabled, HZB levels
-    glm::vec4 refinement{0,.75f,.5f,.70710678f}; // enabled, detection/support in tiles, normal cosine
+    glm::vec4 refinement{0,.75f,.5f,.70710678f}; // flags: bit0 junctions/bit1 visibility/bit2 curvature/bit3 curved weights/bit4 runtime matching-frame filtering; detection/support, cosine
+    glm::vec4 curvature{.98480775f,.75f,0,1}; // normal cosine, plane pixel error, runtime safe-origin availability, continuous coarse interpolation
 };
-static_assert(sizeof(ScreenProbePlacementConstants)==384);
+static_assert(sizeof(ScreenProbePlacementConstants)==400);
 inline constexpr std::uint32_t ScreenProbePlacementBinding=9;
 } // namespace Render

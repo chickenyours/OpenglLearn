@@ -184,8 +184,9 @@ float PSGlobalTransition(vec3 p,vec3 d,int current,bool viewSelection) {
 }
 )GLSL"; }
 
-inline std::string FallbackShader() {
-    return std::string("#version 450 core\n")+ScreenProbeTraceDetail::ConstantsGLSL()+ConstantsGLSL()+SamplingGLSL()+SurfaceCacheDetail::LookupGLSL()+R"GLSL(
+inline std::string FallbackShader(bool safeOrigins=false) {
+    return std::string("#version 450 core\n#define PS_SAFE_ORIGINS ")+(safeOrigins?"1\n":"0\n")+
+        ScreenProbeTraceDetail::ConstantsGLSL()+ConstantsGLSL()+SamplingGLSL()+SurfaceCacheDetail::LookupGLSL()+R"GLSL(
 in vec2 vUV;layout(location=0) out vec4 outColor;
 layout(binding=0) uniform sampler2D psScreenRays;
 layout(binding=1) uniform sampler2D psSceneColor;
@@ -194,6 +195,9 @@ layout(binding=3) uniform sampler2D psWorldNormals;
 layout(binding=4) uniform sampler2D psUniform;
 layout(binding=5) uniform sampler2D psSpawned;
 layout(binding=9) uniform sampler2D psTriangles;
+#if PS_SAFE_ORIGINS
+layout(binding=10) uniform sampler2D psSafeOrigins;
+#endif
 
 vec4 PSRayTexel(int ray,int part) {
     int index=ray*4+part;
@@ -230,7 +234,25 @@ bool PSRefine(vec3 origin,vec3 direction,float minimum,inout float maximum,out i
         if(!PSRayBox(origin,direction,low.xyz,high.xyz,near,far))continue;
         if(high.w>=0) {
             if(size>61){exhausted=true;return false;}
+#if PS_SAFE_ORIGINS
+            // Visit the nearer child first so a certified close hit tightens
+            // maximum before the farther subtree is visited. Keep the exact
+            // triangle predicate and the legacy traversal variant unchanged.
+            int left=int(low.w),right=int(high.w);
+            vec4 leftLow=PSGeometry(left*2),leftHigh=PSGeometry(left*2+1);
+            vec4 rightLow=PSGeometry(right*2),rightHigh=PSGeometry(right*2+1);fetches+=4;
+            float leftNear=minimum,leftFar=maximum,rightNear=minimum,rightFar=maximum;
+            bool leftHit=PSRayBox(origin,direction,leftLow.xyz,leftHigh.xyz,leftNear,leftFar);
+            bool rightHit=PSRayBox(origin,direction,rightLow.xyz,rightHigh.xyz,rightNear,rightFar);
+            if(leftHit&&rightHit) {
+                stack[size++]=leftNear<rightNear?right:left;
+                stack[size++]=leftNear<rightNear?left:right;
+            } else if(leftHit)stack[size++]=left;
+            else if(rightHit)stack[size++]=right;
+#else
             stack[size++]=int(low.w);stack[size++]=int(high.w);continue;
+#endif
+            continue;
         }
         for(int i=0;i<int(-high.w);++i) {
             int index=int(low.w)+i,offset=psGeometry.x+index*5;
@@ -312,7 +334,15 @@ void PSTrace(int rayGlobal,out vec4 color,out vec4 hit,out vec4 metadata,out vec
     metadata=PSRayTexel(rayGlobal,2);directionData=PSRayTexel(rayGlobal,3);
     bool cacheOnlyRadiance=(spTracing.w&2)!=0;
     if(psAtlas.w==0||int(color.w+.5)==0)return;
-    if(int(color.w+.5)==1) {
+    bool confirmScreenHit=false;
+#if PS_SAFE_ORIGINS
+    // Captured depth supplies a finite visibility hint, not a certified nearest
+    // ray intersection. In acute gaps it may skip a nearby face or select a
+    // neighbouring pixel's bright surface. Safe GI confirms that hint against
+    // triangles before assigning an owner or treating its light as readable.
+    confirmScreenHit=cacheOnlyRadiance&&int(color.w+.5)==1;
+#endif
+    if(int(color.w+.5)==1&&!confirmScreenHit) {
         // Screen geometry is a visibility accelerator. Diffuse GI must read
         // the same view-independent outgoing radiance as off-screen hits,
         // rather than borrowing specular highlights from the scene HDR.
@@ -338,6 +368,11 @@ void PSTrace(int rayGlobal,out vec4 color,out vec4 hit,out vec4 metadata,out vec
     // The original screen trace also uses status five for a HIT backface.
     // Preserve only launch-hemisphere rejection; outward failures still retry.
     if(dot(direction,normal)<=(cacheOnlyRadiance?0.0:.02))return;
+#if PS_SAFE_ORIGINS
+    vec4 safeOrigin=texelFetch(psSafeOrigins,ivec2(probe%spGrid.x,probe/spGrid.x),0);
+    if(!(safeOrigin.w>0)||!PSFinite(safeOrigin.xyz)){color=vec4(0,0,0,16);return;}
+    vec3 origin=safeOrigin.xyz;
+#else
     float bias=spTraceParams.z;
     vec4 clip=spViewProjection*vec4(position.xyz,1);
     if(clip.w>0) {
@@ -347,9 +382,25 @@ void PSTrace(int rayGlobal,out vec4 color,out vec4 hit,out vec4 metadata,out vec
         if(PSFinite(cornerWorld))bias=max(bias,2.0*abs(dot(cornerWorld-position.xyz,normal)));
     }
     vec3 origin=position.xyz+normal*bias;
+#endif
     float nearEnd=clamp(psTrace.x,0.0,spTraceParams.x),distance=0,fetches=0;
     int steps=0,triangle=-1;vec3 hitNormal;bool exhausted=false,found=false,globalHit=false;
-    if(psFlags.x!=0&&nearEnd>0)found=PSMarch(origin,direction,0,nearEnd,false,distance,steps,fetches,triangle,hitNormal,exhausted);
+#if PS_SAFE_ORIGINS
+    if(confirmScreenHit) {
+        float screenDepth=max(-(spView*vec4(hit.xyz,1)).z,0.0);
+        float tolerance=max(spTraceParams.y+spTraceParams.w*screenDepth,4.0*psTrace.z);
+        distance=min(spTraceParams.x,max(hit.w,0.0)+tolerance);
+        bool refineExhausted;
+        found=PSRefine(origin,direction,0.0,distance,triangle,hitNormal,fetches,refineExhausted);
+        exhausted=refineExhausted;
+        // A partial traversal cannot certify that its candidate is the first
+        // hit. Keep it unknown rather than leaking that candidate's radiance.
+        if(exhausted)found=false;
+        else if(!found)distance=0.0;
+    }
+#endif
+    if(!found&&!exhausted&&psFlags.x!=0&&nearEnd>0)
+        found=PSMarch(origin,direction,0,nearEnd,false,distance,steps,fetches,triangle,hitNormal,exhausted);
     if(!found&&!exhausted&&psFlags.y!=0) {
         float globalStart=psFlags.x!=0?nearEnd:0.0,near=globalStart,far=spTraceParams.x;
         int outer=PSGlobalOuterLevel(false);vec3 low=vec3(0),high=vec3(0);

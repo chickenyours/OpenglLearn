@@ -5,6 +5,7 @@
 void SurfaceCacheEdgeQuality(MaterialLabModule& lab,const Options& options) {
     Check(options.vulkan||options.surfaceCacheEdgeDiagnosticsOnly,
         "Full edge reference quality requires Vulkan; use --surface-cache-edge-diagnostics for OpenGL structural checks");
+    Check(!options.surfaceCacheFeatureAblation||!options.surfaceCacheEdgeDiagnosticsOnly,"Feature ablation needs the paired Vulkan reference, not diagnostics-only mode");
     auto fixture=options;fixture.sealedGiRoom=true;fixture.sdfBanquet=false;
     fixture.sdfClipmaps=false;fixture.surfaceCacheReference=false;
     auto frame=MakeSurfaceCacheGiFrame(fixture);
@@ -13,12 +14,15 @@ void SurfaceCacheEdgeQuality(MaterialLabModule& lab,const Options& options) {
     frame.effects.outputSize={0,0};frame.present=false;frame.screenProbeStudyHud=false;
     auto& gi=frame.effects.surfaceCacheGi;auto& placement=frame.effects.screenProbePlacement;
     auto& trace=placement.trace;gi.enabled=true;gi.useScreenProbes=true;gi.view=2;
+    // Isolate the legacy history curve; temporal/probe-imprint fixtures cover static convergence.
+    gi.temporal.staticConvergence=false;
     gi.probeDiagnostics=false;gi.cacheBilinear=true;gi.collectProbeCoverage=true;
     placement.enabled=true;placement.adaptive=true;placement.cornerRefinement=true;
     placement.baseSpacing=32;placement.candidateCount=8;placement.frameIndex=0;
     placement.freeze=false;placement.reset=true;trace.rayResolution=8;
     trace.cosineHemisphere=true;trace.samplingSeed=0;trace.maxSteps=512;trace.sdf.maxSteps=256;
     const auto spatialSettings=gi.spatial;const auto temporalSettings=gi.temporal;
+    const bool defaultSafeOrigins=gi.safeProbeOrigins,defaultCurvature=placement.curvatureRefinement,defaultVisibility=placement.reconstructionVisibility;
     gi.spatial.enabled=false;gi.temporal.enabled=false;
     const auto render=[&]{Check(lab.Render(frame),lab.LastError());
         frame.effects.cameraCut=false;placement.reset=false;gi.temporal.reset=false;};
@@ -108,6 +112,10 @@ void SurfaceCacheEdgeQuality(MaterialLabModule& lab,const Options& options) {
         std::array<std::array<Error,3>,4> errors{}; // all/curved/wall/other, raw/spatial/temporal
         std::uint64_t frames=0,qualityFrames=0,holes=0,lowSupport=0,edgeSamples=0;
         double readability=0,history=0;std::array<double,2> period8{},period16{};
+        std::uint64_t originFrames=0,originActive=0,originInvalid=0,originDetails=0;
+        std::array<std::uint64_t,6> originReasons{};
+        std::uint64_t rayFrames=0,raySamples=0,rayActive=0,rayReadable=0,rayUnavailable=0;
+        std::array<std::uint64_t,18> rayStatuses{};
     };
     const std::array<const char*,4> regionNames{{"all","curved","walls","other"}};
     const std::array<const char*,3> stageNames{{"raw","spatial","temporal"}};
@@ -124,7 +132,16 @@ void SurfaceCacheEdgeQuality(MaterialLabModule& lab,const Options& options) {
             <<" grid_phase8_x_residual_mse="<<metric.period8[0]/std::max(1.,double(metric.qualityFrames))
             <<" grid_phase8_y_residual_mse="<<metric.period8[1]/std::max(1.,double(metric.qualityFrames))
             <<" grid_phase16_x_residual_mse="<<metric.period16[0]/std::max(1.,double(metric.qualityFrames))
-            <<" grid_phase16_y_residual_mse="<<metric.period16[1]/std::max(1.,double(metric.qualityFrames))<<std::endl;
+            <<" grid_phase16_y_residual_mse="<<metric.period16[1]/std::max(1.,double(metric.qualityFrames));
+        if(options.surfaceCacheFeatureAblation){std::cout<<" origin_collected_frames="<<metric.originFrames
+                <<" origin_active="<<metric.originActive<<" origin_invalid="<<metric.originInvalid
+                <<" origin_invalid_fraction="<<double(metric.originInvalid)/std::max(1.,double(metric.originActive));
+            for(unsigned reason=1;reason<=5;++reason)std::cout<<" origin_invalid_reason"<<reason<<"="<<metric.originReasons[reason];}
+        if(options.surfaceCacheFeatureAblation){std::cout<<" ray_collected_frames="<<metric.rayFrames<<" ray_samples="<<metric.raySamples
+                <<" ray_active_samples="<<metric.rayActive<<" ray_readable="<<metric.rayReadable<<" ray_unavailable="<<metric.rayUnavailable
+                <<" ray_readable_fraction="<<double(metric.rayReadable)/std::max(1.,double(metric.rayActive));
+            for(unsigned status=0;status<metric.rayStatuses.size();++status)std::cout<<" ray_status"<<status<<"="<<metric.rayStatuses[status];}
+        std::cout<<std::endl;
         for(unsigned region=0;region<4;++region)for(unsigned stage=0;stage<3;++stage){const auto& e=metric.errors[region][stage];
             if(!e.count)continue;
             std::cout<<"SURFACE CACHE EDGE error view="<<view<<" interval="<<interval
@@ -138,7 +155,10 @@ void SurfaceCacheEdgeQuality(MaterialLabModule& lab,const Options& options) {
     constexpr std::array<unsigned,6> referenceSteps{{0,1,4,8,12,16}};
     constexpr unsigned referenceSeeds=8;
     std::uint64_t historyReusedFrames=0,totalCurvedPixels=0,totalWallPixels=0;
+    std::uint64_t referencePoseCount=0,ablationCases=0,ablationFrames=0,ablationWarmupFrames=0,ablationHistoryReused=0;
+    std::uint64_t ablationStationaryFrames=0,ablationMovingFrames=0,ablationMovingHistoryReused=0;
     for(unsigned view=0;view<2;++view){
+        gi.safeProbeOrigins=defaultSafeOrigins;placement.curvatureRefinement=defaultCurvature;placement.reconstructionVisibility=defaultVisibility;
         const char* viewName=view==0?"wall_ceiling":"oval_wall";
         auto base=SealedGiRoomCameraPreset(1,frame.OutputAspect());
         if(view==1){base.position={2.60f,1.75f,.90f};
@@ -150,7 +170,7 @@ void SurfaceCacheEdgeQuality(MaterialLabModule& lab,const Options& options) {
             const auto direction=glm::vec3(glm::rotate(glm::mat4(1),.004f*float(step),glm::vec3(0,1,0))*glm::vec4(forward,0));
             camera.view=glm::lookAt(camera.position,camera.position+direction,glm::vec3(0,1,0));return camera;};
         std::array<Pose,referenceSteps.size()> poses;
-        const unsigned poseCount=options.surfaceCacheEdgeDiagnosticsOnly?1u:unsigned(poses.size());
+        const unsigned poseCount=options.surfaceCacheEdgeDiagnosticsOnly?1u:options.surfaceCacheFeatureAblation?2u:unsigned(poses.size());
         for(unsigned index=0;index<poseCount;++index){auto& pose=poses[index];pose.camera=cameraAt(referenceSteps[index]);
             frame.camera=pose.camera;gi.useScreenProbes=true;placement.enabled=true;placement.reset=true;
             gi.temporal.enabled=false;gi.spatial.enabled=false;trace.samplingSeed=0;frame.effects.cameraCut=true;render();
@@ -177,6 +197,7 @@ void SurfaceCacheEdgeQuality(MaterialLabModule& lab,const Options& options) {
                 <<" wall_pixels="<<pose.wallPixels<<" half_difference_mse="<<uncertainty/double(pose.edgePixels)
                 <<" mean="<<mean/double(pose.edgePixels)<<" shared_cache=1 single_bounce=1"<<std::endl;
             Check(uncertainty>1e-12,"Edge reference seeds did not produce independent nonzero lighting samples");
+            ++referencePoseCount;
             if(index==0)save(pose.reference,std::string(viewName)+"_reference");
         }
         gi.useScreenProbes=true;placement.enabled=true;placement.reset=true;placement.freeze=false;
@@ -236,18 +257,48 @@ void SurfaceCacheEdgeQuality(MaterialLabModule& lab,const Options& options) {
         }
         gi.reconstructionDebug=0;gi.spatial=spatialSettings;gi.spatial.enabled=true;
         gi.temporal=temporalSettings;gi.temporal.enabled=true;gi.temporal.reset=true;
-        for(unsigned warm=0;warm<16;++warm)render();
+        if(!options.surfaceCacheFeatureAblation)for(unsigned warm=0;warm<16;++warm)render();
         if(options.surfaceCacheEdgeDiagnosticsOnly){
             save(lab.ReadbackSurfaceCacheRawGi(),std::string(viewName)+"_raw");
             save(lab.ReadbackSurfaceCacheTemporalGi(),std::string(viewName)+"_temporal");
             continue;
         }
-        const auto measure=[&](Metrics& metric,const Pose& pose,bool hasReference){
+        const auto measure=[&](Metrics& metric,const Pose& pose,bool hasReference,const char* diagnosticInterval=nullptr){
             const auto raw=lab.ReadbackSurfaceCacheRawGi(),spatial=lab.ReadbackSurfaceCacheSpatialGi();
             const auto accumulated=lab.ReadbackSurfaceCacheTemporalGi(),coverage=lab.ReadbackSurfaceCacheProbeCoverage();
             const auto history=lab.ReadbackSurfaceCacheTemporalHistory();
             finite(raw,"raw");finite(spatial,"spatial");finite(accumulated,"temporal");finite(coverage,"probe coverage");finite(history,"history");
             ++metric.frames;if(hasReference)++metric.qualityFrames;
+            if(options.surfaceCacheFeatureAblation){
+                const auto rays=lab.ReadbackScreenProbeTrace(false);
+                Check(rays.probeSlots>0&&rays.radianceStatus.size()==std::size_t(rays.probeSlots)*rays.rayResolution*rays.rayResolution,
+                    "Feature ablation lost the current trace atlas status samples");++metric.rayFrames;
+                for(const auto& value:rays.radianceStatus){Check(std::isfinite(value.w),"Feature ablation observed a nonfinite ray status");
+                    const int status=int(std::lround(value.w));Check(status>=0&&status<int(metric.rayStatuses.size()),"Feature ablation observed an unknown ray status code");
+                    ++metric.raySamples;++metric.rayStatuses[unsigned(status)];if(status==0)continue;++metric.rayActive;
+                    const bool readable=status==1||status==5||status==9||status==10||status==13;
+                    metric.rayReadable+=readable;metric.rayUnavailable+=!readable;
+                }
+            }
+            if(options.surfaceCacheFeatureAblation&&lab.PipelineStatistics().surfaceCacheProbeOriginsCollected){
+                const auto origins=lab.ReadbackSurfaceCacheProbeOrigins();const auto probes=lab.ReadbackScreenProbePlacement();
+                const auto slots=probes.uniform.size()+probes.spawned.size();
+                Check(origins.size()==slots&&slots>0,"Feature ablation lost the actual probe origin atlas");++metric.originFrames;
+                for(std::size_t probe=0;probe<slots;++probe){const bool uniform=probe<probes.uniform.size();const auto index=uniform?probe:probe-probes.uniform.size();
+                    const auto p=uniform?probes.uniform[index]:probes.spawned[index],nd=uniform?probes.uniformNormals[index]:probes.spawnedNormals[index];
+                    if(p.w<.5f)continue;const auto origin=origins[probe];for(unsigned channel=0;channel<4;++channel)
+                        Check(std::isfinite(origin[channel]),"Feature ablation observed a nonfinite safe origin");
+                    ++metric.originActive;const int status=int(std::lround(origin.w));
+                    Check(status>=-5&&status<=3&&status!=0,"Feature ablation observed an unclassified active origin");
+                    if(status>=0)continue;++metric.originInvalid;++metric.originReasons[unsigned(-status)];
+                    if(metric.originDetails<5){++metric.originDetails;
+                        const auto normal=glm::normalize(glm::vec3(nd)),towardCamera=glm::normalize(pose.camera.position-glm::vec3(p));
+                        std::cout<<"SURFACE CACHE EDGE ORIGIN INVALID view="<<viewName<<" interval="<<(diagnosticInterval?diagnosticInterval:"ablation")
+                            <<" frame="<<metric.frames<<" probe="<<probe<<" adaptive="<<!uniform<<" reason="<<status
+                            <<" p="<<p.x<<","<<p.y<<","<<p.z<<" n="<<normal.x<<","<<normal.y<<","<<normal.z
+                            <<" source_view_facing="<<glm::dot(normal,towardCamera)<<" view_depth="<<nd.w<<std::endl;}
+                }
+            }
             double bins[2][2][3][16]{};
             std::uint64_t counts[2][2][3][16]{};
             std::array<double,3> regionSum{};std::array<std::uint64_t,3> regionCount{};
@@ -282,6 +333,47 @@ void SurfaceCacheEdgeQuality(MaterialLabModule& lab,const Options& options) {
                         energy+=delta*delta*double(counts[period][axis][region][bin]);samples+=counts[period][axis][region][bin];}}
                 if(period)metric.period16[axis]+=energy/std::max(1.,double(samples));else metric.period8[axis]+=energy/std::max(1.,double(samples));}
         };
+        if(options.surfaceCacheFeatureAblation){
+            struct FeatureCase {const char* name;bool safe,curvature,visibility;};
+            constexpr std::array<FeatureCase,5> cases{{
+                {"legacy",false,false,true},{"safe_only",true,false,true},
+                {"curvature_only",false,true,true},{"current",true,true,true},
+                {"no_screen_visibility",true,true,false}}};
+            for(const auto& feature:cases){
+                gi.safeProbeOrigins=feature.safe;placement.curvatureRefinement=feature.curvature;placement.reconstructionVisibility=feature.visibility;
+                gi.reconstructionDebug=0;gi.spatial=spatialSettings;gi.spatial.enabled=true;
+                gi.temporal=temporalSettings;gi.temporal.enabled=true;gi.temporal.reset=true;
+                frame.camera=poses[0].camera;frame.effects.cameraCut=true;placement.reset=true;trace.samplingSeed=0;
+                for(unsigned warm=0;warm<16;++warm){render();++ablationWarmupFrames;}
+                const std::string interval=std::string("ablation_")+feature.name;
+                Metrics metric;std::uint64_t reused=0;
+                for(unsigned sample=0;sample<4;++sample){render();const bool historyUsed=lab.PipelineStatistics().surfaceCacheHistoryUsed;
+                    reused+=historyUsed;ablationHistoryReused+=historyUsed;measure(metric,poses[0],true,interval.c_str());++ablationFrames;++ablationStationaryFrames;}
+                Check(metric.frames==4&&metric.qualityFrames==4&&reused==4,"Feature ablation omitted paired stationary frames or valid temporal history");
+                report(viewName,interval.c_str(),metric);++ablationCases;
+                std::cout<<"SURFACE CACHE EDGE ABLATION view="<<viewName<<" case="<<feature.name
+                    <<" safe_origins="<<feature.safe<<" curvature="<<feature.curvature<<" screen_visibility="<<feature.visibility
+                    <<" warmup_frames=16 stationary_measured_frames=4 first_move_measured_frames=1 history_reused_static="<<reused
+                    <<" diagnostic_visibility_disable="<<!feature.visibility<<std::endl;
+                save(lab.ReadbackSurfaceCacheRawGi(),std::string(viewName)+"_"+interval+"_raw");
+                save(lab.ReadbackSurfaceCacheSpatialGi(),std::string(viewName)+"_"+interval+"_spatial");
+                save(lab.ReadbackSurfaceCacheTemporalGi(),std::string(viewName)+"_"+interval+"_temporal");
+                frame.camera=poses[1].camera;render();const bool movingHistory=lab.PipelineStatistics().surfaceCacheHistoryUsed;
+                Check(movingHistory,"Feature ablation first moving frame failed to reuse the established camera history");
+                Metrics firstMoving;const std::string firstInterval=interval+"_first_move";
+                measure(firstMoving,poses[1],true,firstInterval.c_str());++ablationFrames;++ablationMovingFrames;
+                ablationHistoryReused+=movingHistory;ablationMovingHistoryReused+=movingHistory;
+                Check(firstMoving.frames==1&&firstMoving.qualityFrames==1,"Feature ablation omitted its paired first-moving frame");
+                report(viewName,firstInterval.c_str(),firstMoving);
+                save(lab.ReadbackSurfaceCacheRawGi(),std::string(viewName)+"_"+firstInterval+"_raw");
+                save(lab.ReadbackSurfaceCacheSpatialGi(),std::string(viewName)+"_"+firstInterval+"_spatial");
+                save(lab.ReadbackSurfaceCacheTemporalGi(),std::string(viewName)+"_"+firstInterval+"_temporal");
+            }
+            // Restore the tested current feature set before the next camera and
+            // the final lamp-off check; the visibility-off case is diagnostic.
+            gi.safeProbeOrigins=true;placement.curvatureRefinement=true;placement.reconstructionVisibility=true;
+            continue;
+        }
         Metrics stationary;for(unsigned sample=0;sample<4;++sample){render();measure(stationary,poses[0],true);}
         report(viewName,"stationary",stationary);
         save(lab.ReadbackSurfaceCacheRawGi(),std::string(viewName)+"_raw");
@@ -309,8 +401,12 @@ void SurfaceCacheEdgeQuality(MaterialLabModule& lab,const Options& options) {
         Check(viewHistoryReused>=16,"Edge camera path did not exercise sustained history reuse");
     }
     Check(totalCurvedPixels>100&&totalWallPixels>100,"Edge fixture omitted curved or wall-side silhouette receivers");
-    if(!options.surfaceCacheEdgeDiagnosticsOnly)
+    if(!options.surfaceCacheEdgeDiagnosticsOnly&&!options.surfaceCacheFeatureAblation)
         Check(historyReusedFrames>=32,"Edge fixture failed to reuse history while continuously moving");
+    if(options.surfaceCacheFeatureAblation)
+        Check(referencePoseCount==4&&ablationCases==10&&ablationFrames==50&&ablationStationaryFrames==40&&ablationMovingFrames==10&&
+            ablationWarmupFrames==160&&ablationHistoryReused==50&&ablationMovingHistoryReused==10,
+            "Feature ablation did not complete both reference poses and all static/first-moving feature cases per view");
     frame.effects.areaLights.lights[0].enabled=false;render();
     const auto black=lab.ReadbackSurfaceCacheRawGi(),accumulated=lab.ReadbackSurfaceCacheTemporalGi();
     finite(black,"lamp-off raw");finite(accumulated,"lamp-off temporal");
@@ -322,8 +418,12 @@ void SurfaceCacheEdgeQuality(MaterialLabModule& lab,const Options& options) {
     std::cout<<"SURFACE CACHE EDGE COMPLETE size="<<frame.width<<"x"<<frame.height
         <<" probe_spacing=32 probe_rays=64 reference_spp="<<referenceSeeds*32
         <<" diagnostics_only="<<options.surfaceCacheEdgeDiagnosticsOnly
-        <<" reference_unique_poses="<<(options.surfaceCacheEdgeDiagnosticsOnly?0:12)
-        <<" continuous_motion_frames="<<(options.surfaceCacheEdgeDiagnosticsOnly?0:64)<<" history_reused_frames="<<historyReusedFrames
+        <<" feature_ablation="<<options.surfaceCacheFeatureAblation<<" reference_unique_poses="<<referencePoseCount
+        <<" continuous_motion_frames="<<(options.surfaceCacheEdgeDiagnosticsOnly||options.surfaceCacheFeatureAblation?0:64)<<" history_reused_frames="<<historyReusedFrames
+        <<" ablation_cases="<<ablationCases<<" ablation_measured_frames="<<ablationFrames<<" ablation_warmup_frames="<<ablationWarmupFrames
+        <<" ablation_stationary_measured_frames="<<ablationStationaryFrames<<" ablation_moving_measured_frames="<<ablationMovingFrames
+        <<" ablation_history_reused_frames="<<ablationHistoryReused
+        <<" ablation_moving_history_reused_frames="<<ablationMovingHistoryReused
         <<" curved_edge_pixels="<<totalCurvedPixels<<" wall_edge_pixels="<<totalWallPixels
         <<" readable_black="<<readableBlack<<" lamp_off_raw="<<blackEnergy<<" lamp_off_temporal="<<historyEnergy
         <<" synthetic_guards=passed quality_metrics=paired_reference_review"<<std::endl;

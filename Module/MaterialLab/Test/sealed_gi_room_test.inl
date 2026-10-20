@@ -104,6 +104,35 @@ void SealedGiRoomQuality(MaterialLabModule& lab,const Options& options) {
         <<" rays_per_probe="<<placement.trace.rayResolution*placement.trace.rayResolution
         <<" area_samples="<<frame.effects.areaLights.samplesPerAxis*frame.effects.areaLights.samplesPerAxis
         <<" frames=12 readback=0 present=0"<<std::endl;
+    if(gi.safeProbeOrigins) {
+        const auto origins=lab.ReadbackSurfaceCacheProbeOrigins();
+        Check(!origins.empty(),"Sealed-room safe origins were not collected");
+        std::uint64_t active=0,invalid=0,clipped=0,uncertain=0;
+        for(const auto& origin:origins)if(origin.w!=0){++active;invalid+=origin.w<0;clipped+=origin.w>1.5f&&origin.w<2.5f;uncertain+=origin.w>2.5f;}
+        std::cout<<"SEALED GI ORIGINS active="<<active<<" invalid="<<invalid<<" clipped="<<clipped<<" uncertain="<<uncertain<<std::endl;
+    }
+    if(options.surfaceCacheFeaturePerf||options.surfaceCacheSourcePerf) {
+        const bool originalSafety=gi.safeProbeOrigins,originalCurvature=placement.curvatureRefinement;
+        const bool originalRaster=gi.rasterSourcePositions;
+        // ABBA in one process: both shader variants/assets stay resident and
+        // identical history phases are warmed before each measured batch.
+        for(unsigned batch=0;batch<4;++batch) {
+            const bool current=batch==1||batch==2;
+            if(options.surfaceCacheSourcePerf)gi.rasterSourcePositions=current;
+            else {gi.safeProbeOrigins=current;placement.curvatureRefinement=current;}
+            placement.reset=true;temporal.reset=true;frame.effects.cameraCut=true;
+            for(unsigned warm=0;warm<16;++warm)render();
+            const auto paired=lab.MeasureFrames(frame,12);
+            std::cout<<(options.surfaceCacheSourcePerf?"SEALED GI SOURCE PERF batch=":"SEALED GI FEATURE PERF batch=")<<batch
+                <<" mode="<<(options.surfaceCacheSourcePerf?(current?"raster":"depth"):(current?"current":"legacy"))
+                <<" gpu_ms="<<paired.gpuMilliseconds<<" elapsed_ms="<<paired.elapsedMilliseconds
+                <<" size="<<frame.width<<"x"<<frame.height<<" rays_per_probe="<<placement.trace.rayResolution*placement.trace.rayResolution
+                <<" frames=12 readback=0 present=0"<<std::endl;
+        }
+        gi.safeProbeOrigins=originalSafety;placement.curvatureRefinement=originalCurvature;gi.rasterSourcePositions=originalRaster;
+        placement.reset=true;temporal.reset=true;frame.effects.cameraCut=true;
+        for(unsigned warm=0;warm<16;++warm)render();
+    }
     const auto requireCachedShadows=[&](const char* label){const auto s=lab.PipelineStatistics();
         Check(s.areaLightShadowCacheUsed&&!s.areaLightShadowsUpdated&&s.areaLightShadowPasses==0&&s.areaLightShadowBytes>0,
             std::string(label)+" rebuilt or lost the area-light shadow cache");};

@@ -104,7 +104,41 @@ inline std::shared_ptr<const Render::Material::MaterialTemplate> MakePbrTemplate
         {"useDistortionMap", ParameterType::Bool, false, "Use signed RG distortion", "Textures"},
         {"absorptionColor", ParameterType::Vec4, glm::vec4(1), "Transmission after one world unit", "Transmission",
          0.0f, 1.0f, true},
-        {"twoSided", ParameterType::Bool, false, "Two-sided thin sheet", "Transmission"}
+        {"twoSided", ParameterType::Bool, false, "Two-sided thin sheet", "Transmission"},
+        // Explicit opaque-skin extension. Default-off retains legacy materials.
+        // These are renderer controls, not a claim to reproduce a game BRDF.
+        {"skinEnabled", ParameterType::Bool, false, "Skin lighting", "Skin"},
+        {"skinScatterColor", ParameterType::Vec4, glm::vec4(1, .645f, .515f, 1), "RGB scattering weight", "Skin", 0.f, 1.f, true},
+        {"skinScatterStrength", ParameterType::Float, .5f, "Diffuse scattering", "Skin", 0.f, 1.f, true},
+        {"skinWrap", ParameterType::Float, .35f, "Scattering angular width", "Skin", 0.f, 1.f, true},
+        {"skinSpecularMix", ParameterType::Float, .35f, "Second GGX lobe weight", "Skin", 0.f, 1.f, true},
+        {"skinRoughness2", ParameterType::Float, .65f, "Second GGX roughness", "Skin", .045f, 1.f, true},
+        {"skinTransmission", ParameterType::Float, 0.f, "Thin-surface transmission approximation", "Skin", 0.f, 1.f, true},
+        {"skinDetailStrength", ParameterType::Float, .5f, "Detail normal strength", "Skin", 0.f, 2.f, true},
+        {"skinDetailTiling", ParameterType::Vec4, glm::vec4(10, 12, 0, 0), "Detail UV scale / offset", "Skin"},
+        {"useSkinDetailMap", ParameterType::Bool, false, "Opaque skin: slot 6 is detail normal", "Skin"},
+        {"skinDiffuseNormalBlend", ParameterType::Float, .5f, "Diffuse macro normal blend", "Skin", 0.f, 1.f, true},
+        {"useSkinControlMap", ParameterType::Bool, false, "Opaque skin: slot 5 is native RGB control", "Skin"},
+        {"skinRoughnessBias", ParameterType::Float, 0.f, "Native roughness bias 1", "Skin", -1.f, 1.f, true},
+        {"skinRoughness2Bias", ParameterType::Float, .1f, "Native roughness bias 2", "Skin", -1.f, 1.f, true},
+        {"skinSpecularColor1", ParameterType::Vec4, glm::vec4(.867f,.883f,1,1), "Native linear specular color 1", "Skin", 0.f, 1.f, true},
+        {"skinSpecularColor2", ParameterType::Vec4, glm::vec4(1), "Native linear specular color 2", "Skin", 0.f, 1.f, true},
+        {"skinSpecularBase1", ParameterType::Float, 0.f, "Native specular base 1", "Skin", 0.f, 1.f, true},
+        {"skinSpecularBase2", ParameterType::Float, 0.f, "Native specular base 2", "Skin", 0.f, 1.f, true},
+        {"skinSpecularScale1", ParameterType::Float, .25f, "Native specular scale 1", "Skin", 0.f, 1.f, true},
+        {"skinSpecularScale2", ParameterType::Float, .2f, "Native specular scale 2", "Skin", 0.f, 1.f, true},
+        {"skinSpecularPower2", ParameterType::Float, 1.f, "Native second specular mask power", "Skin", .01f, 16.f, true},
+        {"skinDetailRange", ParameterType::Float, 5.f, "Native detail camera-distance fade", "Skin", 0.f, 100.f, true},
+        {"skinCoarseWrapScale", ParameterType::Float, .2f, "Native SSS coarse wrap scale", "Skin", 0.f, 2.f, true},
+        {"skinCoarseWrapBase", ParameterType::Float, .15f, "Native SSS coarse wrap base", "Skin", 0.f, 2.f, true},
+        {"skinDiffuseStraight", ParameterType::Float, 1.f, "Native diffuse normal: straight light", "Skin", 0.f, 1.f, true},
+        {"skinDiffuseSteep", ParameterType::Float, .3f, "Native diffuse normal: steep light", "Skin", 0.f, 1.f, true},
+        {"skinDiffuseAngleExponent", ParameterType::Float, .3f, "Native diffuse normal angle exponent", "Skin", .01f, 8.f, true},
+        {"skinDiffuseDistribution", ParameterType::Float, 1.3f, "Native SSS distribution exponent", "Skin", .01f, 8.f, true},
+        {"skinDiffuseScale", ParameterType::Float, .85f, "Native SSS diffuse scale", "Skin", 0.f, 2.f, true},
+        {"skinCoarseColor", ParameterType::Vec4, glm::vec4(248.f/255,165.f/255,81.f/255,1), "Native SSS coarse color (squared in shader)", "Skin", 0.f, 1.f, true},
+        {"skinDetailColorBleed", ParameterType::Vec4, glm::vec4(206.f/255,109.f/255,173.f/255,1), "Native SSS detail color (squared in shader)", "Skin", 0.f, 1.f, true},
+        {"skinCoarseColorInvRange", ParameterType::Float, 3.f, "Native SSS coarse color inverse range", "Skin", 0.f, 16.f, true}
     };
     // All slots are required even while their switches are off. The host binds
     // white to missing color/scalar maps and a flat normal to a missing normal map.
@@ -507,16 +541,93 @@ vec3 FresnelSchlick(float cosine, vec3 F0) {
     return F0 + (vec3(1.0) - F0) * pow(clamp(1.0 - cosine, 0.0, 1.0), 5.0);
 }
 
+bool PbrSkinActive() {
+#if PBR_TRANSLUCENT
+    return false;
+#else
+    return skinEnabled != 0u;
+#endif
+}
+
+// A local RGB angular diffusion approximation. The wrap kernel integrates to
+// pi over the sphere; blend replaces Lambert rather than adding light. Actual
+// object-space transport, shadow diffusion and thickness are not solved here.
+vec3 PbrSkinDiffuseKernel(vec3 N, vec3 Ng, vec3 L) {
+    float mu=max(dot(N,L),0.0);
+    if (!PbrSkinActive()) return vec3(mu);
+    if(useSkinControlMap!=0u) {
+        // Recovered pbr_skin RGB diffuse kernel (DXIL skin_85ee... lines
+        // 1660-1800). Color bytes are squared here, not sRGB-decoded twice.
+        float w=max(skinCoarseWrapBase+.8*skinCoarseWrapScale,0.0);
+        float wrapGeo=clamp((dot(Ng,L)+w)/(1.0+w),0.0,1.0);
+        float bump=clamp(mix(skinDiffuseSteep,skinDiffuseStraight,
+            pow(wrapGeo,max(skinDiffuseAngleExponent,.01))),0.0,1.0);
+        vec3 lightN=SafeNormalize(mix(Ng,N,bump),Ng);
+        float d=(dot(lightN,L)+w)/(1.0+w);
+        vec3 result=vec3(0);
+        vec3 bleed=clamp(skinDetailColorBleed.rgb,vec3(0),vec3(1));
+        vec3 coarse=clamp(skinCoarseColor.rgb,vec3(0),vec3(1));
+        for(int c=0;c<3;++c) {
+            vec3 colorN=SafeNormalize(mix(Ng,lightN,1.0-bleed[c]*bleed[c]),Ng);
+            float dc=clamp(max((dot(colorN,L)+w)/(1.0+w),d),0.0,1.0);
+            result[c]=pow(dc,max(skinDiffuseDistribution,.01))*
+                mix(coarse[c]*coarse[c],1.0,clamp(d*skinCoarseColorInvRange,0.0,1.0));
+        }
+        return mix(vec3(mu),result*max(skinDiffuseScale,0.0),clamp(skinScatterStrength,0.0,1.0))*
+            (1.0-clamp(skinTransmission,0.0,1.0));
+    }
+    vec3 diffuseN=SafeNormalize(mix(N,Ng,clamp(skinDiffuseNormalBlend,0.0,1.0)),Ng);
+    float diffuseMu=dot(diffuseN,L);
+    vec3 color=clamp(skinScatterColor.rgb,vec3(0),vec3(1));
+    vec3 width=clamp(skinWrap,0.0,1.0)*mix(vec3(.25),vec3(1),color);
+    vec3 wrapped=max(vec3(diffuseMu)+width,vec3(0))/((vec3(1)+width)*(vec3(1)+width));
+    vec3 weight=clamp(skinScatterStrength,0.0,1.0)*color;
+    return mix(vec3(mu),wrapped,weight)*(1.0-clamp(skinTransmission,0.0,1.0));
+}
+
+vec3 PbrSkinBackLighting(vec3 Ng,vec3 L,vec3 albedo,vec3 F0,float metallic) {
+    if (!PbrSkinActive() || skinTransmission<=0.0) return vec3(0);
+    // Opt-in thin-sheet budget only. No Ambient/normal channel is guessed to
+    // represent thickness; profiles without proven thickness keep this at 0.
+    return (vec3(1)-F0)*(1.0-metallic)*albedo/PI *
+        clamp(skinScatterColor.rgb,vec3(0),vec3(1))*clamp(skinTransmission,0.0,1.0)*max(dot(-Ng,L),0.0);
+}
+
+float PbrSkinHorizon(vec3 Ng,vec3 L) {
+    // Native diffuse explicitly wraps across the geometric terminator.
+    // Retain normal-map horizon rejection for ordinary PBR materials.
+    return PbrSkinActive() && useSkinControlMap!=0u?1.0:smoothstep(0.0,.05,dot(Ng,L));
+}
+
+float PbrSkinSpecularWeight() {
+    return PbrSkinActive()?clamp(skinSpecularMix,0.0,1.0):0.0;
+}
+
 vec3 SurfaceNormal(vec4 flowUVs) {
     vec3 N = SafeNormalize(vWorldNormal, vec3(0.0, 0.0, 1.0));
-    if (useNormalMap == 0u) return N;
+    if (useNormalMap == 0u && !(PbrSkinActive() && useSkinDetailMap!=0u)) return N;
     vec3 tangentAxis = abs(N.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0);
     vec3 fallbackTangent = SafeNormalize(cross(tangentAxis, N), vec3(1.0, 0.0, 0.0));
     vec3 T = SafeNormalize(vWorldTangent.xyz - N * dot(N, vWorldTangent.xyz), fallbackTangent);
     vec3 B = cross(N, T) * (vWorldTangent.w < 0.0 ? -1.0 : 1.0);
-    vec3 tangentNormal = PbrSampleMap(normalMap, flowUVs).xyz * 2.0 - 1.0;
+    vec3 tangentNormal = useNormalMap!=0u?PbrSampleMap(normalMap, flowUVs).xyz * 2.0 - 1.0:vec3(0,0,1);
     tangentNormal.xy *= normalScale;
-    tangentNormal = SafeNormalize(tangentNormal, vec3(0.0, 0.0, 1.0));
+    if(!(PbrSkinActive() && useSkinControlMap!=0u))
+        tangentNormal = SafeNormalize(tangentNormal, vec3(0.0, 0.0, 1.0));
+    if (PbrSkinActive() && useSkinDetailMap!=0u && useFlowMap==0u) {
+        // Opaque-only semantic alias: flowMap slot 6 stores linear detail RGB.
+        // RNM combines tangent normals before the mirrored-UV TBN transform.
+        vec3 detail=texture(flowMap,flowUVs.xy*skinDetailTiling.xy+skinDetailTiling.zw).xyz*2.0-1.0;
+        float detailMask=useSkinControlMap!=0u?texture(distortionMap,flowUVs.xy).r:1.0;
+        detail.xy*=clamp(skinDetailStrength,0.0,2.0)*detailMask;
+        detail=SafeNormalize(detail,vec3(0,0,1));
+        if(useSkinControlMap!=0u) {
+            float fade=clamp(skinDetailRange-length(uCameraPosition.xyz-vWorldPosition),0.0,1.0);
+            detail=SafeNormalize(vec3(detail.xy*fade,mix(.5,detail.z,fade)),vec3(0,0,1));
+        }
+        vec3 t=tangentNormal+vec3(0,0,1), u=detail*vec3(-1,-1,1);
+        tangentNormal=SafeNormalize(t*dot(t,u)-u*t.z,tangentNormal);
+    }
     return SafeNormalize(mat3(T, B, N) * tangentNormal, N);
 }
 )GLSL";
@@ -535,6 +646,9 @@ vec3 EvaluateSkyLighting(vec3 N,vec3 V,vec3 albedo,float metallic,float roughnes
 }
 )GLSL";
     }
+    // Area quadrature can use the same skin diffuse kernel without changing
+    // non-PBR users of AreaLightsGLSL.
+    source += "\n#define PBR_SKIN_LIGHTING 1\n";
     source += Render::AreaLightsGLSL(surfaceCacheAreaShadows);
     if (!surfaceCacheAreaShadows) {
         source += Render::SkyLightGLSL();
@@ -547,20 +661,29 @@ vec3 EvaluateSkyLighting(vec3 N,vec3 V,vec3 albedo,float metallic,float roughnes
 // tone mapping or output encoding; those belong to the pipeline output pass.
 vec3 EvaluatePbrLighting(vec3 albedo, float surfaceMetallic,
                          float surfaceRoughness, float surfaceAo, vec3 N,
-                         vec3 geometricNormal, float sunVisibility, out vec3 diffuseRadiance) {
+                         vec3 geometricNormal, float sunVisibility, float secondRoughness, vec3 dielectricF0, vec3 environmentF0, vec3 secondWeight, out vec3 diffuseRadiance) {
     vec3 V = SafeNormalize(uCameraPosition.xyz - vWorldPosition, N);
-    vec3 F0 = mix(vec3(PbrDielectricF0()), albedo, surfaceMetallic);
+    vec3 F0 = mix(dielectricF0, albedo, surfaceMetallic);
     vec3 directDiffuse = vec3(0.0), directSpecular = vec3(0.0);
+    bool dualLobe=any(greaterThan(secondWeight,vec3(0)));
     for (int lightIndex = 0; lightIndex < 4; ++lightIndex) {
         if (all(lessThanEqual(lightColors[lightIndex].rgb,vec3(0)))) continue;
         vec3 toLight = lightPositions[lightIndex].xyz - vWorldPosition;
         float distanceSquared = max(dot(toLight, toLight), 1e-4);
         vec3 L = SafeNormalize(toLight, N);
         float NdotL = max(dot(N, L), 0.0);
-        float geometricHorizon = smoothstep(0.0, 0.05, dot(geometricNormal, L));
-        if (NdotL <= 0.0 || geometricHorizon <= 0.0) continue;
-        vec3 H = SafeNormalize(V + L, N);
+        float geometricHorizon = PbrSkinHorizon(geometricNormal,L);
         float sourceRadius = max(lightColors[lightIndex].w, 0.0);
+        vec3 unoccludedRadiance=max(lightColors[lightIndex].rgb,vec3(0))/max(distanceSquared,sourceRadius*sourceRadius);
+        directDiffuse+=PbrSkinBackLighting(geometricNormal,L,albedo,F0,surfaceMetallic)*unoccludedRadiance;
+        if (geometricHorizon <= 0.0) continue;
+        vec3 diffuseKernel=PbrSkinDiffuseKernel(N,geometricNormal,L);
+        if(NdotL<=0.0) {
+            if(PbrSkinActive()) directDiffuse+=(vec3(1)-F0)*(1.0-surfaceMetallic)*albedo/PI*
+                unoccludedRadiance*geometricHorizon*diffuseKernel;
+            continue;
+        }
+        vec3 H = SafeNormalize(V + L, N);
         // Inside a finite source, its represented radius bounds inverse-square
         // energy. Keep the actual distance for its angular GGX footprint.
         vec3 radiance = max(lightColors[lightIndex].rgb, vec3(0.0)) * geometricHorizon /
@@ -573,14 +696,27 @@ vec3 EvaluatePbrLighting(vec3 albedo, float surfaceMetallic,
         vec3 specular = distribution * geometry * fresnel /
             max(4.0 * max(dot(N, V), 0.0) * NdotL, 1e-4);
         vec3 diffuseWeight = (vec3(1.0) - fresnel) * (1.0 - surfaceMetallic);
-        directDiffuse += diffuseWeight * albedo / PI * radiance * NdotL;
+        if(dualLobe) {
+            float r2=FilterPointSourceRoughness(secondRoughness,V,L,H,distanceSquared,sourceRadius);
+            vec3 specular2=DistributionGGX(N,H,r2)*GeometrySmith(N,V,L,r2)*fresnel/
+                max(4.0*max(dot(N,V),0.0)*NdotL,1e-4);
+            specular=mix(specular,specular2,secondWeight);
+        }
+        directDiffuse += diffuseWeight * albedo / PI * radiance * diffuseKernel;
         directSpecular += specular * radiance * NdotL;
     }
     vec3 L = -SafeNormalize(sunDirectionIntensity.xyz, vec3(0.0, -1.0, 0.0));
     float NdotL = max(dot(N, L), 0.0);
     // A normal map cannot admit sun from below the mesh's geometric horizon.
     // A short smooth transition avoids a hard normal-map terminator boundary.
-    float geometricHorizon = smoothstep(0.0, 0.05, dot(geometricNormal, L));
+    float geometricHorizon = PbrSkinHorizon(geometricNormal,L);
+    if(sunDirectionIntensity.w>0.0) {
+        vec3 radiance=max(sunColor.rgb,vec3(0))*sunDirectionIntensity.w*sunVisibility;
+        directDiffuse+=PbrSkinBackLighting(geometricNormal,L,albedo,F0,surfaceMetallic)*radiance;
+        if(PbrSkinActive() && NdotL<=0.0 && geometricHorizon>0.0)
+            directDiffuse+=(vec3(1)-F0)*(1.0-surfaceMetallic)*albedo/PI*radiance*geometricHorizon*
+                PbrSkinDiffuseKernel(N,geometricNormal,L);
+    }
     if (NdotL > 0.0 && geometricHorizon > 0.0 && sunDirectionIntensity.w > 0.0) {
         vec3 H = SafeNormalize(V + L, N);
         vec3 fresnel = FresnelSchlick(max(dot(H, V), 0.0), F0);
@@ -589,13 +725,25 @@ vec3 EvaluatePbrLighting(vec3 albedo, float surfaceMetallic,
             max(4.0 * max(dot(N, V), 0.0) * NdotL, 1e-4);
         vec3 diffuseWeight = (vec3(1.0) - fresnel) * (1.0 - surfaceMetallic);
         vec3 radiance = max(sunColor.rgb, vec3(0.0)) * sunDirectionIntensity.w;
+        if(dualLobe) {
+            vec3 specular2=DistributionGGX(N,H,secondRoughness)*GeometrySmith(N,V,L,secondRoughness)*fresnel/
+                max(4.0*max(dot(N,V),0.0)*NdotL,1e-4);
+            specular=mix(specular,specular2,secondWeight);
+        }
         vec3 incident = radiance * NdotL * sunVisibility * geometricHorizon;
-        directDiffuse += diffuseWeight * albedo / PI * incident;
+        directDiffuse += diffuseWeight * albedo / PI * radiance*sunVisibility*geometricHorizon*
+            PbrSkinDiffuseKernel(N,geometricNormal,L);
         directSpecular += specular * incident;
     }
     vec3 areaDiffuse, areaSpecular;
     EvaluateAreaLighting(vWorldPosition,V,N,geometricNormal,albedo,surfaceMetallic,surfaceRoughness,
-                         areaDiffuse,areaSpecular,PbrDielectricF0());
+                         areaDiffuse,areaSpecular,dielectricF0);
+    if(dualLobe) {
+        vec3 unusedDiffuse,secondSpecular;
+        EvaluateAreaLighting(vWorldPosition,V,N,geometricNormal,albedo,surfaceMetallic,secondRoughness,
+                            unusedDiffuse,secondSpecular,dielectricF0);
+        areaSpecular=mix(areaSpecular,secondSpecular,secondWeight);
+    }
     directDiffuse += areaDiffuse; directSpecular += areaSpecular;
     diffuseRadiance = directDiffuse;
 #if PBR_TRANSLUCENT
@@ -624,9 +772,20 @@ vec3 EvaluatePbrLighting(vec3 albedo, float surfaceMetallic,
                     albedo/PI*(1.0-surfaceMetallic)*surfaceAo*(1.0-probeCoverage);
 #endif
     vec3 skyDiffuseRadiance,probeDiffuseWeight;
-    vec3 sky=EvaluateSkyLighting(N,V,albedo,surfaceMetallic,surfaceRoughness,F0,
+    bool nativeSkin=PbrSkinActive() && useSkinControlMap!=0u;
+    float environmentRoughness=nativeSkin?secondRoughness:surfaceRoughness;
+    vec3 skyF0=nativeSkin?mix(environmentF0,albedo,surfaceMetallic):F0;
+    vec3 sky=EvaluateSkyLighting(N,V,albedo,surfaceMetallic,environmentRoughness,skyF0,
                                 surfaceAo*screenAo,diffuseFraction,mix(1.0,probeSkyVisibility,probeCoverage),
                                 skyDiffuseRadiance,probeDiffuseWeight);
+    if(dualLobe) {
+        vec3 secondDiffuse,secondDiffuseWeight;
+        vec3 secondSky=EvaluateSkyLighting(N,V,albedo,surfaceMetallic,secondRoughness,F0,
+            surfaceAo*screenAo,diffuseFraction,mix(1.0,probeSkyVisibility,probeCoverage),secondDiffuse,secondDiffuseWeight);
+        sky=mix(sky,secondSky,secondWeight);
+        skyDiffuseRadiance=mix(skyDiffuseRadiance,secondDiffuse,secondWeight);
+        probeDiffuseWeight=mix(probeDiffuseWeight,secondDiffuseWeight,secondWeight);
+    }
     // Sky-lit diffuse surfaces can feed the single bounce, but reflected sky
     // and the gathered indirect buffer are never captured as source radiance.
     diffuseRadiance += surfaceOptions.z>.5?vec3(0):skyDiffuseRadiance;
@@ -635,7 +794,7 @@ vec3 EvaluatePbrLighting(vec3 albedo, float surfaceMetallic,
         vec2 uv=gl_FragCoord.xy*surfaceScreenTime.xy+surfaceScreenJitter.xy;
         // Both Fresnel coefficients are already integrated by the GGX VNDF
         // pass. Applying the environment BRDF LUT again would double-weight it.
-        sky=skyDiffuseRadiance+(F0*max(texture(opaqueColor,uv).rgb,vec3(0))+
+        sky=skyDiffuseRadiance+(skyF0*max(texture(opaqueColor,uv).rgb,vec3(0))+
             max(texture(opaqueDepth,uv).rgb,vec3(0)))*surfaceAo*screenAo;
     }
 #endif
@@ -746,8 +905,42 @@ void main() {
     vec3 shadingNormal = SurfaceNormal(flowUVs);
     vec3 normalDx = dFdx(shadingNormal);
     vec3 normalDy = dFdy(shadingNormal);
-    float filteredRoughness=clamp(useRoughnessMap!=0u?PbrSampleMap(roughnessMap,flowUVs).r:roughness,.045,1.0);
+    float detailVariance=0.0;
+    if(PbrSkinActive() && useSkinDetailMap!=0u && useFlowMap==0u && specularAA.z>.5) {
+        float len=clamp(length(texture(flowMap,flowUVs.xy*skinDetailTiling.xy+skinDetailTiling.zw).xyz*2.0-1.0),.001,1.0);
+        float mask=useSkinControlMap!=0u?texture(distortionMap,flowUVs.xy).r*
+            clamp(skinDetailRange-length(uCameraPosition.xyz-vWorldPosition),0.0,1.0):1.0;
+        detailVariance=min(2.0*max(specularAA.x,0.0)*(1.0-len)/len*skinDetailStrength*skinDetailStrength*mask*mask,max(specularAA.y,0.0));
+    }
+    // Exact material-input mapping recovered from pbr_skin's compiled pixel
+    // shader. Ambient is a packed control map, never thickness or generic AO.
+    vec3 dielectricF0=vec3(PbrDielectricF0()),environmentF0=dielectricF0;
+    vec3 secondWeight=vec3(PbrSkinSpecularWeight());
+    float primaryRoughness=useRoughnessMap!=0u?PbrSampleMap(roughnessMap,flowUVs).r:roughness;
+    float secondaryRoughness=skinRoughness2;
+    if(PbrSkinActive() && useSkinControlMap!=0u) {
+        vec3 control=texture(distortionMap,flowUVs.xy).rgb;
+        float detailTerm=0.0;
+        if(useSkinDetailMap!=0u && useFlowMap==0u)
+            detailTerm=.5*(texture(flowMap,flowUVs.xy*skinDetailTiling.xy+skinDetailTiling.zw).a-.5)*
+                clamp(skinDetailRange-length(uCameraPosition.xyz-vWorldPosition),0.0,1.0)*control.r*skinDetailStrength;
+        float baseR=clamp(control.g+detailTerm,0.0,1.0);
+        primaryRoughness=clamp(baseR+skinRoughnessBias,0.0,1.0);
+        secondaryRoughness=clamp(baseR+skinRoughness2Bias,0.0,1.0);
+        vec3 f01=clamp(skinSpecularColor1.rgb*(skinSpecularBase1+skinSpecularScale1*control.b),vec3(0),vec3(1));
+        vec3 f02=clamp(skinSpecularColor2.rgb*(skinSpecularBase2+skinSpecularScale2*pow(max(control.b,0.0),max(skinSpecularPower2,.01))),vec3(0),vec3(1));
+        // The analyzed game variant routes lobe 1 to direct lighting and
+        // lobe 2 to environment reflections. Do not add two direct GGX lobes.
+        dielectricF0=f01;
+        environmentF0=f02;
+        secondWeight=vec3(0);
+    }
+    float filteredRoughness=clamp(primaryRoughness,.045,1.0);
+    if(detailVariance>0.0) filteredRoughness=pow(min(pow(filteredRoughness,4.0)+detailVariance,1.0),.25);
     filteredRoughness=FilterSpecularRoughness(FilterNormalMapRoughness(filteredRoughness,flowUVs),normalDx,normalDy);
+    float secondRoughness=clamp(secondaryRoughness,.045,1.0);
+    if(detailVariance>0.0) secondRoughness=pow(min(pow(secondRoughness,4.0)+detailVariance,1.0),.25);
+    secondRoughness=FilterSpecularRoughness(FilterNormalMapRoughness(secondRoughness,flowUVs),normalDx,normalDy);
 #if PBR_TRANSLUCENT
     vec3 surfaceToEye=SafeNormalize(uCameraPosition.xyz-vWorldPosition,geometricNormal);
     bool backSurface=dot(geometricNormal,surfaceToEye)<=0.0;
@@ -775,7 +968,14 @@ void main() {
 #endif
     if (effects.z > 0.5 && dot(clipPlane, vec4(vWorldPosition, 1.0)) < 0.0) discard;
 #if PBR_OUTPUT == 2
-    float captureRoughness=filteredRoughness;
+    // Direct source positions for probe placement/origin validation. Reuse the
+    // normal capture's exact raster/alpha coverage; a depth reconstruction can
+    // move a perfectly planar receiver off its triangle after camera motion.
+    if(surfaceOptions.z>2.5) {
+        outColor=vec4((surfaceView*vec4(vWorldPosition,1)).xyz,1);
+        return;
+    }
+    float captureRoughness=PbrSkinActive() && useSkinControlMap!=0u?secondRoughness:filteredRoughness;
     outColor=vec4(surfaceOptions.w>.5?shadingNormal:geometricNormal,surfaceOptions.z>.5?1+captureRoughness:1);
     return;
 #endif
@@ -798,7 +998,10 @@ void main() {
 #endif
     // Only the color texture is optionally decoded. The baseColor factor and
     // normal/metallic/roughness/AO samples are always interpreted as linear data.
-    vec3 albedo = (baseColorIsSRGB != 0u ? SRGBToLinear(albedoSample.rgb) : albedoSample.rgb) * baseColor.rgb;
+    vec3 decodedAlbedo=baseColorIsSRGB != 0u ? SRGBToLinear(albedoSample.rgb) : albedoSample.rgb;
+    if(PbrSkinActive() && useSkinControlMap!=0u && baseColorIsSRGB!=0u)
+        decodedAlbedo=pow(max(albedoSample.rgb,vec3(0)),vec3(2.2));
+    vec3 albedo=decodedAlbedo*baseColor.rgb;
     float surfaceMetallic = clamp(useMetallicMap != 0u ? PbrSampleMap(metallicMap, flowUVs).r : metallic, 0.0, 1.0);
 #if PBR_OUTPUT == 1
     // Raw transport receiver data. Reuse the material's alpha-tested capture
@@ -812,7 +1015,7 @@ void main() {
     float surfaceAo = clamp(useAoMap != 0u ? PbrSampleMap(aoMap, flowUVs).r : ao, 0.0, 1.0);
     vec3 diffuseRadiance;
     vec3 linearHDR = EvaluatePbrLighting(albedo, surfaceMetallic, surfaceRoughness, surfaceAo, shadingNormal,
-                                         geometricNormal, sunVisibility,diffuseRadiance);
+                                         geometricNormal, sunVisibility,secondRoughness,dielectricF0,environmentF0,secondWeight,diffuseRadiance);
 #if PBR_OUTPUT == 1
     vec3 diffuseOutput=clamp(diffuseRadiance+PbrEmission(flowUVs),vec3(0),vec3(60000));
     outColor=vec4(mix(diffuseOutput,vec3(0),isnan(diffuseOutput)),1);

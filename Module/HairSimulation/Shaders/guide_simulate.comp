@@ -1,0 +1,195 @@
+#version 450
+// Reconstructed, readable Cosserat/XPBD guide solver. One invocation owns one
+// entire guide, so even/odd edge updates have no cross-workgroup data race.
+// The original optimized DXIL is evidence for the method, not copied source.
+layout(local_size_x=32) in;
+layout(std430,binding=0) readonly buffer GuideOffsets { uint offsets[]; };
+struct RestNode { vec4 positionArc; vec4 orientation; };
+layout(std430,binding=1) readonly buffer RestNodes { RestNode restNodes[]; };
+struct Node { vec4 position; vec4 orientation; vec4 velocity; vec4 angularVelocity; };
+layout(std430,binding=2) buffer Nodes { Node nodes[]; };
+layout(std430,binding=6) readonly buffer Parameters {
+    vec4 gravityDt;
+    vec4 windDrag;
+    uvec4 solver;
+    vec4 complianceDamping;
+    vec4 shapeCollision;
+    vec4 limitsTime;
+    vec4 rootTranslation;
+    vec4 headA;
+    vec4 headB;
+    vec4 headA1;
+    vec4 headB1;
+    uvec4 counts;
+} p;
+layout(push_constant) uniform FixedTick { vec4 time; } tick;
+
+const uint MAX_NODES=64u;
+vec4 qmul(vec4 a,vec4 b) {
+    return vec4(a.w*b.xyz+b.w*a.xyz+cross(a.xyz,b.xyz),a.w*b.w-dot(a.xyz,b.xyz));
+}
+vec4 qinv(vec4 q) { return vec4(-q.xyz,q.w); }
+vec3 qrot(vec4 q,vec3 v) { return v+2.0*cross(q.xyz,cross(q.xyz,v)+q.w*v); }
+vec4 qsafe(vec4 q) { return q*inversesqrt(max(dot(q,q),1e-16)); }
+vec4 rotation(vec3 r) {
+    float a=length(r);
+    return a<1e-7 ? qsafe(vec4(r*.5,1)) : vec4(r*(sin(a*.5)/a),cos(a*.5));
+}
+vec3 rotvec(vec4 q) {
+    q=qsafe(q); if(q.w<0) q=-q;
+    float a=length(q.xyz);
+    return a<1e-7 ? 2.0*q.xyz : q.xyz*(2.0*atan(a,max(q.w,1e-8))/a);
+}
+vec3 capped(vec3 v,float limit) {
+    float s=length(v); return v*min(1.0,limit/max(s,1e-10));
+}
+bool bad(vec3 v) { return any(isnan(v)) || any(isinf(v)); }
+// Closest sphere of the swept, linearly varying radius capsule. The usual
+// projection onto the axis is only exact when both endpoint radii are equal.
+vec4 capsuleContact(vec3 point,vec4 ca,vec4 cb) {
+    vec3 a=ca.xyz+p.rootTranslation.xyz,b=cb.xyz+p.rootTranslation.xyz;
+    vec3 ab=b-a,d=point-a;
+    float axisLength=max(length(ab),1e-8);
+    vec3 axis=ab/axisLength;
+    float z=dot(d,axis),radial=length(d-z*axis);
+    float ra=ca.w*p.shapeCollision.w+p.shapeCollision.z;
+    float rb=cb.w*p.shapeCollision.w+p.shapeCollision.z;
+    float slope=(rb-ra)/axisLength;
+    float t;
+    if(abs(slope)>=.9999) t=rb>ra?1.0:0.0;
+    else t=clamp((z+slope*radial/sqrt(1.0-slope*slope))/axisLength,0.0,1.0);
+    vec3 delta=point-mix(a,b,t); float distance=length(delta);
+    return vec4(distance>1e-8?delta/distance:vec3(0,1,0),mix(ra,rb,t)-distance);
+}
+// 1 - extracted deformation curve, parameterized by absolute root arc length
+// in source meters (not by animation time, nor normalized strand length).
+float shapeWeight(float arc) {
+    return 1.0-smoothstep(.0597839,.213501,arc);
+}
+
+void main() {
+    uint guide=gl_GlobalInvocationID.x;
+    if(guide>=p.solver.z) return;
+    uint first=offsets[guide], count=offsets[guide+1u]-first;
+    if(count<2u || count>MAX_NODES) return;
+    vec3 x[MAX_NODES],previous[MAX_NODES],v[MAX_NODES],omega[MAX_NODES];
+    vec4 q[MAX_NODES],oldQ[MAX_NODES];
+    vec3 ls[MAX_NODES],lb[MAX_NODES];
+    bool recovered[MAX_NODES];
+    for(uint j=0u;j<count;++j) {
+        Node n=nodes[first+j];
+        x[j]=n.position.xyz; q[j]=qsafe(n.orientation);
+        v[j]=n.velocity.xyz; omega[j]=n.angularVelocity.xyz;
+        recovered[j]=n.angularVelocity.w>0;
+    }
+    float h=p.gravityDt.w/float(max(p.solver.x,1u));
+    float alphaStretch=p.complianceDamping.x/(h*h);
+    float alphaBend=p.complianceDamping.y/(h*h);
+    float drag=1.0-exp(-p.windDrag.w*h);
+    vec3 air=p.windDrag.xyz*(1.0+p.limitsTime.w*sin(tick.time.x*1.7));
+    for(uint sub=0u;sub<p.solver.x;++sub) {
+        for(uint j=0u;j<count;++j) {
+            previous[j]=x[j]; oldQ[j]=q[j]; ls[j]=vec3(0); lb[j]=vec3(0);
+            if(j==0u) {
+                x[j]=restNodes[first+j].positionArc.xyz+p.rootTranslation.xyz;
+                q[j]=restNodes[first+j].orientation; v[j]=vec3(0); omega[j]=vec3(0);
+            } else {
+                v[j]+=p.gravityDt.xyz*h;
+                v[j]=mix(v[j],air,drag)*exp(-p.complianceDamping.z*h);
+                v[j]=capped(v[j],p.limitsTime.x);
+                omega[j]=capped(omega[j]*exp(-p.complianceDamping.w*h),p.limitsTime.y);
+                x[j]+=v[j]*h;
+                q[j]=qsafe(qmul(rotation(omega[j]*h),q[j]));
+            }
+        }
+        for(uint iteration=0u;iteration<p.solver.y;++iteration) {
+            // Cosserat stretch/shear: x[i+1]-x[i]-L*d3(q[i]) = 0.
+            // Rotation gradients are L*[d3]x; the isotropic rotational inverse
+            // inertia 4/L² keeps conditioning independent of segment length.
+            for(uint parity=0u;parity<2u;++parity) {
+                for(uint j=parity;j+1u<count;j+=2u) {
+                    float length0=max(length(restNodes[first+j+1u].positionArc.xyz-
+                                             restNodes[first+j].positionArc.xyz),1e-5);
+                    float wa=j==0u?0.0:1.0, wb=1.0;
+                    float wr=j==0u?0.0:4.0/(length0*length0);
+                    vec3 t=qrot(q[j],vec3(0,0,1));
+                    vec3 c=(x[j+1u]-x[j])-length0*t;
+                    // Exact symmetric inverse for (a I + b(I-t*t^T)).
+                    float a=wa+wb+alphaStretch;
+                    float b=wr*length0*length0;
+                    vec3 rhs=-c-alphaStretch*ls[j];
+                    vec3 parallel=t*dot(rhs,t);
+                    vec3 dl=parallel/max(a,1e-8)+(rhs-parallel)/max(a+b,1e-8);
+                    ls[j]+=dl;
+                    x[j]-=wa*dl; x[j+1u]+=wb*dl;
+                    vec3 dq=-wr*length0*cross(t,dl);
+                    q[j]=qsafe(qmul(rotation(capped(dq,.25)),q[j]));
+                }
+            }
+            // Relative orientation is compared with the reconstructed rest
+            // material frames. Both bend and twist have accumulated XPBD λ.
+            for(uint parity=0u;parity<2u;++parity) {
+                for(uint j=parity;j+2u<count;j+=2u) {
+                    vec4 restRelative=qmul(qinv(restNodes[first+j].orientation),
+                                              restNodes[first+j+1u].orientation);
+                    vec4 relative=qmul(qinv(q[j]),q[j+1u]);
+                    vec3 c=rotvec(qmul(relative,qinv(restRelative)));
+                    float wa=j==0u?0.0:1.0, wb=1.0;
+                    vec3 dl=(-c-alphaBend*lb[j])/(wa+wb+alphaBend);
+                    lb[j]+=dl;
+                    // Error and λ are in segment j's local material frame.
+                    vec3 worldDelta=qrot(q[j],dl);
+                    q[j]=qsafe(qmul(rotation(capped(-wa*worldDelta,.2)),q[j]));
+                    q[j+1u]=qsafe(qmul(rotation(capped(wb*worldDelta,.2)),q[j+1u]));
+                }
+            }
+            for(uint j=1u;j<count;++j) {
+                RestNode r=restNodes[first+j];
+                float w=shapeWeight(r.positionArc.w);
+                // A bounded per-second reference-shape relaxation. Dividing
+                // by iterations makes the user control independent of passes.
+                float blend=1.0-exp(-p.shapeCollision.x*30.0*w*h/float(p.solver.y));
+                x[j]=mix(x[j],r.positionArc.xyz+p.rootTranslation.xyz,blend);
+                vec4 target=r.orientation; if(dot(q[j],target)<0) target=-target;
+                q[j]=qsafe(mix(q[j],target,blend));
+                if((p.counts.z&1u)!=0u) for(uint capsule=0u;capsule<2u;++capsule) {
+                    vec4 ca=capsule==0u?p.headA:p.headA1;
+                    vec4 cb=capsule==0u?p.headB:p.headB1;
+                    vec4 contact=capsuleContact(x[j],ca,cb);
+                    if(contact.w>0) x[j]+=contact.xyz*contact.w;
+                }
+            }
+            x[0]=restNodes[first].positionArc.xyz+p.rootTranslation.xyz;
+            q[0]=restNodes[first].orientation;
+        }
+        q[count-1u]=q[count-2u];
+        for(uint j=1u;j<count;++j) {
+            v[j]=capped((x[j]-previous[j])/h,p.limitsTime.x);
+            omega[j]=capped(rotvec(qmul(q[j],qinv(oldQ[j])))/h,p.limitsTime.y);
+            if((p.counts.z&1u)!=0u) for(uint capsule=0u;capsule<2u;++capsule) {
+                vec4 ca=capsule==0u?p.headA:p.headA1;
+                vec4 cb=capsule==0u?p.headB:p.headB1;
+                vec4 contact=capsuleContact(x[j],ca,cb);
+                if(contact.w>=-1e-5) {
+                    vec3 normal=contact.xyz;
+                    float normalSpeed=dot(v[j],normal);
+                    vec3 tangent=v[j]-normalSpeed*normal;
+                    v[j]=normal*max(normalSpeed,0.0)+tangent*(1.0-p.shapeCollision.y);
+                }
+            }
+            // Numerical guard stays on the GPU; finite-state checks are also
+            // reported after readback instead of silently calling CPU physics.
+            if(bad(x[j]) || bad(v[j]) || bad(omega[j]) || any(isnan(q[j])) || any(isinf(q[j]))) {
+                x[j]=restNodes[first+j].positionArc.xyz+p.rootTranslation.xyz;
+                q[j]=restNodes[first+j].orientation; v[j]=vec3(0); omega[j]=vec3(0);
+                recovered[j]=true;
+            }
+        }
+    }
+    for(uint j=0u;j<count;++j) {
+        nodes[first+j].position=vec4(x[j],1);
+        nodes[first+j].orientation=q[j];
+        nodes[first+j].velocity=vec4(v[j],0);
+        nodes[first+j].angularVelocity=vec4(omega[j],recovered[j]?1.0:0.0);
+    }
+}

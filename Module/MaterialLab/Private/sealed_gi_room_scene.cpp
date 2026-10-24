@@ -41,6 +41,17 @@ const std::vector<ProbePlacementObject>& SealedGiRoomObjects() {
     return objects;
 }
 
+glm::mat4 SealedGiRoomObjectTransform(unsigned index,const ProbePlacementSceneSettings& state,const SealedGiRoomPropOffsets& offsets) {
+    auto transform=ProbePlacementTransform(SealedGiRoomObjects().at(index),state);
+    if(index>SealedGiRoomLampIndex) {
+        const auto offset=offsets.at(index-SealedGiRoomLampIndex-1);
+        if(!std::isfinite(offset.x)||!std::isfinite(offset.y)||!std::isfinite(offset.z))
+            throw std::invalid_argument("Sealed GI prop offset must be finite");
+        if(offset!=glm::vec3(0))transform[3]+=glm::vec4(offset,0);
+    }
+    return transform;
+}
+
 SealedGiRoomMaterial SealedGiRoomObjectMaterial(unsigned object) {
     if(object>=SealedGiRoomObjects().size())throw std::out_of_range("Invalid sealed GI room object");
     if(object==0)return {{.72f,.71f,.68f},.64f,{0,0,0}};

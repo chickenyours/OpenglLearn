@@ -80,6 +80,22 @@ void CheckDescriptors() {
     color.mipmaps = false;
     color.height = 0;
     assert(!AreRenderTargetAttachmentsCompatible(&color, nullptr));
+    color.height=32;
+    auto second=color,third=color,fourth=color;
+    std::array<const RHITextureSpec*,3> extras{{&second,&third,&fourth}};
+    assert(AreRenderTargetAttachmentsCompatible(&color,&depth,extras));
+    second.width=63;
+    assert(!AreRenderTargetAttachmentsCompatible(&color,&depth,extras));
+    second.width=64;
+    third.samples=4;
+    assert(!AreRenderTargetAttachmentsCompatible(&color,&depth,extras));
+    third.samples=1;
+    extras[0]=&color;
+    assert(!AreRenderTargetAttachmentsCompatible(&color,&depth,extras));
+    extras[0]=&second;extras[1]=&second;
+    assert(!AreRenderTargetAttachmentsCompatible(&color,&depth,extras));
+    extras[1]=nullptr;
+    assert(!AreRenderTargetAttachmentsCompatible(&color,&depth,extras));
 }
 
 void CheckQueuesAndOwnership() {
@@ -167,6 +183,7 @@ void APIENTRY FakeDeleteFramebuffers(GLsizei, const GLuint*) {}
 void APIENTRY FakeAttach(GLenum, GLenum, GLenum, GLuint, GLint) {}
 GLenum APIENTRY FakeFramebufferStatus(GLenum) { return framebufferStatus; }
 void APIENTRY FakeDrawBuffer(GLenum value) { drawBuffer = value; }
+void APIENTRY FakeDrawBuffers(GLsizei count,const GLenum* values) { drawBuffer=count?values[0]:GL_NONE; }
 void APIENTRY FakeReadBuffer(GLenum value) { readBuffer = value; }
 void APIENTRY FakeViewport(GLint, GLint, GLsizei, GLsizei) {}
 void APIENTRY FakeDepthRange(GLdouble, GLdouble) {}
@@ -191,6 +208,7 @@ void CheckBackendTargetState() {
     glad_glFramebufferTexture2D = &FakeAttach;
     glad_glCheckFramebufferStatus = &FakeFramebufferStatus;
     glad_glDrawBuffer = &FakeDrawBuffer;
+    glad_glDrawBuffers = &FakeDrawBuffers;
     glad_glReadBuffer = &FakeReadBuffer;
     glad_glViewport = &FakeViewport;
     glad_glDepthRange = &FakeDepthRange;
@@ -238,6 +256,27 @@ void CheckBackendTargetState() {
     backend.DeleteRenderTarget({target, {}});
     assert(!resources.renderTargetTable.Get(target));
     assert(resources.TextureTable.Get(texture)); // FBO deletion never owns/deletes its attachments.
+    std::array<RenderResourceHandle<RHITextureSpec>,4> colors;
+    for(unsigned i=0;i<colors.size();++i) {
+        auto color=depth;color.textureDataStoreType=color.textureUseType=RHITextureFormat::RGBA16F;color.rhi_id=70+i;
+        colors[i]=resources.TextureTable.Add(color);
+    }
+    CreateRenderTargetDesc mrtDesc;mrtDesc.color=colors[0];
+    std::copy(colors.begin()+1,colors.end(),mrtDesc.additionalColors.begin());
+    const auto mrt=backend.CreateRenderTarget({mrtDesc,{}});assert(mrt.IsValid());
+    command.target=mrt;command.clearFlags=0;backend.SetRenderTarget(command);
+    backend.BindTexture({colors[2],4});assert(textureBinding==0); // Every MRT attachment rejects feedback.
+    CreateRenderTargetDesc multisampleDesc;
+    for(unsigned i=0;i<colors.size();++i) {
+        auto color=*resources.TextureTable.Get(colors[i]);color.samples=4;color.rhi_id=90+i;
+        const auto attachment=resources.TextureTable.Add(color);
+        if(i==0)multisampleDesc.color=attachment;else multisampleDesc.additionalColors[i-1]=attachment;
+    }
+    const auto msaaMrt=backend.CreateRenderTarget({multisampleDesc,{}});assert(msaaMrt.IsValid());
+    const auto previousDraw=drawFramebuffer,previousRead=readFramebuffer;
+    backend.ResolveRenderTarget({msaaMrt,mrt,true,false});
+    assert(drawFramebuffer==previousDraw&&readFramebuffer==previousRead); // Reject before GL state or a broadcast blit.
+    backend.DeleteRenderTarget({msaaMrt,{}});backend.DeleteRenderTarget({mrt,{}});
 }
 
 } // namespace

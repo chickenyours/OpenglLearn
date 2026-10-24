@@ -1,0 +1,40 @@
+#version 450
+layout(local_size_x=128) in;
+struct RestNode { vec4 positionArc; vec4 orientation; };
+layout(std430,binding=1) readonly buffer RestNodes { RestNode restNodes[]; };
+struct Node { vec4 position; vec4 orientation; vec4 velocity; vec4 angularVelocity; };
+layout(std430,binding=2) readonly buffer Nodes { Node nodes[]; };
+layout(std430,binding=3) readonly buffer RenderRest { vec4 renderRest[]; };
+struct Binding { uvec4 guideNodes; vec4 weights; vec4 lerps; };
+layout(std430,binding=4) readonly buffer Bindings { Binding bindings[]; };
+struct Vertex { vec4 positionRadius; vec4 tangentArc; };
+layout(std430,binding=5) writeonly buffer Vertices { Vertex vertices[]; };
+layout(std430,binding=6) readonly buffer Parameters {
+    vec4 gravityDt; vec4 windDrag; uvec4 solver; vec4 complianceDamping;
+    vec4 shapeCollision; vec4 limitsTime; vec4 rootTranslation;
+    vec4 headA; vec4 headB; vec4 headA1; vec4 headB1; uvec4 counts;
+} p;
+vec4 qmul(vec4 a,vec4 b) { return vec4(a.w*b.xyz+b.w*a.xyz+cross(a.xyz,b.xyz),a.w*b.w-dot(a.xyz,b.xyz)); }
+vec4 qinv(vec4 q) { return vec4(-q.xyz,q.w); }
+vec3 qrot(vec4 q,vec3 v) { return v+2.0*cross(q.xyz,cross(q.xyz,v)+q.w*v); }
+vec4 qmix(vec4 a,vec4 b,float t) { if(dot(a,b)<0) b=-b; return normalize(mix(a,b,t)); }
+void main() {
+    uint id=gl_GlobalInvocationID.x;
+    if(id>=p.solver.w) return;
+    Binding b=bindings[id]; vec3 position=vec3(0),tangent=vec3(0); float arc=0;
+    for(uint slot=0u;slot<3u;++slot) {
+        uint a=b.guideNodes[slot], next=min(a+1u,p.counts.x-1u);
+        float t=b.lerps[slot],w=b.weights[slot];
+        vec3 rest=mix(restNodes[a].positionArc.xyz,restNodes[next].positionArc.xyz,t);
+        vec3 current=mix(nodes[a].position.xyz,nodes[next].position.xyz,t);
+        vec4 restQ=qmix(restNodes[a].orientation,restNodes[next].orientation,t);
+        vec4 currentQ=qmix(nodes[a].orientation,nodes[next].orientation,t);
+        vec4 delta=qmul(currentQ,qinv(restQ));
+        position+=w*(current+qrot(delta,renderRest[id].xyz-rest));
+        vec3 d=nodes[next].position.xyz-nodes[a].position.xyz;
+        tangent+=w*(length(d)>1e-7?normalize(d):qrot(currentQ,vec3(0,0,1)));
+        arc+=w*mix(restNodes[a].positionArc.w,restNodes[next].positionArc.w,t);
+    }
+    vertices[id].positionRadius=vec4(position,renderRest[id].w);
+    vertices[id].tangentArc=vec4(normalize(tangent+vec3(1e-12)),arc);
+}

@@ -16,7 +16,14 @@
 #include "ApplicationWindow/public/window.h"
 #include "Render/Private/rhi_device.h"
 #include "Render/Private/Pipeline/pipeline_resource_builder.h"
+#include "Render/Private/Pipeline/strand_opaque_content.h"
 #include "Render/Public/Pipeline/material_render_pipeline.h"
+
+#if defined(_WIN32)
+// Exercise the same preferred adapter as the editor and strand GPU suite.
+// Windows/user application GPU policy retains priority.
+extern "C" { __declspec(dllexport) unsigned long NvOptimusEnablement=1; }
+#endif
 
 namespace {
 using namespace Render;
@@ -24,6 +31,71 @@ using namespace std::chrono_literals;
 
 void Check(bool condition, const std::string& message) {
     if (!condition) throw std::runtime_error(message);
+}
+// CPU semantic packets use real immutable material snapshots and RenderFrame
+// types, but are never submitted. Symbolic resource identities are sufficient
+// to test content dependencies without an OpenGL context or fixed hash values.
+std::shared_ptr<const Material::MaterialSnapshot> OpaqueHashMaterial(
+    Material::Domain domain,float cutoff,std::uint32_t pipeline=10,std::uint32_t texture=30,bool revised=false) {
+    Material::MaterialTemplateDesc desc;desc.name="OpaqueDepthHashSemantic";desc.domain=domain;
+    desc.parameters.push_back({"alphaCutoff",Material::ParameterType::Float,.5f});
+    desc.textures.push_back({"alpha",0,true});
+    const auto schema=Material::MaterialTemplate::Create(std::move(desc));Check(bool(schema),"Create hash-test material schema");
+    Material::MaterialInstance instance(Material::MaterialAsset::Create(schema));
+    if(revised)Check(instance.Set("alphaCutoff",.9f),"Advance material source revision");
+    Check(instance.Set("alphaCutoff",cutoff),"Set hash-test cutoff");
+    Material::MaterialPassResources resources;resources.expectedTemplate=schema;resources.pipeline={pipeline,1};
+    resources.parameterBuffer={20,1};resources.parameterBufferBytes=std::uint32_t(schema->ByteSize());
+    resources.textures={{0,{texture,1}}};resources.lifetime=std::make_shared<int>(1);
+    const auto snapshot=Material::MaterialSnapshot::Create(instance,resources);Check(bool(snapshot),"Create hash-test material snapshot");return snapshot;
+}
+void CheckOpaqueDepthHashSemantics() {
+    RenderFrame frame;RenderItem solid;solid.mesh={100,3};solid.pipeline={900,1};solid.texture={40,2};solid.draw.indexCount=12;
+    solid.material=OpaqueHashMaterial(Material::Domain::Surface,.5f);frame.items.push_back(solid);
+    auto cutout=solid;cutout.layer=RenderLayer::Cutout;cutout.mesh={101,3};cutout.material=OpaqueHashMaterial(Material::Domain::Surface,.4f,11,31);frame.items.push_back(cutout);
+    auto transparent=solid;transparent.layer=RenderLayer::Transparent;frame.items.push_back(transparent);
+    auto overlay=solid;overlay.layer=RenderLayer::Overlay;frame.items.push_back(overlay);
+    auto effectiveTransparent=solid;effectiveTransparent.material=OpaqueHashMaterial(Material::Domain::Translucent,.5f,12,32);frame.items.push_back(effectiveTransparent);
+    constexpr std::uint64_t epoch=7;
+    const auto key=[&](const RenderFrame& input){return PipelineDetail::StrandOpaqueDepthContentHash(input,epoch);};
+    const auto baseline=key(frame);unsigned checks=0;
+    const auto same=[&](const RenderFrame& input,const char* label){Check(key(input)==baseline,label);++checks;};
+    const auto changed=[&](const RenderFrame& input,const char* label){Check(key(input)!=baseline,label);++checks;};
+    auto candidate=frame;candidate.frameIndex=999;same(candidate,"Frame counter affected opaque depth key");
+    StrandRenderItem hair;hair.material.volumeResolution=128;hair.material.volumeExactIntegration=true;hair.material.volumeProxyBlockers=true;
+    candidate.strands.push_back(hair);same(candidate,"Hair-only addition invalidated opaque depth");
+    candidate.strands[0].material.rootColor={.8f,.2f,.03f};candidate.strands[0].model[3].x=3;candidate.strands[0].material.volumePointIbl=true;
+    same(candidate,"Hair appearance, quality or transform invalidated opaque depth");
+    candidate.items[2].mesh={600,9};candidate.items[2].model[3].z=4;candidate.items[2].material=OpaqueHashMaterial(Material::Domain::Surface,.1f,17,70);
+    candidate.items[3].draw.indexCount=70;candidate.items[4].mesh={701,9};candidate.items[4].material=OpaqueHashMaterial(Material::Domain::Translucent,.1f,18,71);
+    same(candidate,"Transparent/overlay or material-effective transparent content entered opaque key");
+    candidate=frame;candidate.items[0].sortKey=999;candidate.items[0].viewDepth=99;candidate.items[0].castsShadows=false;candidate.items[0].visibleInReflections=false;
+    same(candidate,"Non-depth sorting/shadow/reflection diagnostics affected opaque key");
+    candidate=frame;candidate.items[0].material=OpaqueHashMaterial(Material::Domain::Surface,.5f,10,30,true);
+    same(candidate,"Equivalent material bytes/handles with a different source revision or owner invalidated depth");
+    // Lighting, Sky and debug are deliberately absent from the helper API.
+    // Their actual pipeline call-site behavior is also checked below on GPU.
+    MaterialPipelineSettings unrelated;unrelated.lighting.lightColors[0]*=2.f;unrelated.sky.enabled=true;
+    unrelated.sky.rotation=.8f;unrelated.strandDebugMode=StrandDebugMode::OpaqueVisibility;
+    Check(unrelated.sky.enabled&&unrelated.strandDebugMode==StrandDebugMode::OpaqueVisibility,"Prepare unrelated settings");
+    same(frame,"Lighting/Sky/debug settings entered the depth-only API");
+    for(std::size_t i=0;i<2;++i) {
+        candidate=frame;++candidate.items[i].mesh.version;changed(candidate,"Opaque/cutout mesh generation change missed");
+        candidate=frame;candidate.items[i].model[3].x=.1f;changed(candidate,"Opaque/cutout model change missed");
+        candidate=frame;candidate.items[i].material=OpaqueHashMaterial(Material::Domain::Surface,.2f,10+std::uint32_t(i),30+std::uint32_t(i));changed(candidate,"Opaque/cutout material cutoff change missed");
+        candidate=frame;candidate.items[i].material=OpaqueHashMaterial(Material::Domain::Surface,i?.4f:.5f,80,30+std::uint32_t(i));changed(candidate,"Opaque/cutout effective pipeline change missed");
+        candidate=frame;candidate.items[i].material=OpaqueHashMaterial(Material::Domain::Surface,i?.4f:.5f,10+std::uint32_t(i),90);changed(candidate,"Opaque/cutout material texture change missed");
+        candidate=frame;++candidate.items[i].texture.version;changed(candidate,"Opaque/cutout packet texture generation change missed");
+        candidate=frame;++candidate.items[i].draw.indexCount;changed(candidate,"Opaque/cutout index count change missed");
+        candidate=frame;++candidate.items[i].draw.firstIndex;changed(candidate,"Opaque/cutout first index change missed");
+        candidate=frame;++candidate.items[i].draw.baseVertex;changed(candidate,"Opaque/cutout base vertex change missed");
+        candidate=frame;++candidate.items[i].draw.instanceCount;changed(candidate,"Opaque/cutout instance count change missed");
+        candidate=frame;++candidate.items[i].draw.firstInstance;changed(candidate,"Opaque/cutout first instance change missed");
+    }
+    candidate=frame;candidate.items[0].layer=RenderLayer::Cutout;changed(candidate,"Opaque/cutout depth domain change missed");
+    candidate=frame;candidate.items[0].pipeline={1000,10};same(candidate,"Inactive packet pipeline overrode material effective pipeline");
+    Check(PipelineDetail::StrandOpaqueDepthContentHash(frame,epoch+1)!=baseline,"Explicit same-handle opaque upload epoch change missed");++checks;
+    std::cout<<"Opaque depth hash CPU semantics passed: "<<checks<<" dependency relations, real RenderFrame/MaterialSnapshot, no fixed hash-number oracle\n";
 }
 struct Completion {
     bool done = false;
@@ -386,10 +458,122 @@ public:
         Check(pipeline_.DebugTextures().realtimeGiCache==worldCache,"Output-only change reallocated world probe targets");
         settings_.outputSize={0,0};
         CheckOutputExtent();
+        CheckOpaqueDepthEpochContract();
         std::cout << "Material pipeline GPU history tests passed: completion, discard, pending reset, resize, restart, sky, leased probes, DDGI and hybrid cache state\n";
     }
 
 private:
+    void CheckOpaqueDepthEpochContract() {
+        settings_=MaterialPipelineSettings{};
+        settings_.shadows.enabled=false;settings_.shadows.atlasResolution=128;
+        settings_.reflection.enabled=false;settings_.post.bloomEnabled=false;settings_.post.ssaoEnabled=false;
+        settings_.temporal.antialiasing=AntialiasingMode::TAA;settings_.temporal.msaaSamples=1;
+        settings_.strandTemporalDepth=false;settings_.strandMotionVectors=false;
+        SetCameraX(0);Resize(32,32);
+        StrandMesh hair(device_);
+        const std::array<StrandVertex,2> points{{
+            {{-.12f,-.12f,0,.0001f},{0,1,0,0}},{{.12f,.12f,0,.0001f},{0,1,0,1}}}};
+        const std::array<std::uint32_t,2> line{0,1};Check(hair.Update(points,line),"Create epoch-contract groom");
+        RenderFrame frame;StrandRenderItem strand;strand.geometry=hair.Snapshot();
+        strand.material.spatialVolume=true;strand.material.volumeResolution=8;strand.material.volumeVoxelSize=.05f;
+        strand.material.volumeOpaqueBlockers=true;strand.material.volumeStableOpaqueCache=true;
+        frame.strands.push_back(strand);
+        auto first=Record(frame);
+        Check(first.statistics.strandBlockerPasses==3,"First pipeline shell must inject screen depth and trace two G passes");Complete(first);
+        unsigned stableFrames=0;
+        for(unsigned phase=0;phase<3;++phase) {
+            auto next=Record(frame);
+            Check(next.statistics.strandBlockerPasses==0,"Real pipeline TAA jitter invalidated stable opaque-depth cache");
+            Complete(next);++stableFrames;
+        }
+        // Exercise the public material mutation directly, without Model UI's
+        // explicit ResetHistory. Radiance changes must discard accumulated
+        // color while preserving the unchanged opaque-depth blocker shell.
+        frame.strands[0].material.opaqueShadowPower=.5f;
+        auto changedShadowPower=Record(frame);
+        Check(!changedShadowPower.statistics.historyUsed&&changedShadowPower.statistics.strandBlockerPasses==0,
+            "Changing external shadow power must automatically reset TAA without rebuilding opaque depth");
+        Complete(changedShadowPower);
+        auto stableShadowPower=Record(frame);
+        Check(stableShadowPower.statistics.historyUsed&&stableShadowPower.statistics.strandBlockerPasses==0,
+            "Unchanged external shadow power failed to resume TAA and cached opaque depth");
+        Complete(stableShadowPower);
+        for(const auto coverage:{StrandShadowCoverage::DeepOpacity,StrandShadowCoverage::Ordered}) {
+            settings_.shadows.strandCoverage=coverage;
+            auto changedCoverage=Record(frame);
+            Check(!changedCoverage.statistics.historyUsed&&changedCoverage.statistics.strandBlockerPasses==0,
+                "Changing strand casting representation must reset TAA without rebuilding the DS opaque shell");
+            Complete(changedCoverage);
+            auto stableCoverage=Record(frame);
+            Check(stableCoverage.statistics.historyUsed&&stableCoverage.statistics.strandBlockerPasses==0,
+                "Stable strand casting representation did not resume TAA history");
+            Complete(stableCoverage);
+        }
+        settings_.shadows.strandOpacityScale=.5f;
+        auto changedExtinction=Record(frame);
+        Check(!changedExtinction.statistics.historyUsed&&changedExtinction.statistics.strandBlockerPasses==0,
+            "Changing DOM extinction must reset color history without rebuilding DS opaque blockers");
+        Complete(changedExtinction);
+        auto stableExtinction=Record(frame);
+        Check(stableExtinction.statistics.historyUsed&&stableExtinction.statistics.strandBlockerPasses==0,
+            "Stable DOM extinction did not resume history");
+        Complete(stableExtinction);
+        frame.strands[0].material.sourceRoughnessMapping=true;
+        auto changedRoughnessInput=Record(frame);
+        Check(!changedRoughnessInput.statistics.historyUsed&&changedRoughnessInput.statistics.strandBlockerPasses==0,
+            "Source roughness mapping must reset color history without rebuilding unchanged opaque blockers");
+        Complete(changedRoughnessInput);
+        auto stableRoughnessInput=Record(frame);
+        Check(stableRoughnessInput.statistics.historyUsed&&stableRoughnessInput.statistics.strandBlockerPasses==0,
+            "Stable source roughness mapping did not resume color history");
+        Complete(stableRoughnessInput);
+        settings_.strandIndirect.enabled=true;
+        auto sourceAmbient=Record(frame);Complete(sourceAmbient);
+        auto stableSourceAmbient=Record(frame);
+        Check(stableSourceAmbient.statistics.historyUsed,"Source ambient baseline history did not settle");Complete(stableSourceAmbient);
+        settings_.strandIndirect.hostAmbientScale=0;
+        auto changedHostAmbient=Record(frame);
+        Check(!changedHostAmbient.statistics.historyUsed&&changedHostAmbient.statistics.strandBlockerPasses==0,
+            "Hair ambient policy must reset color history without invalidating opaque blockers");Complete(changedHostAmbient);
+        auto stableHostAmbient=Record(frame);
+        Check(stableHostAmbient.statistics.historyUsed&&stableHostAmbient.statistics.strandBlockerPasses==0,
+            "Stable hair ambient policy did not resume history");Complete(stableHostAmbient);
+        frame.strands[0].material.rootColor={.7f,.2f,.04f};frame.strands[0].material.tipColor={.9f,.5f,.1f};
+        pipeline_.ResetHistory(false);
+        auto hairOnly=Record(frame);
+        Check(!hairOnly.statistics.historyUsed&&hairOnly.statistics.strandBlockerPasses==0,
+            "Hair-only ResetHistory(false) changed the opaque epoch or general content hash leaked into its key");Complete(hairOnly);
+        // Radiance-only lighting, Sky and debug changes must not claim a new
+        // opaque-depth upload. This material does not trace environment N, so
+        // enabling Sky also does not legitimately add direction-path work.
+        settings_.lighting.lightColors[0]*=glm::vec4(.5f,.5f,.5f,1);
+        settings_.sky.enabled=true;settings_.sky.rotation=.3f;settings_.strandDebugMode=StrandDebugMode::BaseColor;
+        auto unrelated=Record(frame);
+        Check(unrelated.statistics.strandBlockerPasses==0,"Light/Sky/debug entered the production opaque-depth key");Complete(unrelated);
+        pipeline_.ResetHistory(); // The DEFAULT must announce same-handle depth-affecting uploads.
+        auto defaultReset=Record(frame);
+        Check(!defaultReset.statistics.historyUsed&&defaultReset.statistics.strandBlockerPasses==3,
+            "Default ResetHistory() did not advance the opaque upload epoch");Complete(defaultReset);
+        pipeline_.ResetHistory(false);
+        auto preserved=Record(frame);
+        Check(!preserved.statistics.historyUsed&&preserved.statistics.strandBlockerPasses==0,
+            "ResetHistory(false) failed to preserve the completed opaque epoch");Complete(preserved);
+        pipeline_.ResetHistory(true);
+        auto explicitReset=Record(frame);
+        Check(explicitReset.statistics.strandBlockerPasses==3,"Explicit opaque reset did not invalidate cached shell/G");Complete(explicitReset);
+        auto recovered=Record(frame);
+        Check(recovered.statistics.historyUsed&&recovered.statistics.cameraHistoryUsed&&recovered.statistics.strandBlockerPasses==0,
+            "Opaque invalidation test requires restored image/camera history and cached shell");Complete(recovered);
+        pipeline_.InvalidateOpaqueDepth();
+        auto opaqueOnly=Record(frame);
+        Check(opaqueOnly.statistics.strandBlockerPasses==3&&opaqueOnly.statistics.historyUsed&&opaqueOnly.statistics.cameraHistoryUsed,
+            "InvalidateOpaqueDepth must refresh shell/G without destroying image or camera history");Complete(opaqueOnly);
+        auto reusedOpaque=Record(frame);
+        Check(reusedOpaque.statistics.strandBlockerPasses==0&&reusedOpaque.statistics.historyUsed&&reusedOpaque.statistics.cameraHistoryUsed,
+            "Opaque-only invalidation failed to resume cached shell and continuous TAA history");Complete(reusedOpaque);
+        std::cout<<"Opaque depth epoch GPU contract passed: "<<stableFrames
+            <<" real TAA phases cached; shadow-power and ordered/DOM casting mutations reset/reuse TAA automatically, hair/light/Sky/debug preserve shell, ResetHistory(false)=0 versus default/true=3, opaque-only invalidation preserves TAA and returns3 then0 blocker passes\n";
+    }
     void CheckOutputExtent() {
         settings_=MaterialPipelineSettings{};
         settings_.shadows.enabled=false;settings_.shadows.atlasResolution=128;
@@ -576,11 +760,14 @@ void main() {
         begin.framebufferHeight = settings_.outputSize.y ? settings_.outputSize.y : height_;
         return device_.BeginFrame(begin);
     }
-    Recorded Record() {
+    Recorded Record() { return Record(RenderFrame{}); }
+    Recorded Record(RenderFrame frame) {
+        std::cout<<"History Record: opaque="<<frame.items.size()<<", strands="<<frame.strands.size()
+            <<", samples="<<settings_.temporal.msaaSamples<<", diagnostic="<<std::uint32_t(settings_.strandDebugMode)<<std::endl;
         auto encoder = Begin();
         try {
-            RenderFrame empty; empty.frameIndex = frameIndex_;
-            CheckPipeline(pipeline_.Record(encoder, empty, camera_, settings_), "Record");
+            frame.frameIndex = frameIndex_;
+            CheckPipeline(pipeline_.Record(encoder, frame, camera_, settings_), "Record");
             const auto token = pipeline_.RecordedFrameToken();
             Check(token != 0, "A successfully recorded frame must have a token");
             return {std::move(encoder), token, pipeline_.Statistics()};
@@ -638,6 +825,7 @@ void main() {
 
 int main() {
     try {
+        CheckOpaqueDepthHashSemantics();
         Check(glfwInit() == GLFW_TRUE, "GLFW initialization failed");
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
         {

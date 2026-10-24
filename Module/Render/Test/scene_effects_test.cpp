@@ -170,9 +170,11 @@ void CheckMetricsGuardAndCasterRange() {
         assert((matrix * glm::vec4(downstreamReceiver + glm::normalize(sun) * 30.0f, 1)).z > 1.0f);
     }
     const Render::SceneEffectsConstants defaults;
-    assert(sizeof(defaults) == 544 && defaults.effects.w == 4096);
+    assert(sizeof(defaults) == 592 && defaults.effects.w == 4096);
     assert(defaults.shadowParams.x == 0.000002f && defaults.shadowParams.y == 0);
     assert(defaults.shadowFilter == glm::vec4(0.05f, 0.20f, 0.10f, 4.0f));
+    assert(defaults.sourceShadowFilter == glm::vec4(0, 0.003f, 0, 0));
+    assert(defaults.strandShadowOpacity == glm::vec4(0,1,0,0) && defaults.strandShadowDepthSpan == glm::vec4(0));
     const auto defaultFit = Render::BuildCascades(view, projection, 0.1f, 300, sun, 80);
     assert(defaultFit.cascadeSplits == fit.cascadeSplits);
     assert(defaultFit.cascadeWorldTexelSize == fit.cascadeWorldTexelSize);

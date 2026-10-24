@@ -24,7 +24,7 @@ bool BoxRay(glm::vec3 p,glm::vec3 d,glm::vec3 low,glm::vec3 high,float maximum) 
 // Consume the same immutable local BVH as Mesh SDF generation. No separate
 // acceleration build and no O(triangles * texels) capture loop are needed.
 bool TraceLocal(const RealtimeGiScene& scene,glm::vec3 origin,glm::vec3 direction,float maximum,
-    glm::vec3& position,glm::vec3& normal) {
+    glm::vec3& position,glm::vec3& normal,std::uint32_t& packedTriangle,glm::vec2& barycentric) {
     if(!scene.NodeCount())return false;
     const auto* data=scene.Pixels().data();const auto triangleStart=scene.NodeCount()*2;
     std::array<std::uint32_t,64> stack{};std::size_t size=1;bool found=false;
@@ -47,6 +47,7 @@ bool TraceLocal(const RealtimeGiScene& scene,glm::vec3 origin,glm::vec3 directio
             const float distance=glm::dot(ac,q)/determinant;
             if(distance<0||distance>=maximum)continue;
             maximum=distance;position=origin+direction*distance;normal=glm::normalize(glm::cross(ab,ac));found=true;
+            packedTriangle=triangle;barycentric={u,v};
         }
     }
     return found;
@@ -62,10 +63,11 @@ void ValidateTransform(const glm::mat4& transform) {
 }
 struct SurfaceCacheScene::LocalCapture {
     std::shared_ptr<const ProbeMeshSdf> mesh;
-    std::vector<glm::vec4> positions,normals;
+    std::vector<glm::vec4> positions,normals,shadingNormals;
     std::uint64_t validTexels=0;
-    LocalCapture(std::shared_ptr<const ProbeMeshSdf> source,std::uint32_t resolution):mesh(std::move(source)) {
+    LocalCapture(std::shared_ptr<const ProbeMeshSdf> source,std::uint32_t resolution,bool captureShadingNormals):mesh(std::move(source)) {
         const auto count=std::size_t(resolution)*resolution*6;positions.resize(count);normals.resize(count);
+        if(captureShadingNormals)shadingNormals.resize(count);
         const auto low=mesh->BoundsMin(),high=mesh->BoundsMax(),extent=high-low;
         const float margin=std::max(.001f,glm::length(extent)*.001f);
         for(int direction=0;direction<6;++direction) {
@@ -76,10 +78,22 @@ struct SurfaceCacheScene::LocalCapture {
             for(std::uint32_t y=0;y<resolution;++y)for(std::uint32_t x=0;x<resolution;++x) {
                 auto origin=low;origin[u]+=(float(x)+.5f)/resolution*extent[u];origin[v]+=(float(y)+.5f)/resolution*extent[v];
                 origin[axis]=(sign>0?high[axis]+margin:low[axis]-margin);
-                glm::vec3 position,normal;
-                if(!TraceLocal(*mesh->Geometry(),origin,-outward,extent[axis]+margin*2,position,normal)||glm::dot(normal,outward)<=.05f)continue;
+                glm::vec3 position,normal;std::uint32_t triangle=0;glm::vec2 barycentric(0);
+                if(!TraceLocal(*mesh->Geometry(),origin,-outward,extent[axis]+margin*2,position,normal,triangle,barycentric)||glm::dot(normal,outward)<=.05f)continue;
                 const auto index=(std::size_t(direction)*resolution+y)*resolution+x;
                 positions[index]=glm::vec4(position,1);normals[index]=glm::vec4(normal,1);++validTexels;
+                if(captureShadingNormals){
+                    glm::vec3 shading=normal;
+                    if(!mesh->ShadingNormals().empty()){
+                        const auto input=mesh->Geometry()->InputTriangleIndices().at(triangle);
+                        const auto& vertexNormals=mesh->ShadingNormals().at(input);
+                        const auto interpolated=vertexNormals[0]*(1.f-barycentric.x-barycentric.y)+
+                            vertexNormals[1]*barycentric.x+vertexNormals[2]*barycentric.y;
+                        if(Finite(interpolated)&&glm::dot(interpolated,interpolated)>1e-12f)
+                            shading=glm::normalize(interpolated);
+                    }
+                    shadingNormals[index]=glm::vec4(shading,1);
+                }
             }
         }
     }
@@ -88,7 +102,7 @@ struct SurfaceCacheScene::LocalCapture {
 SurfaceCacheScene::SurfaceCacheScene(const SurfaceCacheSettings& settings):settings_(settings) {
     if(settings.pageResolution<16||settings.pageResolution>128||(settings.pageResolution&(settings.pageResolution-1)))
         throw std::invalid_argument("Surface cache page resolution must be 16, 32, 64 or 128");
-    attributes_.resize(planeTexels_*3);metadata_.resize(SurfaceCacheAtlasWidth);
+    attributes_.resize(planeTexels_*AttributePlaneCount());metadata_.resize(SurfaceCacheAtlasWidth);
 }
 bool SurfaceCacheScene::Update(const ProbeSdfScene& scene,std::span<const SurfaceCacheMaterial> materials) {
     const auto begin=std::chrono::steady_clock::now();const auto& instances=scene.Instances();
@@ -102,14 +116,14 @@ bool SurfaceCacheScene::Update(const ProbeSdfScene& scene,std::span<const Surfac
             glm::any(glm::greaterThan(material.albedo,glm::vec3(1)))||glm::any(glm::lessThan(material.emission,glm::vec3(0)))||
             glm::any(glm::greaterThan(material.emission,glm::vec3(60000))))throw std::invalid_argument("Invalid surface cache material");
     }
-    statistics_.updatedCards=0;statistics_.updatedTexels=0;statistics_.captureRays=0;dirtyCards_.clear();
+    statistics_.updatedCards=0;statistics_.updatedTexels=0;statistics_.captureRays=0;dirtyCards_.clear();attributeDirtyCards_.clear();
     const auto& geometry=scene.PackedGeometry();
     const bool ownersChanged=!ownerGeometry_||ownerGeometry_->TopologyKey()!=geometry->TopologyKey();
     const auto metadataSize=Padded(instances.size()*6*SurfaceCacheCardTexels+(std::size_t(geometry->TriangleCount())+3)/4);
     const bool resize=states_.size()!=instances.size()||generation_==0;
     if(resize) {
         states_.resize(instances.size());planeTexels_=std::uint32_t(Padded(std::size_t(texels)));
-        attributes_.assign(std::size_t(planeTexels_)*3,glm::vec4(0));
+        attributes_.assign(std::size_t(planeTexels_)*AttributePlaneCount(),glm::vec4(0));
         metadata_.assign(metadataSize,glm::vec4(0));
     }
     if(metadata_.size()!=metadataSize)metadata_.resize(metadataSize,glm::vec4(0));
@@ -125,8 +139,9 @@ bool SurfaceCacheScene::Update(const ProbeSdfScene& scene,std::span<const Surfac
         if(!capture||geometryChanged) {
             const auto existing=captures_.find(mesh.get());
             if(existing!=captures_.end())capture=existing->second;
-            else {capture=std::make_shared<LocalCapture>(mesh,resolution);captures_.emplace(mesh.get(),capture);statistics_.captureRays+=std::uint64_t(pageTexels)*6;}
+            else {capture=std::make_shared<LocalCapture>(mesh,resolution,settings_.captureShadingNormals);captures_.emplace(mesh.get(),capture);statistics_.captureRays+=std::uint64_t(pageTexels)*6;}
         }
+        const bool writeAttributes=!settings_.localCaptureAttributes||resize||geometryChanged||materialChanged||!previous.capture;
         const auto inverse=glm::inverse(instance.localToWorld);const auto normalMatrix=glm::transpose(glm::mat3(inverse));
         const auto low=mesh->BoundsMin(),high=mesh->BoundsMax(),extent=high-low;
         glm::vec3 worldLow(1e30f),worldHigh(-1e30f);
@@ -136,7 +151,7 @@ bool SurfaceCacheScene::Update(const ProbeSdfScene& scene,std::span<const Surfac
         }
         for(std::uint32_t direction=0;direction<6;++direction) {
             const auto card=std::uint32_t(object)*6+direction,first=card*pageTexels,meta=card*SurfaceCacheCardTexels;
-            dirtyCards_.push_back(card);++statistics_.updatedCards;statistics_.updatedTexels+=pageTexels;
+            dirtyCards_.push_back(card);++statistics_.updatedCards;
             const int axis=int(direction)/2,u=(axis+1)%3,v=(axis+2)%3;
             const auto worldNormal=glm::normalize(normalMatrix*Axis(axis,direction%2?-1.f:1.f));
             const float cellU=glm::length(glm::vec3(instance.localToWorld[u]))*extent[u]/resolution;
@@ -147,19 +162,33 @@ bool SurfaceCacheScene::Update(const ProbeSdfScene& scene,std::span<const Surfac
             metadata_[meta+6]=glm::vec4(worldNormal,tolerance);metadata_[meta+7]=glm::vec4(material.albedo,float(object));
             metadata_[meta+8]=glm::vec4(material.emission,float(generation_+1));
             metadata_[meta+9]=glm::vec4(worldLow,float(resolution));metadata_[meta+10]=glm::vec4(worldHigh,0);
+            if(settings_.localCaptureAttributes)metadata_[meta+11]=direction<4?instance.localToWorld[direction]:glm::vec4(0);
+            if(!writeAttributes)continue;
+            attributeDirtyCards_.push_back(card);statistics_.updatedTexels+=pageTexels;
             for(std::uint32_t texel=0;texel<pageTexels;++texel) {
                 const auto local=direction*pageTexels+texel,index=first+texel;
                 if(capture->positions[local].w<.5f) {
-                    attributes_[index]=attributes_[planeTexels_+index]=attributes_[planeTexels_*2+index]=glm::vec4(0);continue;
+                    attributes_[index]=attributes_[planeTexels_+index]=attributes_[planeTexels_*2+index]=glm::vec4(0);
+                    if(settings_.captureShadingNormals)attributes_[planeTexels_*3+index]=glm::vec4(0);
+                    continue;
                 }
                 if(resize||geometryChanged||transformChanged||!previous.capture) {
-                    attributes_[index]=glm::vec4(glm::vec3(instance.localToWorld*capture->positions[local]),1);
-                    attributes_[planeTexels_+index]=glm::vec4(glm::normalize(normalMatrix*glm::vec3(capture->normals[local])),float(card+1));
+                    if(settings_.localCaptureAttributes) {
+                        attributes_[index]=capture->positions[local];
+                        attributes_[planeTexels_+index]=glm::vec4(glm::vec3(capture->normals[local]),float(card+1));
+                        if(settings_.captureShadingNormals)
+                            attributes_[planeTexels_*3+index]=glm::vec4(glm::vec3(capture->shadingNormals[local]),float(card+1));
+                    }else{
+                        attributes_[index]=glm::vec4(glm::vec3(instance.localToWorld*capture->positions[local]),1);
+                        attributes_[planeTexels_+index]=glm::vec4(glm::normalize(normalMatrix*glm::vec3(capture->normals[local])),float(card+1));
+                        if(settings_.captureShadingNormals)
+                            attributes_[planeTexels_*3+index]=glm::vec4(glm::normalize(normalMatrix*glm::vec3(capture->shadingNormals[local])),float(card+1));
+                    }
                 }
                 attributes_[planeTexels_*2+index]=glm::vec4(material.albedo,1);
             }
         }
-        previous={mesh,std::move(capture),instance.localToWorld,material};
+        previous={mesh,std::move(capture),instance.localToWorld,material,normalMatrix};
     }
     if(resize||ownersChanged) {
         std::vector<std::uint32_t> inputOwners;inputOwners.reserve(geometry->TriangleCount());
@@ -180,6 +209,30 @@ bool SurfaceCacheScene::Update(const ProbeSdfScene& scene,std::span<const Surfac
     for(const auto& state:states_)if(state.capture)statistics_.validTexels+=state.capture->validTexels;
     statistics_.updateMilliseconds=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begin).count();
     return changed;
+}
+glm::vec4 SurfaceCacheScene::WorldAttribute(std::uint32_t index) const {
+    const auto value=attributes_[index];
+    const auto plane=index/planeTexels_;
+    if(!settings_.localCaptureAttributes||(plane!=0u&&plane!=1u&&plane!=3u)||value.w<.5f)return value;
+    const auto texel=index%planeTexels_,pageTexels=settings_.pageResolution*settings_.pageResolution;
+    if(texel>=TexelCount())return value;
+    const auto& state=states_[texel/(pageTexels*6)];
+    if(index<planeTexels_)return glm::vec4(glm::vec3(state.transform*value),value.w);
+    return glm::vec4(glm::normalize(state.normalTransform*glm::vec3(value)),value.w);
+}
+const std::vector<glm::vec4>& SurfaceCacheScene::Attributes() const {
+    if(!settings_.localCaptureAttributes)return attributes_;
+    if(worldAttributesGeneration_!=generation_||worldAttributes_.size()!=attributes_.size()) {
+        worldAttributes_=attributes_;
+        for(std::uint32_t texel=0;texel<TexelCount();++texel) {
+            worldAttributes_[texel]=WorldAttribute(texel);
+            worldAttributes_[planeTexels_+texel]=WorldAttribute(planeTexels_+texel);
+            if(settings_.captureShadingNormals)
+                worldAttributes_[planeTexels_*3+texel]=WorldAttribute(planeTexels_*3+texel);
+        }
+        worldAttributesGeneration_=generation_;
+    }
+    return worldAttributes_;
 }
 SurfaceCacheSample SurfaceCacheScene::Lookup(glm::vec3 world,glm::vec3 normal,std::uint32_t object) const {
     SurfaceCacheSample result;if(!Finite(world)||!Finite(normal)||glm::dot(normal,normal)<1e-12f)return result;
@@ -212,7 +265,7 @@ SurfaceCacheSample SurfaceCacheScene::Lookup(glm::vec3 world,glm::vec3 normal,st
             for(int y=0;y<2;++y)for(int x=0;x<2;++x) {
                 const auto tap=glm::clamp(base+glm::ivec2(x,y),glm::ivec2(0),glm::ivec2(resolution-1));
                 const auto index=std::uint32_t(metadata_[meta+5].w)+std::uint32_t(tap.y*resolution+tap.x);
-                const auto p=attributes_[index],n=attributes_[planeTexels_+index];if(p.w<.5f||glm::dot(glm::vec3(n),normal)<.6f)continue;
+                const auto p=WorldAttribute(index),n=WorldAttribute(planeTexels_+index);if(p.w<.5f||glm::dot(glm::vec3(n),normal)<.6f)continue;
                 const auto delta=world-glm::vec3(p);const float tolerance=metadata_[meta+6].w,score=glm::dot(delta,delta);
                 if(std::abs(glm::dot(delta,cardNormal))>tolerance||score>tolerance*tolerance*6.25f||score>=best)continue;
                 best=score;

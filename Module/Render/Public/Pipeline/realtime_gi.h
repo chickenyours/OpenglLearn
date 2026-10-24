@@ -1,5 +1,7 @@
 #pragma once
 #include <vector>
+#include <mutex>
+#include <deque>
 #include "Render/Public/Pipeline/diffuse_probe_volume.h"
 #include "Render/Public/Pipeline/realtime_gi_query.h"
 
@@ -10,6 +12,18 @@ inline constexpr std::uint32_t RealtimeGiCacheRows=26, RealtimeGiMaxRays=128;
 // BVH directly; changing lights does not recreate geometry or bake radiance.
 class RealtimeGiScene {
 public:
+    struct DirtyRange {std::uint32_t first=0,count=0;};
+    enum class SnapshotCopyFallback : std::uint8_t {
+        None,Disabled,PoolEmpty,IncompatibleStorage,MissingJournal,NotAncestor,FullRefitBarrier,JournalFailure
+    };
+    static constexpr std::size_t SnapshotJournalCapacity=32;
+    struct RefitStatistics {
+        double snapshotMilliseconds=0,refitMilliseconds=0;
+        bool snapshotStorageReused=false,snapshotCatchupUsed=false;
+        std::uint64_t snapshotCopiedBytes=0,snapshotPatchedRows=0;
+        std::uint32_t snapshotCatchupVersions=0;
+        SnapshotCopyFallback snapshotCopyFallback=SnapshotCopyFallback::Disabled;
+    };
     const std::vector<glm::vec4>& Pixels() const { return pixels_; }
     std::uint32_t Width() const { return 1024; }
     std::uint32_t Height() const { return std::uint32_t(pixels_.size()/Width()); }
@@ -17,22 +31,54 @@ public:
     std::uint32_t TriangleCount() const { return triangles_; }
     // Packed BVH triangle ID -> original extraction order. Consumers such as
     // card caches use this to retain exact instance ownership after BVH sorting.
-    const std::vector<std::uint32_t>& InputTriangleIndices() const { return inputOrder_; }
+    const std::vector<std::uint32_t>& InputTriangleIndices() const { return topology_->inputOrder; }
     bool HasEmission() const { return hasEmission_; }
     // Refits preserve triangle IDs and cache layout. The caller must retain
     // input triangle ordering and replace the asset when topology changes.
     const void* TopologyKey() const { return topology_.get(); }
+    bool IncrementalUpdate() const {return incremental_;}
+    const std::vector<DirtyRange>& DirtyRanges() const {return dirtyRanges_;}
+    const RefitStatistics& RefitCpuStatistics() const {return refitStatistics_;}
 private:
     std::vector<glm::vec4> pixels_;
-    std::vector<std::uint32_t> inputOrder_;
-    std::shared_ptr<const void> topology_;
+    struct SnapshotStoragePool {
+        struct Retired {std::vector<glm::vec4> pixels;std::uint64_t version=0;};
+        struct Delta {
+            std::uint64_t version=0,parent=0;
+            bool fullRefitBarrier=false;
+            std::vector<DirtyRange> ranges;
+        };
+        std::mutex mutex;
+        std::vector<Retired> available;
+        std::deque<Delta> journal;
+        std::uint64_t nextVersion=1;
+        SnapshotStoragePool(){available.reserve(3);}
+    };
+    struct Topology {
+        std::vector<std::uint32_t> inputOrder,packedForInput,leafForTriangle,parents;
+        std::shared_ptr<SnapshotStoragePool> snapshotStorage=std::make_shared<SnapshotStoragePool>();
+    };
+    std::vector<DirtyRange> dirtyRanges_;
+    bool incremental_=false;
+    // A refit creates a new immutable pixel snapshot, but never changes these
+    // maps. Sharing them also keeps TopologyKey stable without copying every
+    // triangle index and parent link during rigid instance movement.
+    std::shared_ptr<const Topology> topology_;
     std::uint32_t nodes_=0,triangles_=0;
+    std::uint32_t emissiveTriangles_=0;
     bool hasEmission_=false;
+    RefitStatistics refitStatistics_;
+    std::uint64_t snapshotVersion_=0;
+    void PublishSnapshotVersion(std::uint64_t parent,bool fullRefitBarrier,bool recordDelta) noexcept;
     friend std::shared_ptr<const RealtimeGiScene> BuildRealtimeGiScene(std::span<const ProbeTriangle>);
     friend std::shared_ptr<const RealtimeGiScene> RefitRealtimeGiScene(const RealtimeGiScene&,std::span<const ProbeTriangle>);
+    friend std::shared_ptr<const RealtimeGiScene> RefitRealtimeGiSceneChanged(const RealtimeGiScene&,std::span<const ProbeTriangle>,std::span<const std::uint32_t>,bool);
 };
 std::shared_ptr<const RealtimeGiScene> BuildRealtimeGiScene(std::span<const ProbeTriangle>);
 std::shared_ptr<const RealtimeGiScene> RefitRealtimeGiScene(const RealtimeGiScene&,std::span<const ProbeTriangle>);
+// Certified extraction path: every changed input triangle must be listed.
+// Unlisted triangles/materials must be identical to the previous immutable asset.
+std::shared_ptr<const RealtimeGiScene> RefitRealtimeGiSceneChanged(const RealtimeGiScene&,std::span<const ProbeTriangle>,std::span<const std::uint32_t>,bool snapshotRowCatchup=false);
 struct RealtimeGiSettings {
     bool enabled=false, reset=false;
     glm::vec3 origin{-2.5f,.4f,-2.5f}, spacing{1.666667f,1.066667f,1.666667f};

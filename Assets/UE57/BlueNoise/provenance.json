@@ -1,0 +1,36 @@
+[
+  {
+    "source": "D:\\UE5\\engine\\UE_5.7\\Engine\\Content\\EngineMaterials\\FastBlueNoise_scalar_128x128x64.uasset",
+    "source_sha256": "b7942616faf1b08633b3d3d8c7544f7aa789853351cf0b555f121dcaeeaec643",
+    "compressed_buffer_offset": 12492,
+    "compressed_buffer_size": 1048640,
+    "compressed_header_crc32": "0xc18b4f0b",
+    "delta_blake3_from_ue_header": "9c6449750315c28a06f10e104713e326791daf7379a860cd44d401a705f95789",
+    "decoder": "UE bundled oo2core_9_win64.dll + lossless inverse ImageCoreDelta.cpp DeltaT<uint8>/256-row cuts; CRC and forward-delta roundtrip checked",
+    "width": 128,
+    "height": 8192,
+    "channels": 1,
+    "srgb": false,
+    "raw": "FastBlueNoise_scalar_128x128x64.r8",
+    "raw_sha256": "b135dd62c73cdee1920885d28baf2b71643a0577934a77cda6d584c35162de0b",
+    "png": "FastBlueNoise_scalar_128x128x64.png",
+    "png_sha256": "7b0343292356fedf7825ee4517835d5e897aa6eebac317a1ea39b65cc2062b21"
+  },
+  {
+    "source": "D:\\UE5\\engine\\UE_5.7\\Engine\\Content\\EngineMaterials\\FastBlueNoise_vec2_128x128x64.uasset",
+    "source_sha256": "2ec202c29d53cf9955449bd2a26c7cc7be88c78e36c43c167ac6b20eff630169",
+    "compressed_buffer_offset": 12942,
+    "compressed_buffer_size": 2252092,
+    "compressed_header_crc32": "0x16b00530",
+    "delta_blake3_from_ue_header": "a8f256c30394cc812e395ce9c30f0b483b138e7840eef0da1b3147a5375cf3c6",
+    "decoder": "UE bundled oo2core_9_win64.dll + lossless inverse ImageCoreDelta.cpp DeltaT<uint8>/256-row cuts; CRC and forward-delta roundtrip checked",
+    "width": 128,
+    "height": 8192,
+    "channels": 4,
+    "srgb": false,
+    "raw": "FastBlueNoise_vec2_128x128x64.rgba8",
+    "raw_sha256": "ade3613e4ce5a0793de90b59ee5f218a9d65a75015303cfcecdec109ba85fd30",
+    "png": "FastBlueNoise_vec2_128x128x64.png",
+    "png_sha256": "f60c894820106ba04e8035989cc4a5a18136a3a589ffd2d8149e34ea6638db59"
+  }
+]

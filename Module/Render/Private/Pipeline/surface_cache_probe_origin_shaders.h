@@ -21,14 +21,18 @@ namespace Render::SurfaceCacheDetail {
 // plane/along-view acceptance, -4 source normal/view orientation mismatch, -5 insufficient
 // outward numeric clearance. It is not lighting
 // confidence and must not be used to renormalize or brighten the GI integral.
-inline std::string ProbeOriginShader() {
+inline std::string ProbeOriginShader(bool hardwareIntersection=false,bool reuseSoftwareCertification=false,
+    bool reuseClosestBounds=false,bool fastGeometryAddressing=false) {
     return std::string("#version 450 core\n")+ScreenProbeTraceDetail::ConstantsGLSL()+
-        SurfaceCacheDataGLSL()+SoftwareBvhVisibilityGLSL(9)+R"GLSL(
+        (hardwareIntersection?(reuseSoftwareCertification?"#define PO_INTERSECT SCNativeOriginIntersectReusingCertification\n":
+            "#define PO_INTERSECT SCNativeOriginIntersect\n"):"#define PO_INTERSECT SCIntersect\n")+
+        SurfaceCacheDataGLSL()+SoftwareBvhVisibilityGLSL(9,reuseClosestBounds,fastGeometryAddressing)+
+        (hardwareIntersection?NativeSurfaceCacheIntersectionGLSL():std::string{})+R"GLSL(
 in vec2 vUV;layout(location=0) out vec4 outColor;
 layout(binding=0) uniform sampler2D poUniform;
 layout(binding=1) uniform sampler2D poSpawned;
 layout(std140,binding=15) uniform OriginSafetyData {
-    vec4 poSafety; // clearance fraction, numerical endpoint epsilon, directly rasterized positions, reserved
+    vec4 poSafety; // clearance fraction, numerical endpoint epsilon, raster source, UE HW origin policy
 };
 bool POFinite(vec3 value){return !any(isnan(value))&&!any(isinf(value));}
 vec4 POProbe(int probe,int part) {
@@ -47,7 +51,7 @@ void main() {
     if(!POFinite(position.xyz)||!POFinite(normalDepth.xyz)||dot(normalDepth.xyz,normalDepth.xyz)<.5||
         scGeometry.z<=0)return;
     vec3 normal=normalize(normalDepth.xyz);
-    float requestedBias=spTraceParams.z,footprint=0.0;
+    float requestedBias=poSafety.w>.5?.001:spTraceParams.z,footprint=0.0;
     vec4 clip=spViewProjection*vec4(position.xyz,1);
     if(!(clip.w>0)||!POFinite(clip.xyz))return;
     vec3 ndc=clip.xyz/clip.w;
@@ -56,7 +60,7 @@ void main() {
     vec3 cornerWorld=(spInverseView*vec4(corner.xyz,1)).xyz;
     if(!POFinite(cornerWorld))return;
     footprint=length(cornerWorld-position.xyz);
-    requestedBias=max(requestedBias,2.0*abs(dot(cornerWorld-position.xyz,normal)));
+    if(poSafety.w<=.5)requestedBias=max(requestedBias,2.0*abs(dot(cornerWorld-position.xyz,normal)));
     if(isnan(requestedBias)||isinf(requestedBias)||requestedBias<0)return;
     // Numeric endpoint clearance is independent of artistic/geometric ray bias.
     // The coordinate term covers several float ULPs at large world positions;
@@ -105,7 +109,7 @@ void main() {
     float alongAcceptance=min(storedNormalTolerance/max(viewFacing,.02),max(baseNormalTolerance,.25*footprint));
     float anchorWindow=2.0*alongAcceptance,anchorDistance=2.0*anchorWindow;
     vec3 anchorStart=position.xyz-primaryDirection*anchorWindow,sourceNormal;int sourceTriangle;bool sourceExhausted;
-    bool sourceFound=SCIntersect(anchorStart,primaryDirection,anchorDistance,sourceNormal,sourceTriangle,sourceExhausted,false);
+    bool sourceFound=PO_INTERSECT(anchorStart,primaryDirection,anchorDistance,sourceNormal,sourceTriangle,sourceExhausted,false);
     if(sourceExhausted)return;
     if(!sourceFound){outColor.w=-2;return;}
     vec3 anchor=anchorStart+primaryDirection*anchorDistance;
@@ -118,7 +122,7 @@ void main() {
     if(alignment<=.5||dot(sourceNormal,-primaryDirection)<=1e-5){outColor.w=-4;return;}
 
     float distance=requestedBias+epsilon;vec3 hitNormal;int triangle;bool exhausted;
-    bool found=SCIntersect(anchor,normal,distance,hitNormal,triangle,exhausted,false);
+    bool found=PO_INTERSECT(anchor,normal,distance,hitNormal,triangle,exhausted,false);
     if(exhausted)return;
     float bias=requestedBias,status=1;
     if(found) {

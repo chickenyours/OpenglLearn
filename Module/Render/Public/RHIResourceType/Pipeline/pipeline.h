@@ -34,7 +34,9 @@ namespace Render{
         Alpha,
         Additive,
         // Straight-alpha color compositing with coverage-preserving alpha.
-        AlphaComposite
+        AlphaComposite,
+        // Unweighted sum (ONE, ONE) for HDR accumulation and optical depth.
+        AdditiveRaw
     };
 
     enum class Format{

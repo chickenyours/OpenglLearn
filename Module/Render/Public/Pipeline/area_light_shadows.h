@@ -11,6 +11,17 @@ struct AreaLightShadowSettings {
     // 4x4 emitter grid uses this tile size; 8x8 uses half, keeping 24 MiB at 256.
     std::uint32_t tileResolution=256;
     float nearPlane=.015f,depthBiasTexels=.3f,normalBiasTexels=.25f;
+    // Keep the original shadow shader/draw order, but prepare immutable caster
+    // uniforms once per atlas refresh rather than once for every cube face.
+    bool reuseCasterPreparation=false;
+    // Only explicitly supplied conservative world bounds on opaque casters
+    // permit rejection. Unknown, cutout and uncertain near-plane cases draw.
+    bool cullCasters=false;
+    // Execution-only: preserve exact immutable UBO contents across draws in a frame.
+    bool reuseUniformSnapshotContents=false;
+    // Reuse only an unreferenced depth-atlas lease of the required dimensions.
+    // Completed frames and recorded/submitted frame pins keep their own lease.
+    bool reuseAtlasStorage=false;
 };
 inline bool ValidateAreaLightShadowSettings(const AreaLightShadowSettings& s) {
     return s.tileResolution>=64&&s.tileResolution<=1024&&(s.tileResolution&(s.tileResolution-1))==0&&

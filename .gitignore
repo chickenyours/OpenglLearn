@@ -84,3 +84,31 @@ build.md
 # Python cache files are generated, including those alongside asset scripts.
 __pycache__/
 *.py[cod]
+
+# Local captures, extraction evidence and generated study reports.
+/Module/*/Evidence/
+/Module/*/Report/
+/Module/*/Captures/
+/Module/*/Report.rar
+/Module/MaterialLab/GI[0-9]*_*.md
+/Module/Render/docs/skin_diffusion_reconstruction.md
+
+# Keep shader source and scene configuration; asset payloads stay local.
+/Module/BalatroShaderLab/Assets/textures/
+/Module/GraveyardSceneLab/Assets/textures/
+/Module/GraveyardSceneLab/Assets/meshes/
+/Module/GraveyardSceneLab/Assets/*manifest.json
+/Module/GraveyardSceneLab/Assets/provenance.json
+/Assets/UE57/BlueNoise/*.png
+
+# Material/light profiles are configuration; these are generated evidence or snapshots.
+/Asset/Diana/SceneInputEvidence/
+/Asset/Diana/*-evidence.json
+/Asset/Diana/*-audit.json
+/Asset/Diana/geometry-manifest.json
+/Asset/Diana/materials-revision*.json
+/Asset/Diana/materials-quality*-baseline.json
+/Asset/Diana/materials.ds-baseline*.json
+/Asset/Diana/materials-near-probe.json
+/Asset/HairSimulation/*_evidence.json
+/Asset/HairSimulation/diana_metadata.json

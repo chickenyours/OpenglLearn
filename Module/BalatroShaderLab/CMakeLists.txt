@@ -1,0 +1,6 @@
+add_executable(balatro_shader_lab Private/main.cpp)
+target_compile_features(balatro_shader_lab PRIVATE cxx_std_20)
+target_link_libraries(balatro_shader_lab PRIVATE render_effects imgui_core imgui_glfw imgui_opengl3)
+target_compile_definitions(balatro_shader_lab PRIVATE BALATRO_LAB_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+add_test(NAME balatro_shader_lab_smoke COMMAND balatro_shader_lab --smoke-test)
+set_tests_properties(balatro_shader_lab_smoke PROPERTIES TIMEOUT 60 LABELS "gpu")

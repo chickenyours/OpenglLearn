@@ -192,10 +192,17 @@ void DirtyBounds(const ProbeSdfInstance& instance, const ProbeGlobalSdfSettings&
 }
 } // namespace
 
-std::shared_ptr<const ProbeMeshSdf> BakeProbeMeshSdf(std::span<const ProbeTriangle> triangles, std::uint32_t resolution, bool closed,float expansion) {
+std::shared_ptr<const ProbeMeshSdf> BakeProbeMeshSdf(std::span<const ProbeTriangle> triangles, std::uint32_t resolution, bool closed,float expansion,
+    std::span<const std::array<glm::vec3,3>> shadingNormals) {
     if (resolution < 12 || resolution > 128 || triangles.empty()) throw std::invalid_argument("Mesh SDF needs geometry and resolution 12..128");
     if(!std::isfinite(expansion)||expansion<0||expansion>2)throw std::invalid_argument("Invalid Mesh SDF surface expansion");
+    if(!shadingNormals.empty()&&shadingNormals.size()!=triangles.size())
+        throw std::invalid_argument("Mesh shading-normal sidecar must match input triangle count");
+    for(const auto& triangle:shadingNormals)for(const auto normal:triangle)
+        if(!Finite(normal)||glm::dot(normal,normal)<1e-12f)
+            throw std::invalid_argument("Invalid mesh shading-normal sidecar");
     const auto begin = Clock::now(); auto result = std::make_shared<ProbeMeshSdf>();
+    result->shadingNormals_.assign(shadingNormals.begin(),shadingNormals.end());
     result->geometry_ = BuildRealtimeGiScene(triangles); result->triangles_.assign(triangles.begin(), triangles.end());
     const auto& data = result->geometry_->Pixels(); result->boundsMin_ = glm::vec3(data[0]); result->boundsMax_ = glm::vec3(data[1]);
     const auto extent = result->boundsMax_ - result->boundsMin_;
@@ -235,9 +242,16 @@ float ProbeMeshSdf::ConservativeDistance(glm::vec3 p) const {
     return std::max(BoxDistance(p, boundsMin_, boundsMax_), std::max(0.f, sample - interpolationError_ - glm::length(p - clamped)));
 }
 glm::uvec3 ProbeSdfScene::BrickCounts() const { return (settings_.counts + glm::uvec3(settings_.brickSize - 1)) / settings_.brickSize; }
-const std::vector<glm::vec4>& ProbeSdfScene::GlobalPixels() const { return clipmaps_ ? clipmaps_->Pixels() : globalPixels_; }
-const std::vector<ProbeSdfAtlasRange>& ProbeSdfScene::DirtyRanges() const { return clipmaps_ ? clipmaps_->DirtyRanges() : dirtyRanges_; }
+void ProbeSdfScene::EnsureGlobalField() const {
+    if(!globalFieldDeferred_)return;
+    auto& scene=*const_cast<ProbeSdfScene*>(this);
+    std::vector<std::uint8_t> all(scene.statistics_.totalBricks,1);
+    scene.statistics_.fullRebuild=true;scene.RebuildBricks(all,all);scene.globalFieldDeferred_=false;
+}
+const std::vector<glm::vec4>& ProbeSdfScene::GlobalPixels() const { EnsureGlobalField();return clipmaps_ ? clipmaps_->Pixels() : globalPixels_; }
+const std::vector<ProbeSdfAtlasRange>& ProbeSdfScene::DirtyRanges() const { EnsureGlobalField();return clipmaps_ ? clipmaps_->DirtyRanges() : dirtyRanges_; }
 glm::vec4 ProbeSdfScene::SampleGlobal(glm::uvec3 voxel) const {
+    EnsureGlobalField();
     voxel = glm::min(voxel, settings_.counts - glm::uvec3(1));
     return clipmaps_ ? clipmaps_->SampleLogical(voxel, 0) : globalPixels_[At(voxel, settings_.counts)];
 }
@@ -253,7 +267,8 @@ float ProbeSdfScene::ObjectDistance(std::uint32_t index, glm::vec3 p) const {
     return std::max(std::max(0.f,mesh.ConservativeDistance(local)-mesh.SurfaceBias()) * minimumScale,
         std::max(0.f,BoxDistance(p,globalBoundsMin_[index],globalBoundsMax_[index])-mesh.SurfaceBias()*minimumScale));
 }
-void ProbeSdfScene::RepackAssets(bool rebuildMeshAtlas) {
+void ProbeSdfScene::RepackAssets(bool rebuildMeshAtlas,std::span<const std::uint32_t> changedObjects) {
+    const auto metadataBegin=Clock::now();
     std::vector<std::shared_ptr<const ProbeMeshSdf>> meshes;
     std::vector<std::size_t> offsets;
     for (const auto& instance : instances_) if (std::find(meshes.begin(), meshes.end(), instance.mesh) == meshes.end()) meshes.push_back(instance.mesh);
@@ -266,11 +281,16 @@ void ProbeSdfScene::RepackAssets(bool rebuildMeshAtlas) {
         statistics_.bakedVoxels += mesh->Statistics().voxels; statistics_.distanceTriangleTests += mesh->Statistics().distanceTriangleTests; statistics_.signTriangleTests += mesh->Statistics().signTriangleTests;
     }
     if (rebuildMeshAtlas) meshPixels_.resize(Padded(meshPixels_.size()), glm::vec4(0));
-    objectPixels_.assign(Padded(instances_.size() * ProbeSdfObjectTexels), glm::vec4(0));
+    const bool partial=!rebuildMeshAtlas&&!changedObjects.empty()&&objectPixels_.size()==Padded(instances_.size()*ProbeSdfObjectTexels);
+    if(!partial)objectPixels_.assign(Padded(instances_.size() * ProbeSdfObjectTexels), glm::vec4(0));
     globalBoundsMin_.resize(instances_.size());globalBoundsMax_.resize(instances_.size());
     for (std::size_t i = 0; i < instances_.size(); ++i) {
         const auto& instance = instances_[i]; const auto& mesh = *instance.mesh;
         const auto asset = std::size_t(std::find(meshes.begin(), meshes.end(), instance.mesh) - meshes.begin()); const auto at = i * ProbeSdfObjectTexels;
+        if(partial&&!std::binary_search(changedObjects.begin(),changedObjects.end(),std::uint32_t(i))) {
+            maximumWorldMeshError_=std::max(maximumWorldMeshError_,(instance.globalMesh?instance.globalMesh:instance.mesh)->InterpolationError()*objectPixels_[at+6].w);
+            continue;
+        }
         const auto inverse = glm::inverse(instance.localToWorld); for (int c = 0; c != 4; ++c) objectPixels_[at + c] = inverse[c];
         const auto scales = AxisScales(instance); const float minimum = std::min({scales.x, scales.y, scales.z}), maximum = std::max({scales.x, scales.y, scales.z});
         objectPixels_[at + 4] = glm::vec4(mesh.Origin(), float(offsets[asset]));
@@ -285,18 +305,44 @@ void ProbeSdfScene::RepackAssets(bool rebuildMeshAtlas) {
         maximumWorldMeshError_ = std::max(maximumWorldMeshError_, (instance.globalMesh?instance.globalMesh:instance.mesh)->InterpolationError() * minimum);
     }
     statistics_.meshAssets = std::uint32_t(meshes.size()); statistics_.instances = std::uint32_t(instances_.size());
+    statistics_.metadataMilliseconds=std::chrono::duration<double,std::milli>(Clock::now()-metadataBegin).count();
 }
-void ProbeSdfScene::UpdateGeometry(bool topologyChanged) {
+void ProbeSdfScene::UpdateGeometry(bool topologyChanged,bool incremental,bool snapshotRowCatchup) {
     ++geometryGeneration_;
     std::vector<ProbeTriangle> triangles;
+    if(incremental){
+        const auto transformBegin=Clock::now();
+        std::size_t total=0;for(const auto& instance:instances_)total+=GeometryMesh(instance)->Triangles().size();
+        if(topologyChanged||transformedTriangles_.size()!=total){transformedTriangles_.resize(total);geometryInputs_.clear();}
+        auto& changed=changedGeometryTriangles_;changed.clear();std::size_t offset=0;
+        for(std::size_t i=0;i<instances_.size();++i){const auto& instance=instances_[i];const auto& source=GeometryMesh(instance)->Triangles();
+            bool same=i<geometryInputs_.size()&&GeometryMesh(instance)==GeometryMesh(geometryInputs_[i]);
+            if(same)for(unsigned c=0;c<4;++c)same&=instance.localToWorld[c]==geometryInputs_[i].localToWorld[c];
+            if(!same){changed.reserve(changed.size()+source.size());for(std::size_t local=0;local<source.size();++local){auto t=source[local];
+                t.a=glm::vec3(instance.localToWorld*glm::vec4(t.a,1));t.b=glm::vec3(instance.localToWorld*glm::vec4(t.b,1));
+                t.c=glm::vec3(instance.localToWorld*glm::vec4(t.c,1));transformedTriangles_[offset+local]=t;changed.push_back(std::uint32_t(offset+local));}}
+            offset+=source.size();
+        }geometryInputs_=instances_;
+        statistics_.geometryTransformMilliseconds=std::chrono::duration<double,std::milli>(Clock::now()-transformBegin).count();
+        const auto refitBegin=Clock::now();
+        const bool refit=!topologyChanged&&packedGeometry_&&packedGeometry_->TriangleCount()==total;
+        packedGeometry_=refit?
+            RefitRealtimeGiSceneChanged(*packedGeometry_,transformedTriangles_,changed,snapshotRowCatchup):BuildRealtimeGiScene(transformedTriangles_);
+        if(refit){statistics_.geometrySnapshotMilliseconds=packedGeometry_->RefitCpuStatistics().snapshotMilliseconds;
+            statistics_.geometryRefitMilliseconds=packedGeometry_->RefitCpuStatistics().refitMilliseconds;}
+        else statistics_.geometryRefitMilliseconds=std::chrono::duration<double,std::milli>(Clock::now()-refitBegin).count();
+        return;
+    } else {
     for (const auto& instance : instances_) for (auto triangle : GeometryMesh(instance)->Triangles()) {
         triangle.a = glm::vec3(instance.localToWorld * glm::vec4(triangle.a, 1));
         triangle.b = glm::vec3(instance.localToWorld * glm::vec4(triangle.b, 1));
         triangle.c = glm::vec3(instance.localToWorld * glm::vec4(triangle.c, 1));
         triangles.push_back(triangle);
     }
+    }
     packedGeometry_ = !topologyChanged && packedGeometry_ && packedGeometry_->TriangleCount() == triangles.size()
         ? RefitRealtimeGiScene(*packedGeometry_, triangles) : BuildRealtimeGiScene(triangles);
+    geometryInputs_=instances_;transformedTriangles_=std::move(triangles);
 }
 void ProbeSdfScene::RebuildBricks(std::span<const std::uint8_t> staticDirty, std::span<const std::uint8_t> dynamicDirty) {
     const auto begin = Clock::now(); const auto bricks = BrickCounts(); dirtyBricks_.clear(); dirtyRanges_.clear();
@@ -375,24 +421,43 @@ std::shared_ptr<ProbeSdfScene> BuildProbeSdfScene(std::span<const ProbeSdfInstan
     result->statistics_.totalVoxels = VoxelCount(settings.counts); result->statistics_.totalBricks = VoxelCount(result->BrickCounts()); result->statistics_.fullRebuild = true;
     std::vector<std::uint8_t> all(result->statistics_.totalBricks, 1); result->RebuildBricks(all, all); return result;
 }
-bool ProbeSdfScene::UpdateInstances(std::span<const ProbeSdfInstance> instances) {
+bool ProbeSdfScene::UpdateInstances(std::span<const ProbeSdfInstance> instances,bool deferGlobalField,bool incrementalGeometry,bool snapshotRowCatchup) {
+    statistics_.geometryTransformMilliseconds=statistics_.geometrySnapshotMilliseconds=statistics_.geometryRefitMilliseconds=statistics_.metadataMilliseconds=0;
     if (instances.size() > 256) throw std::invalid_argument("Too many SDF instances");
     for (const auto& instance : instances) ValidateInstance(instance);
     bool changed = instances.size() != instances_.size(), topologyChanged = changed,geometryChanged=changed,geometryTopologyChanged=changed;
+    std::vector<std::uint32_t> changedObjects;
+    if(incrementalGeometry)changedObjects.reserve(instances.size());
     for (std::size_t i = 0; i < std::min(instances.size(), instances_.size()); ++i) {
-        changed |= !Same(instances[i], instances_[i]);topologyChanged |= instances[i].mesh != instances_[i].mesh;
+        const bool objectChanged=!Same(instances[i],instances_[i]);
+        if(incrementalGeometry&&objectChanged)changedObjects.push_back(std::uint32_t(i));
+        changed |= objectChanged;topologyChanged |= instances[i].mesh != instances_[i].mesh;
         geometryTopologyChanged |= GeometryMesh(instances[i])!=GeometryMesh(instances_[i]);geometryChanged |= geometryTopologyChanged;
         for(int c=0;c<4;++c)geometryChanged |= instances[i].localToWorld[c]!=instances_[i].localToWorld[c];
     }
+    // Stable mesh topology keeps all atlas offsets and object IDs. Refresh
+    // inverse transforms/bounds only for changed instances, like Lumen's
+    // pending primitive update list; the original full path stays available.
+    const auto repack=[&](){RepackAssets(topologyChanged,
+        incrementalGeometry&&!topologyChanged?std::span<const std::uint32_t>(changedObjects):std::span<const std::uint32_t>{});};
     if (clipmaps_) {
         if (!changed) return false;
-        instances_.assign(instances.begin(), instances.end()); RepackAssets(topologyChanged);
-        if (geometryChanged) UpdateGeometry(geometryTopologyChanged);
+        instances_.assign(instances.begin(), instances.end()); repack();
+        if (geometryChanged) UpdateGeometry(geometryTopologyChanged,incrementalGeometry,snapshotRowCatchup);
         ++statistics_.generation;
         return true;
     }
+    if(!changed&&globalFieldDeferred_&&!deferGlobalField){EnsureGlobalField();return true;}
+    if(changed&&deferGlobalField) {
+        instances_.assign(instances.begin(),instances.end());repack();
+        if(geometryChanged)UpdateGeometry(geometryTopologyChanged,incrementalGeometry,snapshotRowCatchup);
+        globalFieldDeferred_=true;++statistics_.generation;
+        dirtyBricks_.clear();dirtyRanges_.clear();
+        statistics_.updatedVoxels=statistics_.updatedBricks=statistics_.objectDistanceQueries=statistics_.staticVoxelUpdates=statistics_.dynamicVoxelUpdates=0;
+        statistics_.updateMilliseconds=0;statistics_.fullRebuild=false;return true;
+    }
     if (!changed) { dirtyBricks_.clear(); dirtyRanges_.clear(); statistics_.updatedVoxels = statistics_.updatedBricks = statistics_.objectDistanceQueries = statistics_.staticVoxelUpdates = statistics_.dynamicVoxelUpdates = 0; statistics_.updateMilliseconds = 0; statistics_.fullRebuild = false; return false; }
-    const auto bricks = BrickCounts(); std::vector<std::uint8_t> staticDirty(VoxelCount(bricks), 0), dynamicDirty(staticDirty);
+    const auto bricks = BrickCounts(); std::vector<std::uint8_t> staticDirty(VoxelCount(bricks),globalFieldDeferred_?1:0), dynamicDirty(staticDirty);
     for (std::size_t i = 0; i < std::max(instances.size(), instances_.size()); ++i) {
         const bool oldExists = i < instances_.size(), newExists = i < instances.size();
         if (oldExists && newExists && Same(GlobalInstance(instances_[i]),GlobalInstance(instances[i]))) continue;
@@ -402,9 +467,9 @@ bool ProbeSdfScene::UpdateInstances(std::span<const ProbeSdfInstance> instances)
     // A changed array index changes its owner ID, including untouched later
     // objects; invalidate both cached owner fields when topology is replaced.
     if (instances.size() != instances_.size()) { std::fill(staticDirty.begin(), staticDirty.end(), 1); std::fill(dynamicDirty.begin(), dynamicDirty.end(), 1); }
-    instances_.assign(instances.begin(), instances.end()); RepackAssets(topologyChanged);if(geometryChanged)UpdateGeometry(geometryTopologyChanged);
+    instances_.assign(instances.begin(), instances.end()); repack();if(geometryChanged)UpdateGeometry(geometryTopologyChanged,incrementalGeometry,snapshotRowCatchup);
     statistics_.fullRebuild = instances.size() == 0 || (std::all_of(staticDirty.begin(), staticDirty.end(), [](auto x) { return x != 0; }) && std::all_of(dynamicDirty.begin(), dynamicDirty.end(), [](auto x) { return x != 0; }));
-    RebuildBricks(staticDirty, dynamicDirty); return true;
+    RebuildBricks(staticDirty, dynamicDirty);globalFieldDeferred_=false; return true;
 }
 bool ProbeSdfScene::UpdateGlobalClipmaps(glm::vec3 camera,
     std::span<const std::array<std::shared_ptr<const ProbeMeshSdf>, 4>> levelMeshes) {

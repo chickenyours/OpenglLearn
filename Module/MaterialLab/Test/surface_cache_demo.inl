@@ -1,6 +1,168 @@
+#include "sealed_room_interaction.h"
+
+// CPU-only regression of the helpers used by F, arrows and H. No window,
+// renderer, mesh bake, GPU resource or image readback is needed.
+void SurfaceCacheInteractionCpuTest() {
+    using namespace SealedRoomMotion;
+    auto objects=SealedGiRoomObjects();
+    for(auto& object:objects)object.position+=glm::vec3(100);
+    const auto sphere=[&](unsigned index,glm::vec3 position,glm::vec3 scale) {
+        objects[index].mesh=ShowcaseMesh::Sphere;objects[index].position=position;
+        objects[index].scale=scale;objects[index].yaw=objects[index].tilt=0;objects[index].movable=true;
+    };
+    sphere(FirstProp,{0,1,0},glm::vec3(.5f));sphere(FirstProp+1,{0,1,-2},glm::vec3(.5f));
+    Check(Pick(objects,{0,1,3},{0,0,-1},30)==FirstProp,"F picking failed to choose the nearest actual prop");
+    Check(Pick(objects,{0,1,3},{0,0,1},30)==NoSelection,"F picking accepted a hit behind the ray origin");
+    objects[0].mesh=ShowcaseMesh::Box;objects[0].position={0,1,1.5f};objects[0].scale={.6f,.6f,.1f};
+    objects[0].yaw=objects[0].tilt=0;
+    Check(Pick(objects,{0,1,3},{0,0,-1},30)==NoSelection,"F picking selected a prop through an opaque wall");
+    objects[0].position=glm::vec3(100);
+    sphere(FirstProp,{0,0,0},{2,.2f,.5f});sphere(FirstProp+1,{1.9f,.19f,-2},glm::vec3(.1f));
+    Check(Pick(objects,{1.9,.19,3},{0,0,-1},30)==FirstProp+1,
+        "F picking used an ellipsoid's empty bounding-box corner instead of visible triangles");
+    const auto camera=SealedGiRoomCameraPreset(0,1.6f);
+    Check(Pick(objects,camera,-.1,.5)==NoSelection,"F picking accepted a cursor outside the viewport");
+    const auto movement=GroundDisplacement(1,-1,.25f,false);
+    Check(std::abs(glm::length(movement)-.35f)<1e-6f&&movement.y==0&&movement.z<0,
+        "Arrow movement must normalize diagonals and remain on the XZ ground plane");
+    Check(glm::length(GroundDisplacement(1,-1,.125f,false)*2.f-movement)<1e-6f&&
+        glm::length(GroundDisplacement(1,-1,.25f,true)-movement*3.f)<1e-6f,
+        "Arrow movement speed changed with timestep or Shift did not multiply it consistently");
+    const auto initial=SealedGiRoomObjects();auto oneStep=initial,segmented=initial;
+    Advance(oneStep,0,1);Advance(segmented,0,.35);
+    const auto paused=segmented;
+    // Pausing advances no simulation time; resuming uses the retained phase.
+    Advance(segmented,.35,.35);Check(segmented[FirstProp].position==paused[FirstProp].position,
+        "Pausing H changed an object's position");
+    Advance(segmented,.35,1);
+    unsigned moved=0;
+    for(unsigned index=0;index<initial.size();++index) {
+        Check(glm::length(oneStep[index].position-segmented[index].position)<1e-6f,
+            "H pause/resume or a split timestep introduced an animation jump");
+        if(IsProp(index)) {
+            Check(glm::length(oneStep[index].position-initial[index].position)>1e-5f&&
+                oneStep[index].position.y==initial[index].position.y,"H failed to move a prop on the ground plane");++moved;
+        } else Check(oneStep[index].position==initial[index].position,"H moved room architecture or its lamp");
+    }
+    Check(moved==6,"H animation must include all six porcelain props");
+    segmented=initial;segmented[FirstProp].position.x+=.7f;const auto manual=segmented[FirstProp].position;
+    Advance(segmented,1,1.01);
+    Check(glm::length(segmented[FirstProp].position-manual)<.01f,
+        "Resuming H after manual movement snapped the prop back to its initial path");
+    auto edge=initial[FirstProp];edge.position={100,edge.position.y,-100};KeepInsideRoom(edge);
+    Check(edge.position.x<SealedGiRoomMaximum.x&&edge.position.z>SealedGiRoomMinimum.z&&edge.position.y==initial[FirstProp].position.y,
+        "Ground movement escaped the room or changed object height");
+    const auto verifyPalette=[&](const std::vector<ProbePlacementObject>& poses) {
+        FrameSettings palette;palette.screenProbeStudyState.occluderOffset=.61f;
+        Sync(palette,poses);
+        Check(palette.sealedGiRoomPropMotion&&palette.screenProbeStudyState.occluderOffset==0,
+            "Interactive palette lost stable dynamic identity or retained the legacy cube offset");
+        for(unsigned index=0;index<poses.size();++index) {
+            const auto visible=ProbePlacementTransform(poses[index],{});
+            const auto published=SealedGiRoomObjectTransform(index,palette.screenProbeStudyState,palette.sealedGiRoomPropOffsets);
+            for(unsigned column=0;column<4;++column)for(unsigned row=0;row<4;++row)
+                Check(std::abs(visible[column][row]-published[column][row])<1e-6f,
+                    "F picking pose differs from the public raster/SDF/card instance transform");
+        }
+    };
+    verifyPalette(initial);verifyPalette(oneStep);verifyPalette(paused);verifyPalette(segmented);
+    auto manySteps=initial;
+    for(unsigned step=0;step<120;++step)Advance(manySteps,double(step)/60.,double(step+1)/60.);
+    manySteps[FirstProp+2].position+=GroundDisplacement(-1,1,.3f,true);
+    KeepInsideRoom(manySteps[FirstProp+2]);verifyPalette(manySteps);
+    Advance(manySteps,2,2.016);verifyPalette(manySteps);
+    manySteps=initial;verifyPalette(manySteps); // R resets every prop and all six offset slots.
+    FrameSettings untouched;untouched.screenProbeStudyState.occluderOffset=.4f;
+    Check(!untouched.sealedGiRoomPropMotion,"Default settings unexpectedly enabled six-prop animation");
+    for(unsigned index=0;index<initial.size();++index) {
+        const auto legacy=ProbePlacementTransform(initial[index],untouched.screenProbeStudyState);
+        const auto preserved=SealedGiRoomObjectTransform(index,untouched.screenProbeStudyState,untouched.sealedGiRoomPropOffsets);
+        for(unsigned column=0;column<4;++column)Check(legacy[column]==preserved[column],
+            "The default palette changed the legacy sealed-room transform");
+    }
+    std::cout<<"GI95 interaction CPU passed: actual mesh picking, nearest/occlusion, XZ dt/Shift, six-prop H pause/resume, 25 shared transforms/reset/legacy\n";
+}
+
 // Independent Surface Cache stage. No dependency on the older hybrid GI,
 // world-radiance cache or final-image antialiasing. Adaptive surface probes are
 // the normal gather; the per-pixel path remains an explicit reference.
+void ApplySurfaceCacheBudget(FrameSettings& frame,unsigned profile) {
+    if(profile==21){
+        // Fixed UE 5.7.1 GlobalIlluminationQuality@2, not a tunable trial matrix.
+        // BaseScalability.ini 281-306; LumenScreenProbeFiltering.cpp 18-76.
+        ApplySurfaceCacheBudget(frame,16);
+        auto& gi=frame.effects.surfaceCacheGi;auto& p=frame.effects.screenProbePlacement;
+        gi.ueLumenHigh=true;gi.nativeAdaptiveFreshSampling=false;
+        gi.fuseNativeReconstruction=false;gi.nativeTemporalContactMetadata=false;
+        gi.contact.enabled=false;gi.compactReceiverTracing=false;gi.sparseReceiverSampling=false;
+        p.baseSpacing=32;p.candidateCount=16;p.trace.rayResolution=8;p.trace.cosineHemisphere=false;
+        p.cornerRefinement=false;p.curvatureRefinement=false;
+        gi.spatial.passes=3;gi.spatial.halfKernelSize=1;
+        gi.spatial.positionWeightScale=1000;gi.spatial.maxHitAngleDegrees=10;
+        gi.temporal.maxFrames=10;gi.temporal.distanceThreshold=.01f;
+        return;
+    }
+    if(!profile)return;
+    auto& gi=frame.effects.surfaceCacheGi;auto& p=frame.effects.screenProbePlacement;
+    gi.halfReceiverRadiance=profile>=9;gi.deferredReceiverMix=profile>=10;
+    gi.mrtReceiverCapture=profile>=11;
+    gi.nativeScreenProbeTransport=profile>=12;
+    gi.nativeAdaptiveFreshSampling=profile>=13;
+    gi.reuseStaticReceiverMotionCapture=profile>=13;
+    gi.fuseNativeReconstruction=profile>=14;
+    gi.nativeTemporalContactMetadata=profile>=14;
+    gi.nativeComputePlacement=profile>=15;
+    p.trace.sdf.snapshotRowCatchup=profile>=16;
+    gi.nativeForceRasterCore=profile>=17;
+    gi.nativeSyntheticReceiverFilterSupport=profile>=18;
+    gi.nativeReceiverFilterRiskWeights=profile>=19;
+    gi.nativeReceiverFilterSupportHalo=profile>=20;
+    gi.hardwareContactTracing=true;gi.hardwareCacheVisibility=true;gi.hardwareOriginTracing=true;
+    gi.updateAccelerationStructures=true;gi.deferResourceUploads=true;gi.fastGeometryAddressing=true;
+    gi.areaShadows.reuseCasterPreparation=true;gi.areaShadows.cullCasters=true;
+    gi.areaShadows.reuseAtlasStorage=true;gi.areaShadows.reuseUniformSnapshotContents=true;
+    gi.spatial.radianceOnlyFiltering=true;
+    p.trace.singleInvocation=false;p.trace.singlePassOutputs=true;p.trace.compactSdfRays=false;
+    p.trace.sdf.fastAtlasAddressing=true;p.trace.sdf.reuseTraceSamples=true;p.trace.sdf.nativeUploadPruning=true;
+    p.trace.sdf.reuseNativeCandidate=false;p.trace.sdf.directSoftwareRefinement=profile==1;
+    // High-frequency contact geometry keeps full-resolution receivers. Broad
+    // illumination uses sparse probes and bounded, geometry-rejected history.
+    p.baseSpacing=32;p.candidateCount=4;p.trace.rayResolution=8;
+    gi.contact.budgetedSampling=true;gi.contact.raysPerPixel=4;
+    gi.cacheSettledGather=true;
+    gi.omitUnusedRawGather=true;
+    gi.cachedAreaSamplesPerAxis=8;
+    p.trace.sdf.deferUnusedGlobalField=true;
+    gi.contact.halfResolutionScreenRisk=true;
+    gi.contact.prioritizeContactCore=true;
+    gi.contact.disocclusionRayMultiplier=2;
+    gi.contact.movingReceiverRayMultiplier=2;gi.contact.movingReceiverFullCurrent=true;
+    gi.spatial.passes=2;
+    gi.temporal.motionConsistentSpatialReuse=true;
+    gi.temporal.dynamicMaxFrames=4;gi.temporal.edgeMaxFrames=2;
+    if(profile>=2){frame.effects.areaLights.samplesPerAxis=4;frame.effects.areaLights.stratifiedSamples=true;
+        p.trace.sdf.directSoftwareRefinement=false;p.trace.sdf.hardwareRayTracing=true;p.trace.sdf.nativeInteriorTracing=true;}
+    if(profile==2||profile>=4){
+        // Keep the curve/junction obligation and original contact strata.
+        p.candidateCount=8;gi.contact.raysPerPixel=8;gi.contact.prioritizeContactCore=false;
+        gi.contact.halfResolutionScreenRisk=false;
+        gi.contact.disocclusionRayMultiplier=4;
+        gi.spatial.passes=3;gi.temporal.motionConsistentSpatialReuse=false;
+    }
+    if(profile==3){p.baseSpacing=48;p.trace.rayResolution=4;gi.contact.raysPerPixel=1;}
+    if(profile>=4){gi.splitReceiverGather=true;gi.cachedDirectDiffuse=true;
+        gi.sparseReceiverSampling=profile==4||profile>=6;
+        gi.coherentReceiverTracing=profile>=6;
+        if(profile>=7){gi.receiverLatticeMax=2;gi.geometryReceiverRisk=true;}
+        gi.compactReceiverTracing=profile==7||profile>=9;
+        gi.transportTexelStride=1;gi.receiverRiskDistance=.35f;
+        gi.temporal.edgeMaxFrames=4;
+        gi.sparseNativeVertexUpdates=true;p.trace.sdf.incrementalGeometry=true;
+        gi.spatial.enabled=false;gi.contact.enabled=false;gi.cacheSettledGather=false;
+        gi.areaShadows.enabled=false;frame.effects.areaLights.samplesPerAxis=8;frame.effects.areaLights.stratifiedSamples=false;
+        if(profile>=6){gi.cachedAreaSamplesPerAxis=0;frame.effects.areaLights.stratifiedSamples=true;}}
+    if(profile>=12){gi.contact.enabled=true;gi.spatial.enabled=true;gi.spatial.passes=3;}
+}
 FrameSettings MakeSurfaceCacheGiFrame(const Options& options) {
     auto frame=MakeProbeSdfTraceFrame(options);
 #ifdef MATERIAL_LAB_HAS_MODEL
@@ -9,12 +171,48 @@ FrameSettings MakeSurfaceCacheGiFrame(const Options& options) {
     frame.surfaceCacheStudy=true;
     auto& e=frame.effects;auto& placement=e.screenProbePlacement;
     auto& gi=e.surfaceCacheGi;gi.useScreenProbes=!options.surfaceCacheReference;
+    gi.hardwareContactTracing=options.surfaceCacheHardwareContact;
+    gi.hardwareCacheVisibility=options.surfaceCacheHardwareVisibility;
+    gi.hardwareOriginTracing=options.surfaceCacheNativeProbes;
+    gi.receiverSoftwareOrigins=options.surfaceCacheSoftwareReceiverOrigins;
+    gi.reuseOriginSoftwareCertification=options.surfaceCacheReuseOriginCertification;
+    gi.updateAccelerationStructures=options.surfaceCacheUpdateAcceleration;
+    placement.trace.sdf.nativeUploadPruning=options.surfaceCachePruneNativeUploads;
+    placement.trace.sdf.reuseNativeCandidate=options.surfaceCacheReuseNativeCandidate;
+    placement.trace.sdf.directSoftwareRefinement=options.surfaceCacheDirectSoftwareRefinement;
+    gi.contact.splitReceiverOrigins=options.surfaceCacheSplitReceiverOrigins;
+    gi.contact.reuseLightingLookup=options.surfaceCacheReceiverLookupReuse;
+    gi.contact.fastLightingAddressing=options.surfaceCacheReceiverFastLightingAddressing;
+    gi.reuseClosestTraversal=options.surfaceCacheReuseClosestTraversal;
+    gi.fastGeometryAddressing=options.surfaceCacheFastGeometryAddressing;
+    gi.spatial.radianceOnlyFiltering=options.surfaceCacheRadianceFilter;
+    gi.deferResourceUploads=options.surfaceCacheDeferredUploads;
+    gi.reuseAccelerationStorage=options.surfaceCacheReuseAcceleration;
+    gi.areaShadows.reuseCasterPreparation=options.surfaceCacheReuseShadowCasters;
+    gi.areaShadows.cullCasters=options.surfaceCacheCullShadowCasters;
+    gi.areaShadows.reuseAtlasStorage=options.surfaceCacheReuseShadowAtlas;
+    gi.areaShadows.reuseUniformSnapshotContents=options.surfaceCacheReuseUniformSnapshots;
     gi.safeProbeOrigins=!options.surfaceCacheNoSafeOrigins;
     gi.rasterSourcePositions=!options.surfaceCacheDepthPositions;
     gi.probeOriginDiagnostics=options.surfaceCacheOriginOverlay;
     placement.curvatureRefinement=!options.surfaceCacheNoCurvature;
     gi.temporal.enabled=!options.surfaceCacheNoTemporal;gi.temporal.maxFrames=options.surfaceCacheHistoryFrames;
     gi.temporal.directionPhases=options.surfaceCacheHistoryDirections;
+    gi.temporal.motionConsistentSpatialReuse=options.surfaceCacheDynamicConsistent;
+    gi.temporal.localCameraHistory=options.surfaceCacheLocalCameraHistory;
+    gi.temporal.motionStability=!options.surfaceCacheNoMotionStability&&
+        (options.sealedGiRoom||options.surfaceCacheMotionStability);
+    gi.temporal.motionSpatialFilter=options.surfaceCacheMotionSpatialFilter;
+    gi.temporal.motionDisocclusionRecovery=options.surfaceCacheMotionDisocclusionRecovery;
+    gi.temporal.objectMotionReprojection=!options.surfaceCacheNoObjectMotionReprojection&&
+        (options.sealedGiRoom||options.surfaceCacheObjectMotionReprojection);
+    gi.contact.disocclusionSampling=!options.surfaceCacheNoFreshSampling&&(options.sealedGiRoom||options.surfaceCacheFreshSampling);
+    gi.contact.disocclusionRayMultiplier=options.surfaceCacheFreshSamplingMultiplier;
+    gi.contact.movingReceiverRayMultiplier=options.surfaceCacheMovingReceiverRayMultiplier;
+    gi.contact.movingReceiverFullCurrent=options.surfaceCacheMovingReceiverFullCurrent;
+    gi.temporal.reactiveShadows=!options.surfaceCacheNoReactiveShadows&&(options.sealedGiRoom||options.surfaceCacheReactiveShadows);
+    gi.temporal.disocclusionFilter=options.surfaceCacheDisocclusionFilter;
+    gi.reuseAnyHitBounds=!options.surfaceCacheLegacyAnyHitBounds;
     gi.temporal.youngFilter=!options.surfaceCacheNoYoungRecovery;
     gi.temporal.retainHistoryOnObjectMotion=!options.surfaceCacheResetOnObjectMotion;
     gi.spatial.enabled=!options.surfaceCacheNoSpatial;gi.spatial.passes=options.surfaceCacheSpatialPasses;
@@ -24,7 +222,13 @@ FrameSettings MakeSurfaceCacheGiFrame(const Options& options) {
     placement.frameIndex=0;placement.freeze=false;placement.debugView=0;placement.markerRadiusPixels=3;
     placement.trace.enabled=true;placement.trace.showPanel=false;placement.trace.cosineHemisphere=gi.useScreenProbes;
     placement.trace.rayResolution=options.surfaceCacheProbeRays;placement.trace.maxDistance=30;
+    placement.trace.singleInvocation=options.surfaceCacheSingleInvocation;
+    placement.trace.singlePassOutputs=options.surfaceCacheSinglePassOutputs;
+    placement.trace.compactSdfRays=options.surfaceCacheCompactSdfRays;
     placement.trace.sdf.enabled=true;placement.trace.sdf.visualMode=0;placement.trace.sdf.sliceView=0;
+    placement.trace.sdf.fastAtlasAddressing=options.surfaceCacheFastSdfAddressing;
+    placement.trace.sdf.reuseTraceSamples=options.surfaceCacheReuseSdfSamples;
+    placement.trace.sdf.hardwareRayTracing=options.surfaceCacheNativeProbes;
     placement.trace.sdf.showHitPoints=false;placement.trace.sdf.showClipmapBounds=false;
     placement.trace.sdf.automaticQuality=frame.sdfModelStudy;
     e.surfaceCacheGi.enabled=true;e.surfaceCacheGi.raysPerPixel=options.surfaceCacheRays;
@@ -43,6 +247,7 @@ FrameSettings MakeSurfaceCacheGiFrame(const Options& options) {
         gi.areaLightShadows=true;
         frame.camera=SealedGiRoomCameraPreset(0,frame.OutputAspect());
     }
+    ApplySurfaceCacheBudget(frame,options.gi90Profile);
     return frame;
 }
 
@@ -50,8 +255,18 @@ void SurfaceCacheInteractive(MaterialLabModule& lab,ApplicationWindow::Window& w
     auto frame=MakeSurfaceCacheGiFrame(options);
     frame.effects.surfaceCacheGi.collectProbeCoverage=false;
     auto* native=static_cast<GLFWwindow*>(window.GetNativeWindow());
+    // Preserve a short F/H press until the next rendered frame consumes it.
+    if(options.sealedGiRoom)glfwSetInputMode(native,GLFW_STICKY_KEYS,GLFW_TRUE);
     DebugPanelHost panels(lab,native,false);FramePacer pacer;
     std::array<bool,GLFW_KEY_LAST+1> previous{};
+    std::vector<ProbePlacementObject> roomObjects;
+    if(options.sealedGiRoom) {
+        roomObjects=SealedGiRoomObjects();
+        for(unsigned index=SealedRoomMotion::FirstProp;index<roomObjects.size();++index)roomObjects[index].movable=true;
+    }
+    const auto initialRoomObjects=roomObjects;
+    unsigned selectedObject=SealedRoomMotion::NoSelection;
+    bool animateObjects=false;double animationSeconds=0;
     glm::vec3 position;float yaw=0,pitch=0;
     const auto pose=[&](const Render::PipelineCamera& camera){frame.camera=camera;position=camera.position;
         const auto direction=-glm::vec3(glm::inverse(camera.view)[2]);yaw=std::atan2(direction.x,-direction.z);pitch=std::asin(glm::clamp(direction.y,-1.f,1.f));};
@@ -64,8 +279,13 @@ void SurfaceCacheInteractive(MaterialLabModule& lab,ApplicationWindow::Window& w
     pose(preset(0));bool looking=false,saved=false;unsigned screenshotWarmup=0;double lastX=0,lastY=0,last=glfwGetTime(),sample=last;
     double smoothMs=16.7;
     std::cout<<"Surface Cache GI: adaptive probes | V views | F5 GI | F6 pixel reference | F7 rays | P probe overlay\n"
-        "F2 adaptive | F3 spacing | J sampling seed | Space freeze placement | H spatial | T temporal | G reset history | B probe coverage\n"
-        "1/2/3 cameras | Arrows move object | RMB look | WASD move | Q/E height | Shift fast | R reset | Esc exit\n";
+        "F2 adaptive | F3 spacing | J sampling seed | Space freeze placement | T temporal | G reset history | B probe coverage\n"
+        "1/2/3 cameras | RMB look | WASD move | Q/E height | Shift fast | R reset | Esc exit\n";
+    if(options.sealedGiRoom)std::cout<<"F selects visible prop under mouse (RMB: viewport center) | Arrows move selected prop on XZ ground\n"
+        "H toggles all six props' motion | Arrow movement pauses H | Shift+H toggles spatial filtering | R restores all props and camera\n";
+    else std::cout<<"Left/Right move block | H spatial filtering\n";
+    std::cout<<"Camera movement stability: "<<(frame.effects.surfaceCacheGi.temporal.motionStability?"enabled":"disabled")<<'\n';
+    std::cout<<"Moving-object GI reprojection: "<<(frame.effects.surfaceCacheGi.temporal.objectMotionReprojection?"enabled":"disabled")<<'\n';
     while(!window.ShouldClose()) {
         const auto started=std::chrono::steady_clock::now();window.PollEvents();DebugPanelFrame ui(panels);
         const double now=glfwGetTime();const float dt=float(std::clamp(now-last,.0001,.1));
@@ -87,7 +307,11 @@ void SurfaceCacheInteractive(MaterialLabModule& lab,ApplicationWindow::Window& w
         if(pressed(GLFW_KEY_B))gi.view=gi.view==6?0:6;
         if(pressed(GLFW_KEY_F5))gi.enabled=!gi.enabled;
         if(pressed(GLFW_KEY_T))gi.temporal.enabled=!gi.temporal.enabled;
-        if(pressed(GLFW_KEY_H))gi.spatial.enabled=!gi.spatial.enabled;
+        const bool fast=down(GLFW_KEY_LEFT_SHIFT)||down(GLFW_KEY_RIGHT_SHIFT);
+        if(pressed(GLFW_KEY_H)) {
+            if(options.sealedGiRoom&&!fast)animateObjects=!animateObjects;
+            else gi.spatial.enabled=!gi.spatial.enabled;
+        }
         if(pressed(GLFW_KEY_G))gi.temporal.reset=true;
         auto& placement=frame.effects.screenProbePlacement;
         if(pressed(GLFW_KEY_F6)){gi.useScreenProbes=!gi.useScreenProbes;placement.reset=true;}
@@ -99,8 +323,14 @@ void SurfaceCacheInteractive(MaterialLabModule& lab,ApplicationWindow::Window& w
         if(pressed(GLFW_KEY_SPACE))placement.freeze=!placement.freeze;
         if(pressed(GLFW_KEY_P)){gi.probeDiagnostics=!gi.probeDiagnostics;frame.effects.screenProbePlacement.reset=true;}
         for(unsigned n=0;n<3;++n)if(pressed(GLFW_KEY_1+int(n)))pose(preset(n));
-        if(pressed(GLFW_KEY_R)){frame.screenProbeStudyState={};pose(preset(0));}
-        frame.screenProbeStudyState.occluderOffset=std::clamp(frame.screenProbeStudyState.occluderOffset+
+        if(pressed(GLFW_KEY_R)) {
+            frame.screenProbeStudyState={};pose(preset(0));
+            if(options.sealedGiRoom) {
+                roomObjects=initialRoomObjects;selectedObject=SealedRoomMotion::NoSelection;
+                animateObjects=false;animationSeconds=0;gi.temporal.reset=true;placement.reset=true;
+            }
+        }
+        if(!options.sealedGiRoom)frame.screenProbeStudyState.occluderOffset=std::clamp(frame.screenProbeStudyState.occluderOffset+
             (float(down(GLFW_KEY_RIGHT))-float(down(GLFW_KEY_LEFT)))*dt,-1.2f,2.5f);
         double x=0,y=0;glfwGetCursorPos(native,&x,&y);
         const bool rmb=!ui.WantsMouse()&&glfwGetWindowAttrib(native,GLFW_FOCUSED)&&glfwGetMouseButton(native,GLFW_MOUSE_BUTTON_RIGHT)==GLFW_PRESS;
@@ -113,10 +343,34 @@ void SurfaceCacheInteractive(MaterialLabModule& lab,ApplicationWindow::Window& w
         const auto forward=ShowcaseForward(yaw,0),right=glm::normalize(glm::cross(forward,glm::vec3(0,1,0)));
         const auto motion=forward*(float(down(GLFW_KEY_W))-float(down(GLFW_KEY_S)))+right*(float(down(GLFW_KEY_D))-float(down(GLFW_KEY_A)))+
             glm::vec3(0,float(down(GLFW_KEY_E))-float(down(GLFW_KEY_Q)),0);
-        if(glm::dot(motion,motion)>0)position+=glm::normalize(motion)*2.5f*dt*(down(GLFW_KEY_LEFT_SHIFT)?3.f:1.f);
+        if(glm::dot(motion,motion)>0)position+=glm::normalize(motion)*2.5f*dt*(fast?3.f:1.f);
         if(options.sealedGiRoom)position=glm::clamp(position,glm::vec3(-3.75f,.2f,-3.25f),glm::vec3(3.75f,4.25f,3.25f));
         auto camera=frame.camera.value();camera.position=position;camera.view=glm::lookAt(position,position+ShowcaseForward(yaw,pitch),glm::vec3(0,1,0));
         camera.projection=glm::perspective(glm::radians(55.f),frame.OutputAspect(),camera.nearPlane,camera.farPlane);frame.camera=camera;
+        if(options.sealedGiRoom) {
+            if(pressed(GLFW_KEY_F)&&!ui.WantsMouse()) {
+                int cursorWidth=0,cursorHeight=0;glfwGetWindowSize(native,&cursorWidth,&cursorHeight);
+                const double u=looking?.5:cursorWidth>0?x/double(cursorWidth):-1;
+                const double v=looking?.5:cursorHeight>0?y/double(cursorHeight):-1;
+                selectedObject=SealedRoomMotion::Pick(roomObjects,camera,u,v);
+                std::cout<<"Selected prop: "<<(selectedObject==SealedRoomMotion::NoSelection?"none (aim at a visible prop)":roomObjects[selectedObject].name)<<'\n';
+            }
+            const auto displacement=SealedRoomMotion::GroundDisplacement(
+                float(down(GLFW_KEY_RIGHT))-float(down(GLFW_KEY_LEFT)),
+                float(down(GLFW_KEY_DOWN))-float(down(GLFW_KEY_UP)),dt,fast);
+            if(selectedObject!=SealedRoomMotion::NoSelection&&glm::dot(displacement,displacement)>0) {
+                animateObjects=false;roomObjects[selectedObject].position+=displacement;
+                SealedRoomMotion::KeepInsideRoom(roomObjects[selectedObject]);
+            }
+            if(animateObjects) {
+                SealedRoomMotion::Advance(roomObjects,animationSeconds,animationSeconds+double(dt));
+                animationSeconds+=double(dt);
+                for(unsigned index=SealedRoomMotion::FirstProp;index<roomObjects.size();++index)SealedRoomMotion::KeepInsideRoom(roomObjects[index]);
+            }
+            // One fixed six-prop palette drives raster, SDF and card instances.
+            // Geometry and materials retain their immutable scene identity.
+            SealedRoomMotion::Sync(frame,roomObjects);
+        }
         ui.Finish(frame);
         placement.enabled=gi.enabled&&(gi.useScreenProbes||gi.probeDiagnostics);
         placement.trace.cosineHemisphere=gi.useScreenProbes;
@@ -127,9 +381,13 @@ void SurfaceCacheInteractive(MaterialLabModule& lab,ApplicationWindow::Window& w
         if(!saved&&!options.screenshot.empty()&&!lab.ProbeSdfQualityStatistics().pending&&(!options.sealedGiRoom||screenshotWarmup>=32)){
             frame.present=false;Check(lab.Render(frame),lab.LastError());Save(lab.Readback(),options.screenshot);saved=true;}
         const auto rayLabel=gi.useScreenProbes?std::to_string(placement.trace.rayResolution*placement.trace.rayResolution)+" rays / probe":std::to_string(gi.raysPerPixel)+" rays / pixel";
+        const auto movingHistoryLimit=gi.temporal.motionStability?std::min(64u,std::max(32u,gi.temporal.maxFrames)):gi.temporal.maxFrames;
         const auto historyLabel=gi.temporal.enabled&&gi.useScreenProbes?
-            (gi.temporal.staticConvergence&&gi.temporal.maxFrames>1?"static 64 / moving "+std::to_string(gi.temporal.maxFrames):std::to_string(gi.temporal.maxFrames)+" frames"):"off";
-        glfwSetWindowTitle(native,((options.sealedGiRoom?"Sealed ceramic GI | L ceiling lamp | ":"Surface Cache GI | ")+rayLabel+" | Spatial "+(gi.spatial.enabled&&gi.useScreenProbes?"on":"off")+" | Temporal "+historyLabel+" | V views").c_str());
+            (gi.temporal.staticConvergence&&gi.temporal.maxFrames>1?"static 64 / camera up to "+std::to_string(movingHistoryLimit):std::to_string(gi.temporal.maxFrames)+" frames"):"off";
+        const auto interactionLabel=options.sealedGiRoom?std::string("Selected: ")+
+            (selectedObject==SealedRoomMotion::NoSelection?"none (F to pick)":roomObjects[selectedObject].name)+
+            " | H motion: "+(animateObjects?"running":"paused")+" | F mouse / RMB center / arrows XZ / Shift+H spatial | ":std::string();
+        glfwSetWindowTitle(native,((options.sealedGiRoom?"Sealed ceramic GI | ":"Surface Cache GI | ")+interactionLabel+rayLabel+" | Spatial "+(gi.spatial.enabled&&gi.useScreenProbes?"on":"off")+" | Temporal "+historyLabel+" | V views").c_str());
         if(options.fpsLimit>0)pacer.WaitUntil(started+std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(1./options.fpsLimit)));
     }
     if(glfwRawMouseMotionSupported())glfwSetInputMode(native,GLFW_RAW_MOUSE_MOTION,GLFW_FALSE);

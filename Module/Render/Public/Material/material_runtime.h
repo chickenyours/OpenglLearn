@@ -37,6 +37,17 @@ struct MaterialPassResources {
     // Optional opaque capture variants; share this schema, textures and owner.
     RenderResourceHandle<PipelineSpec> diffuseRadiancePipeline;
     RenderResourceHandle<PipelineSpec> normalPipeline;
+    // Optional three-attachment receiver rho / world-normal / view-position
+    // capture. The lifetime token retains this variant and its shader program.
+    RenderResourceHandle<PipelineSpec> receiverCapturePipeline;
+    // The normal variant implements SurfacePass capture mode four (previous
+    // world position and owner). Custom normal shaders must opt in explicitly.
+    bool previousWorldCapture=false;
+    // Explicit rigid-vertex contract: current position and previous-world
+    // captures have identical current coverage. Default false for custom or
+    // deforming shaders. The owner-gated variant implements capture mode 15.
+    bool staticWorldCapture=false;
+    RenderResourceHandle<PipelineSpec> ownerGatedPreviousWorldPipeline;
 };
 
 class MaterialSnapshot final {

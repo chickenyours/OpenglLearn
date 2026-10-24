@@ -9,21 +9,73 @@ namespace Render::SurfaceCacheDetail {
 inline std::string ContactConstantsGLSL() {return R"GLSL(
 layout(std140,binding=14) uniform ContactResolveData {
     vec4 ctParameters; // near-hit distance, tan(start angle), tan(end angle), risky geometric weight fraction
-    ivec4 ctOptions; // actual receiver ray count, local-filter radius, parallel-layer validation, reserved
+    ivec4 ctOptions; // base receiver ray count, local-filter radius, parallel-layer validation, feature bits
     vec4 ctFilter; // local-filter strength, albedo tolerance, normal cosine, numeric clearance
     uvec4 ctSampling; // base seed, committed sequence, independent contact directions, continuous confidence
     vec4 ctGuide; // tan(hit-parallax angle), maximum guided radius, receiver screen detection, coherent probe risk
 };
 bool CTGuided(){return (ctOptions.w&1)!=0;}
-float CTMeasurementCoverage(float encoded){return encoded<0?0.0:floor(encoded*.5)/float(ctOptions.x);}
+int CTBaseRayCount(float mask){return ctOptions.x*((ctOptions.w&32)!=0&&mask>=.75?2:1);}
 float CTMeasurementDistance(float encoded){
     float fraction=clamp(encoded-2.0*floor(encoded*.5),0.0,.99999);
     return fraction/max(1.0-fraction,.00001);
 }
-vec4 CTResolveMeasurement(vec4 base,vec4 measurement,float mask){
+)GLSL";}
+
+// This sampler is declared only in the receiver Gather/Resolve/Filter shaders.
+// The mask shader uses slot 15 for probe risk; Gather instead needs cache
+// attributes at 12 and must not alias those with its fresh-receiver texture.
+inline std::string ContactFreshSamplingGLSL() {return R"GLSL(
+// Optional, independently classified newly visible receivers. The baseline
+// ray budget and contact risk are unchanged: X supplies only current receiver
+// confidence, Y is the geometry-exposure (base + extra) ray budget. Z bit zero
+// retains geometry freshness; bits 1..3 may request independent moving batches.
+// Bit 4 additionally requests full current measurements on certified moving
+// surfaces; it never modifies geometry exposure or the geometric risk texture.
+#if CT_FRESH_SAMPLING
+layout(binding=15) uniform sampler2D ctFreshSampling;
+int CTMovingBudgetTag(vec4 fresh){
+    if(isnan(fresh.z)||isinf(fresh.z)||fresh.z<0.0||fresh.z>31.0)return 0;
+    int tag=int(floor(fresh.z+.5)),multiplier=(tag&15)>>1;
+    return fresh.z==float(tag)&&(multiplier==2||multiplier==4)?tag:0;
+}
+float CTEffectiveMask(float mask,ivec2 pixel){
+    if((ctOptions.w&16)==0)return mask;
+    vec4 fresh=texelFetch(ctFreshSampling,pixel,0);
+    if(isnan(fresh.x)||isinf(fresh.x))return mask;
+    float effective=max(mask,clamp(fresh.x,0.0,1.0));
+    return (CTMovingBudgetTag(fresh)&16)!=0?max(effective,1.0):effective;
+}
+int CTActualRayCount(ivec2 pixel,float originalMask){
+    if((ctOptions.w&16)==0)return CTBaseRayCount(originalMask);
+    vec4 fresh=texelFetch(ctFreshSampling,pixel,0);
+    // Additional work is whole independently scrambled base-stratum batches.
+    // Reject malformed non-positive counts and retain the existing 8..32 base.
+    int batches=CTBaseRayCount(originalMask)/ctOptions.x;
+    if(fresh.x>.000001&&!any(isnan(fresh.xy))&&!any(isinf(fresh.xy)))
+        batches=max(batches,int(clamp(floor(fresh.y/float(ctOptions.x)+.5),1.0,4.0)));
+    // Risk-only mode retains the original near-occlusion gate exactly. Full
+    // current mode separately requests genuine measurements on the certified
+    // moving surface; both modes retain the original geometric exposure age.
+    int tag=CTMovingBudgetTag(fresh),movingMultiplier=(tag&15)>>1;
+    if(movingMultiplier>1&&(originalMask>=.25||(tag&16)!=0))
+        batches=max(batches,movingMultiplier);
+    return ctOptions.x*batches;
+}
+#else
+float CTEffectiveMask(float mask,ivec2 pixel){return mask;}
+#endif
+float CTMeasurementCoverage(float encoded,ivec2 pixel,float originalMask){
+#if CT_FRESH_SAMPLING
+    return encoded<0?0.0:floor(encoded*.5)/float(CTActualRayCount(pixel,originalMask));
+#else
+    return encoded<0?0.0:floor(encoded*.5)/float(CTBaseRayCount(originalMask));
+#endif
+}
+vec4 CTResolveMeasurement(vec4 base,vec4 measurement,float mask,ivec2 pixel,float originalMask){
     if(mask<=.000001)return base;
     if(measurement.a<0)return vec4(0);
-    return mix(base,vec4(measurement.rgb,CTMeasurementCoverage(measurement.a)),clamp(mask,0.0,1.0));
+    return mix(base,vec4(measurement.rgb,CTMeasurementCoverage(measurement.a,pixel,originalMask)),clamp(mask,0.0,1.0));
 }
 )GLSL";}
 
@@ -194,6 +246,46 @@ void main() {
 )GLSL";
 }
 
+inline std::string ContactBudgetScreenRiskShader(bool classifier) {
+    auto source=ContactMaskShader();const auto main=source.rfind("void main() {");
+    if(main==std::string::npos)throw std::logic_error("Contact risk main anchor changed");
+    if(classifier) {
+        source.resize(main);
+        source+=R"GLSL(
+void main() {
+    ivec2 pixel=ivec2(gl_FragCoord.xy)*2;outColor=vec4(0);
+    vec4 view=texelFetch(ctPositions,pixel,0),normal=texelFetch(ctNormals,pixel,0);
+    if(view.w<.5||normal.w<.5||!CTFinite(view.xyz)||!CTFinite(normal.xyz)||dot(normal.xyz,normal.xyz)<.5)return;
+    vec3 p=(spInverseView*vec4(view.xyz,1)).xyz,n=normalize(normal.xyz);
+    outColor=vec4(CTReceiverScreenRisk(pixel,p,n),0,0,1);
+}
+)GLSL";
+        return source;
+    }
+    source.insert(main,R"GLSL(
+layout(binding=1) uniform sampler2D ctBudgetRisk;
+float CTSharedScreenRisk(ivec2 pixel,vec3 p,vec3 n) {
+    ivec2 cell=pixel/2,representative=cell*2;
+    vec4 view=texelFetch(ctPositions,representative,0),normal=texelFetch(ctNormals,representative,0);
+    if(view.w<.5||normal.w<.5||!CTFinite(view.xyz)||!CTFinite(normal.xyz)||dot(normal.xyz,normal.xyz)<.5)
+        return CTReceiverScreenRisk(pixel,p,n);
+    vec3 q=(spInverseView*vec4(view.xyz,1)).xyz,nn=normalize(normal.xyz);
+    float tolerance=max(8.0*ctFilter.w,.0005*abs(view.z));
+    // Never share across a silhouette, another layer or a sharp normal change.
+    if(dot(n,nn)<.9659258||abs(dot(q-p,normalize(n+nn)))>tolerance)
+        return CTReceiverScreenRisk(pixel,p,n);
+    ivec2 size=textureSize(ctBudgetRisk,0),side=ivec2((pixel.x&1)==0?-1:1,(pixel.y&1)==0?-1:1);
+    float risk=0;
+    for(int y=0;y<2;++y)for(int x=0;x<2;++x)
+        risk=max(risk,texelFetch(ctBudgetRisk,clamp(cell+ivec2(x,y)*side,ivec2(0),size-1),0).x);
+    return risk;
+}
+)GLSL");
+    const std::string from="mask=max(mask,CTReceiverScreenRisk(pixel,p,n));";
+    const auto at=source.find(from);if(at==std::string::npos)throw std::logic_error("Contact risk evaluation anchor changed");
+    source.replace(at,from.size(),"mask=max(mask,CTSharedScreenRisk(pixel,p,n));");return source;
+}
+
 // Extend only geometric risk, never radiance. A one-pixel soft fringe fills
 // sparse screen-stencil holes without lowering the contact core or carrying
 // lighting across a face. Every added receiver still traces its own rays.
@@ -283,14 +375,14 @@ bool CTReceiverOrigin(vec3 position,vec3 normal,out vec3 origin) {
     float alongAcceptance=min(storedNormalTolerance/max(viewFacing,.02),max(baseNormalTolerance,.25*footprint));
     float anchorWindow=2.0*alongAcceptance,anchorDistance=2.0*anchorWindow;
     vec3 anchorStart=position-primaryDirection*anchorWindow,sourceNormal;int sourceTriangle;bool exhausted;
-    if(!SCIntersect(anchorStart,primaryDirection,anchorDistance,sourceNormal,sourceTriangle,exhausted,false)||exhausted)return false;
+    if(!CT_ORIGIN_INTERSECT(anchorStart,primaryDirection,anchorDistance,sourceNormal,sourceTriangle,exhausted,false)||exhausted)return false;
     vec3 anchor=anchorStart+primaryDirection*anchorDistance,anchorDelta=anchor-position;
     float alignment=dot(sourceNormal,normal);
     float sourceTolerance=baseNormalTolerance+max(abs(dot(depthLowerDelta,sourceNormal)),abs(dot(depthUpperDelta,sourceNormal)));
     if(!CTFinite(anchor)||length(anchorDelta)>alongAcceptance||abs(dot(anchorDelta,sourceNormal))>sourceTolerance||
         abs(dot(anchorDelta,normal))>storedNormalTolerance||alignment<=.5||dot(sourceNormal,-primaryDirection)<=1e-5)return false;
     float distance=requestedBias+epsilon;vec3 hitNormal;int triangle;
-    bool found=SCIntersect(anchor,normal,distance,hitNormal,triangle,exhausted,false);
+    bool found=CT_ORIGIN_INTERSECT(anchor,normal,distance,hitNormal,triangle,exhausted,false);
     if(exhausted)return false;float bias=requestedBias;
     if(found)bias=min(requestedBias,max(0.0,distance-epsilon)*clamp(poSafety.x,.05,.95));
     if(bias*alignment<epsilon)return false;
@@ -298,9 +390,47 @@ bool CTReceiverOrigin(vec3 position,vec3 normal,out vec3 origin) {
 }
 )GLSL";}
 
-inline std::string ContactGatherShader() {
-    return std::string("#version 450 core\n")+ScreenProbeTraceDetail::ConstantsGLSL()+ContactConstantsGLSL()+
-        LookupGLSL()+GeometryGLSL()+ContactReceiverOriginGLSL()+R"GLSL(
+// Optional full-resolution source-origin prepass. It uses the same receiver
+// selection and exact source/clearance queries as the fused Gather. The target
+// must be RGBA32F: xyz stores the uncompressed origin; w is one only after the
+// complete safety contract succeeds. A failed launch remains unknown.
+inline std::string ContactOriginShader(bool freshSampling=false,bool hardwareOrigins=false,
+    bool reuseOriginSoftwareCertification=false,bool reuseClosestBounds=false,bool fastGeometryAddressing=false) {
+    return std::string("#version 450 core\n#define CT_FRESH_SAMPLING ")+(freshSampling?"1\n":"0\n")+
+        (hardwareOrigins?(reuseOriginSoftwareCertification?"#define CT_ORIGIN_INTERSECT SCNativeOriginIntersectReusingCertification\n":
+            "#define CT_ORIGIN_INTERSECT SCNativeOriginIntersect\n"):"#define CT_ORIGIN_INTERSECT SCIntersect\n")+
+        ScreenProbeTraceDetail::ConstantsGLSL()+ContactConstantsGLSL()+ContactFreshSamplingGLSL()+
+        SurfaceCacheDataGLSL()+SoftwareBvhVisibilityGLSL(9,reuseClosestBounds,fastGeometryAddressing)+
+        (hardwareOrigins?NativeSurfaceCacheIntersectionGLSL():std::string{})+ContactReceiverOriginGLSL()+R"GLSL(
+in vec2 vUV;layout(location=0) out vec4 outColor;
+layout(binding=1) uniform sampler2D ctMask;
+layout(binding=2) uniform sampler2D ctPositions;
+layout(binding=3) uniform sampler2D ctNormals;
+void main() {
+    ivec2 pixel=ivec2(gl_FragCoord.xy);outColor=vec4(0);
+    float originalMask=texelFetch(ctMask,pixel,0).x,mask=CTEffectiveMask(originalMask,pixel);
+    if(mask<=.000001)return;
+    vec4 view=texelFetch(ctPositions,pixel,0),normal=texelFetch(ctNormals,pixel,0);
+    if(view.w<.5||normal.w<.5||!CTFinite(view.xyz)||!CTFinite(normal.xyz)||dot(normal.xyz,normal.xyz)<.5)return;
+    vec3 p=(spInverseView*vec4(view.xyz,1)).xyz,n=normalize(normal.xyz),origin;
+    if(!CTReceiverOrigin(p,n,origin))return;
+    outColor=vec4(origin,1);
+}
+)GLSL";
+}
+
+inline std::string ContactGatherShader(bool diagnostics=false,bool freshSampling=false,bool hardwareIntersection=false,bool hardwareOrigins=false,
+    bool reuseOriginSoftwareCertification=false,bool reuseClosestBounds=false,bool fastGeometryAddressing=false,
+    bool splitReceiverOrigins=false,bool reuseLightingLookup=false,unsigned traceDiagnosticPage=0,bool fastLightingAddressing=false) {
+    auto geometry=GeometryGLSL(false,hardwareIntersection||hardwareOrigins,reuseClosestBounds,fastGeometryAddressing);
+    if(diagnostics&&traceDiagnosticPage>0)geometry=InstrumentSurfaceCacheTraceDiagnosticsGLSL(geometry);
+    auto source=std::string("#version 450 core\n#define CT_SAMPLING_DIAGNOSTICS ")+(diagnostics?"1\n":"0\n")+
+        "#define CT_FRESH_SAMPLING "+(freshSampling?"1\n":"0\n")+
+        (hardwareIntersection?"#define CT_INTERSECT SCNativeIntersect\n":"#define CT_INTERSECT SCIntersect\n")+
+        (hardwareOrigins?(reuseOriginSoftwareCertification?"#define CT_ORIGIN_INTERSECT SCNativeOriginIntersectReusingCertification\n":
+            "#define CT_ORIGIN_INTERSECT SCNativeOriginIntersect\n"):"#define CT_ORIGIN_INTERSECT SCIntersect\n")+
+        ScreenProbeTraceDetail::ConstantsGLSL()+ContactConstantsGLSL()+ContactFreshSamplingGLSL()+
+        LookupGLSL(reuseLightingLookup,fastLightingAddressing)+geometry+ContactReceiverOriginGLSL()+R"GLSL(
 in vec2 vUV;layout(location=0) out vec4 outColor;
 layout(binding=0) uniform sampler2D ctInput;
 layout(binding=1) uniform sampler2D ctMask;
@@ -310,38 +440,89 @@ layout(binding=4) uniform sampler2D ctAlbedo;
 uint CTHash(uint h){h=(h^(h>>16))*0x7feb352du;h=(h^(h>>15))*0x846ca68bu;return h^(h>>16);}
 void main() {
     ivec2 pixel=ivec2(gl_FragCoord.xy);vec4 inputValue=texelFetch(ctInput,pixel,0);
-    outColor=inputValue;float mask=texelFetch(ctMask,pixel,0).x;
+#if CT_SAMPLING_DIAGNOSTICS
+    float selected=0.0;
+#if CT_FRESH_SAMPLING
+    if((ctOptions.w&16)!=0) {
+        float fresh=texelFetch(ctFreshSampling,pixel,0).x;
+        if(!isnan(fresh)&&!isinf(fresh)&&fresh>.000001)selected=1.0;
+    }
+#endif
+    // The diagnostic pass independently executes the identical receiver
+    // launch and real ray loop. Planned classifier budgets are not ray counts.
+    outColor=vec4(selected,0,float(ctOptions.x),0);
+#else
+    outColor=inputValue;
+#endif
+    float originalMask=texelFetch(ctMask,pixel,0).x,mask=CTEffectiveMask(originalMask,pixel);
     if(mask<=.000001)return;
     vec4 view=texelFetch(ctPositions,pixel,0),normal=texelFetch(ctNormals,pixel,0);
-    if(view.w<.5||normal.w<.5||!CTFinite(view.xyz)||!CTFinite(normal.xyz)||dot(normal.xyz,normal.xyz)<.5){outColor=vec4(0);return;}
+    if(view.w<.5||normal.w<.5||!CTFinite(view.xyz)||!CTFinite(normal.xyz)||dot(normal.xyz,normal.xyz)<.5){
+#if !CT_SAMPLING_DIAGNOSTICS
+        outColor=vec4(0);
+#endif
+        return;
+    }
     vec3 p=(spInverseView*vec4(view.xyz,1)).xyz,n=normalize(normal.xyz),origin;
     // A failed receiver launch stays unknown. Neither the old probe signal nor
     // temporal history can certify a light sample from an invalid receiver.
-    if(!CTReceiverOrigin(p,n,origin)){outColor=vec4(0,0,0,CTGuided()?-1.0:0.0);return;}
+    if(!CTReceiverOrigin(p,n,origin)){
+#if !CT_SAMPLING_DIAGNOSTICS
+        outColor=vec4(0,0,0,CTGuided()?-1.0:0.0);
+#endif
+        return;
+    }
     vec3 axis=abs(n.z)<.99?vec3(0,0,1):vec3(0,1,0),t=normalize(cross(axis,n)),b=cross(n,t);
     uint seed=CTHash(uint(pixel.x)+uint(pixel.y)*uint(spScreen.x));
     uint phaseSeed=uint(spTracing.w)>>2;
     if(ctSampling.z!=0u)phaseSeed=ctSampling.x;
     seed=CTHash(seed^CTHash(phaseSeed+0x9e3779b9u));
+#if CT_SAMPLING_DIAGNOSTICS
+    int actualTraced=0;
+#endif
+#if CT_FRESH_SAMPLING
+    vec3 sum=vec3(0);int readable=0,count=CTActualRayCount(pixel,originalMask);float inverseHitDistance=0;
+    for(int batch=0;batch<4;++batch) {
+      if(batch*ctOptions.x>=count)break;
+      // The first batch retains every original direction bit for bit. Extra
+      // batches stratify the same cosine hemisphere with independent pixel
+      // scrambles rather than changing the base strata or tracing duplicates.
+      uint batchSeed=batch==0?seed:CTHash(seed^CTHash(uint(batch)+0x3c6ef372u));
+      float azimuthShift=float(CTHash(batchSeed^0x68bc21ebu)&0x00ffffffu)/16777216.0;
+#define CT_SAMPLE_SEED batchSeed
+#else
     float azimuthShift=float(CTHash(seed^0x68bc21ebu)&0x00ffffffu)/16777216.0;
-    vec3 sum=vec3(0);int readable=0,count=ctOptions.x;float inverseHitDistance=0;
-    for(int ray=0;ray<32;++ray) {
+    vec3 sum=vec3(0);int readable=0,count=CTBaseRayCount(originalMask);float inverseHitDistance=0;
+#define CT_SAMPLE_SEED seed
+#endif
+      for(int ray=0;ray<32;++ray) {
+#if CT_FRESH_SAMPLING
+        if(ray>=ctOptions.x)break;
+#else
         if(ray>=count)break;
-        float radialJitter=(float(CTHash(seed^CTHash(uint(ray)))&0x0007ffffu)+.5)/524288.0;
+#endif
+        float radialJitter=(float(CTHash(CT_SAMPLE_SEED^CTHash(uint(ray)))&0x0007ffffu)+.5)/524288.0;
         float azimuth=fract(float(bitfieldReverse(uint(ray))>>8)/16777216.0+azimuthShift);
         if(ctSampling.z!=0u) {
             // Fixed-point R2 shifts advance both coordinates independently of
             // the probe's short direction cycle. Pixel scrambling stays fixed;
             // only successfully committed GI frames advance the sequence.
             uint radialPhase=ctSampling.y*0xc13fa9a9u,azimuthPhase=ctSampling.y*0x91e10da5u;
-            radialJitter=(float((CTHash(seed^CTHash(uint(ray)))+radialPhase)>>14)+.5)/262144.0;
-            azimuth=float((bitfieldReverse(uint(ray))+CTHash(seed^0x68bc21ebu)+azimuthPhase)>>8)/16777216.0;
+            radialJitter=(float((CTHash(CT_SAMPLE_SEED^CTHash(uint(ray)))+radialPhase)>>14)+.5)/262144.0;
+            azimuth=float((bitfieldReverse(uint(ray))+CTHash(CT_SAMPLE_SEED^0x68bc21ebu)+azimuthPhase)>>8)/16777216.0;
         }
+#if CT_FRESH_SAMPLING
+        float radial=(float(ray)+radialJitter)/float(ctOptions.x);
+#else
         float radial=(float(ray)+radialJitter)/float(count);
+#endif
         float phi=6.283185307179586*azimuth;
         vec3 direction=t*(sqrt(radial)*cos(phi))+b*(sqrt(radial)*sin(phi))+n*sqrt(max(0.0,1.0-radial));
         float distance=scParameters.x;vec3 hitNormal;int triangle;bool exhausted;
-        bool found=SCIntersect(origin,direction,distance,hitNormal,triangle,exhausted,false);
+#if CT_SAMPLING_DIAGNOSTICS
+        ++actualTraced;
+#endif
+        bool found=CT_INTERSECT(origin,direction,distance,hitNormal,triangle,exhausted,false);
         if(exhausted)continue;
         if(!found){++readable;continue;} // completed empty ray is known black
         // Geometry, including black/back-facing/cache-unknown hits, guides the
@@ -352,7 +533,14 @@ void main() {
         if(owner>=0&&SCSampleLightingObject(origin+direction*distance,hitNormal,owner,radiance)&&CTFinite(radiance)) {
             sum+=max(radiance,vec3(0));++readable;
         }
+      }
+#if CT_FRESH_SAMPLING
     }
+#endif
+#if CT_SAMPLING_DIAGNOSTICS
+    outColor=vec4(selected,float(actualTraced),float(ctOptions.x),float(readable));
+    return;
+#endif
     // Unknown samples remain in the entire real-ray budget. Do not normalize
     // by readable, ignore black hits, or choose whichever estimate is brighter.
     vec3 rho=max(texelFetch(ctAlbedo,pixel,0).rgb,vec3(0));
@@ -365,26 +553,124 @@ void main() {
     } else outColor=mix(inputValue,measured,clamp(mask,0.0,1.0));
 }
 )GLSL";
+    if(splitReceiverOrigins) {
+        const std::string sampler="layout(binding=4) uniform sampler2D ctAlbedo;";
+        source.replace(source.find(sampler),sampler.size(),sampler+"\nlayout(binding=5) uniform sampler2D ctReceiverOrigins;");
+        const std::string fused="if(!CTReceiverOrigin(p,n,origin)){";
+        source.replace(source.find(fused),fused.size(),
+            "vec4 storedOrigin=texelFetch(ctReceiverOrigins,pixel,0);origin=storedOrigin.xyz;\n    if(storedOrigin.w<.5){");
+    }
+    // Replay-only local counters. The original page-zero diagnostic and every
+    // timed shader keep their original ray loop without counter writes. Pages
+    // 2/3 report source/clearance helper work; 4/5 report real-ray helper work.
+    // A split-origin diagnostic repeats the same safety query only in this
+    // untimed replay, then traces from the actual prepass's stored origin.
+    if(diagnostics&&traceDiagnosticPage>0) {
+        const auto replace=[&](const std::string& before,const std::string& after) {
+            source.replace(source.find(before),before.size(),after);
+        };
+        replace("void main() {",R"GLSL(
+vec4 ctTraceTerminal=vec4(0),ctTracePixelState=vec4(0);
+uvec4 ctTraceOriginLow=uvec4(0),ctTraceOriginHigh=uvec4(0);
+void CTTraceReplayMain() {
+)GLSL");
+        replace("if(mask<=.000001)return;", "if(mask<=.000001)return;ctTracePixelState.x=1.0;");
+        replace("vec3 p=(spInverseView*vec4(view.xyz,1)).xyz,n=normalize(normal.xyz),origin;",
+            "ctTracePixelState.y=1.0;\n    vec3 p=(spInverseView*vec4(view.xyz,1)).xyz,n=normalize(normal.xyz),origin;");
+        const std::string capture="ctTraceOriginLow=scTraceDiag[0];ctTraceOriginHigh=scTraceDiag[1];SCTraceDiagReset();\n    ";
+        if(splitReceiverOrigins) {
+            replace("vec4 storedOrigin=texelFetch(ctReceiverOrigins,pixel,0);origin=storedOrigin.xyz;",
+                "vec3 replayOrigin;bool replayLaunched=CTReceiverOrigin(p,n,replayOrigin);\n    "+capture+
+                "vec4 storedOrigin=texelFetch(ctReceiverOrigins,pixel,0);origin=storedOrigin.xyz;");
+        } else {
+            replace("if(!CTReceiverOrigin(p,n,origin)){",
+                "bool launched=CTReceiverOrigin(p,n,origin);\n    "+capture+"if(!launched){");
+        }
+        replace("vec3 axis=abs(n.z)<.99?", "ctTracePixelState.z=1.0;\n    vec3 axis=abs(n.z)<.99?");
+        replace("if(exhausted)continue;", "if(exhausted){ctTraceTerminal.x+=1.0;continue;}");
+        replace("if(!found){++readable;continue;}", "if(!found){ctTraceTerminal.y+=1.0;++readable;continue;}");
+        replace("if(dot(hitNormal,-direction)<=0){++readable;continue;}",
+            "if(dot(hitNormal,-direction)<=0){ctTraceTerminal.z+=1.0;++readable;continue;}");
+        replace("sum+=max(radiance,vec3(0));++readable;", "sum+=max(radiance,vec3(0));++readable;ctTraceTerminal.w+=1.0;");
+        source+="\nvoid main(){SCTraceDiagReset();CTTraceReplayMain();outColor=";
+        switch(traceDiagnosticPage) {
+        case 1:source+="ctTraceTerminal";break;
+        case 2:source+="vec4(ctTraceOriginLow)";break;
+        case 3:source+="vec4(ctTraceOriginHigh)";break;
+        case 4:source+="vec4(scTraceDiag[0])";break;
+        case 5:source+="vec4(scTraceDiag[1])";break;
+        default:source+="ctTracePixelState";break;
+        }
+        source+=";}\n";
+    }
+    return source;
 }
 
-inline std::string ContactMeasurementResolveShader() {
-    return std::string("#version 450 core\n")+ContactConstantsGLSL()+R"GLSL(
+// Diagnostic integers are bounded before packing. Two twelve-bit integers
+// occupy at most 2^24-1, exactly representable by RGBA32F; this is arithmetic
+// packing, with no NaN bit patterns and no truncated or clamped counter.
+inline std::string ContactTraceCounterPackingGLSL() {return R"GLSL(
+float CTTracePack(vec2 values) {
+    if(any(isnan(values))||any(isinf(values))||any(lessThan(values,vec2(0)))||
+        any(greaterThanEqual(values,vec2(4096)))||any(notEqual(values,floor(values))))return -1.0;
+    return values.x+4096.0*values.y;
+}
+vec4 CTTracePackTwoPages(vec4 first,vec4 second) {
+    return vec4(CTTracePack(first.xy),CTTracePack(first.zw),CTTracePack(second.xy),CTTracePack(second.zw));
+}
+)GLSL";}
+
+// Single-fragment, four-attachment diagnostic. Attachment zero retains the
+// original sampling RGBA. The other attachments losslessly contain pages
+// (1,2), (3,4), (5,6), with each page represented by its packed XY/ZW pairs.
+// All counters are observable in this one invocation, including early exits.
+// This independent generator never changes a timed shader or the old pages.
+inline std::string ContactGatherTraceMrtShader(bool freshSampling=false,bool hardwareIntersection=false,bool hardwareOrigins=false,
+    bool reuseOriginSoftwareCertification=false,bool reuseClosestBounds=false,bool fastGeometryAddressing=false,
+    bool splitReceiverOrigins=false,bool reuseLightingLookup=false,bool fastLightingAddressing=false) {
+    auto source=ContactGatherShader(true,freshSampling,hardwareIntersection,hardwareOrigins,reuseOriginSoftwareCertification,
+        reuseClosestBounds,fastGeometryAddressing,splitReceiverOrigins,reuseLightingLookup,6,fastLightingAddressing);
+    const std::string original="void main(){SCTraceDiagReset();CTTraceReplayMain();outColor=ctTracePixelState;}";
+    const auto at=source.find(original);
+    if(at==std::string::npos)throw std::logic_error("Contact MRT diagnostic wrapper source anchor missing");
+    source.replace(at,original.size(),ContactTraceCounterPackingGLSL()+R"GLSL(
+layout(location=1) out vec4 ctTracePacked12;
+layout(location=2) out vec4 ctTracePacked34;
+layout(location=3) out vec4 ctTracePacked56;
+void main() {
+    outColor=vec4(0);ctTracePacked12=vec4(-1);ctTracePacked34=vec4(-1);ctTracePacked56=vec4(-1);
+    ctTraceTerminal=vec4(0);ctTracePixelState=vec4(0);ctTraceOriginLow=uvec4(0);ctTraceOriginHigh=uvec4(0);
+    SCTraceDiagReset();CTTraceReplayMain();
+    ctTracePacked12=CTTracePackTwoPages(ctTraceTerminal,vec4(ctTraceOriginLow));
+    ctTracePacked34=CTTracePackTwoPages(vec4(ctTraceOriginHigh),vec4(scTraceDiag[0]));
+    ctTracePacked56=CTTracePackTwoPages(vec4(scTraceDiag[1]),ctTracePixelState);
+}
+)GLSL");
+    return source;
+}
+
+inline std::string ContactMeasurementResolveShader(bool freshSampling=false) {
+    return std::string("#version 450 core\n#define CT_FRESH_SAMPLING ")+(freshSampling?"1\n":"0\n")+
+        ContactConstantsGLSL()+ContactFreshSamplingGLSL()+R"GLSL(
 in vec2 vUV;layout(location=0) out vec4 outColor;
 layout(binding=0) uniform sampler2D cmMeasurements;
 layout(binding=1) uniform sampler2D cmMask;
 layout(binding=5) uniform sampler2D cmBase;
 void main(){ivec2 p=ivec2(gl_FragCoord.xy);
-    outColor=CTResolveMeasurement(texelFetch(cmBase,p,0),texelFetch(cmMeasurements,p,0),texelFetch(cmMask,p,0).x);}
+    float originalMask=texelFetch(cmMask,p,0).x,mask=CTEffectiveMask(originalMask,p);
+    outColor=CTResolveMeasurement(texelFetch(cmBase,p,0),texelFetch(cmMeasurements,p,0),mask,p,originalMask);}
 )GLSL";
 }
 
 // A strictly local current-frame filter for the actual receiver measurements.
 // It retains center readability, accepts known black, and never changes pixels
-// outside the retrace mask. Symmetric uniform support preserves affine
+// outside the retrace mask (including explicitly classified fresh receivers).
+// Symmetric uniform support preserves affine
 // gradients on a continuous plane; varying mask/hit support is not guaranteed
 // to do so. Material/silhouette/plane discontinuities stop taps.
-inline std::string ContactFilterShader() {
-    return std::string("#version 450 core\n")+ScreenProbeTraceDetail::ConstantsGLSL()+ContactConstantsGLSL()+R"GLSL(
+inline std::string ContactFilterShader(bool freshSampling=false) {
+    return std::string("#version 450 core\n#define CT_FRESH_SAMPLING ")+(freshSampling?"1\n":"0\n")+
+        ScreenProbeTraceDetail::ConstantsGLSL()+ContactConstantsGLSL()+ContactFreshSamplingGLSL()+R"GLSL(
 in vec2 vUV;layout(location=0) out vec4 outColor;
 layout(binding=0) uniform sampler2D ctUnfiltered;
 layout(binding=1) uniform sampler2D ctMask;
@@ -400,18 +686,18 @@ bool CFGeometry(vec4 p,vec4 n) {
 void main() {
     ivec2 pixel=ivec2(gl_FragCoord.xy);vec4 current=texelFetch(ctUnfiltered,pixel,0);
     bool guided=CTGuided(),finalPass=(ctOptions.w&4)!=0;
-    float mask=texelFetch(ctMask,pixel,0).x;
+    float originalMask=texelFetch(ctMask,pixel,0).x,mask=CTEffectiveMask(originalMask,pixel);
     vec4 base=vec4(0),measurement=vec4(0);
     if(guided){base=texelFetch(ctBase,pixel,0);measurement=texelFetch(ctMeasurements,pixel,0);
-        current.a=mask>.000001?CTResolveMeasurement(base,measurement,mask).a:base.a;}
-    outColor=guided&&finalPass?CTResolveMeasurement(base,vec4(current.rgb,measurement.a),mask):current;
+        current.a=mask>.000001?CTResolveMeasurement(base,measurement,mask,pixel,originalMask).a:base.a;}
+    outColor=guided&&finalPass?CTResolveMeasurement(base,vec4(current.rgb,measurement.a),mask,pixel,originalMask):current;
     vec4 view=texelFetch(ctPositions,pixel,0),nd=texelFetch(ctNormals,pixel,0);
     vec3 world=(spInverseView*vec4(view.xyz,1)).xyz;
     // Derivatives precede per-pixel early exits, so edge quads are defined.
     float footprint=max(length(dFdx(world)),length(dFdy(world)));
     if(mask<=.000001||ctFilter.x<=0||!(current.a>0)||!CFFinite(current.rgb)||
         !CFGeometry(view,nd)||!CFFinite(world)||isnan(footprint)||isinf(footprint))return;
-    if(guided&&CTMeasurementCoverage(measurement.a)<=0)return;
+    if(guided&&CTMeasurementCoverage(measurement.a,pixel,originalMask)<=0)return;
     vec3 n=normalize(nd.xyz),albedo=texelFetch(ctAlbedo,pixel,0).rgb;
     if(!CFFinite(albedo))return;
     int radius=clamp(ctOptions.y,1,guided?4:2);
@@ -432,11 +718,11 @@ void main() {
             ivec2 offset=directions[neighbor]*step,at=pixel+offset;
             if(any(lessThan(at,ivec2(0)))||any(greaterThanEqual(at,spScreen.xy))){compatible=false;break;}
             vec4 neighborValue=texelFetch(ctUnfiltered,at,0),position=texelFetch(ctPositions,at,0),normalDepth=texelFetch(ctNormals,at,0);
-            float candidateMask=texelFetch(ctMask,at,0).x;
+            float originalCandidateMask=texelFetch(ctMask,at,0).x,candidateMask=CTEffectiveMask(originalCandidateMask,at);
             vec4 neighborMeasurement=vec4(0);
             if(guided){neighborMeasurement=texelFetch(ctMeasurements,at,0);
-                if(CTMeasurementCoverage(neighborMeasurement.a)<=0){compatible=false;break;}
-                neighborValue.a=CTResolveMeasurement(texelFetch(ctBase,at,0),neighborMeasurement,candidateMask).a;}
+                if(CTMeasurementCoverage(neighborMeasurement.a,at,originalCandidateMask)<=0){compatible=false;break;}
+                neighborValue.a=CTResolveMeasurement(texelFetch(ctBase,at,0),neighborMeasurement,candidateMask,at,originalCandidateMask).a;}
             if(candidateMask<=.000001||!(neighborValue.a>0)||(ctSampling.w==0u&&abs(neighborValue.a-current.a)>.001)||
                 !CFFinite(neighborValue.rgb)||!CFGeometry(position,normalDepth)){compatible=false;break;}
             vec3 neighborWorld=(spInverseView*vec4(position.xyz,1)).xyz,neighborNormal=normalize(normalDepth.xyz);
@@ -485,7 +771,7 @@ void main() {
     outColor.rgb=mix(current.rgb,sum/mass,clamp(ctFilter.x*(guided?1.0:mask),0.0,1.0));
     // Readability belongs to the center's actual ray budget, never neighbor mass.
     outColor.a=current.a;
-    if(guided&&finalPass)outColor=CTResolveMeasurement(base,vec4(outColor.rgb,measurement.a),mask);
+    if(guided&&finalPass)outColor=CTResolveMeasurement(base,vec4(outColor.rgb,measurement.a),mask,pixel,originalMask);
 }
 )GLSL";
 }

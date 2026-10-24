@@ -46,6 +46,15 @@ struct alignas(16) SceneEffectsConstants {
     // Receiver-plane safety cap in texels before scaling by max(1,tan(faceAngle)).
     // This bounds each tap's correction, not an additional constant depth bias.
     glm::vec4 shadowFilter{0.05f, 0.20f, 0.10f, 4.0f};
+    // mode (0=tent, 1=source Poisson8), first-cascade UV radius,
+    // explicit host rotation radians, HOST surface UV radius override
+    // (zero inherits y). Explicit-phase strand consumers retain y.
+    glm::vec4 sourceShadowFilter{0.0f, 0.003f, 0.0f, 0.0f};
+    // x: packed HOST eight-node deep opacity active; y: effective extinction.
+    // Explicit-phase strand consumers retain the opaque-only CSM.
+    glm::vec4 strandShadowOpacity{0,1,0,0};
+    // Per-cascade normalized-depth span of the caster groom bounds.
+    glm::vec4 strandShadowDepthSpan{0};
 };
 static_assert(std::is_trivially_copyable_v<SceneEffectsConstants>);
 static_assert(offsetof(SceneEffectsConstants, lightViewProjection) == 0);
@@ -61,7 +70,10 @@ static_assert(offsetof(SceneEffectsConstants, screenAndAo) == 480);
 static_assert(offsetof(SceneEffectsConstants, cascadeWorldTexelSize) == 496);
 static_assert(offsetof(SceneEffectsConstants, cascadeInverseDepthRange) == 512);
 static_assert(offsetof(SceneEffectsConstants, shadowFilter) == 528);
-static_assert(sizeof(SceneEffectsConstants) == 544);
+static_assert(offsetof(SceneEffectsConstants, sourceShadowFilter) == 544);
+static_assert(offsetof(SceneEffectsConstants, strandShadowOpacity) == 560);
+static_assert(offsetof(SceneEffectsConstants, strandShadowDepthSpan) == 576);
+static_assert(sizeof(SceneEffectsConstants) == 592);
 
 struct CascadeShadowData {
     std::array<glm::mat4, 4> lightViewProjection;

@@ -638,6 +638,9 @@ Json::Value MeshJson(const SkeletalAssetPackage& asset, BinaryWriter& binary,
         auto offset = binary.Size();
         for (const auto& v : mesh.vertices) { binary.Vec(v.position); binary.Vec(v.normal); binary.Vec(v.uv); binary.Vec(v.tangent); }
         m["vertices"] = binary.Range(offset, mesh.vertices.size(), 60); offset = binary.Size();
+        // Optional channel keeps the existing v1 vertex record readable while
+        // preserving source UV1 in packages produced by newer tools.
+        if(mesh.hasSecondUV){for(const auto& v:mesh.vertices)binary.Vec(v.uv1);m["uv1"]=binary.Range(offset,mesh.vertices.size(),8);offset=binary.Size();}
         for (auto index : mesh.indices) binary.Scalar(index);
         m["indices"] = binary.Range(offset, mesh.indices.size(), 4); offset = binary.Size();
         for (const auto& v : skin.vertices) {
@@ -703,7 +706,9 @@ void ReadMesh(const Json::Value& root, const fs::path& directory, SkeletalAssetP
     for (const auto& m : root["meshes"]) {
         StaticMesh mesh; MeshSkin skin; mesh.name = m["name"].asString(); mesh.materialIndex = U32(m["materialIndex"], "material index"); mesh.bounds = ReadBounds(m["bounds"]);
         const auto vertexCount = binary.Range(m["vertices"], 60); mesh.vertices.resize(vertexCount);
-        for (auto& v : mesh.vertices) { v.position = binary.Vec<glm::dvec3>(); v.normal = binary.Vec<glm::vec3>(); v.uv = binary.Vec<glm::vec2>(); v.tangent = binary.Vec<glm::vec4>(); }
+        for (auto& v : mesh.vertices) { v.position = binary.Vec<glm::dvec3>(); v.normal = binary.Vec<glm::vec3>(); v.uv = binary.Vec<glm::vec2>(); v.tangent = binary.Vec<glm::vec4>();v.uv1=v.uv; }
+        mesh.hasSecondUV=m.isMember("uv1");
+        if(mesh.hasSecondUV){Require(binary.Range(m["uv1"],8)==vertexCount,"Secondary UV count differs from its mesh.");for(auto& v:mesh.vertices)v.uv1=binary.Vec<glm::vec2>();}
         const auto indexCount = binary.Range(m["indices"], 4); mesh.indices.resize(indexCount);
         for (auto& index : mesh.indices) index = binary.Scalar<std::uint32_t>();
         const auto skinCount = binary.Range(m["skin"], 69); Require(skinCount == vertexCount, "Skin vertex count differs from its mesh."); skin.vertices.resize(skinCount);
@@ -944,7 +949,7 @@ void Validate(const SkeletalAssetPackage& asset) {
         for (const auto index : mesh.indices) Require(index < mesh.vertices.size(), "Triangle index exceeds mesh vertex range.");
         for (std::size_t v = 0; v < mesh.vertices.size(); ++v) {
             const auto& vertex = mesh.vertices[v]; const auto& weight = skin.vertices[v];
-            CheckVector(vertex.position); CheckVector(vertex.normal); CheckVector(vertex.uv); CheckVector(vertex.tangent);
+            CheckVector(vertex.position); CheckVector(vertex.normal); CheckVector(vertex.uv); CheckVector(vertex.uv1); CheckVector(vertex.tangent);
             CheckVector(weight.weights); CheckVector(weight.sdefC); CheckVector(weight.sdefR0); CheckVector(weight.sdefR1);
             Require(static_cast<unsigned>(weight.mode) <= 4, "Invalid skinning mode.");
             double total = 0;

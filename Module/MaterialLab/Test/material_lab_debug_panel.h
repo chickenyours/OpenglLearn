@@ -280,6 +280,32 @@ private:
                 ImGui::Separator();
             }
             ImGui::Checkbox("Surface Cache GI",&gi.enabled);
+            ImGui::Checkbox("Hardware cache visibility",&gi.hardwareCacheVisibility);
+            ImGui::Checkbox("Hardware receiver tracing",&gi.hardwareContactTracing);
+            ImGui::Checkbox("Hardware probe tracing",&e.screenProbePlacement.trace.sdf.hardwareRayTracing);
+            ImGui::Checkbox("Hardware safe-origin tracing",&gi.hardwareOriginTracing);
+            ImGui::Checkbox("Software receiver source origins",&gi.receiverSoftwareOrigins);
+            ImGui::Checkbox("Reuse source-origin certification",&gi.reuseOriginSoftwareCertification);
+            ImGui::Checkbox("Filter probe radiance only",&gi.spatial.radianceOnlyFiltering);
+            ImGui::Checkbox("Trace each probe ray once",&e.screenProbePlacement.trace.singlePassOutputs);
+            ImGui::Checkbox("Batch dynamic texture uploads",&gi.deferResourceUploads);
+            ImGui::Checkbox("Trace only pending probe rays",&e.screenProbePlacement.trace.compactSdfRays);
+            ImGui::Checkbox("Reuse acceleration storage",&gi.reuseAccelerationStorage);
+            ImGui::Checkbox("Update acceleration structures",&gi.updateAccelerationStructures);
+            ImGui::Checkbox("Skip unused native SDF uploads",&e.screenProbePlacement.trace.sdf.nativeUploadPruning);
+            ImGui::Checkbox("Reuse verified probe candidate",&e.screenProbePlacement.trace.sdf.reuseNativeCandidate);
+            ImGui::Checkbox("Direct software refinement (skip hardware candidate)",&e.screenProbePlacement.trace.sdf.directSoftwareRefinement);
+            ImGui::Checkbox("Separate receiver safe origins",&e.surfaceCacheGi.contact.splitReceiverOrigins);
+            ImGui::Checkbox("Reuse receiver lighting lookup",&e.surfaceCacheGi.contact.reuseLightingLookup);
+            ImGui::Checkbox("Fast receiver lighting addressing",&e.surfaceCacheGi.contact.fastLightingAddressing);
+            ImGui::Checkbox("Reuse closest-hit child bounds",&gi.reuseClosestTraversal);
+            ImGui::Checkbox("Fast geometry atlas addressing",&gi.fastGeometryAddressing);
+            ImGui::Checkbox("Prepare shadow casters once",&gi.areaShadows.reuseCasterPreparation);
+            ImGui::Checkbox("Cull bounded shadow casters",&gi.areaShadows.cullCasters);
+            ImGui::Checkbox("Reuse shadow atlas storage",&gi.areaShadows.reuseAtlasStorage);
+            ImGui::Checkbox("Reuse equal uniform contents",&gi.areaShadows.reuseUniformSnapshotContents);
+            ImGui::Checkbox("Fast distance-field atlas addressing",&e.screenProbePlacement.trace.sdf.fastAtlasAddressing);
+            ImGui::Checkbox("Reuse distance-field trace samples",&e.screenProbePlacement.trace.sdf.reuseTraceSamples);
             Combo("GI inspection",gi.view,"Total diffuse GI\0Surface Cache lighting\0Indirect GI\0Cache coverage\0Card atlas\0History length\0Probe geometric coverage\0");
             ImGui::Checkbox("Geometry-aware cache bilinear",&gi.cacheBilinear);
             if(gi.view==2&&gi.useScreenProbes)
@@ -379,6 +405,14 @@ private:
                 if(contact.enabled) {
                     ImGui::Checkbox("Contact parallel layer validation",&contact.layerValidation);
                     UIntSlider("Contact rays per pixel",contact.raysPerPixel,8,32);
+                    ImGui::Checkbox("Extra rays on newly exposed surfaces",&contact.disocclusionSampling);
+                    if(contact.disocclusionSampling) {
+                        UIntSlider("Fresh surface ray multiplier",contact.disocclusionRayMultiplier,1,4);
+                        int movingRays=contact.movingReceiverRayMultiplier==4?2:contact.movingReceiverRayMultiplier==2?1:0;
+                        if(ImGui::Combo("Moving surface ray multiplier",&movingRays,"1x (base)\0" "2x\0" "4x\0"))
+                            contact.movingReceiverRayMultiplier=movingRays==2?4u:movingRays==1?2u:1u;
+                        if(contact.movingReceiverRayMultiplier>1)ImGui::Checkbox("Current GI on moving surfaces",&contact.movingReceiverFullCurrent);
+                    }
                     FloatSlider("Contact risk distance",&contact.maxDistance,.01f,1.f);
                     FloatSlider("Contact parallax angle (degrees)",&contact.parallaxAngleDegrees,1,45);
                     FloatSlider("Contact risky weight threshold",&contact.weightThreshold,.001f,.5f);
@@ -400,12 +434,19 @@ private:
                 ImGui::SeparatorText("GI temporal accumulation");
                 ImGui::Checkbox("Temporal accumulation (T)",&temporal.enabled);
                 ImGui::Checkbox("Static probe convergence (64 frames)",&temporal.staticConvergence);
+                ImGui::Checkbox("Stable GI during camera movement",&temporal.motionStability);
+                ImGui::Checkbox("Reproject GI on moving objects",&temporal.objectMotionReprojection);
+                ImGui::Checkbox("Respond to moving shadow changes",&temporal.reactiveShadows);
+                if(temporal.reactiveShadows)ImGui::Checkbox("Update lighting on moving surfaces",&temporal.reactiveMovingReceivers);
+                ImGui::Checkbox("Fresh-surface GI recovery (experimental)",&temporal.disocclusionFilter);
                 UIntSlider("Max accumulated frames",temporal.maxFrames,1,64);
                 ImGui::BeginDisabled(temporal.staticConvergence&&temporal.maxFrames>1);
                 UIntSlider("Temporal direction phases",temporal.directionPhases,1,64);
                 ImGui::EndDisabled();
                 if(temporal.staticConvergence&&temporal.maxFrames>1)
-                    ImGui::TextWrapped("Static views accumulate up to 64 frames with fresh samples. Moving views keep the shorter history limit above.");
+                    ImGui::TextWrapped(temporal.motionStability?
+                        "Static views converge for 64 frames. Compatible surfaces retain more history during camera movement; moving objects keep fast updates.":
+                        "Static views accumulate up to 64 frames with fresh samples. Moving views keep the shorter history limit above.");
                 FloatSlider("History distance / view depth",&temporal.distanceThreshold,.001f,.05f);
                 FloatSlider("History normal threshold (degrees)",&temporal.normalThresholdDegrees,5,90);
                 FloatSlider("Moving history frames",&temporal.movingMaxFrames,1,float(temporal.maxFrames));

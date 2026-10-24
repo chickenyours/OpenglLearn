@@ -1,6 +1,11 @@
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <chrono>
+#include <cfenv>
+#if defined(_M_X64) || defined(_M_IX86) || defined(__x86_64__) || defined(__i386__)
+#include <xmmintrin.h>
+#endif
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -8,6 +13,7 @@
 #include <iostream>
 #include <limits>
 #include <sstream>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -77,6 +83,71 @@ struct Options {
     bool surfaceCacheProbeImprintTest=false,surfaceCacheProbeImprintPerformance=false,surfaceCacheProbeImprintConvergence=false;
     std::uint32_t surfaceCacheProbeImprintView=3;
     std::uint32_t surfaceCacheProbeImprintConvergenceFrames=128;
+    bool surfaceCacheDynamicTest=false,surfaceCacheDynamicPerformance=false,surfaceCacheDynamicConsistent=false;
+    bool surfaceCacheLocalCameraHistory=false;
+    bool surfaceCacheMotionStability=false;
+    bool surfaceCacheNoMotionStability=false;
+    bool surfaceCacheMotionSpatialFilter=false;
+    bool surfaceCacheMotionStabilityTest=false,surfaceCacheMotionPerformance=false;
+    bool surfaceCacheDynamicFast=false,surfaceCacheMotionPreview=false;
+    bool surfaceCacheMotionDisocclusionRecovery=false,surfaceCacheMotionRecoveryTest=false;
+    bool surfaceCacheObjectMotionReprojection=false,surfaceCacheDisocclusionFilter=false;
+    bool surfaceCacheNoObjectMotionReprojection=false;
+    bool surfaceCacheDynamicRecoveryTest=false,surfaceCacheDynamicRecoveryPerformance=false;
+    bool surfaceCacheDynamicRecoveryPreview=false;
+    bool surfaceCacheDynamicRecoveryObjectOnlyTest=false;
+    bool surfaceCacheFreshSampling=false,surfaceCacheFreshSamplingTest=false,surfaceCacheFreshSamplingPerformance=false,surfaceCacheFreshSamplingPreview=false;
+    bool surfaceCacheNoFreshSampling=false;
+    bool surfaceCacheReactiveShadows=false,surfaceCacheNoReactiveShadows=false;
+    bool surfaceCacheShadowHistoryTest=false,surfaceCacheShadowHistoryPerformance=false,surfaceCacheShadowHistoryPreview=false;
+    bool surfaceCacheShadowHistoryContinuous=false;
+    bool surfaceCacheMovingReceiverTest=false,surfaceCacheMovingReceiverFullCurrent=true;
+    std::uint32_t surfaceCacheFreshSamplingMultiplier=4;
+    std::uint32_t surfaceCacheMovingReceiverRayMultiplier=2;
+    bool surfaceCacheLegacyAnyHitBounds=false;
+    bool surfaceCacheLightingPerformance=false;
+    bool surfaceCacheNativePerformance=false,surfaceCacheNativeQuality=false;
+    bool surfaceCacheEfficiencyPerformance=false,surfaceCacheEfficiencyQuality=false;
+    bool surfaceCacheSinglePassOutputs=false,surfaceCacheDeferredUploads=false;
+    bool surfaceCacheCompactionPerformance=false,surfaceCacheCompactionQuality=false;
+    bool surfaceCacheCompactionTest=false;
+    bool surfaceCacheCompactSdfRays=false,surfaceCacheReuseAcceleration=false;
+    bool surfaceCacheShadowSubmissionPerformance=false,surfaceCacheShadowSubmissionQuality=false,surfaceCacheShadowSubmissionTest=false;
+    bool surfaceCacheReuseShadowCasters=false,surfaceCacheCullShadowCasters=false;
+    bool surfaceCacheReuseShadowAtlas=false,surfaceCacheReuseUniformSnapshots=false;
+    bool surfaceCacheSdfEfficiencyTest=false,surfaceCacheSdfEfficiencyQuality=false,surfaceCacheSdfEfficiencyPerformance=false;
+    bool surfaceCacheFastSdfAddressing=false;
+    bool surfaceCacheSdfReuseTest=false,surfaceCacheSdfReuseQuality=false,surfaceCacheSdfReusePerformance=false;
+    bool surfaceCacheReuseSdfSamples=false;
+    bool surfaceCacheArchitectureTest=false,surfaceCacheArchitectureQuality=false,surfaceCacheArchitecturePerformance=false;
+    unsigned surfaceCacheArchitectureMask=3;
+    bool surfaceCacheNativeProbes=false,surfaceCacheRadianceFilter=false;
+    bool surfaceCacheModelUpdateTest=false,surfaceCacheModelUpdateQuality=false,surfaceCacheModelUpdatePerformance=false;
+    unsigned surfaceCacheModelUpdateMask=15;
+    bool surfaceCacheUpdateAcceleration=false,surfaceCachePruneNativeUploads=false;
+    bool surfaceCacheSoftwareReceiverOrigins=false,surfaceCacheReuseOriginCertification=false;
+    bool surfaceCacheOriginCostStudy=false;
+    bool surfaceCacheQueryReusePerformance=false,surfaceCacheQueryReuseQuality=false;
+    bool surfaceCacheQueryCostStudy=false;
+    bool surfaceCacheDirectProbeCostStudy=false,surfaceCacheDirectSoftwareRefinement=false;
+    unsigned surfaceCacheQueryReuseMask=7;
+    bool surfaceCacheReceiverPerformance=false,surfaceCacheReceiverQuality=false;
+    bool surfaceCacheReceiverDiagnostics=false,surfaceCacheReceiverCostStudy=false;
+    bool surfaceCacheSplitReceiverOrigins=false,surfaceCacheReceiverLookupReuse=false;
+    bool surfaceCacheReceiverFastLightingAddressing=false;
+    unsigned surfaceCacheReceiverMask=3;
+    unsigned surfaceCacheReceiverDiagnosticPath=5,surfaceCacheReceiverDiagnosticMode=2;
+    bool gi90Performance=false,gi90Quality=false,gi90Audit=false,gi90QualityMetricsOnly=false,gi90CaptureCompare=false,gi90MotionCaptureCompare=false,gi90ReconstructionCompare=false,gi90PlacementCompare=false;
+    bool gi90QualityStageMetrics=false,gi90UeSmoke=false,gi90Artifacts=false,gi90PerformanceUeOnly=false;
+    bool gi94Artifacts=false;
+    bool gi95MotionPerformance=false,gi95MotionArtifacts=false,gi95InteractionTest=false,gi95VisibilityAudit=false;
+    unsigned gi90Profile=0;
+    bool surfaceCacheReuseNativeCandidate=false,surfaceCacheReuseClosestTraversal=false,surfaceCacheFastGeometryAddressing=false;
+    bool surfaceCacheHardwareContact=false,surfaceCacheHardwareVisibility=false;
+    std::uint32_t surfaceCacheDynamicView=3,surfaceCacheDynamicFrames=16;
+    bool surfaceCacheSingleInvocationTest=false,surfaceCacheSingleInvocation=false;
+    bool surfaceCacheSinglePassTest=false;
+    bool surfaceCacheUploadTest=false;
     std::uint32_t surfaceCacheCurvedContactReferenceSeeds=32,surfaceCacheCurvedContactView=3;
     bool surfaceCacheTransportTest=false;
     bool surfaceCacheFeaturePerf=false,surfaceCacheSourcePerf=false;
@@ -146,6 +217,214 @@ Options Parse(int argc, char** argv) {
         else if(arg=="--surface-cache-contact-noise-test") {result.surfaceCacheContactNoiseTest=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;}
         else if(arg=="--surface-cache-probe-imprint-test") {result.surfaceCacheProbeImprintTest=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;}
         else if(arg=="--surface-cache-probe-imprint-convergence") result.surfaceCacheProbeImprintConvergence=true;
+        else if(arg=="--surface-cache-dynamic-test") {result.surfaceCacheDynamicTest=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;}
+        else if(arg=="--surface-cache-dynamic-performance") {result.surfaceCacheDynamicPerformance=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;}
+        else if(arg=="--surface-cache-dynamic-consistent") result.surfaceCacheDynamicConsistent=true;
+        else if(arg=="--surface-cache-local-camera-history") result.surfaceCacheLocalCameraHistory=true;
+        else if(arg=="--surface-cache-motion-stability") {result.surfaceCacheMotionStability=true;result.surfaceCacheNoMotionStability=false;}
+        else if(arg=="--surface-cache-no-motion-stability") {result.surfaceCacheNoMotionStability=true;result.surfaceCacheMotionStability=false;result.surfaceCacheMotionSpatialFilter=false;result.surfaceCacheMotionDisocclusionRecovery=false;}
+        else if(arg=="--surface-cache-motion-spatial-filter") {result.surfaceCacheNoMotionStability=false;result.surfaceCacheMotionStability=true;result.surfaceCacheMotionSpatialFilter=true;}
+        else if(arg=="--surface-cache-motion-stability-test") {result.surfaceCacheMotionStabilityTest=true;result.surfaceCacheDynamicTest=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;}
+        else if(arg=="--surface-cache-motion-performance") {result.surfaceCacheMotionPerformance=true;result.surfaceCacheDynamicPerformance=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;}
+        else if(arg=="--surface-cache-dynamic-fast") result.surfaceCacheDynamicFast=true;
+        else if(arg=="--surface-cache-object-motion-reprojection") {result.surfaceCacheObjectMotionReprojection=true;result.surfaceCacheNoObjectMotionReprojection=false;}
+        else if(arg=="--surface-cache-no-object-motion-reprojection") {result.surfaceCacheObjectMotionReprojection=false;result.surfaceCacheNoObjectMotionReprojection=true;}
+        else if(arg=="--surface-cache-disocclusion-filter") result.surfaceCacheDisocclusionFilter=true;
+        else if(arg=="--surface-cache-shadow-history-continuous")result.surfaceCacheShadowHistoryContinuous=true;
+        else if(arg=="--surface-cache-moving-receiver")result.surfaceCacheMovingReceiverTest=true;
+        else if(arg=="--surface-cache-moving-receiver-full-current")result.surfaceCacheMovingReceiverFullCurrent=true;
+        else if(arg=="--surface-cache-no-moving-receiver-full-current")result.surfaceCacheMovingReceiverFullCurrent=false;
+        else if(arg=="--surface-cache-moving-receiver-rays"&&i+1<argc) {result.surfaceCacheMovingReceiverRayMultiplier=unsigned(std::stoul(argv[++i]));Check(result.surfaceCacheMovingReceiverRayMultiplier==1||result.surfaceCacheMovingReceiverRayMultiplier==2||result.surfaceCacheMovingReceiverRayMultiplier==4,"Moving receiver multiplier must be 1, 2 or 4");}
+        else if(arg=="--surface-cache-reactive-shadows") {result.surfaceCacheReactiveShadows=true;result.surfaceCacheNoReactiveShadows=false;}
+        else if(arg=="--surface-cache-no-reactive-shadows") {result.surfaceCacheReactiveShadows=false;result.surfaceCacheNoReactiveShadows=true;}
+        else if(arg=="--surface-cache-shadow-history-test"||arg=="--surface-cache-shadow-history-performance"||arg=="--surface-cache-shadow-history-preview") {
+            result.surfaceCacheShadowHistoryTest=arg=="--surface-cache-shadow-history-test";
+            result.surfaceCacheShadowHistoryPerformance=arg=="--surface-cache-shadow-history-performance";
+            result.surfaceCacheShadowHistoryPreview=arg=="--surface-cache-shadow-history-preview";
+            result.surfaceCacheGi=true;result.sealedGiRoom=true;result.sealedGiRoomTest=true;result.vulkan=true;
+        }
+        else if(arg=="--surface-cache-fresh-sampling") {result.surfaceCacheFreshSampling=true;result.surfaceCacheNoFreshSampling=false;}
+        else if(arg=="--surface-cache-no-fresh-sampling") {result.surfaceCacheFreshSampling=false;result.surfaceCacheNoFreshSampling=true;}
+        else if(arg=="--surface-cache-fresh-sampling-multiplier"&&i+1<argc) {result.surfaceCacheFreshSamplingMultiplier=unsigned(std::stoul(argv[++i]));Check(result.surfaceCacheFreshSamplingMultiplier>=1&&result.surfaceCacheFreshSamplingMultiplier<=4,"Fresh receiver multiplier must be 1..4");}
+        else if(arg=="--surface-cache-fresh-sampling-test"||arg=="--surface-cache-fresh-sampling-performance"||arg=="--surface-cache-fresh-sampling-preview") {
+            result.surfaceCacheFreshSamplingTest=arg=="--surface-cache-fresh-sampling-test";
+            result.surfaceCacheFreshSamplingPerformance=arg=="--surface-cache-fresh-sampling-performance";
+            result.surfaceCacheFreshSamplingPreview=arg=="--surface-cache-fresh-sampling-preview";
+            result.surfaceCacheGi=true;result.sealedGiRoom=true;result.sealedGiRoomTest=true;result.vulkan=true;
+        }
+        else if(arg=="--surface-cache-dynamic-recovery-test"||arg=="--surface-cache-dynamic-recovery-object-test") {result.surfaceCacheDynamicRecoveryObjectOnlyTest=arg=="--surface-cache-dynamic-recovery-object-test";result.surfaceCacheDynamicRecoveryTest=true;result.surfaceCacheDynamicTest=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;}
+        else if(arg=="--surface-cache-dynamic-recovery-preview") {result.surfaceCacheDynamicRecoveryPreview=true;result.surfaceCacheMotionPreview=true;result.surfaceCacheDynamicPerformance=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;}
+        else if(arg=="--surface-cache-dynamic-recovery-performance") {result.surfaceCacheDynamicRecoveryPerformance=true;result.surfaceCacheDynamicPerformance=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;}
+        else if(arg=="--surface-cache-motion-recovery") {result.surfaceCacheNoMotionStability=false;result.surfaceCacheMotionStability=true;result.surfaceCacheMotionDisocclusionRecovery=true;}
+        else if(arg=="--surface-cache-motion-recovery-test") {result.surfaceCacheMotionRecoveryTest=true;result.surfaceCacheMotionStabilityTest=true;result.surfaceCacheDynamicTest=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;}
+        else if(arg=="--surface-cache-motion-preview") {result.surfaceCacheMotionPreview=true;result.surfaceCacheDynamicPerformance=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;}
+        else if(arg=="--surface-cache-legacy-anyhit-bounds") result.surfaceCacheLegacyAnyHitBounds=true;
+        else if(arg=="--surface-cache-lighting-performance") {result.surfaceCacheLightingPerformance=true;result.surfaceCacheDynamicPerformance=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;}
+        else if(arg=="--surface-cache-native-performance"||arg=="--surface-cache-native-quality") {
+            result.surfaceCacheNativePerformance=arg=="--surface-cache-native-performance";
+            result.surfaceCacheNativeQuality=arg=="--surface-cache-native-quality";
+            result.surfaceCacheGi=true;result.sealedGiRoom=true;result.vulkan=true;
+        }
+        else if(arg=="--surface-cache-hardware-contact")result.surfaceCacheHardwareContact=true;
+        else if(arg=="--surface-cache-software-contact")result.surfaceCacheHardwareContact=false;
+        else if(arg=="--surface-cache-hardware-visibility")result.surfaceCacheHardwareVisibility=true;
+        else if(arg=="--surface-cache-software-visibility")result.surfaceCacheHardwareVisibility=false;
+        else if(arg=="--surface-cache-single-invocation-test") {result.surfaceCacheSingleInvocationTest=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;}
+        else if(arg=="--surface-cache-single-pass-test") {result.surfaceCacheSinglePassTest=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;}
+        else if(arg=="--surface-cache-single-invocation") result.surfaceCacheSingleInvocation=true;
+        else if(arg=="--surface-cache-single-pass-outputs") result.surfaceCacheSinglePassOutputs=true;
+        else if(arg=="--surface-cache-legacy-trace-outputs") result.surfaceCacheSinglePassOutputs=false;
+        else if(arg=="--surface-cache-deferred-uploads") result.surfaceCacheDeferredUploads=true;
+        else if(arg=="--surface-cache-immediate-uploads") result.surfaceCacheDeferredUploads=false;
+        else if(arg=="--surface-cache-compact-sdf-rays") result.surfaceCacheCompactSdfRays=true;
+        else if(arg=="--surface-cache-full-sdf-rays") result.surfaceCacheCompactSdfRays=false;
+        else if(arg=="--surface-cache-reuse-acceleration") {result.surfaceCacheReuseAcceleration=true;result.surfaceCacheUpdateAcceleration=false;}
+        else if(arg=="--surface-cache-rebuild-acceleration") {result.surfaceCacheReuseAcceleration=false;result.surfaceCacheUpdateAcceleration=false;}
+        else if(arg=="--surface-cache-update-acceleration") result.surfaceCacheUpdateAcceleration=true;
+        else if(arg=="--surface-cache-build-acceleration") result.surfaceCacheUpdateAcceleration=false;
+        else if(arg=="--surface-cache-prune-native-uploads") result.surfaceCachePruneNativeUploads=true;
+        else if(arg=="--surface-cache-legacy-native-uploads") result.surfaceCachePruneNativeUploads=false;
+        else if(arg=="--surface-cache-software-receiver-origins") result.surfaceCacheSoftwareReceiverOrigins=true;
+        else if(arg=="--surface-cache-inherit-receiver-origins") result.surfaceCacheSoftwareReceiverOrigins=false;
+        else if(arg=="--surface-cache-reuse-origin-certification") result.surfaceCacheReuseOriginCertification=true;
+        else if(arg=="--surface-cache-origin-cost-study") {
+            result.surfaceCacheOriginCostStudy=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;
+        }
+        else if(arg=="--surface-cache-legacy-origin-certification") result.surfaceCacheReuseOriginCertification=false;
+        else if(arg=="--surface-cache-reuse-native-candidate")result.surfaceCacheReuseNativeCandidate=true;
+        else if(arg=="--surface-cache-legacy-native-candidate")result.surfaceCacheReuseNativeCandidate=false;
+        else if(arg=="--surface-cache-reuse-closest-traversal")result.surfaceCacheReuseClosestTraversal=true;
+        else if(arg=="--surface-cache-legacy-closest-traversal")result.surfaceCacheReuseClosestTraversal=false;
+        else if(arg=="--surface-cache-fast-geometry-addressing")result.surfaceCacheFastGeometryAddressing=true;
+        else if(arg=="--surface-cache-legacy-geometry-addressing")result.surfaceCacheFastGeometryAddressing=false;
+        else if(arg=="--surface-cache-direct-software-refinement")result.surfaceCacheDirectSoftwareRefinement=true;
+        else if(arg=="--surface-cache-certified-native-refinement")result.surfaceCacheDirectSoftwareRefinement=false;
+        else if(arg=="--surface-cache-split-receiver-origins")result.surfaceCacheSplitReceiverOrigins=true;
+        else if(arg=="--surface-cache-fused-receiver-origins")result.surfaceCacheSplitReceiverOrigins=false;
+        else if(arg=="--surface-cache-reuse-receiver-lookup")result.surfaceCacheReceiverLookupReuse=true;
+        else if(arg=="--surface-cache-legacy-receiver-lookup")result.surfaceCacheReceiverLookupReuse=false;
+        else if(arg=="--surface-cache-fast-receiver-lighting-addressing")result.surfaceCacheReceiverFastLightingAddressing=true;
+        else if(arg=="--surface-cache-legacy-receiver-lighting-addressing")result.surfaceCacheReceiverFastLightingAddressing=false;
+        else if(arg=="--gi95-interaction-test")result.gi95InteractionTest=true;
+        else if(arg=="--gi95-motion-performance"||arg=="--gi95-motion-artifacts"||arg=="--gi95-visibility-audit") {
+            result.gi95MotionPerformance=arg=="--gi95-motion-performance";
+            result.gi95MotionArtifacts=arg=="--gi95-motion-artifacts";
+            result.gi95VisibilityAudit=arg=="--gi95-visibility-audit";
+            result.gi90Profile=21;result.surfaceCacheDynamicFrames=64;
+            result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;result.noDebugUI=true;
+        }
+        else if(arg=="--gi90-profile"&&i+1<argc) {result.gi90Profile=unsigned(std::stoul(argv[++i]));Check(result.gi90Profile<=20,"GI90 profile must be 0..20");}
+        else if(arg=="--gi90-ue-high")result.gi90Profile=21;
+        else if(arg=="--gi90-quality-stage-metrics")result.gi90QualityStageMetrics=true;
+        else if(arg=="--gi94-artifacts"||arg=="--gi90-artifacts"||arg=="--gi90-performance-ue-only"||arg=="--gi90-ue-smoke"||arg=="--gi90-performance"||arg=="--gi90-quality"||arg=="--gi90-quality-metrics-only"||arg=="--gi90-audit"||arg=="--gi90-capture-compare"||arg=="--gi90-motion-capture-compare"||arg=="--gi90-reconstruction-compare"||arg=="--gi90-compute-placement-compare") {
+            result.gi90Performance=arg=="--gi90-performance"||arg=="--gi90-performance-ue-only";
+            result.gi90PerformanceUeOnly=arg=="--gi90-performance-ue-only";
+            result.gi90Artifacts=arg=="--gi90-artifacts";
+            result.gi94Artifacts=arg=="--gi94-artifacts";
+            if(result.gi90Artifacts||result.gi94Artifacts||result.gi90PerformanceUeOnly)result.gi90Profile=21;
+            if(result.gi90PerformanceUeOnly)result.surfaceCacheDynamicFrames=32;
+            result.gi90Quality=arg=="--gi90-quality"||arg=="--gi90-quality-metrics-only";
+            result.gi90QualityMetricsOnly=arg=="--gi90-quality-metrics-only";result.gi90Audit=arg=="--gi90-audit"||arg=="--gi90-ue-smoke";
+            result.gi90UeSmoke=arg=="--gi90-ue-smoke";
+            result.gi90CaptureCompare=arg=="--gi90-capture-compare";
+            result.gi90MotionCaptureCompare=arg=="--gi90-motion-capture-compare";
+            result.gi90ReconstructionCompare=arg=="--gi90-reconstruction-compare";
+            result.gi90PlacementCompare=arg=="--gi90-compute-placement-compare";
+            result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;result.noDebugUI=true;
+        }
+        else if(arg=="--surface-cache-receiver-mask"&&i+1<argc) {
+            result.surfaceCacheReceiverMask=unsigned(std::stoul(argv[++i]));
+            Check(result.surfaceCacheReceiverMask>=1&&result.surfaceCacheReceiverMask<=15,"Receiver mask: split origins=1, reuse lighting lookup=2, independent fast lighting addressing=4, software receiver origins=8");
+        }
+        else if(arg=="--surface-cache-receiver-diagnostic-path"&&i+1<argc) {
+            result.surfaceCacheReceiverDiagnosticPath=unsigned(std::stoul(argv[++i]));
+            Check(result.surfaceCacheReceiverDiagnosticPath<=5,"Receiver diagnostic path: static=0,camera=1,model=2,new exposure=3,lighting=4,all=5");
+        }
+        else if(arg=="--surface-cache-receiver-diagnostic-mode"&&i+1<argc) {
+            result.surfaceCacheReceiverDiagnosticMode=unsigned(std::stoul(argv[++i]));
+            Check(result.surfaceCacheReceiverDiagnosticMode<=2,"Receiver diagnostic mode: baseline=0,candidate=1,both=2");
+        }
+        else if(arg=="--surface-cache-receiver-performance"||arg=="--surface-cache-receiver-quality"||
+            arg=="--surface-cache-receiver-diagnostics"||arg=="--surface-cache-receiver-cost-study") {
+            result.surfaceCacheReceiverPerformance=arg=="--surface-cache-receiver-performance";
+            result.surfaceCacheReceiverQuality=arg=="--surface-cache-receiver-quality";
+            result.surfaceCacheReceiverDiagnostics=arg=="--surface-cache-receiver-diagnostics";
+            result.surfaceCacheReceiverCostStudy=arg=="--surface-cache-receiver-cost-study";
+            result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;
+        }
+        else if(arg=="--surface-cache-query-reuse-mask"&&i+1<argc){result.surfaceCacheQueryReuseMask=unsigned(std::stoul(argv[++i]));
+            Check(result.surfaceCacheQueryReuseMask>=1&&result.surfaceCacheQueryReuseMask<=15&&(result.surfaceCacheQueryReuseMask&9)!=9,
+                "Query reuse mask: native candidate=1, closest bounds=2, geometry addressing=4, direct software refinement=8; 1/8 are exclusive");}
+        else if(arg=="--surface-cache-query-reuse-performance"||arg=="--surface-cache-query-reuse-quality") {
+            result.surfaceCacheQueryReusePerformance=arg=="--surface-cache-query-reuse-performance";
+            result.surfaceCacheQueryReuseQuality=arg=="--surface-cache-query-reuse-quality";
+            result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;
+        }
+        else if(arg=="--surface-cache-query-cost-study") {
+            result.surfaceCacheQueryCostStudy=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;
+        }
+        else if(arg=="--surface-cache-direct-probe-cost-study") {
+            result.surfaceCacheDirectProbeCostStudy=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;
+        }
+        else if(arg=="--surface-cache-model-update-mask"&&i+1<argc){result.surfaceCacheModelUpdateMask=unsigned(std::stoul(argv[++i]));
+            Check(result.surfaceCacheModelUpdateMask>=1&&result.surfaceCacheModelUpdateMask<=30&&(result.surfaceCacheModelUpdateMask&17)!=17,
+                "Model update mask: UPDATE=1, upload pruning=2, origin reuse=4, software receiver origins=8, retained BUILD=16; AS policies 1/16 are exclusive");}
+        else if(arg=="--surface-cache-model-update-test"||arg=="--surface-cache-model-update-quality"||arg=="--surface-cache-model-update-performance") {
+            result.surfaceCacheModelUpdateTest=arg=="--surface-cache-model-update-test";
+            result.surfaceCacheModelUpdateQuality=arg=="--surface-cache-model-update-quality";
+            result.surfaceCacheModelUpdatePerformance=arg=="--surface-cache-model-update-performance";
+            result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;
+        }
+        else if(arg=="--surface-cache-efficiency-performance") {result.surfaceCacheEfficiencyPerformance=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;}
+        else if(arg=="--surface-cache-efficiency-quality") {result.surfaceCacheEfficiencyQuality=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;}
+        else if(arg=="--surface-cache-compaction-performance") {result.surfaceCacheCompactionPerformance=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;}
+        else if(arg=="--surface-cache-compaction-quality") {result.surfaceCacheCompactionQuality=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;}
+        else if(arg=="--surface-cache-compaction-test") {result.surfaceCacheCompactionTest=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;}
+        else if(arg=="--surface-cache-shadow-submission-performance"||arg=="--surface-cache-shadow-submission-quality"||arg=="--surface-cache-shadow-submission-test") {
+            result.surfaceCacheShadowSubmissionPerformance=arg=="--surface-cache-shadow-submission-performance";
+            result.surfaceCacheShadowSubmissionQuality=arg=="--surface-cache-shadow-submission-quality";
+            result.surfaceCacheShadowSubmissionTest=arg=="--surface-cache-shadow-submission-test";
+            result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;
+        }
+        else if(arg=="--surface-cache-sdf-efficiency-test"||arg=="--surface-cache-sdf-efficiency-quality"||arg=="--surface-cache-sdf-efficiency-performance") {
+            result.surfaceCacheSdfEfficiencyTest=arg=="--surface-cache-sdf-efficiency-test";
+            result.surfaceCacheSdfEfficiencyQuality=arg=="--surface-cache-sdf-efficiency-quality";
+            result.surfaceCacheSdfEfficiencyPerformance=arg=="--surface-cache-sdf-efficiency-performance";
+            result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;
+        }
+        else if(arg=="--surface-cache-sdf-reuse-test"||arg=="--surface-cache-sdf-reuse-quality"||arg=="--surface-cache-sdf-reuse-performance") {
+            result.surfaceCacheSdfReuseTest=arg=="--surface-cache-sdf-reuse-test";
+            result.surfaceCacheSdfReuseQuality=arg=="--surface-cache-sdf-reuse-quality";
+            result.surfaceCacheSdfReusePerformance=arg=="--surface-cache-sdf-reuse-performance";
+            result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;
+        }
+        else if(arg=="--surface-cache-reuse-sdf-samples")result.surfaceCacheReuseSdfSamples=true;
+        else if(arg=="--surface-cache-native-probes")result.surfaceCacheNativeProbes=true;
+        else if(arg=="--surface-cache-software-probes")result.surfaceCacheNativeProbes=false;
+        else if(arg=="--surface-cache-radiance-filter")result.surfaceCacheRadianceFilter=true;
+        else if(arg=="--surface-cache-packed-filter")result.surfaceCacheRadianceFilter=false;
+        else if(arg=="--surface-cache-architecture-mask"&&i+1<argc){result.surfaceCacheArchitectureMask=unsigned(std::stoul(argv[++i]));
+            Check(result.surfaceCacheArchitectureMask>=1&&result.surfaceCacheArchitectureMask<=3,"Architecture comparison mask must be 1 (native), 2 (filter) or 3 (combined)");}
+        else if(arg=="--surface-cache-architecture-test"||arg=="--surface-cache-architecture-quality"||arg=="--surface-cache-architecture-performance") {
+            result.surfaceCacheArchitectureTest=arg=="--surface-cache-architecture-test";
+            result.surfaceCacheArchitectureQuality=arg=="--surface-cache-architecture-quality";
+            result.surfaceCacheArchitecturePerformance=arg=="--surface-cache-architecture-performance";
+            result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;
+        }
+        else if(arg=="--surface-cache-legacy-sdf-samples")result.surfaceCacheReuseSdfSamples=false;
+        else if(arg=="--surface-cache-fast-sdf-addressing")result.surfaceCacheFastSdfAddressing=true;
+        else if(arg=="--surface-cache-legacy-sdf-addressing")result.surfaceCacheFastSdfAddressing=false;
+        else if(arg=="--surface-cache-reuse-shadow-casters")result.surfaceCacheReuseShadowCasters=true;
+        else if(arg=="--surface-cache-repeat-shadow-casters")result.surfaceCacheReuseShadowCasters=false;
+        else if(arg=="--surface-cache-cull-shadow-casters")result.surfaceCacheCullShadowCasters=true;
+        else if(arg=="--surface-cache-draw-all-shadow-casters")result.surfaceCacheCullShadowCasters=false;
+        else if(arg=="--surface-cache-reuse-shadow-atlas")result.surfaceCacheReuseShadowAtlas=true;
+        else if(arg=="--surface-cache-recreate-shadow-atlas")result.surfaceCacheReuseShadowAtlas=false;
+        else if(arg=="--surface-cache-reuse-uniform-snapshots")result.surfaceCacheReuseUniformSnapshots=true;
+        else if(arg=="--surface-cache-copy-uniform-snapshots")result.surfaceCacheReuseUniformSnapshots=false;
+        else if(arg=="--surface-cache-upload-test") {result.surfaceCacheUploadTest=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;}
+        else if(arg=="--surface-cache-dynamic-view"&&i+1<argc) {result.surfaceCacheDynamicView=unsigned(std::stoul(argv[++i]));Check(result.surfaceCacheDynamicView<=3,"Dynamic GI view must be 0..2 or 3 for all views");}
+        else if(arg=="--surface-cache-dynamic-frames"&&i+1<argc) {result.surfaceCacheDynamicFrames=unsigned(std::stoul(argv[++i]));Check(result.surfaceCacheDynamicFrames>=4&&result.surfaceCacheDynamicFrames<=128,"Dynamic GI measured frames must be 4..128");}
         else if(arg=="--surface-cache-probe-imprint-convergence-frames"&&i+1<argc) {result.surfaceCacheProbeImprintConvergenceFrames=unsigned(std::stoul(argv[++i]));Check(result.surfaceCacheProbeImprintConvergenceFrames==64||result.surfaceCacheProbeImprintConvergenceFrames==128,"Static convergence frames must be 64 or 128");}
         else if(arg=="--surface-cache-probe-imprint-performance") {result.surfaceCacheProbeImprintPerformance=true;result.sealedGiRoomTest=true;result.sealedGiRoom=true;result.surfaceCacheGi=true;result.vulkan=true;}
         else if(arg=="--surface-cache-probe-imprint-view"&&i+1<argc) {result.surfaceCacheProbeImprintView=unsigned(std::stoul(argv[++i]));Check(result.surfaceCacheProbeImprintView<=3,"Probe imprint view must be 0..2 or 3 for all views");}
@@ -306,6 +585,8 @@ Render::SkyLightSettings LoadSky(const Options& options) {
 }
 void Save(const FramePixels& pixels, const std::string& path) {
     if (path.empty()) return;
+    Check(pixels.width>0&&pixels.height>0&&pixels.rgba.size()==std::size_t(pixels.width)*pixels.height*4,
+          "Cannot save an empty or truncated renderer readback: "+path);
     std::vector<std::uint8_t> topDown(pixels.rgba.size());
     const std::size_t row = pixels.width * 4;
     for (std::size_t y = 0; y < pixels.height; ++y)
@@ -1511,6 +1792,29 @@ void Benchmark(MaterialLabModule& lab, const Options& options) {
 #include "surface_cache_wall_transition_test.inl"
 #include "surface_cache_probe_imprint_test.inl"
 #include "surface_cache_probe_imprint_performance.inl"
+#include "surface_cache_dynamic_test.inl"
+#include "surface_cache_lighting_performance.inl"
+#include "surface_cache_motion_performance.inl"
+#include "surface_cache_fresh_sampling_test.inl"
+#include "surface_cache_native_test.inl"
+#include "surface_cache_budget_test.inl"
+#include "surface_cache_artifact_test.inl"
+#include "surface_cache_all_object_motion_test.inl"
+#include "surface_cache_native_reconstruction_test.inl"
+#include "surface_cache_compute_placement_test.inl"
+#include "surface_cache_radiance_filter_test.inl"
+#include "surface_cache_native_upload_test.inl"
+#include "surface_cache_origin_cost_study.inl"
+#include "surface_cache_query_cost_study.inl"
+#include "surface_cache_direct_probe_cost_study.inl"
+#include "surface_cache_receiver_diagnostics.inl"
+#include "surface_cache_receiver_cost_study.inl"
+#include "surface_cache_compaction_test.inl"
+#include "surface_cache_shadow_submission_test.inl"
+#include "surface_cache_sdf_efficiency_test.inl"
+#include "surface_cache_dynamic_performance.inl"
+#include "surface_cache_single_invocation_test.inl"
+#include "surface_cache_upload_test.inl"
 #include "probe_placement_test.inl"
 #include "screen_probe_trace_test.inl"
 #include "probe_sdf_trace_test.inl"
@@ -2037,8 +2341,9 @@ int main(int argc, char** argv) {
     int result = 0;
     try {
         const auto options = Parse(argc, argv);
+        if(options.gi95InteractionTest){SurfaceCacheInteractionCpuTest();return 0;}
         Check(glfwInit() == GLFW_TRUE, "glfwInit failed");
-        const bool hidden = options.sealedGiRoomTest || options.surfaceCacheTest || options.surfaceCacheProbeTest || options.surfaceCacheTemporalTest || options.surfaceCacheSpatialTest || options.surfaceCacheMotionTest || options.surfaceCachePerformance || options.sdfClipmapPerformance || options.sdfClipmapTest || options.sdfBanquetTest || options.sdfQualityTest || options.sdfProbeTraceTest || options.screenProbeTraceTest || options.probePlacementTest || options.giRoomTest || (options.giRoomPerformance&&!options.benchmarkPresent) || (options.showcaseMotion&&!(options.showcaseMeasureOnly&&options.benchmarkPresent)) || options.showcaseStability || options.showcaseTest || options.smoke || options.quality || options.shadows || options.closeup || options.advanced || options.advancedQuality || options.skyTest || options.probeTest || options.realtimeGiTest || options.realtimeGiStabilityTest || (options.lumenGiTest||options.lumenAdaptiveTest||options.probeDiffuseTest)||options.viewStability|| (options.benchmark&&!options.benchmarkPresent);
+        const bool hidden = (options.surfaceCacheNativePerformance||options.surfaceCacheEfficiencyPerformance||options.surfaceCacheCompactionPerformance||options.surfaceCacheShadowSubmissionPerformance||options.surfaceCacheSdfEfficiencyPerformance||options.surfaceCacheSdfReusePerformance||options.surfaceCacheArchitecturePerformance||options.surfaceCacheModelUpdatePerformance||options.surfaceCacheOriginCostStudy||options.surfaceCacheQueryReusePerformance||options.surfaceCacheQueryCostStudy||options.surfaceCacheDirectProbeCostStudy||options.surfaceCacheReceiverPerformance||options.surfaceCacheReceiverCostStudy)?!options.benchmarkPresent:options.surfaceCacheReceiverQuality||options.surfaceCacheReceiverDiagnostics||options.surfaceCacheQueryReuseQuality||options.surfaceCacheModelUpdateQuality||options.surfaceCacheModelUpdateTest||options.surfaceCacheArchitectureQuality||options.surfaceCacheArchitectureTest||options.surfaceCacheNativeQuality||options.sealedGiRoomTest || options.surfaceCacheTest || options.surfaceCacheProbeTest || options.surfaceCacheTemporalTest || options.surfaceCacheSpatialTest || options.surfaceCacheMotionTest || options.surfaceCachePerformance || options.sdfClipmapPerformance || options.sdfClipmapTest || options.sdfBanquetTest || options.sdfQualityTest || options.sdfProbeTraceTest || options.screenProbeTraceTest || options.probePlacementTest || options.giRoomTest || (options.giRoomPerformance&&!options.benchmarkPresent) || (options.showcaseMotion&&!(options.showcaseMeasureOnly&&options.benchmarkPresent)) || options.showcaseStability || options.showcaseTest || options.smoke || options.quality || options.shadows || options.closeup || options.advanced || options.advancedQuality || options.skyTest || options.probeTest || options.realtimeGiTest || options.realtimeGiStabilityTest || (options.lumenGiTest||options.lumenAdaptiveTest||options.probeDiffuseTest)||options.viewStability|| (options.benchmark&&!options.benchmarkPresent);
         glfwWindowHint(GLFW_VISIBLE, hidden ? GLFW_FALSE : GLFW_TRUE);
         if(options.fullscreen)glfwWindowHint(GLFW_AUTO_ICONIFY,GLFW_FALSE);
         const bool sizedStudy=options.benchmark||((options.surfaceCacheGi||options.surfaceCacheTest||options.surfaceCacheProbeTest||options.surfaceCacheTemporalTest||options.surfaceCacheSpatialTest||options.surfaceCacheMotionTest||options.surfaceCachePerformance||options.sdfClipmapPerformance||options.sdfClipmapTest||options.sdfBanquet||options.sdfBanquetTest||options.sdfQualityTest||options.sdfProbeTracing||options.sdfProbeTraceTest||options.screenProbeTracing||options.screenProbeTraceTest||options.probePlacement||options.probePlacementTest||options.giRoom||options.giRoomTest||options.giRoomPerformance||options.showcaseMotion||options.showcaseStability||options.showcaseTest||options.viewStability||options.realtimeGiStabilityTest)&&options.studySizeSet);
@@ -2059,10 +2364,56 @@ int main(int argc, char** argv) {
         Check(lab.Startup(), lab.LastError());
         // Offline quality and performance runs keep their original framebuffer
         // and timing contracts. Every interactive scene shares the same UI.
-        if (!options.noDebugUI && !hidden && !options.benchmark && !options.giRoomPerformance && !options.showcaseMotion)
+        if (!options.noDebugUI && !hidden && !options.benchmark && !options.giRoomPerformance && !options.showcaseMotion && !options.surfaceCacheNativePerformance && !options.surfaceCacheEfficiencyPerformance && !options.surfaceCacheCompactionPerformance && !options.surfaceCacheShadowSubmissionPerformance && !options.surfaceCacheSdfEfficiencyPerformance && !options.surfaceCacheSdfReusePerformance && !options.surfaceCacheArchitecturePerformance && !options.surfaceCacheModelUpdatePerformance && !options.surfaceCacheOriginCostStudy && !options.surfaceCacheQueryReusePerformance && !options.surfaceCacheQueryCostStudy && !options.surfaceCacheDirectProbeCostStudy && !options.surfaceCacheReceiverPerformance && !options.surfaceCacheReceiverQuality && !options.surfaceCacheReceiverDiagnostics && !options.surfaceCacheReceiverCostStudy)
             Check(lab.EnableDebugUI(window.GetNativeWindow(), options.vulkan ? Render::BackendType::Vulkan : Render::BackendType::Opengl), lab.LastError());
         std::cout << "Legacy textures: " << (options.legacyDirectory.empty() ? "procedural fallback" : options.legacyDirectory) << '\n';
-        if(options.surfaceCacheTransportTest)SurfaceCacheTransportQuality(lab,options);
+        if(options.gi95VisibilityAudit)SurfaceCacheAllObjectMotionFixture::VisibilityAudit(lab,options);
+        else if(options.gi95MotionPerformance)SurfaceCacheAllObjectMotionFixture::Performance(lab,options);
+        else if(options.gi95MotionArtifacts)SurfaceCacheAllObjectMotionFixture::Artifacts(lab,options);
+        else if(options.gi94Artifacts)SurfaceCacheArtifactFixture::Run(lab,options,true);
+        else if(options.gi90Artifacts)SurfaceCacheArtifactFixture::Run(lab,options);
+        else if(options.gi90PlacementCompare)SurfaceCacheComputePlacementComparison(lab,options);
+        else if(options.gi90ReconstructionCompare)SurfaceCacheNativeReconstructionComparison(lab,options);
+        else if(options.gi90MotionCaptureCompare)SurfaceCacheReceiverMotionComparison(lab,options);
+        else if(options.gi90Performance||options.gi90Quality||options.gi90Audit||options.gi90CaptureCompare)SurfaceCacheBudgetStudy(lab,options);
+        else if(options.surfaceCacheDirectProbeCostStudy)SurfaceCacheDirectProbeCostStudy(lab,options);
+        else if(options.surfaceCacheQueryCostStudy)SurfaceCacheQueryCostStudy(lab,options);
+        else if(options.surfaceCacheReceiverPerformance)SurfaceCacheNativePerformance(lab,options,false,false,false,false,true,0,0,0,options.surfaceCacheReceiverMask);
+        else if(options.surfaceCacheReceiverQuality)SurfaceCacheNativeQuality(lab,options,false,false,false,false,true,0,0,0,options.surfaceCacheReceiverMask);
+        else if(options.surfaceCacheReceiverDiagnostics)SurfaceCacheReceiverDiagnostics(lab,options);
+        else if(options.surfaceCacheReceiverCostStudy)SurfaceCacheReceiverCostStudy(lab,options);
+        else if(options.surfaceCacheQueryReusePerformance)SurfaceCacheNativePerformance(lab,options,false,false,false,false,true,0,0,options.surfaceCacheQueryReuseMask);
+        else if(options.surfaceCacheQueryReuseQuality)SurfaceCacheNativeQuality(lab,options,false,false,false,false,true,0,0,options.surfaceCacheQueryReuseMask);
+        else if(options.surfaceCacheOriginCostStudy)SurfaceCacheOriginCostStudy(lab,options);
+        else if(options.surfaceCacheModelUpdateTest)SurfaceCacheNativeUploadPruningContracts(lab,options);
+        else if(options.surfaceCacheModelUpdatePerformance)SurfaceCacheNativePerformance(lab,options,false,false,false,false,true,0,options.surfaceCacheModelUpdateMask);
+        else if(options.surfaceCacheModelUpdateQuality)SurfaceCacheNativeQuality(lab,options,false,false,false,false,true,0,options.surfaceCacheModelUpdateMask);
+        else if(options.surfaceCacheArchitectureTest)SurfaceCacheRadianceFilterContracts(lab,options);
+        else if(options.surfaceCacheArchitecturePerformance)SurfaceCacheNativePerformance(lab,options,false,false,false,false,true,options.surfaceCacheArchitectureMask);
+        else if(options.surfaceCacheArchitectureQuality)SurfaceCacheNativeQuality(lab,options,false,false,false,false,true,options.surfaceCacheArchitectureMask);
+        else if(options.surfaceCacheSdfReuseTest)SurfaceCacheSdfEfficiencyContracts(lab,options,true);
+        else if(options.surfaceCacheSdfReusePerformance)SurfaceCacheNativePerformance(lab,options,false,false,false,false,true);
+        else if(options.surfaceCacheSdfReuseQuality)SurfaceCacheNativeQuality(lab,options,false,false,false,false,true);
+        else if(options.surfaceCacheSdfEfficiencyTest)SurfaceCacheSdfEfficiencyContracts(lab,options);
+        else if(options.surfaceCacheSdfEfficiencyPerformance)SurfaceCacheNativePerformance(lab,options,false,false,false,true);
+        else if(options.surfaceCacheSdfEfficiencyQuality)SurfaceCacheNativeQuality(lab,options,false,false,false,true);
+        else if(options.surfaceCacheShadowSubmissionTest)SurfaceCacheShadowSubmissionContracts(lab,options);
+        else if(options.surfaceCacheShadowSubmissionPerformance)SurfaceCacheNativePerformance(lab,options,false,false,true);
+        else if(options.surfaceCacheShadowSubmissionQuality)SurfaceCacheNativeQuality(lab,options,false,false,true);
+        else if(options.surfaceCacheCompactionTest)SurfaceCacheCompactionContracts(lab,options);
+        else if(options.surfaceCacheCompactionPerformance)SurfaceCacheNativePerformance(lab,options,false,true);
+        else if(options.surfaceCacheCompactionQuality)SurfaceCacheNativeQuality(lab,options,false,true);
+        else if(options.surfaceCacheEfficiencyPerformance)SurfaceCacheNativePerformance(lab,options,true);
+        else if(options.surfaceCacheEfficiencyQuality)SurfaceCacheNativeQuality(lab,options,true);
+        else if(options.surfaceCacheNativePerformance)SurfaceCacheNativePerformance(lab,options);
+        else if(options.surfaceCacheNativeQuality)SurfaceCacheNativeQuality(lab,options);
+        else if(options.surfaceCacheTransportTest)SurfaceCacheTransportQuality(lab,options);
+        else if(options.surfaceCacheShadowHistoryTest)SurfaceCacheFreshSamplingQuality(lab,options);
+        else if(options.surfaceCacheShadowHistoryPerformance)SurfaceCacheFreshSamplingPerformance(lab,options);
+        else if(options.surfaceCacheShadowHistoryPreview)SurfaceCacheFreshSamplingPreview(lab,options);
+        else if(options.surfaceCacheFreshSamplingTest)SurfaceCacheFreshSamplingQuality(lab,options);
+        else if(options.surfaceCacheFreshSamplingPerformance)SurfaceCacheFreshSamplingPerformance(lab,options);
+        else if(options.surfaceCacheFreshSamplingPreview)SurfaceCacheFreshSamplingPreview(lab,options);
         else if(options.surfaceCacheOriginTest)SurfaceCacheOriginQuality(lab,options);
         else if(options.surfaceCacheGeometryTest)SurfaceCacheGeometryQuality(lab,options);
         else if(options.surfaceCacheAdaptiveTest)SurfaceCacheAdaptiveSurfaceQuality(lab,options);
@@ -2070,6 +2421,11 @@ int main(int argc, char** argv) {
         else if(options.surfaceCacheEdgeTest)SurfaceCacheEdgeQuality(lab,options);
         else if(options.surfaceCacheCornerTest)SurfaceCacheCornerQuality(lab,options);
         else if(options.surfaceCacheRecoveryTest)SurfaceCacheRecoveryQuality(lab,options);
+        else if(options.surfaceCacheDynamicTest)SurfaceCacheDynamicQuality(lab,options);
+        else if(options.surfaceCacheDynamicPerformance)SurfaceCacheDynamicPerformance(lab,options);
+        else if(options.surfaceCacheSinglePassTest)SurfaceCacheSingleInvocationQuality(lab,options,true);
+        else if(options.surfaceCacheSingleInvocationTest)SurfaceCacheSingleInvocationQuality(lab,options);
+        else if(options.surfaceCacheUploadTest)SurfaceCacheUploadQuality(lab,options);
         else if(options.surfaceCacheLampTest)SurfaceCacheLampQuality(lab,options);
         else if(options.surfaceCacheContactNoiseTest)SurfaceCacheContactNoiseQuality(lab,options);
         else if(options.surfaceCacheProbeImprintTest)SurfaceCacheProbeImprintQuality(lab,options);

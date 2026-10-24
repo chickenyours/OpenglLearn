@@ -2,12 +2,34 @@
 #include <string>
 #include "Render/Public/Pipeline/area_lights.h"
 #include "Render/Public/Pipeline/software_bvh_visibility.h"
+#include "ue_lumen_card_shadow_visibility_shaders.h"
 namespace Render::SurfaceCacheDetail {
-inline std::string LookupGLSL() {return SurfaceCacheDataGLSL()+R"GLSL(
+inline std::string LookupGLSL(bool reuseReceiverLookup=false,bool fastReceiverAddressingOnly=false) {auto source=SurfaceCacheDataGLSL()+R"GLSL(
 layout(binding=12) uniform sampler2D scAttributes;
 layout(binding=13) uniform sampler2D scMetadata;
 layout(binding=14) uniform sampler2D scLighting;
-vec4 SCAttribute(int index) {return texelFetch(scAttributes,ivec2(index%scAtlas.x,index/scAtlas.x),0);}
+vec4 SCMeta(int card,int part);
+vec4 SCAttribute(int index) {
+    vec4 value=texelFetch(scAttributes,ivec2(index%scAtlas.x,index/scAtlas.x),0);
+    // The optional fourth plane is the captured material shading normal.
+    // Keep the original geometry normal and albedo planes unchanged: lookup,
+    // layer rejection and safe ray launches must still use the real face.
+    if(index>=3*scAtlas.y&&index<4*scAtlas.y&&(int(scParameters.w+.5)&768)==768&&value.w>=.5&&scAtlas.w>0) {
+        int texel=index-3*scAtlas.y;if(texel>=scAtlas.z)return value;
+        int card=texel/(scAtlas.z/scAtlas.w);
+        mat3 worldToLocal=mat3(SCMeta(card,0).xyz,SCMeta(card,1).xyz,SCMeta(card,2).xyz);
+        return vec4(normalize(transpose(worldToLocal)*value.xyz),value.w);
+    }
+    if((int(scParameters.w+.5)&256)==0||index>=2*scAtlas.y||value.w<.5||scAtlas.w<=0)return value;
+    int texel=index%scAtlas.y;if(texel>=scAtlas.z)return value;
+    int card=texel/(scAtlas.z/scAtlas.w),objectFirst=card-card%6;
+    if(index<scAtlas.y) {
+        mat4 localToWorld=mat4(SCMeta(objectFirst,11),SCMeta(objectFirst+1,11),SCMeta(objectFirst+2,11),SCMeta(objectFirst+3,11));
+        return vec4((localToWorld*value).xyz,value.w);
+    }
+    mat3 worldToLocal=mat3(SCMeta(card,0).xyz,SCMeta(card,1).xyz,SCMeta(card,2).xyz);
+    return vec4(normalize(transpose(worldToLocal)*value.xyz),value.w);
+}
 vec4 SCMeta(int card,int part) {int index=card*12+part;return texelFetch(scMetadata,ivec2(index%scAtlas.x,index/scAtlas.x),0);}
 int SCTriangleOwner(int triangle) {
     if(triangle<0||triangle>=scGeometry.w)return -1;
@@ -113,8 +135,53 @@ bool SCSampleLightingObject(vec3 p,vec3 n,int object,out vec3 radiance) {
     float coverage;return SCSampleLightingObject(p,n,object,radiance,coverage);
 }
 bool SCSampleLighting(vec3 p,vec3 n,out vec3 radiance) {return SCSampleLightingObject(p,n,-1,radiance);}
-)GLSL";}
-inline std::string GeometryGLSL(){return SoftwareBvhVisibilityGLSL()+AreaLightSamplingGLSL()+R"GLSL(
+)GLSL";
+    if(!reuseReceiverLookup&&!fastReceiverAddressingOnly)return source;
+    // Receiver-only execution variant. Keep the original lookup above as the
+    // source for disabled/default consumers and preserve every card, anchor,
+    // tap and accumulation decision. Immutable atlas values can be carried
+    // from the already selected anchor instead of fetching them again.
+    const auto replace=[&](const std::string& from,const std::string& to) {
+        const auto at=source.find(from);if(at!=std::string::npos)source.replace(at,from.size(),to);
+    };
+    replace("layout(binding=14) uniform sampler2D scLighting;",R"GLSL(layout(binding=14) uniform sampler2D scLighting;
+ivec2 SCAtlasAddress(int index) {
+    if(scAtlas.x==1024&&index>=0)return ivec2(index&1023,index>>10);
+    return ivec2(index%scAtlas.x,index/scAtlas.x);
+})GLSL");
+    const std::string oldAddress="ivec2(index%scAtlas.x,index/scAtlas.x)",newAddress="SCAtlasAddress(index)";
+    // Leave the legacy fallback expression inside the helper untouched.
+    auto at=source.find("vec4 SCAttribute(");
+    while((at=source.find(oldAddress,at))!=std::string::npos) {
+        source.replace(at,oldAddress.size(),newAddress);at+=newAddress.size();
+    }
+    replace("ivec2(anchor%scAtlas.x,anchor/scAtlas.x)","SCAtlasAddress(anchor)");
+    // Address-only experiment retains the original anchor lookup/fetches and
+    // does not carry extra position/normal values through the lookup function.
+    // The earlier context-plus-address variant keeps priority when requested.
+    if(!reuseReceiverLookup)return source;
+    replace("bool SCLookupObject(vec3 p,vec3 n,int object,out int result) {",R"GLSL(bool SCLookupObjectContext(vec3 p,vec3 n,int object,out int result,out vec4 resultPosition,out vec4 resultNormal) {
+    resultPosition=vec4(0);resultNormal=vec4(0);)GLSL");
+    replace("float best=1e30;int selected=-1;","float best=1e30;int selected=-1;vec4 selectedPosition=vec4(0),selectedNormal=vec4(0);");
+    replace("if(distance<best){best=distance;selected=index;}",
+        "if(distance<best){best=distance;selected=index;selectedPosition=position;selectedNormal=normal;}");
+    replace("if(selected>=0){result=selected;return true;}",
+        "if(selected>=0){result=selected;resultPosition=selectedPosition;resultNormal=selectedNormal;return true;}");
+    replace("bool SCLookup(vec3 p,vec3 n,out int result){",R"GLSL(bool SCLookupObject(vec3 p,vec3 n,int object,out int result) {
+    vec4 position,normal;return SCLookupObjectContext(p,n,object,result,position,normal);
+}
+bool SCLookup(vec3 p,vec3 n,out int result){)GLSL");
+    replace("radiance=vec3(0);coverage=0;int anchor;\n    if(!SCLookupObject(p,n,object,anchor))return false;",
+        "radiance=vec3(0);coverage=0;int anchor;vec4 anchorPosition,anchorNormal;\n    if(!SCLookupObjectContext(p,n,object,anchor,anchorPosition,anchorNormal))return false;");
+    replace("    vec4 anchorNormal=SCAttribute(scAtlas.y+anchor),anchorPosition=SCAttribute(anchor);\n","");
+    return source;
+}
+inline std::string GeometryGLSL(bool hardwareVisibility=false,bool hardwareIntersection=false,
+    bool reuseClosestBounds=false,bool fastGeometryAddressing=false){
+    return SoftwareBvhVisibilityGLSL(9,reuseClosestBounds,fastGeometryAddressing)+
+        ((hardwareVisibility||hardwareIntersection)?NativeSurfaceCacheIntersectionGLSL():std::string{})+
+        (hardwareVisibility?"\n#define SC_DIRECT_VISIBLE SCNativeVisible\n":"\n#define SC_DIRECT_VISIBLE SCVisible\n")+
+        AreaLightSamplingGLSL()+R"GLSL(
 layout(std140,binding=3) uniform SCPointLights {
     vec4 scPointPositions[4],scPointColors[4],scUnusedAmbient,scUnusedOutput,scUnusedSpecular;
 };
@@ -122,13 +189,13 @@ struct SCAreaLight {vec4 center,u,v,radiance;};
 layout(std140,binding=8) uniform SCAreaLights {SCAreaLight scAreaLights[4];};
 vec3 SCDirect(vec3 p,vec3 n) {
     vec3 irradiance=vec3(0);vec3 d=-scSunDirectionIntensity.xyz;float cosine=max(dot(n,d),0.0);
-    if(scSunDirectionIntensity.w>0&&cosine>0&&SCVisible(p,n,d,scParameters.x))
+    if(scSunDirectionIntensity.w>0&&cosine>0&&SC_DIRECT_VISIBLE(p,n,d,scParameters.x))
         irradiance+=scSunColor.rgb*(scSunDirectionIntensity.w*cosine);
     for(int i=0;i<4;++i) {
         if(all(lessThanEqual(scPointColors[i].rgb,vec3(0))))continue;
         vec3 delta=scPointPositions[i].xyz-p;float distance=length(delta);if(distance<1e-5)continue;
         d=delta/distance;cosine=max(dot(n,d),0.0);float radius=max(scPointColors[i].w,0.0);
-        if(cosine>0&&SCVisible(p,n,d,distance-radius))
+        if(cosine>0&&SC_DIRECT_VISIBLE(p,n,d,distance-radius))
             irradiance+=scPointColors[i].rgb*cosine/max(max(distance*distance,radius*radius),.0001);
     }
     if(any(greaterThan(scSpotIntensityInner.rgb,vec3(0)))) {
@@ -137,7 +204,7 @@ vec3 SCDirect(vec3 p,vec3 n) {
             d=delta/distance;cosine=max(dot(n,d),0.0);
             float beam=clamp((dot(scSpotDirectionOuter.xyz,-d)-scSpotDirectionOuter.w)/max(scSpotIntensityInner.w-scSpotDirectionOuter.w,1e-6),0.0,1.0);
             beam=beam*beam*(3-2*beam);float radius=scSpotPositionRadius.w;
-            if(cosine>0&&beam>0&&SCVisible(p,n,d,distance-radius))
+            if(cosine>0&&beam>0&&SC_DIRECT_VISIBLE(p,n,d,distance-radius))
                 irradiance+=scSpotIntensityInner.rgb*(cosine*beam/max(max(distance*distance,radius*radius),.0001));
         }
     }
@@ -158,14 +225,95 @@ vec3 SCDirect(vec3 p,vec3 n) {
             d=delta/distance;float receiver=max(dot(n,d),0),face=dot(emitterNormal,-d);
             float geometricHorizon=smoothstep(0.0,.05,dot(n,d));
             float emitter=light.radiance.w>.5?abs(face):max(face,0.0);
-            if(receiver>0&&emitter>0&&SCVisible(p,n,d,distance))
+            if(receiver>0&&emitter>0&&SC_DIRECT_VISIBLE(p,n,d,distance))
                 irradiance+=light.radiance.rgb*(cellArea*receiver*emitter*geometricHorizon/distanceSquared);
         }
     }
     return irradiance;
 }
 )GLSL";}
-inline std::string LightingShader(){return std::string("#version 450 core\n")+LookupGLSL()+GeometryGLSL()+R"GLSL(
+inline std::string UeCardLightingGeometryGLSL(bool hardwareVisibility) {
+    auto geometry=GeometryGLSL(hardwareVisibility);
+    const auto first=geometry.find("vec3 SCDirect(vec3 p,vec3 n) {");
+    if(first==std::string::npos)throw std::logic_error("Surface cache direct lighting source anchor missing");
+    // Derive the material-normal variant from the original function. Leave
+    // SCDirect verbatim for legacy lighting and WGUnoccluded extraction.
+    auto shaded=geometry.substr(first);
+    const auto replaceAll=[&](const std::string& from,const std::string& to) {
+        std::size_t at=0;bool found=false;
+        while((at=shaded.find(from,at))!=std::string::npos) {
+            shaded.replace(at,from.size(),to);at+=to.size();found=true;
+        }
+        if(!found)throw std::logic_error("Surface cache shading normal source anchor missing");
+    };
+    replaceAll("vec3 SCDirect(vec3 p,vec3 n)","vec3 SCDirectShaded(vec3 p,vec3 shadeN,vec3 geoN)");
+    replaceAll("dot(n,","dot(shadeN,");
+    replaceAll("SC_DIRECT_VISIBLE(p,n,","UECardDirectVisible(p,geoN,");
+    // UE evaluates irradiance with the material normal. A separate flat-face
+    // horizon would reintroduce triangle steps into a smooth material normal.
+    // Keep the geometric normal in the unchanged shadow visibility calls.
+    replaceAll("            float geometricHorizon=smoothstep(0.0,.05,dot(shadeN,d));\n", "");
+    replaceAll("cellArea*receiver*emitter*geometricHorizon/distanceSquared",
+        "cellArea*receiver*emitter/distanceSquared");
+    // Carry a scalar visibility for primary pixel-normal reconstruction. RGB
+    // remains outgoing radiance for every existing GI consumer. Accumulate
+    // both terms in the original area-light loop with the same shadow call.
+    replaceAll("vec3 irradiance=vec3(0);", "ueCardUnoccludedIrradiance=vec3(0);ueCardShadowIrradiance=vec3(0);vec3 irradiance=vec3(0);");
+    replaceAll("            if(receiver>0&&emitter>0&&UECardDirectVisible(p,geoN,d,distance))\n"
+        "                irradiance+=light.radiance.rgb*(cellArea*receiver*emitter/distanceSquared);",
+        "            if(receiver>0&&emitter>0){\n"
+        "                vec3 energy=light.radiance.rgb*(cellArea*receiver*emitter/distanceSquared);\n"
+        "                ueCardUnoccludedIrradiance+=energy;\n"
+        "                if(UECardDirectVisible(p,geoN,d,distance)){irradiance+=energy;ueCardShadowIrradiance+=energy;}\n"
+        "            }");
+    return geometry+UeLumenCardShadowVisibilityGLSL(hardwareVisibility)+
+        "\nvec3 ueCardUnoccludedIrradiance=vec3(0),ueCardShadowIrradiance=vec3(0);\n"+shaded;
+}
+inline std::string LightingShader(bool hardwareVisibility=false,bool diagnostics=false,bool ueCardLighting=false){
+    if(ueCardLighting) {
+        auto geometry=UeCardLightingGeometryGLSL(hardwareVisibility);
+        if(diagnostics)geometry=InstrumentSurfaceCacheTraceDiagnosticsGLSL(std::move(geometry));
+        return std::string("#version 450 core\n")+LookupGLSL()+geometry+
+            (diagnostics?"\nin vec2 vUV;layout(location=0) out vec4 outColor;layout(location=1) out vec4 outQueries;\n":
+                "\nin vec2 vUV;layout(location=0) out vec4 outColor;\n")+
+            "void main(){int index=int(gl_FragCoord.y)*scAtlas.x+int(gl_FragCoord.x);\n"+
+            (diagnostics?"    SCTraceDiagReset();outQueries=vec4(0,0,0,1);\n":"")+R"GLSL(
+    outColor=vec4(0);if(index>=scAtlas.z)return;
+    vec4 p=SCAttribute(index),n=SCAttribute(scAtlas.y+index);if(p.w<.5)return;
+    int card=int(n.w+.5)-1;
+    vec3 geoN=normalize(n.xyz),shadeN=geoN;
+    if((int(scParameters.w+.5)&512)!=0) {
+        vec4 shading=SCAttribute(3*scAtlas.y+index);
+        float lengthSquared=dot(shading.xyz,shading.xyz);
+        if(shading.w>=.5&&!any(isnan(shading.xyz))&&!any(isinf(shading.xyz))&&lengthSquared>1e-12)
+            shadeN=normalize(shading.xyz);
+    }
+    vec3 rho=SCAttribute(2*scAtlas.y+index).rgb;
+    vec3 direct=SCDirectShaded(p.xyz,shadeN,geoN);
+    if(ueCardDirectInputsReadable){
+        vec3 luma=vec3(.2126,.7152,.0722);float unoccluded=dot(ueCardUnoccludedIrradiance,luma);
+        float visibility=unoccluded>0?clamp(dot(ueCardShadowIrradiance,luma)/max(unoccluded,1e-6),0.0,1.0):0.0;
+        // Alpha 0 remains unknown; 1 is legacy; [2,3] carries versioned V.
+        outColor=vec4(clamp(rho*direct/3.14159265359+SCMeta(card,8).rgb,vec3(0),vec3(60000)),2.0+visibility);
+    }
+)GLSL"+(diagnostics?"    outQueries=vec4(float(scTraceDiag[0].x),float(scTraceDiag[1].y),1,1);\n":"")+"}\n";
+    }
+    // The diagnostic variant observes the same SCDirect invocation that writes
+    // the lighting atlas. The ordinary source below is kept unchanged.
+    if(diagnostics)return std::string("#version 450 core\n")+LookupGLSL()+
+        InstrumentSurfaceCacheTraceDiagnosticsGLSL(GeometryGLSL(hardwareVisibility))+R"GLSL(
+in vec2 vUV;layout(location=0) out vec4 outColor;layout(location=1) out vec4 outQueries;
+void main(){int index=int(gl_FragCoord.y)*scAtlas.x+int(gl_FragCoord.x);
+    SCTraceDiagReset();outQueries=vec4(0,0,0,1);
+    outColor=vec4(0);if(index>=scAtlas.z)return;
+    vec4 p=SCAttribute(index),n=SCAttribute(scAtlas.y+index);if(p.w<.5)return;
+    int card=int(n.w+.5)-1;
+    vec3 rho=SCAttribute(2*scAtlas.y+index).rgb;
+    outColor=vec4(clamp(rho*SCDirect(p.xyz,normalize(n.xyz))/3.14159265359+SCMeta(card,8).rgb,vec3(0),vec3(60000)),1);
+    outQueries=vec4(float(scTraceDiag[0].x),float(scTraceDiag[1].y),1,1);
+}
+)GLSL";
+    return std::string("#version 450 core\n")+LookupGLSL()+GeometryGLSL(hardwareVisibility)+R"GLSL(
 in vec2 vUV;layout(location=0) out vec4 outColor;
 void main(){int index=int(gl_FragCoord.y)*scAtlas.x+int(gl_FragCoord.x);
     outColor=vec4(0);if(index>=scAtlas.z)return;
@@ -173,6 +321,15 @@ void main(){int index=int(gl_FragCoord.y)*scAtlas.x+int(gl_FragCoord.x);
     int card=int(n.w+.5)-1;
     vec3 rho=SCAttribute(2*scAtlas.y+index).rgb;
     outColor=vec4(clamp(rho*SCDirect(p.xyz,normalize(n.xyz))/3.14159265359+SCMeta(card,8).rgb,vec3(0),vec3(60000)),1);
+}
+)GLSL";}
+inline std::string LightingQueryDiagnosticShader(){return std::string("#version 450 core\n")+LookupGLSL()+
+    InstrumentSurfaceCacheTraceDiagnosticsGLSL(GeometryGLSL(true))+R"GLSL(
+in vec2 vUV;layout(location=0) out vec4 outColor;
+void main(){outColor=vec4(0);int index=int(gl_FragCoord.y)*scAtlas.x+int(gl_FragCoord.x);if(index>=scAtlas.z)return;
+    vec4 p=SCAttribute(index),n=SCAttribute(scAtlas.y+index);if(p.w<.5)return;
+    SCTraceDiagReset();vec3 direct=SCDirect(p.xyz,normalize(n.xyz));
+    outColor=vec4(float(scTraceDiag[0].x),float(scTraceDiag[1].y),direct.x,1);
 }
 )GLSL";}
 inline std::string GatherShader(){return std::string("#version 450 core\n")+LookupGLSL()+GeometryGLSL()+R"GLSL(

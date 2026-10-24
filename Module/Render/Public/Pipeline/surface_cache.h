@@ -9,7 +9,11 @@ struct SurfaceCacheMaterial {
     glm::vec3 albedo{.7f},emission{0};
     bool operator==(const SurfaceCacheMaterial&) const = default;
 };
-struct SurfaceCacheSettings { std::uint32_t pageResolution=32; };
+struct SurfaceCacheSettings {
+    std::uint32_t pageResolution=32;
+    bool localCaptureAttributes=false;
+    bool captureShadingNormals=false;
+};
 struct SurfaceCacheStatistics {
     std::uint32_t cards=0,localCaptures=0,updatedCards=0;
     std::uint64_t validTexels=0,updatedTexels=0,captureRays=0;
@@ -29,13 +33,20 @@ public:
     explicit SurfaceCacheScene(const SurfaceCacheSettings& settings={});
     bool Update(const ProbeSdfScene&,std::span<const SurfaceCacheMaterial> materials={});
     const SurfaceCacheSettings& Settings() const {return settings_;}
-    // Three stacked width-1024 planes, each PlaneTexels() long:
-    // world position/valid, world normal/card+1, linear albedo/valid.
-    const std::vector<glm::vec4>& Attributes() const {return attributes_;}
+    // Three or four stacked width-1024 planes, each PlaneTexels() long:
+    // world position/valid, geometric normal/card+1, linear albedo/valid;
+    // optional fourth plane stores interpolated shading normal/card+1.
+    const std::vector<glm::vec4>& Attributes() const;
+    // Renderer storage may retain local-space captures. Public Attributes() and
+    // Lookup() always expose current world-space values.
+    const std::vector<glm::vec4>& UploadAttributes() const {return attributes_;}
+    const std::vector<std::uint32_t>& AttributeDirtyCards() const {return attributeDirtyCards_;}
     // Twelve vec4s per card: inverse transform[0..3]; local min/direction[4];
     // local max/first texel[5]; outward world normal/depth tolerance[6];
     // albedo/object[7]; emission/generation[8]; world min/resolution[9];
-    // world max/0[10]; reserved[11]. Directions are +X,-X,+Y,-Y,+Z,-Z.
+    // world max/0[10]; reserved[11]. In local-capture mode, part 11 of the
+    // first four cards per object holds its current local-to-world columns.
+    // Directions are +X,-X,+Y,-Y,+Z,-Z.
     const std::vector<glm::vec4>& Metadata() const {return metadata_;}
     const std::vector<std::uint32_t>& DirtyCards() const {return dirtyCards_;}
     std::uint32_t Width() const {return SurfaceCacheAtlasWidth;}
@@ -46,8 +57,10 @@ public:
     // instance IDs per vec4. Unused entries are -1.
     std::uint32_t TriangleOwnerOffset() const {return CardCount()*SurfaceCacheCardTexels;}
     std::uint32_t TriangleCount() const {return ownerGeometry_?ownerGeometry_->TriangleCount():0;}
+    const std::shared_ptr<const RealtimeGiScene>& OwnerGeometry() const {return ownerGeometry_;}
     std::uint32_t TexelCount() const {return CardCount()*settings_.pageResolution*settings_.pageResolution;}
     std::uint32_t PlaneTexels() const {return planeTexels_;}
+    std::uint32_t AttributePlaneCount() const {return settings_.captureShadingNormals?4u:3u;}
     std::uint64_t Generation() const {return generation_;}
     const SurfaceCacheStatistics& Statistics() const {return statistics_;}
     SurfaceCacheSample Lookup(glm::vec3 worldPosition,glm::vec3 worldNormal,
@@ -59,13 +72,17 @@ private:
         std::shared_ptr<const LocalCapture> capture;
         glm::mat4 transform{1};
         SurfaceCacheMaterial material;
+        glm::mat3 normalTransform{1};
     };
+    glm::vec4 WorldAttribute(std::uint32_t index) const;
     SurfaceCacheSettings settings_;
     std::vector<InstanceState> states_;
     std::unordered_map<const ProbeMeshSdf*,std::shared_ptr<const LocalCapture>> captures_;
     std::shared_ptr<const RealtimeGiScene> ownerGeometry_;
     std::vector<glm::vec4> attributes_,metadata_;
-    std::vector<std::uint32_t> dirtyCards_;
+    std::vector<std::uint32_t> dirtyCards_,attributeDirtyCards_;
+    mutable std::vector<glm::vec4> worldAttributes_;
+    mutable std::uint64_t worldAttributesGeneration_=0;
     SurfaceCacheStatistics statistics_;
     std::uint32_t planeTexels_=SurfaceCacheAtlasWidth;
     std::uint64_t generation_=0;

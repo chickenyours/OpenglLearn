@@ -35,7 +35,7 @@ Model::SkeletalAssetPackage Fixture() {
     StaticMesh mesh; mesh.name = "Triangle";
     for (int i = 0; i < 3; ++i) {
         StaticVertex vertex; vertex.position = {1000000000000.125 + i, i == 2 ? 1 : 0, 0};
-        vertex.uv = {i == 1 ? 1.f : 0.f, i == 2 ? 1.f : 0.f}; mesh.vertices.push_back(vertex); mesh.bounds.Include(vertex.position);
+        vertex.uv = {i == 1 ? 1.f : 0.f, i == 2 ? 1.f : 0.f};vertex.uv1=vertex.uv; mesh.vertices.push_back(vertex); mesh.bounds.Include(vertex.position);
     }
     mesh.indices = {0, 1, 2}; geometry.meshes.push_back(mesh); geometry.bounds = mesh.bounds;
     geometry.instances.push_back({"MeshNode", 0, glm::dmat4(1)}); geometry.warnings = {"geometry warning"};
@@ -112,6 +112,17 @@ int main() {
         if (!Expect(bool(loaded), "Load package without the source model or external textures")) throw std::runtime_error(error);
         Expect(loaded->id == asset.id && loaded->skeleton.id == asset.skeleton.id && loaded->ikRig.id == asset.ikRig.id, "Stable asset IDs roundtrip");
         Expect(loaded->geometry->meshes[0].vertices[0].position.x == 1000000000000.125, "Double geometry positions retain precision beyond float");
+        {
+            auto twoUv=Fixture();auto& mesh=twoUv.geometry->meshes[0];mesh.hasSecondUV=true;
+            for(std::size_t i=0;i<mesh.vertices.size();++i)mesh.vertices[i].uv1={.15f+.1f*i,.8f-.15f*i};
+            const auto uvDirectory=directory/"SecondaryUV";
+            const bool saved=Model::SaveSkeletalAssetPackage(twoUv,uvDirectory,&error);
+            auto uvLoaded=saved?Model::LoadSkeletalAssetPackage(uvDirectory,&error):nullptr;
+            bool preserved=uvLoaded&&uvLoaded->geometry->meshes[0].hasSecondUV;
+            if(preserved)for(std::size_t i=0;i<mesh.vertices.size();++i)preserved&=uvLoaded->geometry->meshes[0].vertices[i].uv1==mesh.vertices[i].uv1;
+            Expect(preserved,"Optional source UV1 roundtrips without changing historical v1 vertex records");
+            Expect(!loaded->geometry->meshes[0].hasSecondUV&&loaded->geometry->meshes[0].vertices[1].uv1==loaded->geometry->meshes[0].vertices[1].uv,"Legacy packages fall back to UV0 when the optional UV1 record is absent");
+        }
         Expect(loaded->geometry->meshes[0].indices == asset.geometry->meshes[0].indices && loaded->skins[0].sourceVertexIds == asset.skins[0].sourceVertexIds, "Triangle and source vertex indices roundtrip");
         Expect(loaded->skins[0].vertices[0].mode == Model::SkinningMode::Sdef && loaded->skins[0].vertices[0].sdefC == glm::vec3(1, 2, 3)
             && loaded->skins[0].boneFromMesh.size() == 2, "Skinning mode, SDEF data and per-mesh offsets roundtrip");

@@ -780,8 +780,9 @@ outColor=vec4(LmLookup(lmCache,0,p),1);})");
             // must still shade normally. Coverage remains the material alpha.
             const auto displayPbr=b.FullscreenPipeline(R"GLSL(#version 450 core
 layout(location=0) in vec2 position;layout(location=1) in vec2 uv;
-out vec3 vWorldPosition;out vec3 vWorldNormal;out vec2 vTexCoord;out vec4 vWorldTangent;
-void main(){gl_Position=vec4(position,0,1);vWorldPosition=vec3(0);vWorldNormal=vec3(0,0,1);vTexCoord=uv;vWorldTangent=vec4(1,0,0,1);}
+out vec3 vWorldPosition;out vec3 vWorldNormal;out vec2 vTexCoord;
+out vec2 vTexCoord1;out vec4 vWorldTangent;
+void main(){gl_Position=vec4(position,0,1);vWorldPosition=vec3(0);vWorldNormal=vec3(0,0,1);vTexCoord=uv; vTexCoord1=vTexCoord;vWorldTangent=vec4(1,0,0,1);}
 )GLSL",Material::PbrFragmentShader());
             struct alignas(16) DisplayView {glm::mat4 vp{1};glm::vec4 camera{0,0,2,0};} displayView;
             Material::ParameterBlock displayMaterial(Material::MakePbrTemplate());

@@ -126,6 +126,13 @@ public:
         return Record(command);
     }
 
+    bool DispatchCompute(const RHICommand::DispatchFrameCompute& command) {
+        if (!command.pipeline || command.pushBytes > command.pushConstants.size() ||
+            command.indirectOffset % 4 || (!command.indirect &&
+            (!command.groupsX || !command.groupsY || !command.groupsZ))) return false;
+        return Record(command);
+    }
+
     bool End(bool present = true) {
         if (!HasRecordingLease() || state_ != State::Recording) return false;
         if (!buffer_->PushCommand(RHICommand::EndFrame{present})) return false;

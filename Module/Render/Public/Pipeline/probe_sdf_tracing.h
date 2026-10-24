@@ -18,6 +18,34 @@ struct ProbeSdfTracingSettings {
     float meshTraceDistance=2,hitEpsilon=.003f;
     std::uint32_t maxSteps=192,sliceView=0,selectedObject=2,sliceAxis=1;
     float slicePosition=.5f;
+    // Exact integer address specialization for the resident 1024-wide atlases.
+    bool fastAtlasAddressing=false;
+    // Reuse already evaluated trace data without changing the ray estimator.
+    bool reuseTraceSamples=false;
+    // Opt-in triangle fallback through the resident Surface Cache AS. When
+    // unavailable, mismatched, compacted or geometry-shader based, use SDFs.
+    bool hardwareRayTracing=false;
+    // Skip distance-field GPU mirrors only while the matching Surface Cache
+    // native fragment/MRT path is actually available. Software/debug paths
+    // retain their original uploads and catch up after skipped generations.
+    bool nativeUploadPruning=false;
+    // Reuse a strict native candidate only when software certification reaches
+    // that original triangle. Bounds, nearest/tie order and fallback stay intact.
+    bool reuseNativeCandidate=false;
+    // In the supported shared-geometry triangle profile, replace hardware
+    // candidate plus certification with one original software nearest query.
+    // This bypasses distance-field stepping and overrides candidate hint reuse.
+    bool directSoftwareRefinement=false;
+    // Untimed diagnostic variant: direction.w records actually entered
+    // PSRefine calls. Ordinary programs contain no counter instructions.
+    bool collectRayDiagnostics=false;
+    // Budget-changing native nearest policy: strict original-triangle interior
+    // hits are accepted without a second complete software BVH certification.
+    // Misses, edges, endpoints and invalid candidates keep software fallback.
+    bool nativeInteriorTracing=false;
+    bool deferUnusedGlobalField=false; // lazy CPU field rebuild; software/debug reads always catch up
+    bool incrementalGeometry=false; // retain transformed triangles for unchanged instances
+    bool snapshotRowCatchup=false; // catch retired immutable snapshot storage up through certified dirty rows
 };
 inline bool ValidateProbeSdfTracingSettings(const ProbeSdfTracingSettings& s) {
     return std::isfinite(s.meshTraceDistance)&&s.meshTraceDistance>=0&&s.meshTraceDistance<=100&&

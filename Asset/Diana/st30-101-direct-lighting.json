@@ -1,0 +1,1416 @@
+{
+  "schema": "model.hair-direct-lighting.v1",
+  "label": "ST30_101 checkpoint52 static direct-light input study (source CPU model2; runtime incomplete)",
+  "sourceCharacterPosition": [
+    -11.795135498046875,
+    -4.489843368530273,
+    -153.493408203125
+  ],
+  "sourceCharacterRotation": [
+    0,
+    0,
+    0,
+    1
+  ],
+  "hostUnitEV": -7.0,
+  "directional": {
+    "direction": [
+      -0.40557986730829665,
+      -0.7071070365399973,
+      0.5792275978489002
+    ],
+    "color": [
+      1.0,
+      0.9645566940307617,
+      0.9300000071525574
+    ],
+    "intensity": 600.0,
+    "enabled": true,
+    "directionStatus": "explicit study adapter; CPU quaternion->DL_Direction writer/sign not yet closed",
+    "sourceQuaternion": [
+      0.3649718165397644,
+      -0.2778160870075226,
+      0.1150752454996109,
+      0.881119430065155
+    ],
+    "sourceSceneObject": "st30_SceneGlobalLight_o_BC",
+    "sourceLayouter": 225,
+    "sourceParameter": 224,
+    "sourceSetter": 232
+  },
+  "lights": [
+    {
+      "sourceInstance": 108,
+      "sourceName": "st30_101_S_x_sun_VFog",
+      "type": "spot",
+      "position": [
+        -86.82029724121094,
+        201.13021850585938,
+        40.56852722167969
+      ],
+      "direction": [
+        0.3567844855234679,
+        -0.7250086925233898,
+        -0.5891241182087855
+      ],
+      "range": 300.0,
+      "falloff": 1.0,
+      "coneA": -2.159301280975342,
+      "coneB": 4.676357746124268,
+      "coefficients": [
+        0.0099945068359375,
+        0.0,
+        1.0
+      ],
+      "exponent": 4.0,
+      "startDistance": 0.0,
+      "color": [
+        1.0,
+        0.9645566940307617,
+        0.9300000071525574
+      ],
+      "iesRow": -1,
+      "sourceIES": "",
+      "sourcePowerUnit": {
+        "value": 1,
+        "name": "Candela"
+      },
+      "rawIntensity": 1.0,
+      "rawColor": [
+        1.0,
+        0.9645566940307617,
+        0.9300000071525574
+      ],
+      "sourceMinRoughness": 1.0,
+      "sourceSpecularScale": 1.0,
+      "sourcePacked": {
+        "toleranceBits": "0x3c000000",
+        "extXBits": "0x211e4400",
+        "c0HalfBits": "0x211e",
+        "c1HalfBits": "0x0000",
+        "c2HalfBits": "0x3c00",
+        "exponentHalfBits": "0x4400"
+      },
+      "sourceRadius": 0.05000000074505806,
+      "sourceShadowEnabled": false,
+      "sourceLightChannelMode": 0,
+      "centerQuery": {
+        "distance": 291.99010320873447,
+        "cosToAxis": 0.991869635032238,
+        "angleDegrees": 7.31117767498659,
+        "outerHalfAngleDegrees": 62.50000800022769,
+        "attenuation": 1.2346196246741043e-07,
+        "incidentUnshadowedRGB": [
+          1.2346196246741043e-07,
+          1.1908606235611539e-07,
+          1.1481962597776047e-07
+        ]
+      },
+      "assumptions": [
+        "ReferenceEffectiveRange × explicit global rangeScale1; runtime scale not captured",
+        "Version2_1/model2 CPU branch chosen from shipped LGHT2 config tag; tag→global writer still partial",
+        "Use default attenuation-table row0 and original half quantization",
+        "Source model2 custom-only startDistance branch and original half truncation retained",
+        "No native shadow map/projection/cluster data is available"
+      ],
+      "blackbodySource": false,
+      "sourceTemperature": 6400.0,
+      "sourceCustomAttenuation": false,
+      "toleranceBits": 1006632960,
+      "extendedBits": 555631616
+    },
+    {
+      "sourceInstance": 205,
+      "sourceName": "st30_101_S_o_sky_key_L_under",
+      "type": "spot",
+      "position": [
+        166.79214477539062,
+        -124.87077331542969,
+        -176.32614135742188
+      ],
+      "direction": [
+        -0.5416761199249598,
+        0.6427877368712376,
+        0.5416741699868962
+      ],
+      "range": 230.0,
+      "falloff": 1.0,
+      "coneA": -11.545326232910156,
+      "coneB": 12.738858222961426,
+      "coefficients": [
+        0.0099945068359375,
+        0.0,
+        1.0
+      ],
+      "exponent": 4.0,
+      "startDistance": 0.0,
+      "color": [
+        1811482.125,
+        2169165.25,
+        3000000.0
+      ],
+      "iesRow": -1,
+      "sourceIES": "",
+      "sourcePowerUnit": {
+        "value": 1,
+        "name": "Candela"
+      },
+      "rawIntensity": 3000000.0,
+      "rawColor": [
+        0.6038273572921753,
+        0.7230551242828369,
+        1.0
+      ],
+      "sourceMinRoughness": 0.6000000238418579,
+      "sourceSpecularScale": 1.0,
+      "sourcePacked": {
+        "toleranceBits": "0x3c000000",
+        "extXBits": "0x211e4400",
+        "c0HalfBits": "0x211e",
+        "c1HalfBits": "0x0000",
+        "c2HalfBits": "0x3c00",
+        "exponentHalfBits": "0x4400"
+      },
+      "sourceRadius": 0.05000000074505806,
+      "sourceShadowEnabled": true,
+      "sourceLightChannelMode": 0,
+      "centerQuery": {
+        "distance": 217.02738654438505,
+        "cosToAxis": 0.8615166440899144,
+        "angleDegrees": 30.512699531553135,
+        "outerHalfAngleDegrees": 25.00000183405324,
+        "attenuation": 0.0,
+        "incidentUnshadowedRGB": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "assumptions": [
+        "ReferenceEffectiveRange × explicit global rangeScale1; runtime scale not captured",
+        "Version2_1/model2 CPU branch chosen from shipped LGHT2 config tag; tag→global writer still partial",
+        "Use default attenuation-table row0 and original half quantization",
+        "Source model2 custom-only startDistance branch and original half truncation retained",
+        "No native shadow map/projection/cluster data is available"
+      ],
+      "blackbodySource": false,
+      "sourceTemperature": 6400.0,
+      "sourceCustomAttenuation": false,
+      "toleranceBits": 1006632960,
+      "extendedBits": 555631616
+    },
+    {
+      "sourceInstance": 223,
+      "sourceName": "st30_101_S_x_LocalVFog",
+      "type": "spot",
+      "position": [
+        4.920238971710205,
+        -527.8438110351562,
+        -2.994624137878418
+      ],
+      "direction": [
+        -0.020811431785747014,
+        0.9973484323087296,
+        -0.06973513374437969
+      ],
+      "range": 580.0,
+      "falloff": 1.0,
+      "coneA": -2.3780455589294434,
+      "coneB": 4.806305885314941,
+      "coefficients": [
+        0.0099945068359375,
+        0.0,
+        1.0
+      ],
+      "exponent": 4.0,
+      "startDistance": 0.0,
+      "color": [
+        78.54348754882812,
+        89.84757232666016,
+        100.0
+      ],
+      "iesRow": -1,
+      "sourceIES": "",
+      "sourcePowerUnit": {
+        "value": 1,
+        "name": "Candela"
+      },
+      "rawIntensity": 100.0,
+      "rawColor": [
+        0.785434901714325,
+        0.898475706577301,
+        1.0
+      ],
+      "sourceMinRoughness": 0.0,
+      "sourceSpecularScale": 1.0,
+      "sourcePacked": {
+        "toleranceBits": "0x3c000000",
+        "extXBits": "0x211e4400",
+        "c0HalfBits": "0x211e",
+        "c1HalfBits": "0x0000",
+        "c2HalfBits": "0x3c00",
+        "exponentHalfBits": "0x4400"
+      },
+      "sourceRadius": 0.05000000074505806,
+      "sourceShadowEnabled": false,
+      "sourceLightChannelMode": 0,
+      "centerQuery": {
+        "distance": 545.6354627895153,
+        "cosToAxis": 0.9780155720840665,
+        "angleDegrees": 12.036329936947519,
+        "outerHalfAngleDegrees": 60.34500818500779,
+        "attenuation": 1.5780749805786345e-07,
+        "incidentUnshadowedRGB": [
+          1.2394751258819517e-05,
+          1.4178620595443169e-05,
+          1.5780749805786346e-05
+        ]
+      },
+      "assumptions": [
+        "ReferenceEffectiveRange × explicit global rangeScale1; runtime scale not captured",
+        "Version2_1/model2 CPU branch chosen from shipped LGHT2 config tag; tag→global writer still partial",
+        "Use default attenuation-table row0 and original half quantization",
+        "Source model2 custom-only startDistance branch and original half truncation retained",
+        "No native shadow map/projection/cluster data is available"
+      ],
+      "blackbodySource": false,
+      "sourceTemperature": 6400.0,
+      "sourceCustomAttenuation": false,
+      "toleranceBits": 1006632960,
+      "extendedBits": 555631616
+    },
+    {
+      "sourceInstance": 243,
+      "sourceName": "st30_101_S_o_sun_A_key",
+      "type": "spot",
+      "position": [
+        1.1180498600006104,
+        3.8316500186920166,
+        -281.31341552734375
+      ],
+      "direction": [
+        1.5042121263916688e-07,
+        -0.08715575352166961,
+        0.9961946971491302
+      ],
+      "range": 140.0,
+      "falloff": 1.0,
+      "coneA": -86.48534393310547,
+      "coneB": 87.81951904296875,
+      "coefficients": [
+        0.0099945068359375,
+        0.0,
+        1.0
+      ],
+      "exponent": 4.0,
+      "startDistance": 0.0,
+      "color": [
+        6000000.0,
+        5555043.5,
+        4724473.5
+      ],
+      "iesRow": -1,
+      "sourceIES": "",
+      "sourcePowerUnit": {
+        "value": 1,
+        "name": "Candela"
+      },
+      "rawIntensity": 6000000.0,
+      "rawColor": [
+        1.0,
+        0.9258406162261963,
+        0.7874122858047485
+      ],
+      "sourceMinRoughness": 0.0,
+      "sourceSpecularScale": 1.0,
+      "sourcePacked": {
+        "toleranceBits": "0x3c000000",
+        "extXBits": "0x211e4400",
+        "c0HalfBits": "0x211e",
+        "c1HalfBits": "0x0000",
+        "c2HalfBits": "0x3c00",
+        "exponentHalfBits": "0x4400"
+      },
+      "sourceRadius": 0.05000000074505806,
+      "sourceShadowEnabled": true,
+      "sourceLightChannelMode": 0,
+      "centerQuery": {
+        "distance": 128.6149087740482,
+        "cosToAxis": 0.9945425258453245,
+        "angleDegrees": 5.988681062038999,
+        "outerHalfAngleDegrees": 10.000000562866568,
+        "attenuation": 4.718826286808128e-06,
+        "incidentUnshadowedRGB": [
+          28.312957720848768,
+          26.213285292162627,
+          22.2939697431284
+        ]
+      },
+      "assumptions": [
+        "ReferenceEffectiveRange × explicit global rangeScale1; runtime scale not captured",
+        "Version2_1/model2 CPU branch chosen from shipped LGHT2 config tag; tag→global writer still partial",
+        "Use default attenuation-table row0 and original half quantization",
+        "Source model2 custom-only startDistance branch and original half truncation retained",
+        "No native shadow map/projection/cluster data is available"
+      ],
+      "blackbodySource": false,
+      "sourceTemperature": 6400.0,
+      "sourceCustomAttenuation": false,
+      "toleranceBits": 1006632960,
+      "extendedBits": 555631616
+    },
+    {
+      "sourceInstance": 252,
+      "sourceName": "st30_101_S_x_sun_A_indirect",
+      "type": "spot",
+      "position": [
+        -2.535808563232422,
+        22.684736251831055,
+        -169.3008575439453
+      ],
+      "direction": [
+        2.764783473115128e-08,
+        -0.9830936686966315,
+        0.18310335488077967
+      ],
+      "range": 140.0,
+      "falloff": 1.0,
+      "coneA": -8.403388977050781,
+      "coneB": 9.924821853637695,
+      "coefficients": [
+        0.0099945068359375,
+        0.0,
+        1.0
+      ],
+      "exponent": 4.0,
+      "startDistance": 0.0,
+      "color": [
+        10000.0,
+        9152.5869140625,
+        9145.541015625
+      ],
+      "iesRow": -1,
+      "sourceIES": "",
+      "sourcePowerUnit": {
+        "value": 1,
+        "name": "Candela"
+      },
+      "rawIntensity": 10000.0,
+      "rawColor": [
+        1.0,
+        0.9152586460113525,
+        0.9145541191101074
+      ],
+      "sourceMinRoughness": 0.800000011920929,
+      "sourceSpecularScale": 1.0,
+      "sourcePacked": {
+        "toleranceBits": "0x3c000000",
+        "extXBits": "0x211e4400",
+        "c0HalfBits": "0x211e",
+        "c1HalfBits": "0x0000",
+        "c2HalfBits": "0x3c00",
+        "exponentHalfBits": "0x4400"
+      },
+      "sourceRadius": 0.05000000074505806,
+      "sourceShadowEnabled": false,
+      "sourceLightChannelMode": 0,
+      "centerQuery": {
+        "distance": 32.05172812171368,
+        "cosToAxis": 0.8979874292269372,
+        "angleDegrees": 26.10522802447745,
+        "outerHalfAngleDegrees": 32.14500125310105,
+        "attenuation": 0.0004970642424544572,
+        "incidentUnshadowedRGB": [
+          4.970642424544572,
+          4.549423680937054,
+          4.545921416767808
+        ]
+      },
+      "assumptions": [
+        "ReferenceEffectiveRange × explicit global rangeScale1; runtime scale not captured",
+        "Version2_1/model2 CPU branch chosen from shipped LGHT2 config tag; tag→global writer still partial",
+        "Use default attenuation-table row0 and original half quantization",
+        "Source model2 custom-only startDistance branch and original half truncation retained",
+        "No native shadow map/projection/cluster data is available",
+        "When true, retain serialized Color as an authoring-color proxy; native computed owner+0x50 temperature color not reconstructed here"
+      ],
+      "blackbodySource": true,
+      "sourceTemperature": 6200.0,
+      "sourceCustomAttenuation": false,
+      "toleranceBits": 1006632960,
+      "extendedBits": 555631616
+    },
+    {
+      "sourceInstance": 322,
+      "sourceName": "st30_101_S_x_sun_B_indirect_upper",
+      "type": "spot",
+      "position": [
+        -9.468582153320312,
+        -9.585479736328125,
+        -143.5395965576172
+      ],
+      "direction": [
+        0.0629034266447107,
+        0.9945686760443729,
+        0.08292350419330262
+      ],
+      "range": 15.0,
+      "falloff": 1.0,
+      "coneA": -2.9974265098571777,
+      "coneB": 4.690049171447754,
+      "coefficients": [
+        0.0099945068359375,
+        0.0,
+        1.0
+      ],
+      "exponent": 4.0,
+      "startDistance": 0.0,
+      "color": [
+        3000.0,
+        2777.521728515625,
+        2362.23681640625
+      ],
+      "iesRow": -1,
+      "sourceIES": "",
+      "sourcePowerUnit": {
+        "value": 1,
+        "name": "Candela"
+      },
+      "rawIntensity": 3000.0,
+      "rawColor": [
+        1.0,
+        0.9258406162261963,
+        0.7874122858047485
+      ],
+      "sourceMinRoughness": 0.800000011920929,
+      "sourceSpecularScale": 1.0,
+      "sourcePacked": {
+        "toleranceBits": "0x3c000000",
+        "extXBits": "0x211e4400",
+        "c0HalfBits": "0x211e",
+        "c1HalfBits": "0x0000",
+        "c2HalfBits": "0x3c00",
+        "exponentHalfBits": "0x4400"
+      },
+      "sourceRadius": 0.05000000074505806,
+      "sourceShadowEnabled": false,
+      "sourceLightChannelMode": 0,
+      "centerQuery": {
+        "distance": 11.875676811759233,
+        "cosToAxis": 0.4137779567277334,
+        "angleDegrees": 65.55761785390567,
+        "outerHalfAngleDegrees": 50.27500415956412,
+        "attenuation": 0.0,
+        "incidentUnshadowedRGB": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "assumptions": [
+        "ReferenceEffectiveRange × explicit global rangeScale1; runtime scale not captured",
+        "Version2_1/model2 CPU branch chosen from shipped LGHT2 config tag; tag→global writer still partial",
+        "Use default attenuation-table row0 and original half quantization",
+        "Source model2 custom-only startDistance branch and original half truncation retained",
+        "No native shadow map/projection/cluster data is available"
+      ],
+      "blackbodySource": false,
+      "sourceTemperature": 6400.0,
+      "sourceCustomAttenuation": false,
+      "toleranceBits": 1006632960,
+      "extendedBits": 555631616
+    },
+    {
+      "sourceInstance": 330,
+      "sourceName": "st30_101_S_x_sun_B_incirect_etc",
+      "type": "spot",
+      "position": [
+        1.190384864807129,
+        -4.80905818939209,
+        -130.3480224609375
+      ],
+      "direction": [
+        0.0,
+        -0.6909409315243562,
+        -0.7229112180235238
+      ],
+      "range": 40.0,
+      "falloff": 1.0,
+      "coneA": -3.642399311065674,
+      "coneB": 4.940338134765625,
+      "coefficients": [
+        0.0099945068359375,
+        0.0,
+        1.0
+      ],
+      "exponent": 4.0,
+      "startDistance": 0.0,
+      "color": [
+        20000.0,
+        19291.134765625,
+        18600.0
+      ],
+      "iesRow": -1,
+      "sourceIES": "",
+      "sourcePowerUnit": {
+        "value": 1,
+        "name": "Candela"
+      },
+      "rawIntensity": 20000.0,
+      "rawColor": [
+        1.0,
+        0.9645566940307617,
+        0.9300000071525574
+      ],
+      "sourceMinRoughness": 0.6000000238418579,
+      "sourceSpecularScale": 1.0,
+      "sourcePacked": {
+        "toleranceBits": "0x3c000000",
+        "extXBits": "0x211e4400",
+        "c0HalfBits": "0x211e",
+        "c1HalfBits": "0x0000",
+        "c2HalfBits": "0x3c00",
+        "exponentHalfBits": "0x4400"
+      },
+      "sourceRadius": 0.05000000074505806,
+      "sourceShadowEnabled": false,
+      "sourceLightChannelMode": 0,
+      "centerQuery": {
+        "distance": 26.625706758058442,
+        "cosToAxis": 0.6006575214807778,
+        "angleDegrees": 53.08299631843431,
+        "outerHalfAngleDegrees": 42.50000175185268,
+        "attenuation": 0.0,
+        "incidentUnshadowedRGB": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "assumptions": [
+        "ReferenceEffectiveRange × explicit global rangeScale1; runtime scale not captured",
+        "Version2_1/model2 CPU branch chosen from shipped LGHT2 config tag; tag→global writer still partial",
+        "Use default attenuation-table row0 and original half quantization",
+        "Source model2 custom-only startDistance branch and original half truncation retained",
+        "No native shadow map/projection/cluster data is available"
+      ],
+      "blackbodySource": false,
+      "sourceTemperature": 6400.0,
+      "sourceCustomAttenuation": false,
+      "toleranceBits": 1006632960,
+      "extendedBits": 555631616
+    },
+    {
+      "sourceInstance": 338,
+      "sourceName": "st30_101_S_x_sun_C_indirect_under",
+      "type": "spot",
+      "position": [
+        1.1340504884719849,
+        -89.94786071777344,
+        -149.5756072998047
+      ],
+      "direction": [
+        -1.3641041008905374e-12,
+        0.9999999403356142,
+        -0.0003454399631102769
+      ],
+      "range": 96.0,
+      "falloff": 1.0,
+      "coneA": -46.881553649902344,
+      "coneB": 48.53535461425781,
+      "coefficients": [
+        0.0099945068359375,
+        0.0,
+        1.0
+      ],
+      "exponent": 4.0,
+      "startDistance": 0.0,
+      "color": [
+        787412.3125,
+        854992.625,
+        1000000.0
+      ],
+      "iesRow": -1,
+      "sourceIES": "",
+      "sourcePowerUnit": {
+        "value": 1,
+        "name": "Candela"
+      },
+      "rawIntensity": 1000000.0,
+      "rawColor": [
+        0.7874122858047485,
+        0.8549926280975342,
+        1.0
+      ],
+      "sourceMinRoughness": 0.8999999761581421,
+      "sourceSpecularScale": 1.0,
+      "sourcePacked": {
+        "toleranceBits": "0x3c000000",
+        "extXBits": "0x211e4400",
+        "c0HalfBits": "0x211e",
+        "c1HalfBits": "0x0000",
+        "c2HalfBits": "0x3c00",
+        "exponentHalfBits": "0x4400"
+      },
+      "sourceRadius": 0.05000000074505806,
+      "sourceShadowEnabled": false,
+      "sourceLightChannelMode": 0,
+      "centerQuery": {
+        "distance": 87.33965974183312,
+        "cosToAxis": 0.9879514527302594,
+        "angleDegrees": 8.903115162342754,
+        "outerHalfAngleDegrees": 15.000000417413029,
+        "attenuation": 1.299843122164561e-05,
+        "incidentUnshadowedRGB": [
+          10.23512478710817,
+          11.113562831076738,
+          12.99843122164561
+        ]
+      },
+      "assumptions": [
+        "ReferenceEffectiveRange × explicit global rangeScale1; runtime scale not captured",
+        "Version2_1/model2 CPU branch chosen from shipped LGHT2 config tag; tag→global writer still partial",
+        "Use default attenuation-table row0 and original half quantization",
+        "Source model2 custom-only startDistance branch and original half truncation retained",
+        "No native shadow map/projection/cluster data is available"
+      ],
+      "blackbodySource": false,
+      "sourceTemperature": 6400.0,
+      "sourceCustomAttenuation": false,
+      "toleranceBits": 1006632960,
+      "extendedBits": 555631616
+    },
+    {
+      "sourceInstance": 381,
+      "sourceName": "st30_101_S_o_under_key_R",
+      "type": "spot",
+      "position": [
+        -21.90566062927246,
+        -4.574509620666504,
+        -147.00167846679688
+      ],
+      "direction": [
+        0.9659258251530503,
+        0.2588190493405985,
+        9.097879690809889e-07
+      ],
+      "range": 16.0,
+      "falloff": 1.0,
+      "coneA": -4.597217559814453,
+      "coneB": 5.794666290283203,
+      "coefficients": [
+        0.0099945068359375,
+        0.0,
+        1.0
+      ],
+      "exponent": 4.0,
+      "startDistance": 0.0,
+      "color": [
+        2076.213134765625,
+        2670.01611328125,
+        3000.0
+      ],
+      "iesRow": -1,
+      "sourceIES": "",
+      "sourcePowerUnit": {
+        "value": 1,
+        "name": "Candela"
+      },
+      "rawIntensity": 3000.0,
+      "rawColor": [
+        0.6920710802078247,
+        0.8900054097175598,
+        1.0
+      ],
+      "sourceMinRoughness": 0.800000011920929,
+      "sourceSpecularScale": 1.0,
+      "sourcePacked": {
+        "toleranceBits": "0x3c000000",
+        "extXBits": "0x211e4400",
+        "c0HalfBits": "0x211e",
+        "c1HalfBits": "0x0000",
+        "c2HalfBits": "0x3c00",
+        "exponentHalfBits": "0x4400"
+      },
+      "sourceRadius": 0.05000000074505806,
+      "sourceShadowEnabled": true,
+      "sourceLightChannelMode": 0,
+      "centerQuery": {
+        "distance": 12.094726159544447,
+        "cosToAxis": 0.8274555533213622,
+        "angleDegrees": 34.16175785523802,
+        "outerHalfAngleDegrees": 37.50000275107986,
+        "attenuation": 0.00031537479020984287,
+        "incidentUnshadowedRGB": [
+          0.6547852818076292,
+          0.8420557715829743,
+          0.9461243706295286
+        ]
+      },
+      "assumptions": [
+        "ReferenceEffectiveRange × explicit global rangeScale1; runtime scale not captured",
+        "Version2_1/model2 CPU branch chosen from shipped LGHT2 config tag; tag→global writer still partial",
+        "Use default attenuation-table row0 and original half quantization",
+        "Source model2 custom-only startDistance branch and original half truncation retained",
+        "No native shadow map/projection/cluster data is available"
+      ],
+      "blackbodySource": false,
+      "sourceTemperature": 6400.0,
+      "sourceCustomAttenuation": false,
+      "toleranceBits": 1006632960,
+      "extendedBits": 555631616
+    },
+    {
+      "sourceInstance": 398,
+      "sourceName": "st30_101_S_x_under_indirect_RA",
+      "type": "spot",
+      "position": [
+        -15.157150268554688,
+        -10.524296760559082,
+        -143.17507934570312
+      ],
+      "direction": [
+        -0.3420200048988935,
+        0.9396926711691175,
+        9.821787617767274e-08
+      ],
+      "range": 16.0,
+      "falloff": 1.0,
+      "coneA": -2.0886483192443848,
+      "coneB": 3.0915908813476562,
+      "coefficients": [
+        0.0099945068359375,
+        0.0,
+        1.0
+      ],
+      "exponent": 4.0,
+      "startDistance": 0.0,
+      "color": [
+        1384.1422119140625,
+        1780.0108642578125,
+        2000.0
+      ],
+      "iesRow": -1,
+      "sourceIES": "",
+      "sourcePowerUnit": {
+        "value": 1,
+        "name": "Candela"
+      },
+      "rawIntensity": 2000.0,
+      "rawColor": [
+        0.6920710802078247,
+        0.8900054097175598,
+        1.0
+      ],
+      "sourceMinRoughness": 0.6000000238418579,
+      "sourceSpecularScale": 1.0,
+      "sourcePacked": {
+        "toleranceBits": "0x3c000000",
+        "extXBits": "0x211e4400",
+        "c0HalfBits": "0x211e",
+        "c1HalfBits": "0x0000",
+        "c2HalfBits": "0x3c00",
+        "exponentHalfBits": "0x4400"
+      },
+      "sourceRadius": 0.05000000074505806,
+      "sourceShadowEnabled": false,
+      "sourceLightChannelMode": 0,
+      "centerQuery": {
+        "distance": 12.900990444662911,
+        "cosToAxis": 0.4105638594265903,
+        "angleDegrees": 65.75973950997103,
+        "outerHalfAngleDegrees": 47.50000416772008,
+        "attenuation": 0.0,
+        "incidentUnshadowedRGB": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "assumptions": [
+        "ReferenceEffectiveRange × explicit global rangeScale1; runtime scale not captured",
+        "Version2_1/model2 CPU branch chosen from shipped LGHT2 config tag; tag→global writer still partial",
+        "Use default attenuation-table row0 and original half quantization",
+        "Source model2 custom-only startDistance branch and original half truncation retained",
+        "No native shadow map/projection/cluster data is available"
+      ],
+      "blackbodySource": false,
+      "sourceTemperature": 6400.0,
+      "sourceCustomAttenuation": false,
+      "toleranceBits": 1006632960,
+      "extendedBits": 555631616
+    },
+    {
+      "sourceInstance": 406,
+      "sourceName": "st30_101_S_x_under_indirect_RB",
+      "type": "spot",
+      "position": [
+        -15.157150268554688,
+        -10.524296760559082,
+        -152.815185546875
+      ],
+      "direction": [
+        -0.3420200048988935,
+        0.9396926711691175,
+        9.821787617767274e-08
+      ],
+      "range": 16.0,
+      "falloff": 1.0,
+      "coneA": -2.429072618484497,
+      "coneB": 3.595482587814331,
+      "coefficients": [
+        0.0099945068359375,
+        0.0,
+        1.0
+      ],
+      "exponent": 4.0,
+      "startDistance": 0.0,
+      "color": [
+        1384.1422119140625,
+        1780.0108642578125,
+        2000.0
+      ],
+      "iesRow": -1,
+      "sourceIES": "",
+      "sourcePowerUnit": {
+        "value": 1,
+        "name": "Candela"
+      },
+      "rawIntensity": 2000.0,
+      "rawColor": [
+        0.6920710802078247,
+        0.8900054097175598,
+        1.0
+      ],
+      "sourceMinRoughness": 0.6000000238418579,
+      "sourceSpecularScale": 1.0,
+      "sourcePacked": {
+        "toleranceBits": "0x3c000000",
+        "extXBits": "0x211e4400",
+        "c0HalfBits": "0x211e",
+        "c1HalfBits": "0x0000",
+        "c2HalfBits": "0x3c00",
+        "exponentHalfBits": "0x4400"
+      },
+      "sourceRadius": 0.05000000074505806,
+      "sourceShadowEnabled": false,
+      "sourceLightChannelMode": 0,
+      "centerQuery": {
+        "distance": 7.681201318666873,
+        "cosToAxis": 0.6895641911305096,
+        "angleDegrees": 46.404379285384294,
+        "outerHalfAngleDegrees": 47.50000416772008,
+        "attenuation": 0.00011121003289397266,
+        "incidentUnshadowedRGB": [
+          0.15393050091689897,
+          0.19795506676574004,
+          0.22242006578794532
+        ]
+      },
+      "assumptions": [
+        "ReferenceEffectiveRange × explicit global rangeScale1; runtime scale not captured",
+        "Version2_1/model2 CPU branch chosen from shipped LGHT2 config tag; tag→global writer still partial",
+        "Use default attenuation-table row0 and original half quantization",
+        "Source model2 custom-only startDistance branch and original half truncation retained",
+        "No native shadow map/projection/cluster data is available"
+      ],
+      "blackbodySource": false,
+      "sourceTemperature": 6400.0,
+      "sourceCustomAttenuation": false,
+      "toleranceBits": 1006632960,
+      "extendedBits": 555631616
+    },
+    {
+      "sourceInstance": 474,
+      "sourceName": "st30_101_P_x_tram_A_pivot_green",
+      "type": "point",
+      "position": [
+        -7.757718563079834,
+        -0.8697338104248047,
+        -155.30380249023438
+      ],
+      "direction": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "range": 5.0,
+      "falloff": 1.0,
+      "coneA": 1.0,
+      "coneB": 0.0,
+      "coefficients": [
+        0.0099945068359375,
+        0.0,
+        1.0
+      ],
+      "exponent": 4.0,
+      "startDistance": 0.0,
+      "color": [
+        1.267457365989685,
+        3.9788734912872314,
+        2.8769447803497314
+      ],
+      "iesRow": -1,
+      "sourceIES": "",
+      "sourcePowerUnit": {
+        "value": 0,
+        "name": "Lumen"
+      },
+      "rawIntensity": 50.0,
+      "rawColor": [
+        0.31854677200317383,
+        1.0,
+        0.7230551242828369
+      ],
+      "sourceMinRoughness": 0.699999988079071,
+      "sourceSpecularScale": 1.0,
+      "sourcePacked": {
+        "toleranceBits": "0x3c000000",
+        "extXBits": "0x211e4400",
+        "c0HalfBits": "0x211e",
+        "c1HalfBits": "0x0000",
+        "c2HalfBits": "0x3c00",
+        "exponentHalfBits": "0x4400"
+      },
+      "sourceRadius": 0.009999999776482582,
+      "sourceShadowEnabled": false,
+      "sourceLightChannelMode": 0,
+      "centerQuery": {
+        "distance": 5.202390876475944,
+        "cosToAxis": -0.33376811212288215,
+        "angleDegrees": 109.49764488431008,
+        "outerHalfAngleDegrees": 180.00000500895632,
+        "attenuation": 0.0,
+        "incidentUnshadowedRGB": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "assumptions": [
+        "ReferenceEffectiveRange × explicit global rangeScale1; runtime scale not captured",
+        "Version2_1/model2 CPU branch chosen from shipped LGHT2 config tag; tag→global writer still partial",
+        "Use default attenuation-table row0 and original half quantization",
+        "Source model2 custom-only startDistance branch and original half truncation retained",
+        "No native shadow map/projection/cluster data is available"
+      ],
+      "blackbodySource": false,
+      "sourceTemperature": 6400.0,
+      "sourceCustomAttenuation": false,
+      "toleranceBits": 1006632960,
+      "extendedBits": 555631616
+    },
+    {
+      "sourceInstance": 514,
+      "sourceName": "st30_101_S_x_tram_A_fill_green",
+      "type": "spot",
+      "position": [
+        -9.051301956176758,
+        0.12966489791870117,
+        -158.0301971435547
+      ],
+      "direction": [
+        1.3439292373346435e-07,
+        -0.4558744640577691,
+        0.890044084874465
+      ],
+      "range": 15.0,
+      "falloff": 1.0,
+      "coneA": -2.414213180541992,
+      "coneB": 4.828426837921143,
+      "coefficients": [
+        0.0099945068359375,
+        0.0,
+        1.0
+      ],
+      "exponent": 4.0,
+      "startDistance": 0.0,
+      "color": [
+        47.78201675415039,
+        150.0,
+        108.45826721191406
+      ],
+      "iesRow": -1,
+      "sourceIES": "",
+      "sourcePowerUnit": {
+        "value": 1,
+        "name": "Candela"
+      },
+      "rawIntensity": 150.0,
+      "rawColor": [
+        0.31854677200317383,
+        1.0,
+        0.7230551242828369
+      ],
+      "sourceMinRoughness": 1.0,
+      "sourceSpecularScale": 1.0,
+      "sourcePacked": {
+        "toleranceBits": "0x3c000000",
+        "extXBits": "0x211e4400",
+        "c0HalfBits": "0x211e",
+        "c1HalfBits": "0x0000",
+        "c2HalfBits": "0x3c00",
+        "exponentHalfBits": "0x4400"
+      },
+      "sourceRadius": 0.05000000074505806,
+      "sourceShadowEnabled": false,
+      "sourceLightChannelMode": 0,
+      "centerQuery": {
+        "distance": 6.464441977957797,
+        "cosToAxis": 0.8818317321215869,
+        "angleDegrees": 28.135880235860903,
+        "outerHalfAngleDegrees": 60.000001669652114,
+        "attenuation": 0.022301953283236427,
+        "incidentUnshadowedRGB": [
+          1.0656323054298822,
+          3.345292992485464,
+          2.4188312085408805
+        ]
+      },
+      "assumptions": [
+        "ReferenceEffectiveRange × explicit global rangeScale1; runtime scale not captured",
+        "Version2_1/model2 CPU branch chosen from shipped LGHT2 config tag; tag→global writer still partial",
+        "Use default attenuation-table row0 and original half quantization",
+        "Source model2 custom-only startDistance branch and original half truncation retained",
+        "No native shadow map/projection/cluster data is available"
+      ],
+      "blackbodySource": false,
+      "sourceTemperature": 6400.0,
+      "sourceCustomAttenuation": false,
+      "toleranceBits": 1006632960,
+      "extendedBits": 555631616
+    },
+    {
+      "sourceInstance": 530,
+      "sourceName": "st30_101_S_x_tram_A_fill_L",
+      "type": "spot",
+      "position": [
+        -18.06688690185547,
+        -1.375133991241455,
+        -161.6461181640625
+      ],
+      "direction": [
+        0.8983184298929928,
+        0.13248809590957994,
+        0.4188924718311874
+      ],
+      "range": 10.5,
+      "falloff": 1.0,
+      "coneA": -3.501704692840576,
+      "coneB": 4.571150779724121,
+      "coefficients": [
+        0.0099945068359375,
+        0.0,
+        1.0
+      ],
+      "exponent": 4.0,
+      "startDistance": 0.0,
+      "color": [
+        10000.0,
+        9258.40625,
+        7874.123046875
+      ],
+      "iesRow": -1,
+      "sourceIES": "",
+      "sourcePowerUnit": {
+        "value": 1,
+        "name": "Candela"
+      },
+      "rawIntensity": 10000.0,
+      "rawColor": [
+        1.0,
+        0.9258406162261963,
+        0.7874122858047485
+      ],
+      "sourceMinRoughness": 0.800000011920929,
+      "sourceSpecularScale": 1.0,
+      "sourcePacked": {
+        "toleranceBits": "0x3c000000",
+        "extXBits": "0x211e4400",
+        "c0HalfBits": "0x211e",
+        "c1HalfBits": "0x0000",
+        "c2HalfBits": "0x3c00",
+        "exponentHalfBits": "0x4400"
+      },
+      "sourceRadius": 0.05000000074505806,
+      "sourceShadowEnabled": false,
+      "sourceLightChannelMode": 0,
+      "centerQuery": {
+        "distance": 10.483455428351313,
+        "cosToAxis": 0.8318260412405705,
+        "angleDegrees": 33.713223931839956,
+        "outerHalfAngleDegrees": 40.00000225146627,
+        "attenuation": 7.801343200573092e-08,
+        "incidentUnshadowedRGB": [
+          0.0007801343200573093,
+          0.0007222800464658092,
+          0.0006142873629221416
+        ]
+      },
+      "assumptions": [
+        "ReferenceEffectiveRange × explicit global rangeScale1; runtime scale not captured",
+        "Version2_1/model2 CPU branch chosen from shipped LGHT2 config tag; tag→global writer still partial",
+        "Use default attenuation-table row0 and original half quantization",
+        "Source model2 custom-only startDistance branch and original half truncation retained",
+        "No native shadow map/projection/cluster data is available"
+      ],
+      "blackbodySource": false,
+      "sourceTemperature": 6400.0,
+      "sourceCustomAttenuation": false,
+      "toleranceBits": 1006632960,
+      "extendedBits": 555631616
+    },
+    {
+      "sourceInstance": 538,
+      "sourceName": "st30_101_S_x_tram_A_indirect",
+      "type": "spot",
+      "position": [
+        -8.852301597595215,
+        -11.636520385742188,
+        -154.1067352294922
+      ],
+      "direction": [
+        2.483314798023303e-16,
+        0.8290376996349023,
+        -0.5591927150670595
+      ],
+      "range": 15.0,
+      "falloff": 1.5,
+      "coneA": -8.668886184692383,
+      "coneB": 10.009967803955078,
+      "coefficients": [
+        0.0099945068359375,
+        0.0,
+        1.0
+      ],
+      "exponent": 4.0,
+      "startDistance": 0.0,
+      "color": [
+        1384.1422119140625,
+        1574.8245849609375,
+        2000.0
+      ],
+      "iesRow": -1,
+      "sourceIES": "",
+      "sourcePowerUnit": {
+        "value": 1,
+        "name": "Candela"
+      },
+      "rawIntensity": 2000.0,
+      "rawColor": [
+        0.6920710802078247,
+        0.7874122858047485,
+        1.0
+      ],
+      "sourceMinRoughness": 0.6000000238418579,
+      "sourceSpecularScale": 1.0,
+      "sourcePacked": {
+        "toleranceBits": "0x3c000000",
+        "extXBits": "0x211e4400",
+        "c0HalfBits": "0x211e",
+        "c1HalfBits": "0x0000",
+        "c2HalfBits": "0x3c00",
+        "exponentHalfBits": "0x4400"
+      },
+      "sourceRadius": 0.05000000074505806,
+      "sourceShadowEnabled": false,
+      "sourceLightChannelMode": 0,
+      "centerQuery": {
+        "distance": 8.51537231288329,
+        "cosToAxis": 0.7409754722932452,
+        "angleDegrees": 42.185422736791594,
+        "outerHalfAngleDegrees": 30.000000834826057,
+        "attenuation": 0.0,
+        "incidentUnshadowedRGB": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "assumptions": [
+        "ReferenceEffectiveRange × explicit global rangeScale1; runtime scale not captured",
+        "Version2_1/model2 CPU branch chosen from shipped LGHT2 config tag; tag→global writer still partial",
+        "Use default attenuation-table row0 and original half quantization",
+        "Source model2 custom-only startDistance branch and original half truncation retained",
+        "No native shadow map/projection/cluster data is available"
+      ],
+      "blackbodySource": false,
+      "sourceTemperature": 6400.0,
+      "sourceCustomAttenuation": false,
+      "toleranceBits": 1006632960,
+      "extendedBits": 555631616
+    },
+    {
+      "sourceInstance": 2817,
+      "sourceName": "st30_101_S_o_enkei_etc_key",
+      "type": "spot",
+      "position": [
+        -175.60614013671875,
+        237.38626098632812,
+        83.75526428222656
+      ],
+      "direction": [
+        0.045706809633527766,
+        -0.07575417301224677,
+        -0.9960784069662163
+      ],
+      "range": 403.0,
+      "falloff": 1.0,
+      "coneA": -7.7377119064331055,
+      "coneB": 8.791394233703613,
+      "coefficients": [
+        0.0099945068359375,
+        0.0,
+        1.0
+      ],
+      "exponent": 4.0,
+      "startDistance": 348.0,
+      "color": [
+        3.0,
+        2.893670082092285,
+        2.7899999618530273
+      ],
+      "iesRow": -1,
+      "sourceIES": "",
+      "sourcePowerUnit": {
+        "value": 1,
+        "name": "Candela"
+      },
+      "rawIntensity": 3.0,
+      "rawColor": [
+        1.0,
+        0.9645566940307617,
+        0.9300000071525574
+      ],
+      "sourceMinRoughness": 0.0,
+      "sourceSpecularScale": 1.0,
+      "sourcePacked": {
+        "toleranceBits": "0x3c000000",
+        "extXBits": "0x211e4400",
+        "c0HalfBits": "0x211e",
+        "c1HalfBits": "0x0000",
+        "c2HalfBits": "0x3c00",
+        "exponentHalfBits": "0x4400"
+      },
+      "sourceRadius": 0.05000000074505806,
+      "sourceShadowEnabled": true,
+      "sourceLightChannelMode": 0,
+      "centerQuery": {
+        "distance": 375.8486656820019,
+        "cosToAxis": 0.6974614092450203,
+        "angleDegrees": 45.77631431441413,
+        "outerHalfAngleDegrees": 28.34000190422991,
+        "attenuation": 0.0,
+        "incidentUnshadowedRGB": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "assumptions": [
+        "ReferenceEffectiveRange × explicit global rangeScale1; runtime scale not captured",
+        "Version2_1/model2 CPU branch chosen from shipped LGHT2 config tag; tag→global writer still partial",
+        "Use default attenuation-table row0 and original half quantization",
+        "Source model2 custom-only startDistance branch and original half truncation retained",
+        "No native shadow map/projection/cluster data is available",
+        "Custom-attenuation resource is named Default; row0 is the explicit offline selection, runtime string-to-index setter not closed"
+      ],
+      "blackbodySource": false,
+      "sourceTemperature": 6000.0,
+      "sourceCustomAttenuation": true,
+      "toleranceBits": 1006632960,
+      "extendedBits": 555631616
+    }
+  ],
+  "hostAdapter": {
+    "unitEV": -7.0,
+    "rangeScale": 1.0,
+    "sourceModel": 2,
+    "sourceModelName": "Version2_1",
+    "attenuationStartStatus": "Model2: UseCustomAttenuation ? min(R-.01, authoredStart) : 0; native144f6138b/144f61944. Not global+3650.",
+    "nativeHalfPacking": "Float32 mantissa truncation at13 bits, not nearest half rounding",
+    "arithmetic": "Native scalar packing/color/cone operations reproduced as float32; cosf/powf use numpy float32 libm and are not claimed bit-identical to target UCRT",
+    "selectedCurveDefaultRow": [
+      1.0,
+      0.0,
+      0.001
+    ],
+    "curveTableOrder": "c2,c1,c0; c0 is floored to .01 before half conversion",
+    "sunQuaternionAdapter": "travel = rotate(authoredDirectionQuaternion, +Z); native sun CPU sign writer not closed",
+    "blackbodyAdapter": "When true, retain serialized Color as an authoring-color proxy; native computed owner+0x50 temperature color not reconstructed here"
+  },
+  "sourceLimitations": [
+    "Static scene candidate, not the unknown screenshot room/camera/pose or a captured active light list.",
+    "Main chapter chp_m030 explicitly includes checkpoint52 st30_101; other third-chapter scenes also exist.",
+    "Checkpoint warp position plus identity character rotation is an offline placement; static scene transforms/folder offsets are verified but animation overrides remain unknown.",
+    "Local SpotLight default -Z and CPU cone/half-truncated coefficients/custom-only startDistance are recovered; runtime LightSourceModel and rangeScale remain unobserved.",
+    "Sun parameter ownership, color and intensity600 are source values; quaternion-to-native DL_Direction CPU writer/sign is not closed. Study profile chooses explicit +Z travel adapter.",
+    "Blackbody-enabled lights currently use serialized author RGB as a proxy, rather than a claim that native temperature conversion was restored.",
+    "No IES paths on all282 ST30_101 locals. Projection/capsule lights are not silently approximated as spots and do not enter the selected author-range AABB.",
+    "Preserve all candidate lights instead of nearest4; candidates outside cone contribute zero in the exact punctual attenuation helper. Native culling/priority/light channels and source scene shadow blockers are not reconstructed.",
+    "hostUnitEV=-7 is an explicit host radiometric/display adapter, not source exposure, lux calibration or a CPU photometric conversion.",
+    "Body rendering may still use a four-light proxy; full local array is for source hair input and needs its own coverage report."
+  ],
+  "sources": [
+    {
+      "path": "E:\\REA\\pragmata\\hair_lighting\\extracted\\natives\\stm\\light\\scene\\stage\\st30\\st30_101\\st30_101_light.scn.21",
+      "sha256": "43f5fd7918c1ffea65697b349ca6aec0449d398d0fa4deadd6c0968d6001ec81"
+    },
+    {
+      "path": "E:\\REA\\pragmata\\hair_lighting\\extracted\\natives\\stm\\light\\scene\\stage\\st30\\st30_broad\\st30_broad_light.scn.21",
+      "sha256": "2ca53fde8ba5aad6a4dac740f0ab113479029fac838e6860c4ccb74358cfe785"
+    },
+    {
+      "path": "E:\\REA\\pragmata\\hair_appearance15\\scene_direct_inventory.json",
+      "sha256": "7cc0f64de58ae9f18bbbac39c64a39e32df23f8c2c13e9fdbb23993379eb5dbb"
+    }
+  ],
+  "parameterOrigin": "Serialized SCN ownership/transforms/color/intensity/range/cone; CPU-proven Spot -Z transform, power-unit conversion and model2 half-packed attenuation; explicit offline adapters for renderer globals, sun sign, blackbody color and host EV. Runtime active set/shadows/room unobserved.",
+  "source": {
+    "hostAdapter": {
+      "unitEV": -7.0,
+      "rangeScale": 1.0,
+      "sourceModel": 2,
+      "sourceModelName": "Version2_1",
+      "attenuationStartStatus": "Model2: UseCustomAttenuation ? min(R-.01, authoredStart) : 0; native144f6138b/144f61944. Not global+3650.",
+      "nativeHalfPacking": "Float32 mantissa truncation at13 bits, not nearest half rounding",
+      "arithmetic": "Native scalar packing/color/cone operations reproduced as float32; cosf/powf use numpy float32 libm and are not claimed bit-identical to target UCRT",
+      "selectedCurveDefaultRow": [
+        1.0,
+        0.0,
+        0.001
+      ],
+      "curveTableOrder": "c2,c1,c0; c0 is floored to .01 before half conversion",
+      "sunQuaternionAdapter": "travel = rotate(authoredDirectionQuaternion, +Z); native sun CPU sign writer not closed",
+      "blackbodyAdapter": "When true, retain serialized Color as an authoring-color proxy; native computed owner+0x50 temperature color not reconstructed here"
+    },
+    "sourceLimitations": [
+      "Static scene candidate, not the unknown screenshot room/camera/pose or a captured active light list.",
+      "Main chapter chp_m030 explicitly includes checkpoint52 st30_101; other third-chapter scenes also exist.",
+      "Checkpoint warp position plus identity character rotation is an offline placement; static scene transforms/folder offsets are verified but animation overrides remain unknown.",
+      "Local SpotLight default -Z and CPU cone/half-truncated coefficients/custom-only startDistance are recovered; runtime LightSourceModel and rangeScale remain unobserved.",
+      "Sun parameter ownership, color and intensity600 are source values; quaternion-to-native DL_Direction CPU writer/sign is not closed. Study profile chooses explicit +Z travel adapter.",
+      "Blackbody-enabled lights currently use serialized author RGB as a proxy, rather than a claim that native temperature conversion was restored.",
+      "No IES paths on all282 ST30_101 locals. Projection/capsule lights are not silently approximated as spots and do not enter the selected author-range AABB.",
+      "Preserve all candidate lights instead of nearest4; candidates outside cone contribute zero in the exact punctual attenuation helper. Native culling/priority/light channels and source scene shadow blockers are not reconstructed.",
+      "hostUnitEV=-7 is an explicit host radiometric/display adapter, not source exposure, lux calibration or a CPU photometric conversion.",
+      "Body rendering may still use a four-light proxy; full local array is for source hair input and needs its own coverage report."
+    ],
+    "sources": [
+      {
+        "path": "E:\\REA\\pragmata\\hair_lighting\\extracted\\natives\\stm\\light\\scene\\stage\\st30\\st30_101\\st30_101_light.scn.21",
+        "sha256": "43f5fd7918c1ffea65697b349ca6aec0449d398d0fa4deadd6c0968d6001ec81"
+      },
+      {
+        "path": "E:\\REA\\pragmata\\hair_lighting\\extracted\\natives\\stm\\light\\scene\\stage\\st30\\st30_broad\\st30_broad_light.scn.21",
+        "sha256": "2ca53fde8ba5aad6a4dac740f0ab113479029fac838e6860c4ccb74358cfe785"
+      },
+      {
+        "path": "E:\\REA\\pragmata\\hair_appearance15\\scene_direct_inventory.json",
+        "sha256": "7cc0f64de58ae9f18bbbac39c64a39e32df23f8c2c13e9fdbb23993379eb5dbb"
+      }
+    ],
+    "inputProfileSha256": "c9e6f793689aa90404fbdb8b4fd6333a11c3ec4ded23fb7d81657cd46f8bf4b8",
+    "packaging": "Promote original sourcePacked hex words to loader uint32 fields; preserve native truncated half coefficients without re-quantization. All placement, color, intensity and study assumptions remain as supplied."
+  }
+}

@@ -32,6 +32,8 @@ extern "C" { __declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001; }
 #include "imgui_impl_opengl3.h"
 #include "ApplicationWindow/public/window.h"
 #include "Model/Public/model_module.h"
+#include "Model/Test/model_geometry_revision_test.h"
+#include "Model/Public/character_material_profile.h"
 #include "Model/Public/skeletal_asset.h"
 #include "Model/Public/vmd_animation.h"
 #include "Model/Public/cloth_asset.h"
@@ -43,6 +45,12 @@ extern "C" { __declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001; }
 #include "Render/Public/Pipeline/material_render_pipeline.h"
 #include "Render/Public/Pipeline/toon_render_pipeline.h"
 #include "skin_preview_profile.h"
+#include "strand_hair_preview.h"
+#include "hair_lighting_profile.h"
+#include "hair_direct_lighting_profile.h"
+#include "hair_linear_capture.h"
+#include "source_hair_display.h"
+#include "diana_camera_reference.h"
 #define STB_IMAGE_WRITE_STATIC
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #define STBIW_WINDOWS_UTF8
@@ -59,6 +67,32 @@ using namespace std::chrono_literals;
 void Check(bool value, const std::string& message) { if (!value) throw std::runtime_error(message); }
 std::string Utf8(const fs::path& path) { auto text=path.u8string(); return {text.begin(),text.end()}; }
 fs::path Path(const std::string& text) { return fs::path(std::u8string(text.begin(),text.end())); }
+bool NativeHairMomentKeyMatches(const Render::StrandMaterial& material){
+    const float ratio=(material.ior-1.f)/(material.ior+1.f);
+    return material.nativeMomentParameters==glm::vec4(material.ior,ratio*ratio,material.azimuthalRoughness,material.cuticleShift);
+}
+const char* NativeHairMomentStatus(const Render::StrandMaterial& material){
+    if(!material.nativeMomentTable)return "legacy-no-table";
+    if(!material.useNativeMomentLut)return "legacy-disabled";
+    return NativeHairMomentKeyMatches(material)?"native64x64x16":"legacy-key-mismatch";
+}
+const char* HairOitMode(const Render::MaterialPipelineSettings& settings){
+    if(settings.strandNativeOit)return settings.strandNativeOitLayers==8?"native8":"native4";
+    return settings.strandFrontLayerTransparency?"depth-groups":"weighted";
+}
+bool NativeDSUnitFraction(float value){return std::isfinite(value)&&value>=0.f&&value<=1.f;}
+bool NativeDSInjectionQuality(float value){return std::isfinite(value)&&value>=0.f&&value<=3.f&&std::floor(value)==value;}
+void ApplyNativeDSInjectionParameters(Render::StrandMaterial& material,float rate,float lodFraction,float quality,bool minLodFactor){
+    Check(!material.sourceDSVolume||NativeDSUnitFraction(rate),"Native DSVolume injection rate must be finite and within0..1 (source clamps requested rate to at least.01 before count calculation)");
+    Check(!material.sourceDSVolume||NativeDSUnitFraction(lodFraction),"Native DSVolume LOD fraction must be finite and within0..1");
+    Check(!material.sourceDSVolume||NativeDSInjectionQuality(quality),"Native DSVolume injection quality must be an integer0..3");
+    // Legacy rendering ignores invalid unused source settings, including NaN.
+    // Keep finite usable settings so enabling the native UI later is predictable.
+    if(NativeDSUnitFraction(rate))material.volumeInjectionRate=rate;
+    if(NativeDSUnitFraction(lodFraction))material.volumeInjectionLodFraction=lodFraction;
+    if(NativeDSInjectionQuality(quality))material.volumeInjectionQuality=std::uint32_t(quality);
+    material.volumeInjectionMinLodFactor=minLodFactor;
+}
 // Keep the system scheduling policy unless a controlled comparison explicitly
 // requests MODEL_PREVIEW_QOS=1. Priority and system power policy stay unchanged.
 // Resolve dynamically so older Windows versions still run normally.
@@ -103,6 +137,60 @@ public:
 struct Options {
     fs::path source, package, screenshot, retargetSource,character,captureDirectory,hair;
     fs::path benchmarkOutput,skinProfile;
+    fs::path materialProfile;
+    fs::path hairVolumeReport;
+    fs::path hairLinearCapture;
+    fs::path hairLightingProfile;
+    fs::path hairDirectProfile;
+    bool sourceEnvironmentOverride=false;
+    bool sourceDirectOverride=false;
+    float directSunScale=1.f,directPunctualScale=1.f;
+    Render::DirectionalShadowFilter sunShadowFilter=Render::DirectionalShadowFilter::Tent;
+    float sunShadowRadius=.003f;
+    float sunSurfaceShadowRadius=0.f;
+    Render::StrandShadowCoverage hairShadowCoverage=Render::StrandShadowCoverage::Ordered;
+    float hairShadowExtinctionScale=1.f;
+    bool diana=false,dianaTest=false,dianaFace=false;
+    std::string cameraReference;
+    fs::path cameraReferenceProfile,cameraReferenceExport;
+    bool noSkinDiffusion=false,noEyeRefraction=false,noEyeShell=false,noHairScattering=false,noHairMultipleScattering=false,noHairVolume=false;
+    bool noHairOpaqueShadows=false;
+    float hairOpaqueShadowPower=1.f;
+    bool hairOpaqueShadowPowerSet=false;
+    int hairRoughnessInput=-1; // absent uses the material/profile default
+    float hairHostAmbientScale=-1.f; // absent keeps the lighting profile default
+    bool noHairSourceColor=false;
+    bool noHairNtt=false;
+    bool noHairSourceIndirect=false;
+    bool noHairMotion=false,noHairNativeLut=false,hairDynamic=false;
+    int hairVolumeFilter=-1;
+    int hairVolumeResolution=-1;
+    int hairVolumeIntegration=-1,hairPairedTransparency=-1,hairAdaptiveHistory=-1;
+    float hairFastMotionPixels=-1;
+    int hairProxyBlockers=-1;
+    int hairStableCache=-1,hairPointIbl=-1,hairDebug=0;
+    int hairShading=-1;
+    int hairGeometry=-1;
+    bool hairShutter=false,hairOrbitStudy=false;
+    bool noHairNearShadow=false;
+    int hairTangents=-1,hairIblIncident=-1;
+    int hairCoverage=-1;
+    int hairTransparency=-1;
+    int hairOit=-1; // Explicit stage2 selection: 0=host depth groups, 4/8=native arithmetic study.
+    int hairDsVolume=-1; // Explicit stage3 selection: 0=legacy density, 1=source Texture occupancy.
+    float hairDsInjectionRate=1.f,hairDsLodFraction=1.f,hairDsInjectionQuality=2.f;
+    bool hairDsInjectionRateSet=false,hairDsLodFractionSet=false,hairDsInjectionQualitySet=false;
+    int hairDsMinLod=-1;
+    int hairQuality=1;
+    int displayStudy=0;
+    bool noHairSourceDirect=false,noHairBlockers=false,noHairCastShadows=false,noHairTemporalDepth=false;
+    bool hairVolumeSky=false;
+    int hairIbl=-1;
+    bool noHairBackscatter=false;
+    Render::SkinDiffusionKernel skinKernel=Render::SkinDiffusionKernel::SourceBurley;
+    fs::path strandHair;
+    bool strandTest=false;
+    HairSimulation::GravityMode gravityMode=HairSimulation::GravityMode::Normal;
     std::string previewQos="unavailable";
     std::vector<fs::path> animations, vmds;
     bool smoke=false, motionTest=false,clothTest=false,equipTest=false,cleanClothView=false,meshRegions=false;
@@ -123,12 +211,233 @@ Options Parse(const std::vector<std::string>& args) {
     for (std::size_t i=1;i<args.size();++i) {
         const auto& a=args[i];
         if (a=="--smoke-test") result.smoke=true;
+        else if(a=="--diana"||a=="--diana-test"||a=="--diana-face"){result.diana=true;result.dianaTest=result.dianaTest||a=="--diana-test";result.dianaFace=result.dianaFace||a=="--diana-face";if(result.dianaTest)result.smoke=true;}
+        else if(a=="--no-skin-diffusion")result.noSkinDiffusion=true;
+        else if(a=="--no-eye-refraction")result.noEyeRefraction=true;
+        else if(a=="--no-eye-shell")result.noEyeShell=true;
+        else if(a=="--no-hair-scattering")result.noHairScattering=true;
+        else if(a=="--no-hair-multiple-scattering")result.noHairMultipleScattering=true;
+        else if(a=="--no-hair-volume")result.noHairVolume=true;
+        else if(a=="--no-hair-opaque-shadows")result.noHairOpaqueShadows=true;
+        else if(a=="--no-hair-source-color")result.noHairSourceColor=true;
+        else if(a=="--no-hair-ntt")result.noHairNtt=true;
+        else if(a=="--no-hair-source-indirect")result.noHairSourceIndirect=true;
+        else if(a=="--no-hair-motion")result.noHairMotion=true;
+        else if(a=="--no-hair-native-lut")result.noHairNativeLut=true;
+        else if(a=="--hair-dynamic")result.hairDynamic=true;
+        else if(a=="--hair-shadow-cache"){
+            Check(++i<args.size(),"Missing hair opaque-cache mode");
+            Check(args[i]=="phase"||args[i]=="stable","Hair shadow cache must be phase or stable");
+            result.hairStableCache=args[i]=="stable"?1:0;
+        }
+        else if(a=="--hair-ibl-paths"){
+            Check(++i<args.size(),"Missing hair IBL path mode");
+            Check(args[i]=="voxel"||args[i]=="point","Hair IBL paths must be voxel or point");
+            result.hairPointIbl=args[i]=="point"?1:0;
+        }
+        else if(a=="--hair-debug"){
+            Check(++i<args.size(),"Missing hair diagnostic mode");
+            const std::array<std::string,15> names{"beauty","base","direct","indirect","direct-ballistic","direct-multiple","ibl-ballistic","ibl-multiple","r","tt","trt","n-sun","n-ibl","visibility","incident"};
+            const auto found=std::find(names.begin(),names.end(),args[i]);Check(found!=names.end(),"Unknown hair diagnostic mode");
+            result.hairDebug=int(found-names.begin());
+        }
+        else if(a=="--hair-shading"){
+            Check(++i<args.size(),"Missing hair shading mode");
+            Check(args[i]=="fragment"||args[i]=="segment","Hair shading must be fragment or segment");
+            result.hairShading=args[i]=="segment"?1:0;
+        }
+        else if(a=="--hair-geometry"){
+            Check(++i<args.size(),"Missing hair geometry mode");
+            Check(args[i]=="linear"||args[i]=="curve","Invalid hair geometry mode (linear, curve)");
+            result.hairGeometry=args[i]=="curve"?1:0;
+        }
+        else if(a=="--hair-shutter")result.hairShutter=true;
+        else if(a=="--hair-orbit-study")result.hairOrbitStudy=true;
+        else if(a=="--hair-proxy-blockers"){
+            Check(++i<args.size(),"Missing head proxy blocker mode");
+            Check(args[i]=="off"||args[i]=="on","Head proxy blockers must be off or on");
+            result.hairProxyBlockers=args[i]=="on"?1:0;
+        }
+        else if(a=="--hair-volume-integration"){
+            Check(++i<args.size(),"Missing hair volume integration mode");
+            Check(args[i]=="growth"||args[i]=="exact","Hair volume integration must be growth or exact");
+            result.hairVolumeIntegration=args[i]=="exact"?1:0;
+        }
+        else if(a=="--hair-transparency-passes"){
+            Check(++i<args.size(),"Missing hair transparency pass mode");
+            Check(args[i]=="legacy"||args[i]=="paired","Hair transparency passes must be legacy or paired");
+            result.hairPairedTransparency=args[i]=="paired"?1:0;
+        }
+        else if(a=="--hair-history"){
+            Check(++i<args.size(),"Missing hair history mode");
+            Check(args[i]=="legacy"||args[i]=="adaptive","Hair history must be legacy or adaptive");
+            result.hairAdaptiveHistory=args[i]=="adaptive"?1:0;
+        }
+        else if(a=="--hair-fast-motion"){
+            Check(++i<args.size(),"Missing hair motion threshold");std::size_t used=0;
+            result.hairFastMotionPixels=std::stof(args[i],&used);
+            Check(used==args[i].size()&&std::isfinite(result.hairFastMotionPixels)&&result.hairFastMotionPixels>=1&&result.hairFastMotionPixels<=256,"Hair motion threshold must be 1..256 pixels");
+        }
+        else if(a=="--no-hair-near-shadow")result.noHairNearShadow=true;
+        else if(a=="--hair-tangents"){
+            Check(++i<args.size(),"Missing hair tangent mode");
+            Check(args[i]=="guide"||args[i]=="render","Hair tangents must be guide or render");
+            result.hairTangents=args[i]=="render"?1:0;
+        }
+        else if(a=="--hair-ibl-incident"){
+            Check(++i<args.size(),"Missing hair IBL incident mode");
+            Check(args[i]=="angular"||args[i]=="spatial","Hair IBL incident must be angular or spatial");
+            result.hairIblIncident=args[i]=="spatial"?1:0;
+        }
+        else if(a=="--hair-volume-resolution"){
+            Check(++i<args.size(),"Missing hair shadow volume budget");
+            Check(args[i]=="16"||args[i]=="32"||args[i]=="48"||args[i]=="64"||args[i]=="128","Hair volume budget must be16,32,48,64 or128");
+            result.hairVolumeResolution=std::stoi(args[i]);
+        }
+        else if(a=="--hair-volume-filter"){
+            Check(++i<args.size(),"Missing hair volume filter");
+            Check(args[i]=="linear"||args[i]=="legacy","Invalid hair volume filter (linear, legacy)");
+            result.hairVolumeFilter=args[i]=="linear"?1:0;
+        }
+        else if(a=="--hair-ds-volume"){
+            Check(++i<args.size(),"Missing hair DSVolume mode");
+            Check(args[i]=="legacy"||args[i]=="native","Hair DSVolume must be legacy or native");
+            result.hairDsVolume=args[i]=="native"?1:0;
+        }
+        else if(a=="--hair-ds-injection-rate"||a=="--hair-ds-lod-fraction"||a=="--hair-ds-quality"){
+            Check(++i<args.size(),"Missing value for "+a);std::size_t used=0;
+            const float value=std::stof(args[i],&used);
+            Check(used==args[i].size(),"Expected a numeric value for "+a);
+            if(a=="--hair-ds-injection-rate"){result.hairDsInjectionRate=value;result.hairDsInjectionRateSet=true;}
+            else if(a=="--hair-ds-lod-fraction"){result.hairDsLodFraction=value;result.hairDsLodFractionSet=true;}
+            else {result.hairDsInjectionQuality=value;result.hairDsInjectionQualitySet=true;}
+        }
+        else if(a=="--hair-ds-min-lod")result.hairDsMinLod=1;
+        else if(a=="--no-hair-ds-min-lod")result.hairDsMinLod=0;
+        else if(a=="--hair-coverage"){
+            Check(++i<args.size(),"Missing hair coverage mode");
+            Check(args[i]=="area"||args[i]=="legacy","Invalid hair coverage mode (area, legacy)");
+            result.hairCoverage=args[i]=="area"?1:0;
+        }
+        else if(a=="--hair-transparency"){
+            Check(++i<args.size(),"Missing hair transparency mode");
+            Check(args[i]=="weighted"||args[i]=="layered","Invalid hair transparency mode (weighted, layered)");
+            result.hairTransparency=args[i]=="layered"?1:0;
+        }
+        else if(a=="--hair-oit"){
+            Check(++i<args.size(),"Missing hair OIT mode");
+            Check(args[i]=="depth-groups"||args[i]=="native4"||args[i]=="native8","Hair OIT must be depth-groups, native4 or native8");
+            result.hairOit=args[i]=="native4"?4:args[i]=="native8"?8:0;
+        }
+        else if(a=="--display"){
+            Check(++i<args.size(),"Missing display mode");const std::array<std::string,3> modes{"aces","st30-100","st30-200"};
+            auto found=std::find(modes.begin(),modes.end(),args[i]);Check(found!=modes.end(),"Invalid display (aces, st30-100, st30-200)");result.displayStudy=int(found-modes.begin());
+        }
+        else if(a=="--hair-quality"){
+            Check(++i<args.size(),"Missing hair quality");
+            const std::array<std::string,3> modes{"balanced","high","ultra"};
+            auto found=std::find(modes.begin(),modes.end(),args[i]);Check(found!=modes.end(),"Invalid hair quality (balanced, high, ultra)");
+            result.hairQuality=int(found-modes.begin());
+        }
+        else if(a=="--no-hair-source-direct")result.noHairSourceDirect=true;
+        else if(a=="--no-hair-blockers")result.noHairBlockers=true;
+        else if(a=="--no-hair-cast-shadows")result.noHairCastShadows=true;
+        else if(a=="--hair-opaque-shadow-power"){
+            Check(++i<args.size(),"Missing hair opaque shadow power");std::size_t used=0;
+            result.hairOpaqueShadowPower=std::stof(args[i],&used);result.hairOpaqueShadowPowerSet=true;
+            Check(used==args[i].size()&&std::isfinite(result.hairOpaqueShadowPower)&&result.hairOpaqueShadowPower>=.05f&&result.hairOpaqueShadowPower<=4.f,"Hair opaque shadow power must be finite and within0.05..4");
+        }
+        else if(a=="--hair-roughness-input"){
+            Check(++i<args.size(),"Missing hair roughness input policy");
+            Check(args[i]=="raw"||args[i]=="source","Hair roughness input must be raw or source");
+            result.hairRoughnessInput=args[i]=="source"?1:0;
+        }
+        else if(a=="--sun-shadow-filter"){
+            Check(++i<args.size(),"Missing sun shadow filter");
+            Check(args[i]=="tent"||args[i]=="source-poisson8","Sun shadow filter must be tent or source-poisson8");
+            result.sunShadowFilter=args[i]=="source-poisson8"?Render::DirectionalShadowFilter::SourcePoisson8:Render::DirectionalShadowFilter::Tent;
+        }
+        else if(a=="--hair-shadow-coverage"){
+            Check(++i<args.size(),"Missing hair shadow coverage mode");
+            Check(args[i]=="ordered"||args[i]=="deep-opacity","Hair shadow coverage must be ordered or deep-opacity");
+            result.hairShadowCoverage=args[i]=="deep-opacity"?Render::StrandShadowCoverage::DeepOpacity:Render::StrandShadowCoverage::Ordered;
+        }
+        else if(a=="--hair-shadow-extinction-scale"){
+            Check(++i<args.size(),"Missing DOM hair shadow extinction scale");std::size_t used=0;
+            result.hairShadowExtinctionScale=std::stof(args[i],&used);
+            Check(used==args[i].size()&&std::isfinite(result.hairShadowExtinctionScale)&&result.hairShadowExtinctionScale>=0.f&&result.hairShadowExtinctionScale<=2.f,"DOM hair shadow extinction scale must be finite and within0..2");
+        }
+        else if(a=="--sun-shadow-radius"){
+            Check(++i<args.size(),"Missing sun shadow radius");std::size_t used=0;
+            result.sunShadowRadius=std::stof(args[i],&used);
+            Check(used==args[i].size()&&std::isfinite(result.sunShadowRadius)&&result.sunShadowRadius>=0.f&&result.sunShadowRadius<=.05f,"Sun shadow radius must be finite and within0..0.05 normalized UV");
+        }
+        else if(a=="--sun-surface-shadow-radius"){
+            Check(++i<args.size(),"Missing opaque surface shadow radius");std::size_t used=0;
+            result.sunSurfaceShadowRadius=std::stof(args[i],&used);
+            Check(used==args[i].size()&&std::isfinite(result.sunSurfaceShadowRadius)&&result.sunSurfaceShadowRadius>=0.f&&result.sunSurfaceShadowRadius<=.05f,"Opaque surface shadow radius must be finite and within0..0.05 normalized UV (0 inherits hair radius)");
+        }
+        else if(a=="--no-hair-temporal-depth")result.noHairTemporalDepth=true;
+        else if(a=="--hair-volume-sky")result.hairVolumeSky=true;
+        else if(a=="--hair-volume-report"){Check(++i<args.size(),"Missing volume report path");result.hairVolumeReport=Path(args[i]);}
+        else if(a=="--hair-linear-capture"){Check(++i<args.size(),"Missing linear hair capture directory");result.hairLinearCapture=Path(args[i]);}
+        else if(a=="--hair-lighting-profile"){Check(++i<args.size(),"Missing hair lighting profile");result.hairLightingProfile=Path(args[i]);}
+        else if(a=="--hair-direct-profile"){Check(++i<args.size(),"Missing direct light profile");result.hairDirectProfile=Path(args[i]);}
+        else if(a=="--hair-host-ambient-scale"){
+            Check(++i<args.size(),"Missing hair host ambient scale");std::size_t used=0;
+            result.hairHostAmbientScale=std::stof(args[i],&used);
+            Check(used==args[i].size()&&std::isfinite(result.hairHostAmbientScale)&&result.hairHostAmbientScale>=0&&result.hairHostAmbientScale<=1,"Hair host ambient scale must be finite and within0..1");
+        }
+        else if(a=="--direct-sun-scale"||a=="--direct-punctual-scale"){
+            Check(++i<args.size(),"Missing direct light input scale");std::size_t used=0;
+            const float scale=std::stof(args[i],&used);
+            Check(used==args[i].size()&&std::isfinite(scale)&&scale>=0.f&&scale<=16.f,"Direct light input scale must be finite and within0..16");
+            (a=="--direct-sun-scale"?result.directSunScale:result.directPunctualScale)=scale;
+        }
+        else if(a=="--hair-direct-input"){
+            Check(++i<args.size(),"Missing direct light input");Check(args[i]=="source"||args[i]=="preset","Direct light input must be source or preset");
+            result.sourceDirectOverride=args[i]=="source";
+        }
+        else if(a=="--hair-environment"){
+            Check(++i<args.size(),"Missing hair environment input");
+            Check(args[i]=="preset"||args[i]=="source","Hair environment must be preset or source");
+            result.sourceEnvironmentOverride=args[i]=="source";
+        }
+        else if(a=="--no-hair-backscatter")result.noHairBackscatter=true;
+        else if(a=="--hair-ibl"){
+            Check(++i<args.size(),"Missing hair IBL mode");
+            const std::array<std::string,3> modes{"legacy","forward","source"};
+            const auto found=std::find(modes.begin(),modes.end(),args[i]);
+            Check(found!=modes.end(),"Invalid hair IBL mode (legacy, forward, source)");
+            result.hairIbl=int(found-modes.begin());
+        }
+        else if(a=="--skin-kernel"){Check(++i<args.size(),"Missing skin kernel");Check(args[i]=="gaussian"||args[i]=="source-burley","Invalid skin kernel (gaussian, source-burley)");result.skinKernel=args[i]=="gaussian"?Render::SkinDiffusionKernel::Gaussian:Render::SkinDiffusionKernel::SourceBurley;}
+        else if(a=="--material-profile"){Check(++i<args.size(),"Missing material profile");result.materialProfile=Path(args[i]);}
+        else if(a=="--pragmata-hair")result.strandHair=Path(MODEL_SOURCE_DIR)/"Asset/HairSimulation/diana_lod0.hairbin";
+        else if(a=="--strand-test"){result.strandTest=true;result.smoke=true;result.strandHair=Path(MODEL_SOURCE_DIR)/"Asset/HairSimulation/diana_lod0.hairbin";}
+        else if(a=="--strand-hair"||a=="--gravity") {
+            Check(++i<args.size(),"Missing value for "+a);
+            if(a=="--strand-hair")result.strandHair=Path(args[i]);
+            else {Check(args[i]=="normal"||args[i]=="low"||args[i]=="zero","Invalid gravity (normal, low, zero)");result.gravityMode=args[i]=="normal"?HairSimulation::GravityMode::Normal:args[i]=="low"?HairSimulation::GravityMode::Low:HairSimulation::GravityMode::Zero;}
+        }
         else if (a=="--motion-test") {result.smoke=true;result.motionTest=true;}
         else if (a=="--cloth-test") {result.smoke=true;result.motionTest=true;result.clothTest=true;}
         else if (a=="--cloth-equip-test") {result.smoke=true;result.motionTest=true;result.clothTest=true;result.equipTest=true;}
         else if (a=="--clean-cloth-view")result.cleanClothView=true;
         else if (a=="--mesh-regions")result.meshRegions=true;
         else if (a=="--bind-pose")result.bindPose=true;
+        else if(a=="--camera-reference"){
+            Check(++i<args.size(),"Missing camera reference mode");
+            Check(args[i]=="game-shot"||args[i]=="off","Invalid camera reference (game-shot, off)");
+            result.cameraReference=args[i];if(args[i]=="game-shot"){result.diana=true;result.dianaFace=true;}
+        }
+        else if(a=="--camera-reference-profile"){
+            Check(++i<args.size(),"Missing reference camera profile path");
+            result.cameraReferenceProfile=Path(args[i]);result.cameraReference="game-shot";result.diana=true;result.dianaFace=true;
+        }
+        else if(a=="--camera-reference-export"){
+            Check(++i<args.size(),"Missing reference camera report path");result.cameraReferenceExport=Path(args[i]);
+        }
         else if (a=="--benchmark")result.benchmark=true;
         else if (a=="--no-cloth")result.noCloth=true;
         else if (a=="--no-hair")result.noHair=true;
@@ -156,9 +465,9 @@ Options Parse(const std::vector<std::string>& args) {
                 Check(args[i]=="on"||args[i]=="off","Invalid --skin value (use on or off)");result.skin=args[i]=="on"?1:0;
             }
             else if(a=="--lighting") {
-                const std::array<std::string,3> presets{"studio","side","back"};
+                const std::array<std::string,6> presets{"studio","side","back","reference","source-cube","reference-neutral"};
                 const auto found=std::find(presets.begin(),presets.end(),args[i]);
-                Check(found!=presets.end(),"Invalid --lighting value (use studio, side or back)");result.lighting=int(found-presets.begin());
+                Check(found!=presets.end(),"Invalid --lighting value (studio, side, back, reference, source-cube, reference-neutral)");result.lighting=int(found-presets.begin());
             }
             else if(a=="--pipeline") {
                 auto pipeline=args[i];std::transform(pipeline.begin(),pipeline.end(),pipeline.begin(),[](unsigned char c){return char(std::tolower(c));});
@@ -183,16 +492,29 @@ Options Parse(const std::vector<std::string>& args) {
             else { std::size_t used=0;result.frames=std::stoul(args[i],&used);Check(used==args[i].size()&&result.frames>0,"Invalid frame count"); }
         } else throw std::runtime_error("Unknown argument: "+a);
     }
+    if(result.diana){
+        if(result.materialProfile.empty())result.materialProfile=Path(MODEL_SOURCE_DIR)/"Asset/Diana/materials.json";
+        if(result.strandHair.empty())result.strandHair=Path(MODEL_SOURCE_DIR)/"Asset/HairSimulation/diana_lod0.hairbin";
+        if(result.source.empty()&&result.package.empty()&&result.character.empty())result.source=Path(MODEL_SOURCE_DIR)/"Asset/Diana/diana.glb";
+        result.bindPose=true;
+    }
+    if(!result.strandHair.empty())result.pbr=true;
     if(result.source.empty()&&result.package.empty()&&result.character.empty()) {
+        if(!result.strandHair.empty())result.source=Path(MODEL_SOURCE_DIR)/"Asset/HairSimulation/diana_head.glb";
+        else {
         auto outfit=Path(MODEL_SOURCE_DIR)/"Asset/Generated/MahiroCloth/Character.asset.json";
         auto generated=Path(MODEL_SOURCE_DIR)/"Asset/Generated/MahiroMaid/Package.asset.json";
         if(fs::exists(outfit))result.character=outfit;
         else if(fs::exists(generated))result.package=generated;
         else result.source=Path(MODEL_SOURCE_DIR)/"Asset/Model/Rikka_Uniform/Rikka_Uniform.pmx";
+        }
     }
     Check(int(!result.source.empty())+int(!result.package.empty())+int(!result.character.empty())==1,"Choose --source, --package or --character");
     Check(result.skin!=1||!result.skinProfile.empty(),"--skin on requires --skin-profile with an exact material list");
-    if(result.smoke&&!result.frames)result.frames=result.clothTest||result.hairTest?180:7;
+    Check(!(result.hairOit>0&&result.hairShading==0),"--hair-oit native4/native8 requires segment shading; remove --hair-shading fragment or choose depth-groups");
+    Check(!(result.hairDsVolume>0&&result.hairVolumeResolution>0&&result.hairVolumeResolution!=32&&result.hairVolumeResolution!=64&&result.hairVolumeResolution!=128),
+        "--hair-ds-volume native requires --hair-volume-resolution32,64 or128;16 and48 are legacy-only budgets");
+    if(result.smoke&&!result.frames)result.frames=result.clothTest||result.hairTest||result.strandTest?180:7;
     Check(!result.benchmark||!result.smoke,"Benchmark requires real-time delta; do not combine it with fixed-delta smoke tests");
     if(result.benchmark){if(!result.frames)result.frames=300;Check(result.frames>result.benchmarkWarmup,"Benchmark frame count must exceed its warmup");}
     if(result.maxFps<0)result.maxFps=result.benchmark||result.smoke?0:60;
@@ -304,15 +626,24 @@ std::string Browse(bool package,const wchar_t* filter=nullptr) {
 #endif
     return {};
 }
-enum class Selection { Mesh, Skeleton, Animation, Ik, Morphs, Retarget, Diagnostics, Cloth, Hair, MeshRegions };
+enum class Selection { Mesh, Skeleton, Animation, Ik, Morphs, Retarget, Diagnostics, Cloth, Hair, MeshRegions, StrandHair, CharacterMaterials };
 class Editor {
     Render::RHIDevice device_;
     ModelModule models_{device_};
     Render::ToonRenderPipeline toon_{device_};
     Render::MaterialRenderPipeline pbr_{device_};
+    EditorPreview::StrandHairPreview strandHair_;
+    std::optional<CharacterMaterialProfile> characterMaterials_;
+    CharacterMaterialReport characterMaterialReport_;
+    std::vector<PbrMaterial> characterMaterialEdits_;
+    std::vector<std::map<std::string,Render::Material::ParameterValue>> characterParameterEdits_;
+    int selectedCharacterMaterial_=0;
+    bool dianaPreview_=false;
+    bool disableSkinDiffusion_=false,disableEyeRefraction_=false;
     bool pbrEnabled_=false,pbrReady_=false,toonReady_=false;
     std::shared_ptr<ModelResource> resource_;
     std::shared_ptr<ModelResource> garmentResource_;
+    std::uint64_t opaqueBodyGeometryRevision_=0,opaqueGarmentGeometryRevision_=0;
     std::optional<ModularCharacterBundle> modular_;
     ClothSimulator clothSimulator_;
     std::unique_ptr<detail::ClothPreviewWorker> clothWorker_;
@@ -360,9 +691,23 @@ class Editor {
     Render::PipelineCamera camera_;
     Render::ToonPipelineSettings settings_;
     Render::MaterialPipelineSettings pbrSettings_;
+    int displayStudy_=0;
+    std::array<std::shared_ptr<const Render::DisplayColorCube>,2> displayCubes_;
     EditorPreview::SkinPreviewProfile skinProfile_;
     EditorPreview::SkinPreparedModel skinPrepared_;
     int lightingPreset_=0;
+    float directSunScale_=1.f,directPunctualScale_=1.f;
+    float unscaledDirectSunIntensity_=0.f;
+    std::array<glm::vec3,4> unscaledDirectPoints_{};
+    std::array<glm::vec3,Render::MaxStrandSourceLights> unscaledDirectSourcePoints_{};
+    fs::path hairLightingPath_;
+    std::optional<EditorPreview::HairLightingProfile> sourceHairLighting_;
+    bool sourceEnvironmentOverride_=false;
+    float hairHostAmbientScaleOverride_=-1.f;
+    bool sourceDirectOverride_=false;
+    fs::path hairDirectPath_;
+    std::optional<EditorPreview::HairDirectLightingProfile> sourceHairDirect_;
+    EditorPreview::HairDirectLightingProfile::Applied appliedSourceDirect_;
     glm::dmat4 placement_{1};
     GLFWwindow* window_;
     Render::OpenglBackendContext context_;
@@ -377,11 +722,21 @@ class Editor {
     std::array<char,128> regionFilter_{};
     AnimationBakeOptions bakeOptions_;
     AnimationBakeReport bakeReport_;
-    static constexpr float cameraVerticalFovDegrees_=43.f;
+    float cameraVerticalFovDegrees_=43.f;
     float yaw_=0.12f,pitch_=0.05f,distance_=4.7f;
+    EditorPreview::DianaCameraReference referenceCamera_;
+    bool referenceCameraEnabled_=false;
+    bool referenceLightingReapplied_=false,captureCameraMetadata_=false;
+    Json::Value completedCameraReferenceMetadata_;
+    struct ReferenceCameraSnapshot {
+        glm::dmat4 placement{1};glm::vec3 focus{0};
+        float yaw=.12f,pitch=.05f,distance=4.7f,verticalFov=43.f;
+        int trackedBone=-1;bool valid=false;
+    } referenceCameraSnapshot_;
     bool cameraPanning_=false;
     glm::vec3 cameraFocus_{0};
     double time_=0;
+    double hairRenderTime_=0;
     std::vector<float> manualMorphs_;
     std::vector<std::uint8_t> morphOverrides_;
     glm::vec3 ikTarget_{0};
@@ -393,8 +748,6 @@ class Editor {
     std::string status_,lastError_;
     std::string gpuVendor_,gpuRenderer_;
     GLuint previewTexture_=0;
-    GLuint pbrDisplayTexture_=0;
-    std::uint32_t pbrDisplayWidth_=0,pbrDisplayHeight_=0;
     std::uint64_t frameIndex_=0;
     std::uint32_t previewWidth_=0,previewHeight_=0;
     ImVec2 viewportOrigin_{},viewportSize_{800,700};
@@ -586,13 +939,29 @@ class Editor {
         const auto recognized=detail::RecognizeGarmentSections(*candidate);
         for(const auto& region:recognized)if(std::none_of(candidate->meshRegions.begin(),candidate->meshRegions.end(),[&](const auto& old){return old.mesh==region.mesh;}))candidate->meshRegions.push_back(region);
         const auto skinPrepared=skinProfile_.Prepare(candidate->geometry);
-        auto uploaded=models_.Upload(skinPrepared.geometry);
+        std::string materialError;
+        const auto materialGeometry=characterMaterials_?characterMaterials_->Prepare(skinPrepared.geometry,&characterMaterialReport_,&materialError):skinPrepared.geometry;
+        Check(bool(materialGeometry),materialError);
+        auto uploaded=models_.Upload(materialGeometry,ModelUploadOptions{.includeSecondUV=dianaPreview_});
         Check(bool(uploaded),models_.LastError());
         skinProfile_.Apply(*uploaded,skinPrepared);
+        if(characterMaterials_){
+            Check(characterMaterials_->Apply(*uploaded,&materialError),materialError);
+            characterMaterialEdits_=uploaded->Source().materials;characterParameterEdits_.clear();
+            for(std::size_t i=0;i<characterMaterialEdits_.size();++i){
+                auto& values=characterParameterEdits_.emplace_back();
+                for(const auto& entry:characterMaterials_->Entries())if(entry.name==characterMaterialEdits_[i].name)values=entry.parameters;
+                if(disableEyeRefraction_&&values.contains("eyeRefractionStrength")){
+                    values["eyeRefractionStrength"]=0.f;
+                    Check(uploaded->Materials().SetParameter(uploaded->MaterialHandles()[i],"eyeRefractionStrength",0.f,&materialError),materialError);
+                }
+            }
+        }
         garmentResource_.reset();modular_.reset();garmentAnimated_={};garmentDeformed_={};clothReset_=true;previousClothTime_=-1;
         hairAsset_.reset();hairSimulator_=HairSimulator{};hairPose_={};hairPath_.clear();hairReset_=true;hairSettingsPending_=false;previousHairTime_=-1;uploadedBodyPoseValid_=false;
         ClearClothPreview();
         resource_=std::move(uploaded);asset_=std::move(candidate);openedPath_=path;trackedCameraBone_=-1;
+        if(referenceCameraEnabled_){referenceCameraEnabled_=false;referenceCameraSnapshot_.valid=false;cameraVerticalFovDegrees_=43.f;}
         skinPrepared_=skinPrepared;
         if(skinProfile_.loaded) {
             std::cout<<"Skin profile: "<<Utf8(skinProfile_.path)<<" | matched "<<skinPrepared_.materialIndices.size()<<" opaque materials | skin="<<(skinProfile_.settings.enabled?"on":"off")<<" | corrected roughness="<<skinProfile_.settings.roughness<<'\n';
@@ -689,6 +1058,7 @@ class Editor {
         return index>=0&&std::size_t(index)<asset_->skeleton.bones.size()?asset_->skeleton.bones[index].name:"<none>";
     }
     void Evaluate(double delta) {
+        Check(strandHair_.Step(delta),strandHair_.Error());
         const bool asyncCloth=AsyncPreview();
         bool previewSubmissionAccepted=false;
         if(hairWasShared_!=asyncCloth){hairWasShared_=asyncCloth;hairReset_=true;hairPose_={};clothReset_=true;if(clothWorker_)clothWorker_->SetPaused(!asyncCloth||clothFrozen_);}
@@ -879,7 +1249,7 @@ class Editor {
     void ConfigurePbrPreview() {
         // Neutral studio lighting with side/back comparison presets. Optional
         // skin profiles apply recovered controls only to exact opaque material
-        // names; source assets stay unchanged. Hair uses the isotropic shader.
+        // names; source assets stay unchanged. Strands use their Render pass.
         pbrSettings_.shadows.enabled=false;pbrSettings_.shadows.atlasResolution=512;
         pbrSettings_.shadows.sunIntensity=0;
         pbrSettings_.reflection.enabled=false;
@@ -895,9 +1265,50 @@ class Editor {
         pbrSettings_.sky.enabled=true;pbrSettings_.sky.background=true;pbrSettings_.sky.intensity=1.0f;
         pbrSettings_.sky.environment=Render::MakeProceduralSkyEnvironment(glm::vec3(.38f),glm::vec3(.25f),glm::vec3(.12f));
         pbrSettings_.lighting.ambientAndExposure=glm::vec4(.025f,.025f,.025f,1);
+        if(dianaPreview_){
+            pbrSettings_.shadows.enabled=true;pbrSettings_.shadows.atlasResolution=2048;pbrSettings_.shadows.distance=8;
+            pbrSettings_.shadows.sunIntensity=1.2f;pbrSettings_.shadows.sunDirection={-.45f,-.8f,-.35f};
+            pbrSettings_.shadows.sunColor={1,.94f,.88f};
+            pbrSettings_.shadows.depthBiasTexels=.4f;pbrSettings_.shadows.normalBiasTexels=.6f;
+            pbrSettings_.temporal.antialiasing=Render::AntialiasingMode::TAA;
+            pbrSettings_.skinDiffusion.enabled=!disableSkinDiffusion_;
+            pbrSettings_.skinDiffusion.albedoPreservation=1.f;
+        }
         ApplyLightingPreset();
     }
     void ApplyLightingPreset() {
+        if(referenceCameraEnabled_)referenceLightingReapplied_=true;
+        static const auto studio=Render::MakeProceduralSkyEnvironment(glm::vec3(.38f),glm::vec3(.25f),glm::vec3(.12f));
+        // An offline environment study based on the supplied screenshot, not
+        // extracted game illumination. All pixels remain scene-linear.
+        static const auto reference=[] {
+            constexpr unsigned width=128,height=64;
+            std::array<std::shared_ptr<const Render::SkyEnvironment>,2> variants;
+            const auto cool=glm::normalize(glm::vec3(-.65f,.65f,.4f));
+            const auto warm=glm::normalize(glm::vec3(.7f,.35f,-.6f));
+            // Host lighting calibration, not a recovered game scene. Match
+            // Rec.709 incoming luminance, while testing the cool lobe's tint.
+            constexpr float neutralLobe=.90f*.2126f+1.22f*.7152f+1.34f*.0722f; // 1.160632
+            for(unsigned variant=0;variant<variants.size();++variant){
+                std::vector<glm::vec3> pixels(width*height);
+                const auto key=variant==0?glm::vec3(.90f,1.22f,1.34f):glm::vec3(neutralLobe);
+                for(unsigned y=0;y<height;++y)for(unsigned x=0;x<width;++x){
+                    const float theta=(float(y)+.5f)*3.14159265359f/height,phi=(float(x)+.5f)*6.28318530718f/width;
+                    const glm::vec3 d(std::sin(theta)*std::cos(phi),std::cos(theta),std::sin(theta)*std::sin(phi));
+                    pixels[y*width+x]=glm::vec3(.008f,.012f,.012f)+
+                        key*std::pow(std::max(glm::dot(d,cool),0.f),3.f)+
+                        glm::vec3(.40f,.30f,.16f)*std::pow(std::max(glm::dot(d,warm),0.f),10.f);
+                }
+                variants[variant]=Render::BakeSkyEnvironment(width,height,pixels);
+            }
+            return variants;
+        }();
+        pbrSettings_.sky.environment=(lightingPreset_==3||lightingPreset_==5)?reference[lightingPreset_==5?1:0]:studio;
+        pbrSettings_.strandIndirect={};
+        pbrSettings_.sky.rotation=0;
+        pbrSettings_.post.exposure=1.35f;
+        pbrSettings_.shadows.sunIntensity=dianaPreview_?1.2f:0.f;
+        if(dianaPreview_){pbrSettings_.shadows.sunDirection={-.45f,-.8f,-.35f};pbrSettings_.shadows.sunColor={1,.94f,.88f};}
         pbrSettings_.lighting.ambientAndExposure=glm::vec4(.025f,.025f,.025f,1);
         pbrSettings_.sky.intensity=1.f;
         pbrSettings_.lighting.lightPositions={glm::vec4(3,4,5,1),glm::vec4(-4,2,3,1),glm::vec4(0,3,-4,1),glm::vec4(0,-2,3,1)};
@@ -910,6 +1321,25 @@ class Editor {
             pbrSettings_.lighting.ambientAndExposure=glm::vec4(.006f,.006f,.006f,1);pbrSettings_.sky.intensity=.18f;
             pbrSettings_.lighting.lightPositions={glm::vec4(0,2,-3,1),glm::vec4(0,2,4,1),glm::vec4(-4,2,0,1),glm::vec4(4,2,0,1)};
             pbrSettings_.lighting.lightColors={glm::vec4(75,65,55,1.1f),glm::vec4(8,8,8,1.3f),glm::vec4(2,2,2,1),glm::vec4(2,2,2,1)};
+        } else if(lightingPreset_==3||lightingPreset_==5) {
+            pbrSettings_.lighting.ambientAndExposure=glm::vec4(.006f,.007f,.007f,1);
+            pbrSettings_.lighting.lightPositions={glm::vec4(-3,3,3,1),glm::vec4(3,2,-3,1),glm::vec4(3,1,3,1),glm::vec4(0,-2,3,1)};
+            pbrSettings_.lighting.lightColors={glm::vec4(39,48,52,1.5f),glm::vec4(22,17,9,1),glm::vec4(4,4.5f,5,1.3f),glm::vec4(1,1,1,1)};
+            if(lightingPreset_==5){
+                constexpr float neutralKey=39.f*.2126f+48.f*.7152f+52.f*.0722f; // 46.3754
+                pbrSettings_.lighting.lightColors[0]=glm::vec4(glm::vec3(neutralKey),1.5f);
+            }
+            if(dianaPreview_){pbrSettings_.shadows.sunIntensity=.65f;pbrSettings_.shadows.sunDirection={.6f,-.7f,-.4f};pbrSettings_.shadows.sunColor={.83f,.93f,1};}
+        }
+        // Environment selection is independent of the direct-light rig, so
+        // source/procedural A/Bs keep identical sun and point illumination.
+        if(lightingPreset_==4||sourceEnvironmentOverride_) {
+            if(!sourceHairLighting_)sourceHairLighting_=EditorPreview::HairLightingProfile::Load(hairLightingPath_);
+            pbrSettings_.sky.environment=sourceHairLighting_->environment;
+            pbrSettings_.strandIndirect=sourceHairLighting_->indirect;
+            if(hairHostAmbientScaleOverride_>=0)pbrSettings_.strandIndirect.hostAmbientScale=hairHostAmbientScaleOverride_;
+            pbrSettings_.sky.intensity=std::exp2(pbrSettings_.strandIndirect.exposureEV);
+            pbrSettings_.sky.rotation=pbrSettings_.strandIndirect.rotation;
         }
         // Orient once when selecting a preset. Subsequent camera orbits keep
         // world-space lights fixed so the material's moving highlights remain visible.
@@ -919,41 +1349,98 @@ class Editor {
             const glm::vec3 local(position);
             position=glm::vec4(cameraFocus_+right*local.x+up*local.y+forwardToCamera*local.z,position.w);
         }
+        ApplySourceDirectLighting();
+        ApplyDirectInputScales(true);
+        if(pbrReady_)pbr_.ResetHistory();
     }
-    void CopyPbrDisplay(std::uint32_t width,std::uint32_t height) {
-        // DebugTextures().sceneColor is linear HDR. Copy the completed display
-        // pass instead, so ImGui receives ACES/exposure/gamma exactly once.
-        // This is a GPU-local copy, with no per-frame CPU pixel readback.
-        if(!pbrDisplayTexture_||width!=pbrDisplayWidth_||height!=pbrDisplayHeight_) {
-            if(pbrDisplayTexture_)glDeleteTextures(1,&pbrDisplayTexture_);
-            glCreateTextures(GL_TEXTURE_2D,1,&pbrDisplayTexture_);
-            glTextureStorage2D(pbrDisplayTexture_,1,GL_RGBA8,GLsizei(width),GLsizei(height));
-            glTextureParameteri(pbrDisplayTexture_,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
-            glTextureParameteri(pbrDisplayTexture_,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
-            glTextureParameteri(pbrDisplayTexture_,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
-            glTextureParameteri(pbrDisplayTexture_,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
-            pbrDisplayWidth_=width;pbrDisplayHeight_=height;
+    void ApplyDirectInputScales(bool refresh){
+        auto& source=pbrSettings_.strandSourceDirect;
+        if(refresh){
+            unscaledDirectSunIntensity_=pbrSettings_.shadows.sunIntensity;
+            for(unsigned i=0;i<4;++i)unscaledDirectPoints_[i]=glm::vec3(pbrSettings_.lighting.lightColors[i]);
+            for(unsigned i=0;i<source.count;++i)unscaledDirectSourcePoints_[i]=glm::vec3(source.lights[i].colorTolerance);
         }
-        GLint previousFramebuffer=0,previousBuffer=0;
-        glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING,&previousFramebuffer);glGetIntegerv(GL_READ_BUFFER,&previousBuffer);
-        glBindFramebuffer(GL_READ_FRAMEBUFFER,0);glReadBuffer(GL_BACK);
-        glCopyTextureSubImage2D(pbrDisplayTexture_,0,0,0,0,0,GLsizei(width),GLsizei(height));
-        glBindFramebuffer(GL_READ_FRAMEBUFFER,GLuint(previousFramebuffer));glReadBuffer(GLenum(previousBuffer));
-        previewTexture_=pbrDisplayTexture_;
+        // Scaling a cached input preserves world-space light placement after
+        // camera orbits and cannot accumulate across slider/source changes.
+        pbrSettings_.shadows.sunIntensity=unscaledDirectSunIntensity_*directSunScale_;
+        for(unsigned i=0;i<4;++i){auto& color=pbrSettings_.lighting.lightColors[i];
+            color=glm::vec4(unscaledDirectPoints_[i]*directPunctualScale_,color.w);
+        }
+        for(unsigned i=0;i<source.count;++i){auto& color=source.lights[i].colorTolerance;
+            color=glm::vec4(unscaledDirectSourcePoints_[i]*directPunctualScale_,color.w);
+        }
+    }
+    void ApplySourceDirectLighting(){
+        if(!sourceDirectOverride_){pbrSettings_.strandSourceDirect={};return;}
+        if(!sourceHairDirect_)sourceHairDirect_=EditorPreview::HairDirectLightingProfile::Load(hairDirectPath_);
+        // Lighting stays in the scene when the reference profile tilts the
+        // character. Do not rotate the source lights with the presentation pose.
+        const auto& base=referenceCameraSnapshot_.valid?referenceCameraSnapshot_.placement:placement_;
+        appliedSourceDirect_=sourceHairDirect_->Apply(base);
+        pbrSettings_.strandSourceDirect=appliedSourceDirect_.hair;
+        pbrSettings_.shadows.sunDirection=appliedSourceDirect_.sunDirection;
+        pbrSettings_.shadows.sunColor=appliedSourceDirect_.sunColor;
+        pbrSettings_.shadows.sunIntensity=appliedSourceDirect_.sunIntensity;
+        // Opaque PBR retains its existing four-light interface. Its local
+        // proxy is documented separately; hair consumes ALL source candidates.
+        pbrSettings_.lighting.lightPositions=appliedSourceDirect_.pointPositions;
+        pbrSettings_.lighting.lightColors=appliedSourceDirect_.pointColors;
+    }
+    void ApplyEnvironmentPreservingDirect(){
+        const auto lighting=pbrSettings_.lighting;
+        const auto shadows=pbrSettings_.shadows;
+        const auto exposure=pbrSettings_.post.exposure;
+        const auto sourceDirect=pbrSettings_.strandSourceDirect;
+        const auto applied=appliedSourceDirect_;
+        const auto rawSun=unscaledDirectSunIntensity_;
+        const auto rawPoints=unscaledDirectPoints_;
+        const auto rawSource=unscaledDirectSourcePoints_;
+        const auto restore=[&]{
+            pbrSettings_.lighting=lighting;pbrSettings_.shadows=shadows;pbrSettings_.post.exposure=exposure;
+            pbrSettings_.strandSourceDirect=sourceDirect;appliedSourceDirect_=applied;
+            unscaledDirectSunIntensity_=rawSun;unscaledDirectPoints_=rawPoints;unscaledDirectSourcePoints_=rawSource;
+        };
+        try {ApplyLightingPreset();}catch(...){restore();throw;}
+        restore();
+    }
+    void ApplyDirectPreservingEnvironment(){
+        // Selecting only a direct-light input must not reset manually edited
+        // environment gain/rotation, probe coefficients, ambient or display.
+        const auto sky=pbrSettings_.sky;
+        const auto indirect=pbrSettings_.strandIndirect;
+        const auto post=pbrSettings_.post;
+        const auto ambient=pbrSettings_.lighting.ambientAndExposure;
+        const auto restore=[&]{pbrSettings_.sky=sky;pbrSettings_.strandIndirect=indirect;
+            pbrSettings_.post=post;pbrSettings_.lighting.ambientAndExposure=ambient;};
+        try {ApplyLightingPreset();}catch(...){restore();throw;}
+        restore();
     }
     void RenderPreview(std::uint32_t width,std::uint32_t height) {
+        // Source geometry is in metres; placement scales both the model and
+        // the physical diffusion radius, independently of camera distance.
+        pbrSettings_.skinDiffusion.worldUnitScale=float(glm::length(glm::dvec3(placement_[0])));
         Check(pbrEnabled_?pbr_.Resize(width,height,pbrSettings_.shadows.atlasResolution,1):toon_.Resize(width,height,1024,4),PipelineError());
         if(trackedCameraBone_>=0&&std::size_t(trackedCameraBone_)<DisplayPose().global.size())cameraFocus_=glm::vec3(placement_*glm::dvec4(glm::dvec3(DisplayPose().global[trackedCameraBone_][3]),1));
         camera_.position=cameraFocus_+glm::vec3(distance_*std::cos(pitch_)*std::sin(yaw_),distance_*std::sin(pitch_),distance_*std::cos(pitch_)*std::cos(yaw_));
         camera_.view=glm::lookAt(camera_.position,cameraFocus_,glm::vec3(0,1,0));
         camera_.nearPlane=.03f;camera_.farPlane=100;
         camera_.projection=glm::perspective(glm::radians(cameraVerticalFovDegrees_),float(width)/height,camera_.nearPlane,camera_.farPlane);
+        if(referenceCameraEnabled_)camera_.projection=EditorPreview::DianaReferenceProjection(camera_.projection,referenceCamera_);
+        // Deformation updates keep the same mesh handles. Refresh the opaque
+        // occupancy only when uploaded content actually changed, retaining TAA.
+        if(pbrEnabled_){
+            const auto bodyRevision=resource_->GeometryRevision();
+            const auto garmentRevision=garmentResource_?garmentResource_->GeometryRevision():0;
+            if(bodyRevision!=opaqueBodyGeometryRevision_||garmentRevision!=opaqueGarmentGeometryRevision_)pbr_.InvalidateOpaqueDepth();
+            opaqueBodyGeometryRevision_=bodyRevision;opaqueGarmentGeometryRevision_=garmentRevision;
+        }
         Render::RenderFrame frame;frame.frameIndex=++frameIndex_;
         std::string error;if(showBody_||!modular_)AppendPreviewBody(frame,error);
+        Check(strandHair_.AppendTo(frame,device_,placement_),strandHair_.Error());
         if(modular_&&showGarment_&&garmentResource_&&!RegionPreviewFilter())Check(garmentResource_->AppendTo(frame,placement_,glm::dvec3(0),camera_.view,&error),error);
         Render::RHICommand::BeginFrame begin;begin.frameIndex=frame.frameIndex;begin.framebufferWidth=width;begin.framebufferHeight=height;
         auto encoder=device_.BeginFrame(begin);
-        if(pbrEnabled_){pbrSettings_.time=float(time_);pbrSettings_.deltaSeconds=float(std::max(performance_.acceptedDelta,1./240));}
+        if(pbrEnabled_){pbrSettings_.time=float(time_);pbrSettings_.deltaSeconds=float(std::max(performance_.acceptedDelta,1./240));pbrSettings_.strandTimeSeconds=hairRenderTime_;}
         if(!resource_->KeepAlive(encoder)||(garmentResource_&&!garmentResource_->KeepAlive(encoder))||!(pbrEnabled_?pbr_.Record(encoder,frame,camera_,pbrSettings_):toon_.Record(encoder,frame,camera_,settings_))||!encoder.End(false)) {
             encoder.Cancel();if(auto token=PipelineToken())DiscardPipelineFrame(token);
             throw std::runtime_error("Preview frame recording failed: "+PipelineError());
@@ -971,12 +1458,14 @@ class Editor {
         while(!*done){device_.returnSystem.DrainCallbacks();Check(std::chrono::steady_clock::now()<deadline,"Preview frame timed out");if(!*done)device_.returnSystem.WaitForCallbacks(2ms);}
         performance_.sync+=Milliseconds(PerfClock::now()-waitStarted);
         Check(pbrEnabled_?pbr_.CompleteFrame(token):toon_.CompleteFrame(token),PipelineError());
-        if(pbrEnabled_)OnRender([this,width,height]{CopyPbrDisplay(width,height);EndGpuTimer();});
+        strandHair_.CommitRenderedFrame(frame.frameIndex,pbrEnabled_);
+        if(pbrEnabled_){const auto handle=pbr_.DebugTextures().displayColor;OnRender([this,handle]{EndGpuTimer();const auto texture=device_.GetResourcePool().TextureTable.Get(handle);Check(texture!=nullptr,"Missing PBR display texture");previewTexture_=texture->rhi_id;});}
         else {
             auto handle=toon_.DebugTextures().sceneColor;
             OnRender([this,handle]{EndGpuTimer();auto texture=device_.GetResourcePool().TextureTable.Get(handle);Check(texture!=nullptr,"Missing preview texture");previewTexture_=texture->rhi_id;});
         }
         previewWidth_=width;previewHeight_=height;
+        if(captureCameraMetadata_||referenceCameraEnabled_)completedCameraReferenceMetadata_=BuildCameraReferenceMetadata();
     }
     std::optional<ImVec2> Project(const glm::dvec3& point) const {
         auto p=camera_.projection*camera_.view*glm::vec4(placement_*glm::dvec4(point,1));
@@ -1071,6 +1560,8 @@ class Editor {
         if(ImGui::Selectable("Retarget / 动画重映射",selection_==Selection::Retarget))selection_=Selection::Retarget;
         if(ImGui::Selectable("Clothing / 裙摆与换装",selection_==Selection::Cloth))selection_=Selection::Cloth;
         if(ImGui::Selectable("Hair Physics / 头发惯性",selection_==Selection::Hair))selection_=Selection::Hair;
+        if(ImGui::Selectable("GPU Strand Hair / 发丝模拟",selection_==Selection::StrandHair))selection_=Selection::StrandHair;
+        if(characterMaterials_&&ImGui::Selectable("Diana Materials / 角色材质",selection_==Selection::CharacterMaterials))selection_=Selection::CharacterMaterials;
         if(ImGui::Selectable("Mesh Regions / 网格分类",selection_==Selection::MeshRegions))selection_=Selection::MeshRegions;
         if(ImGui::Selectable("Diagnostics / 导入报告",selection_==Selection::Diagnostics))selection_=Selection::Diagnostics;
         ImGui::SeparatorText("SKELETON HIERARCHY");
@@ -1541,13 +2032,536 @@ class Editor {
         }
     }
     template<class Function> void Try(Function function){try{function();lastError_.clear();}catch(const std::exception& e){lastError_=e.what();}}
+    void ApplyDisplayStudy(int mode){
+        Check(mode>=0&&mode<=2,"Invalid source display study");
+        if(mode){
+            auto& cube=displayCubes_[mode-1];
+            if(!cube){std::string error;const auto path=Path(MODEL_SOURCE_DIR)/"Asset/Diana"/(mode==1?"cc-st30-100-display.lutbin":"cc-st30-200-display.lutbin");
+                const auto table=Model::LoadStrandTextureTable(path,&error);Check(bool(table),error);
+                Check(table->width==33&&table->height==1089,"Source display cube dimensions");
+                auto data=std::make_shared<Render::DisplayColorCube>();data->edge=33;data->texels=table->texels;cube=data;
+            }
+            const auto coefficients=Model::EditorPreview::SourceHairDisplay::MakeSectionStudy(1.f,.22f,.4f,1.f,1.f);
+            auto& display=pbrSettings_.sourceDisplay;display.cube=cube;
+            for(int i=0;i<4;++i){display.curve0[i]=coefficients.curve0[i];display.curve1[i]=coefficients.curve1[i];display.curve2[i]=coefficients.curve2[i];}
+        }
+        displayStudy_=mode;pbrSettings_.sourceDisplay.enabled=mode!=0;pbr_.ResetHistory();
+    }
+    void ApplyStrandMaterialProfile(int dsVolumeOverride=-1){
+        const auto& values=characterMaterials_->StrandParameters();auto& m=strandHair_.material;
+        const auto scalar=[&](const char* key,float& target){auto it=values.find(key);if(it!=values.end())if(const auto p=std::get_if<float>(&it->second))target=*p;};
+        const auto flag=[&](const char* key,bool& target){auto it=values.find(key);if(it!=values.end())if(const auto p=std::get_if<bool>(&it->second))target=*p;};
+        const auto integer=[&](const char* key,std::uint32_t& target){auto it=values.find(key);if(it!=values.end())if(const auto p=std::get_if<float>(&it->second)){Check(std::isfinite(*p)&&*p>=0&&*p<=128&&std::floor(*p)==*p,"Invalid integer strand profile parameter: "+std::string(key));target=std::uint32_t(*p);}};
+        const auto color=[&](const char* key,glm::vec3& target){auto it=values.find(key);if(it!=values.end()){if(const auto p=std::get_if<glm::vec3>(&it->second))target=*p;else if(const auto p=std::get_if<glm::vec4>(&it->second))target=glm::vec3(*p);}};
+        color("rootColor",m.rootColor);color("tipColor",m.tipColor);scalar("roughness",m.roughness);scalar("secondaryRoughness",m.secondaryRoughness);scalar("specularStrength",m.specularStrength);scalar("secondarySpecular",m.secondarySpecular);scalar("transmission",m.transmission);scalar("widthScale",m.widthScale);scalar("opacity",m.opacity);scalar("cuticleShift",m.cuticleShift);
+        flag("sourceColor",m.sourceColor);color("gradientWeights",m.gradientWeights);color("hsvVariation",m.hsvVariation);
+        flag("useNttLookup",m.useNttLookup);
+        flag("useNativeMomentLut",m.useNativeMomentLut);
+        flag("strandMotionVectors",pbrSettings_.strandMotionVectors);
+        flag("areaPreservingCoverage",m.areaPreservingCoverage);
+        scalar("minWidthMetres",m.minWidthMetres);scalar("maxWidthMetres",m.maxWidthMetres);
+        if(const auto it=values.find("colorRandomOffsets");it!=values.end())if(const auto p=std::get_if<glm::vec4>(&it->second))m.colorRandomOffsets=*p;
+        if(const auto it=values.find("nativeMomentParameters");it!=values.end())if(const auto p=std::get_if<glm::vec4>(&it->second))m.nativeMomentParameters=*p;
+        for(const auto& [name,path]:characterMaterials_->StrandAssets()){
+            std::string error;
+            if(name=="colorCoordinates"){
+                std::vector<Render::StrandColorCoordinate> coordinates;const auto& counts=strandHair_.simulation.Asset()->header;
+                Check(LoadStrandColorCoordinates(path,counts.renderVertexCount,counts.strandCount,coordinates,&error),error);
+                Check(strandHair_.SetColorCoordinates(std::move(coordinates)),strandHair_.Error());
+            }else{
+                auto table=LoadStrandTextureTable(path,&error);Check(bool(table),error);
+                if(name=="gradientTable")m.gradientTable=std::move(table);else if(name=="nttTable")m.nttTable=std::move(table);
+                else if(name=="nativeMomentTable"){
+                    Check(table->width==64&&table->height==1024&&table->texels.size()==65536,"Native hair DSLUT expects a complete64x64x16 atlas");
+                    for(const auto& texel:table->texels)for(int channel=0;channel<4;++channel)
+                        Check(texel[channel]>=0&&texel[channel]<=1,"Native hair DSLUT coefficient outside [0,1]");
+                    m.nativeMomentTable=std::move(table);
+                }
+            }
+        }
+        Check(!m.sourceColor||(m.gradientTable&&characterMaterials_->StrandAssets().contains("colorCoordinates")),"Source hair color requires a gradient table and authored appearance coordinates");
+        flag("physicalScattering",m.physicalScattering);scalar("ior",m.ior);scalar("longitudinalRoughness",m.longitudinalRoughness);scalar("azimuthalRoughness",m.azimuthalRoughness);scalar("absorptionScale",m.absorptionScale);scalar("multipleScattering",m.multipleScattering);scalar("scatteringDensity",m.scatteringDensity);
+        flag("sourceRoughnessMapping",m.sourceRoughnessMapping);
+        scalar("albedoBlendRate",m.albedoBlendRate);scalar("indirectLightingMultiplier",m.indirectLightingMultiplier);
+        flag("spatialVolume",m.spatialVolume);flag("normalizedVolumeWidth",m.normalizedVolumeWidth);flag("receiveOpaqueShadows",m.receiveOpaqueShadows);flag("sourceSpatialIbl",m.sourceSpatialIbl);flag("sourceSegmentShading",m.sourceSegmentShading);flag("sourceCurveGeometry",m.sourceCurveGeometry);scalar("volumeVoxelSize",m.volumeVoxelSize);integer("volumeResolution",m.volumeResolution);
+        if(const auto it=values.find("opaqueShadowPower");it!=values.end())Check(std::holds_alternative<float>(it->second),"Hair profile opaqueShadowPower must be numeric");
+        scalar("opaqueShadowPower",m.opaqueShadowPower);
+        Check(std::isfinite(m.opaqueShadowPower)&&m.opaqueShadowPower>=.05f&&m.opaqueShadowPower<=4.f,"Hair profile opaqueShadowPower must be finite and within0.05..4");
+        flag("volumeHardwareFiltering",m.volumeHardwareFiltering);
+        flag("sourceDSVolume",m.sourceDSVolume);
+        if(dsVolumeOverride>=0)m.sourceDSVolume=dsVolumeOverride!=0;
+        float injectionRate=m.volumeInjectionRate,lodFraction=m.volumeInjectionLodFraction,injectionQuality=float(m.volumeInjectionQuality);
+        bool injectionMinLod=m.volumeInjectionMinLodFactor;
+        scalar("volumeInjectionRate",injectionRate);scalar("volumeInjectionLodFraction",lodFraction);
+        scalar("volumeInjectionQuality",injectionQuality);flag("volumeInjectionMinLodFactor",injectionMinLod);
+        ApplyNativeDSInjectionParameters(m,injectionRate,lodFraction,injectionQuality,injectionMinLod);
+        scalar("volumeRasterTraceStep",m.volumeRasterTraceStep);
+        scalar("volumeTraceLimit",m.volumeTraceLimit);
+        scalar("volumeInterpolationSamples",m.volumeInterpolationSamples);
+        flag("volumePreserveNearField",m.volumePreserveNearField);
+        flag("volumeExactIntegration",m.volumeExactIntegration);
+        flag("volumeProxyBlockers",m.volumeProxyBlockers);
+        flag("volumeStableOpaqueCache",m.volumeStableOpaqueCache);flag("volumePointIbl",m.volumePointIbl);
+        scalar("volumeAverageWidth",m.volumeAverageWidth);
+        flag("sourceDirectScattering",m.sourceDirectScattering);flag("volumeOpaqueBlockers",m.volumeOpaqueBlockers);
+        flag("castDirectionalShadows",m.castDirectionalShadows);scalar("volumeDepthThreshold",m.volumeDepthThreshold);
+        flag("volumeSkyTransmission",m.volumeSkyTransmission);flag("dualScatteringIbl",m.dualScatteringIbl);scalar("backscatterScale",m.backscatterScale);
+        scalar("volumeRasterWidthScale",m.volumeRasterWidthScale);scalar("volumeTraceStep",m.volumeTraceStep);scalar("volumeBiasVoxels",m.volumeBiasVoxels);
+        Check(!m.sourceDSVolume||(m.volumeResolution==32||m.volumeResolution==64||m.volumeResolution==128),
+            "Native DSVolume profile requires volumeResolution32,64 or128");
+        Check(!m.sourceDSVolume||(std::isfinite(m.volumeTraceLimit)&&m.volumeTraceLimit>=1&&std::floor(m.volumeTraceLimit)==m.volumeTraceLimit&&
+            std::isfinite(m.volumeInterpolationSamples)&&m.volumeInterpolationSamples>=0&&std::floor(m.volumeInterpolationSamples)==m.volumeInterpolationSamples),
+            "Native DSVolume traceLimit and interpolationSamples must be whole nonnegative values; traceLimit must be positive");
+    }
+    void ApplyReferenceCamera(bool enabled){
+        Check(!enabled||dianaPreview_,"The reference camera profile requires Diana's extracted metre-space asset");
+        if(enabled){
+            EditorPreview::ValidateDianaCameraReference(referenceCamera_);
+            if(!referenceCameraEnabled_){
+                referenceCameraSnapshot_={placement_,cameraFocus_,yaw_,pitch_,distance_,cameraVerticalFovDegrees_,trackedCameraBone_,true};
+                referenceLightingReapplied_=false;
+            }
+            referenceCameraEnabled_=true;
+            placement_=EditorPreview::DianaReferencePlacement(referenceCameraSnapshot_.placement,referenceCamera_);
+            cameraFocus_=glm::vec3(placement_*glm::dvec4(referenceCamera_.focusLocal,1));
+            yaw_=glm::radians(referenceCamera_.yawDegrees);pitch_=glm::radians(referenceCamera_.pitchDegrees);
+            distance_=float(glm::length(glm::dvec3(referenceCameraSnapshot_.placement[0])))*referenceCamera_.distanceLocalMetres;
+            cameraVerticalFovDegrees_=referenceCamera_.verticalFovDegrees;trackedCameraBone_=-1;
+        }else if(referenceCameraEnabled_&&referenceCameraSnapshot_.valid){
+            placement_=referenceCameraSnapshot_.placement;cameraFocus_=referenceCameraSnapshot_.focus;
+            yaw_=referenceCameraSnapshot_.yaw;pitch_=referenceCameraSnapshot_.pitch;distance_=referenceCameraSnapshot_.distance;
+            cameraVerticalFovDegrees_=referenceCameraSnapshot_.verticalFov;trackedCameraBone_=referenceCameraSnapshot_.trackedBone;
+            referenceCameraEnabled_=false;referenceCameraSnapshot_.valid=false;
+        }
+        // All body/garment/strand extraction already consumes placement_. The
+        // latter also moves its local capsules and DSVolume model together.
+        if(pbrReady_){pbr_.InvalidateOpaqueDepth();pbr_.ResetHistory();}
+    }
+    Json::Value BuildCameraReferenceMetadata()const{
+        auto result=EditorPreview::DianaCameraReferenceMetadata(referenceCamera_,referenceCameraEnabled_,
+            referenceCameraSnapshot_.valid?referenceCameraSnapshot_.placement:placement_,placement_,camera_.view,camera_.projection,
+            camera_.position,cameraFocus_,previewWidth_,previewHeight_);
+        result["actualVerticalFovDegrees"]=cameraVerticalFovDegrees_;result["actualYawDegrees"]=glm::degrees(yaw_);
+        result["actualPitchDegrees"]=glm::degrees(pitch_);result["actualDistanceDisplayUnits"]=distance_;
+        result["strandSimulationPaused"]=strandHair_.paused;result["bindPose"]=bindPose_;
+        result["lightingReappliedAfterReferenceCamera"]=referenceLightingReapplied_;
+        result["lightingApplicationOrder"]="Existing lights are initialized before reference alignment. The camera profile does not call ApplyLightingPreset; later explicit light UI changes are tracked separately.";
+        result["describesLastExecutedFrame"]=true;
+        return result;
+    }
+    Json::Value CameraReferenceMetadata()const{
+        if(!completedCameraReferenceMetadata_.isNull())return completedCameraReferenceMetadata_;
+        auto result=BuildCameraReferenceMetadata();result["describesLastExecutedFrame"]=false;return result;
+    }
+    void ReferenceCameraControls(){
+        if(!ImGui::TreeNode("参考构图 / Reference camera"))return;
+        bool enabled=referenceCameraEnabled_;
+        if(ImGui::Checkbox("实机参考构图 / Game-shot study",&enabled))Try([&]{ApplyReferenceCamera(enabled);});
+        ImGui::TextWrapped("可选刚体姿态与相机研究；发丝、人物和遮挡体积一起变换。未恢复原表情、眼睛视线或动态发型，不更改光照与发色。");
+        if(referenceCameraEnabled_){
+            bool changed=false;
+            changed|=ImGui::SliderFloat("垂直视野 / FOV",&referenceCamera_.verticalFovDegrees,20,75,"%.2f deg");
+            if(ImGui::IsItemHovered())ImGui::SetTooltip("真实透视视野；单张截图不能唯一确定焦距，初始值保留宿主43度。");
+            changed|=ImGui::SliderFloat("方位 / Yaw",&referenceCamera_.yawDegrees,-45,45,"%.2f deg");
+            changed|=ImGui::SliderFloat("仰俯 / Pitch",&referenceCamera_.pitchDegrees,-40,40,"%.2f deg");
+            changed|=ImGui::SliderFloat("距离 / Source metres",&referenceCamera_.distanceLocalMetres,.15f,.8f,"%.4f m");
+            if(ImGui::IsItemHovered())ImGui::SetTooltip("以原人物米单位记录，与预览归一化缩放同步；不缩放截图。");
+            changed|=ImGui::SliderFloat3("整体姿态 / XYZ",&referenceCamera_.modelEulerDegrees.x,-35,35,"%.2f deg");
+            if(ImGui::IsItemHovered())ImGui::SetTooltip("绕眼中点的整个人物刚体旋转；当前静态GLB没有可恢复笑容的脸部骨架。");
+            changed|=ImGui::SliderFloat2("构图主点 / UV",&referenceCamera_.principalPoint.x,.1f,.9f,"%.4f");
+            if(ImGui::IsItemHovered())ImGui::SetTooltip("真实离轴投影视锥：左上角为(0,0)，右下角为(1,1)，不是图片平移或拉伸。");
+            changed|=ImGui::Checkbox("保持参考宽高比 / Aspect",&referenceCamera_.lockReferenceAspect);
+            if(changed)Try([&]{ApplyReferenceCamera(true);});
+            if(ImGui::Button("恢复参考参数 / Reset study")){referenceCamera_={};Try([&]{ApplyReferenceCamera(true);});}
+            if(ImGui::Button("导出相机与锚点 / Export"))Try([&]{
+                const auto path=Path(MODEL_SOURCE_DIR)/"output/Diana/Quality14/reference-camera.json";
+                EditorPreview::SaveDianaCameraReferenceMetadata(path,CameraReferenceMetadata());status_="Camera report: "+Utf8(path);
+            });
+        }
+        ImGui::TreePop();
+    }
+    void FrameCharacter(bool face){
+        if(referenceCameraEnabled_)ApplyReferenceCamera(false);
+        if(!face){FramePreviewRegions();return;}
+        // The extracted head and the character share the original metre space.
+        trackedCameraBone_=-1;cameraFocus_=glm::vec3(placement_*glm::dvec4(0,.958,.015,1));
+        distance_=float(glm::length(glm::dvec3(placement_[0]))*.34);distance_=std::clamp(distance_,.6f,20.f);pitch_=0;
+    }
+    void CharacterMaterialDetails(){
+        if(!characterMaterials_){ImGui::TextWrapped("No extracted character material profile.");return;}
+        ImGui::TextColored(ImVec4(.4f,.8f,1,1),"DIANA / EXTRACTED PBR");
+        ImGui::Text("%zu meshes / %llu triangles",resource_->Source().meshes.size(),static_cast<unsigned long long>(resource_->Source().TriangleCount()));
+        ImGui::Text("%zu materials / %zu texture bindings",characterMaterialReport_.matchedMaterials,characterMaterialReport_.textureBindings);
+        for(const auto& [category,count]:characterMaterialReport_.categories)ImGui::Text("%s: %zu",category.c_str(),count);
+        ImGui::TextWrapped("Render / MaterialLab PBR. Skin diffusion, eye-shell postprocess and spatial fiber self-occlusion; RT/realtime GI disabled.");
+        if(ImGui::Button("全身 / Full"))FrameCharacter(false);ImGui::SameLine();if(ImGui::Button("面部 / Face"))FrameCharacter(true);
+        ReferenceCameraControls();
+        const char* lights[]={"Studio","Side","Back","Reference study","ST30_101 cube study","Reference neutral key study"};if(ImGui::Combo("Lighting",&lightingPreset_,lights,6))ApplyLightingPreset();
+        if(ImGui::IsItemHovered())ImGui::SetTooltip("Reference neutral key: host lighting calibration at equal Rec.709 incoming luminance.\nOnly the cool environment lobe and primary point tint change; not recovered game illumination.");
+        if(ImGui::Checkbox("源场景环境输入 / Source environment",&sourceEnvironmentOverride_))ApplyEnvironmentPreservingDirect();
+        if(ImGui::IsItemHovered())ImGui::SetTooltip("独立切换原HDR与六向间接光输入，保留当前直射灯和曝光，供同条件对比。ST30_101已有第三章检查点关联；具体房间、探针混合与运行时倍率仍需确认。");
+        if(ImGui::Checkbox("源直射输入 / Source direct",&sourceDirectOverride_))Try([&]{ApplyDirectPreservingEnvironment();});
+        if(ImGui::IsItemHovered())ImGui::SetTooltip("独立切换章节候选太阳和局部灯；头发使用完整灯表、有限范围和锥形分布。原截图位置、动态灯状态和场景阴影尚未捕获。");
+        if(ImGui::SliderFloat("Sun input scale",&directSunScale_,0.f,4.f,"%.3f")){ApplyDirectInputScales(false);if(pbrReady_)pbr_.ResetHistory();}
+        if(ImGui::IsItemHovered())ImGui::SetTooltip("太阳直射输入倍率。0关闭太阳，用于隔离体积自阴影；同时作用于头发和不透明模型，保持环境光、曝光与材质参数。");
+        if(ImGui::SliderFloat("Punctual input scale",&directPunctualScale_,0.f,4.f,"%.3f")){ApplyDirectInputScales(false);if(pbrReady_)pbr_.ResetHistory();}
+        if(ImGui::IsItemHovered())ImGui::SetTooltip("局部灯直射RGB倍率。0关闭四点灯或完整源灯表及不透明代理；保留衰减/范围/IES参数，不改变发色和散射强度。");
+        int sunFilter=int(pbrSettings_.shadows.filter);
+        if(ImGui::Combo("Sun shadow filter",&sunFilter,"Tent (host)\0Source Poisson8 study\0")){pbrSettings_.shadows.filter=Render::DirectionalShadowFilter(sunFilter);if(pbrReady_)pbr_.ResetHistory();}
+        if(ImGui::IsItemHovered())ImGui::SetTooltip("Tent保持此前4x4滤波。Source Poisson8按源固定八点分布采样，原运行时半径写入尚未闭合；不是PCSS或太阳角半径。只改变CSM接收滤波，保留DSVolume和光能。");
+        ImGui::BeginDisabled(pbrSettings_.shadows.filter!=Render::DirectionalShadowFilter::SourcePoisson8);
+        if(ImGui::SliderFloat("Sun shadow radius UV",&pbrSettings_.shadows.sourcePoissonRadius,0.f,.05f,"%.5f")){if(pbrReady_)pbr_.ResetHistory();}
+        if(ImGui::IsItemHovered())ImGui::SetTooltip("第一层级归一化UV半径，其它层级保持同世界尺度。默认.003来自作者场景字段，运行时writer未核实；0用于八点滤波退化对照。不改变曝光或SSS半径。");
+        if(ImGui::SliderFloat("Surface shadow radius UV",&pbrSettings_.shadows.sourceSurfaceRadius,0.f,.05f,"%.5f")){if(pbrReady_)pbr_.ResetHistory();}
+        if(ImGui::IsItemHovered())ImGui::SetTooltip("仅覆盖皮肤、衣服等不透明模型接收的太阳CSM滤波。0继承上方半径；不改变头发接收半径、DS或曝光。这是宿主近景适配，原皮肤运行时阴影律尚未证实。");
+        ImGui::EndDisabled();
+        if(sourceDirectOverride_&&sourceHairDirect_&&ImGui::TreeNode("直射输入说明 / Direct inputs")){
+            ImGui::TextWrapped("%s",sourceHairDirect_->label.c_str());
+            ImGui::TextWrapped("Parameter origin: %s",sourceHairDirect_->parameterOrigin.c_str());
+            ImGui::Text("Hair: %u source lights",pbrSettings_.strandSourceDirect.count);
+            if(ImGui::SliderFloat("直射单位 / Direct unit EV",&sourceHairDirect_->hostUnitEV,-16,0,"%.2f"))Try([&]{ApplyDirectPreservingEnvironment();});
+            if(ImGui::IsItemHovered())ImGui::SetTooltip("宿主光度单位适配；不是已恢复的原相机曝光，不改头发底色或散射强度。");
+            ImGui::TextWrapped("Opaque four-light proxy: %.2f%% of unshadowed local Y at groom center; hair uses the full table.",appliedSourceDirect_.proxyLuminanceCoverage*100.);
+            ImGui::TreePop();
+        }
+        if(sourceHairLighting_){
+            auto& indirect=pbrSettings_.strandIndirect;
+            if(ImGui::Checkbox("Source indirect cube",&indirect.enabled))pbr_.ResetHistory();
+            ImGui::SameLine();ImGui::TextDisabled("(?)");if(ImGui::IsItemHovered())ImGui::SetTooltip("源StrandIndirectLightCS按方向符号和分量平方组合六向系数，不额外除pi。ST30_101已由原检查点目录关联第三章；当前输入仍为单个立方图mip轴心候选值，完整探针场、混合和截图房间尚未确认。");
+            if(ImGui::TreeNode("Source IBL controls")){
+                ImGui::TextWrapped("%s",sourceHairLighting_->label.c_str());
+                if(ImGui::SliderFloat("Host hair ambient",&indirect.hostAmbientScale,0,1,"%.3f"))pbr_.ResetHistory(false);
+                ImGui::SameLine();ImGui::TextDisabled("(?)");if(ImGui::IsItemHovered())ImGui::SetTooltip("仅缩放源探针启用时额外叠加给头发的宿主常量填光。0遵循已追踪的原IBL采样链，1恢复旧预览；不改探针、材质、皮肤照明或投影参数。");
+                if(ImGui::SliderFloat("HDR unit EV",&indirect.exposureEV,-16,0,"%.2f")){if(lightingPreset_==4||sourceEnvironmentOverride_)pbrSettings_.sky.intensity=std::exp2(indirect.exposureEV);pbr_.ResetHistory();}
+                ImGui::SameLine();ImGui::TextDisabled("(?)");if(ImGui::IsItemHovered())ImGui::SetTooltip("宿主光度单位适配，默认-7 EV；同时缩放源HDR与头发六向系数。不是已恢复的原场景曝光，不修改材质.8或发色。");
+                if(ImGui::SliderFloat("Probe multiplier",&indirect.multiplier,0,4,"%.3f"))pbr_.ResetHistory();
+                ImGui::SameLine();ImGui::TextDisabled("(?)");if(ImGui::IsItemHovered())ImGui::SetTooltip("原CPU代码将Diana静态字段.8分别写入生成端CB+24与材质端+168，两处各乘一次，静态净倍率.64。这里控制生成端；运行时覆盖值未捕获，不合并或删除材质端.8。");
+                float degrees=glm::degrees(indirect.rotation);if(ImGui::SliderFloat("Probe rotation",&degrees,-180,180,"%.1f deg")){indirect.rotation=glm::radians(degrees);if(lightingPreset_==4||sourceEnvironmentOverride_)pbrSettings_.sky.rotation=indirect.rotation;pbr_.ResetHistory();}
+                ImGui::SameLine();ImGui::TextDisabled("(?)");if(ImGui::IsItemHovered())ImGui::SetTooltip("世界Y轴环境旋转；源LC对象旋转为单位四元数，默认0。保持HDR背景/反射与头发六向输入方向一致。");
+                ImGui::TextWrapped("Original HDR, candidate probe coefficients; selected direct-light rig retained. No RT/realtime GI.");
+                ImGui::TreePop();
+            }
+        }
+        if(ImGui::Checkbox("Eye shell postprocess",&pbrSettings_.eyeShell.enabled))pbr_.ResetHistory();
+        ImGui::SameLine();ImGui::TextDisabled("(?)");if(ImGui::IsItemHovered())ImGui::SetTooltip("只处理标记的原始EyeShell网格；读取独立HDR和深度实现遮蔽/模糊。关闭后显示底层眼球，便于同视角对照。");
+        ImGui::SeparatorText("MATERIAL / 原始材质槽");
+        selectedCharacterMaterial_=std::clamp(selectedCharacterMaterial_,0,int(characterMaterialEdits_.size())-1);
+        if(ImGui::BeginCombo("##character-material",characterMaterialEdits_[selectedCharacterMaterial_].name.c_str())){for(std::size_t i=0;i<characterMaterialEdits_.size();++i)if(ImGui::Selectable(characterMaterialEdits_[i].name.c_str(),selectedCharacterMaterial_==int(i)))selectedCharacterMaterial_=int(i);ImGui::EndCombo();}
+        auto& m=characterMaterialEdits_[selectedCharacterMaterial_];
+        const auto set=[&](const char* name,const Render::Material::ParameterValue& value){Try([&]{std::string error;Check(resource_->Materials().SetParameter(resource_->MaterialHandles()[selectedCharacterMaterial_],name,value,&error),error);pbr_.ResetHistory();});};
+        const auto help=[](const char* text){ImGui::SameLine();ImGui::TextDisabled("(?)");if(ImGui::IsItemHovered())ImGui::SetTooltip("%s",text);};
+        auto& values=characterParameterEdits_.at(selectedCharacterMaterial_);
+        const auto scalar=[&](const char* key,const char* label,const char* explanation,float low,float high){
+            const auto it=values.find(key);if(it==values.end())return;
+            if(auto* value=std::get_if<float>(&it->second)){ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x*.50f);if(ImGui::SliderFloat(label,value,low,high,"%.3f"))set(key,*value);help(explanation);}
+        };
+        const auto flag=[&](const char* key,const char* label,const char* explanation){
+            const auto it=values.find(key);if(it==values.end())return;
+            if(auto* value=std::get_if<bool>(&it->second)){if(ImGui::Checkbox(label,value))set(key,*value);help(explanation);}
+        };
+        const auto component=[&](const char* key,int index,const char* label,const char* explanation,float low,float high){
+            const auto it=values.find(key);if(it==values.end())return;
+            float* value=nullptr;
+            if(auto* v=std::get_if<glm::vec4>(&it->second);v&&index<4)value=&(*v)[index];
+            else if(auto* v=std::get_if<glm::vec3>(&it->second);v&&index<3)value=&(*v)[index];
+            else if(auto* v=std::get_if<glm::vec2>(&it->second);v&&index<2)value=&(*v)[index];
+            if(value){ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x*.5f);if(ImGui::SliderFloat(label,value,low,high,"%.3f"))set(key,it->second);help(explanation);}
+        };
+        if(ImGui::ColorEdit3("Base color",&m.baseColor.x))set("baseColor",m.baseColor);
+        ImGui::BeginDisabled(m.textures[3]>=0);
+        if(ImGui::SliderFloat("Roughness",&m.roughness,.045f,1))set("roughness",m.roughness);
+        ImGui::EndDisabled();ImGui::BeginDisabled(m.textures[2]>=0);
+        if(ImGui::SliderFloat("Metallic",&m.metallic,0,1))set("metallic",m.metallic);
+        ImGui::EndDisabled();
+        if(ImGui::SliderFloat("Normal scale",&m.normalScale,0,2))set("normalScale",m.normalScale);
+        ImGui::TextWrapped("Scalar maps already include source factors. Roughness/metallic sliders control only materials without the corresponding map.");
+        const std::array<const char*,8> slots{"Albedo sRGB","Normal","Metallic","Roughness","AO","Control / Eye packed","Detail / Sclera","Emission / Eye reflection"};
+        if(ImGui::TreeNode("纹理绑定 / Textures")){for(std::size_t i=0;i<slots.size();++i)if(m.textures[i]>=0){ImGui::TextWrapped("%s: %s",slots[i],resource_->Source().textures[m.textures[i]].name.c_str());}ImGui::TreePop();}
+        if(values.contains("reSkinEnabled")&&ImGui::CollapsingHeader("SKIN / 皮肤散射",ImGuiTreeNodeFlags_DefaultOpen)){
+            auto& s=pbrSettings_.skinDiffusion;
+            if(ImGui::Checkbox("Spatial diffusion",&s.enabled))pbr_.ResetHistory();help("只扩散选中皮肤的漫反射；保留高光，使用深度、法线和材质边界保护。");
+            int kernel=int(s.kernel);ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x*.5f);
+            if(ImGui::Combo("Diffusion kernel",&kernel,"Gaussian\0Source Burley candidate\0")){s.kernel=Render::SkinDiffusionKernel(kernel);pbr_.ResetHistory();}
+            help("Gaussian为此前的重建核；Source Burley为源SSSSSMainPass发现的二维径向核，但Diana实际运行分支和profile选择尚未证实。");
+            if(s.kernel==Render::SkinDiffusionKernel::SourceBurley){int taps=int(s.diskSamples);ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x*.5f);if(ImGui::SliderInt("Disk samples",&taps,8,64)){s.diskSamples=std::uint32_t(taps);pbr_.ResetHistory();}help("候选二维径向核的确定性圆盘采样数。增加可降低采样误差；原始时序噪声/历史路径尚未移植。");}
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x*.5f);
+            if(ImGui::SliderFloat("Radius mm",&s.radiusMillimeters,.05f,5.f,"%.2f"))pbr_.ResetHistory();help("Gaussian的sigma或候选径向核的d，单位毫米；随模型尺度和相机投影换算。数值仍为重建参数。");
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x*.5f);
+            if(ImGui::SliderFloat("SSS strength",&s.strength,0,1))pbr_.ResetHistory();help("空间扩散总混合比例；0可查看无空间散射的基准。");
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x*.5f);
+            if(ImGui::SliderFloat("Albedo detail",&s.albedoPreservation,0,1))pbr_.ResetHistory();help("底色与光照的分解指数：0扩散全部底色，0.5平方根分解，1完整保留纹理中的眉毛、唇纹与毛孔。此项属于重建策略。");
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x*.5f);
+            if(ImGui::DragFloat3("RGB radii",&s.channelRadii.x,.01f,.01f,4.f,"%.2f"))pbr_.ResetHistory();help("RGB扩散距离的独立倍率。原profile记录到Shader常量的转换及运行时选择尚未核实。");
+            flag("skinDiffusionEnabled","Material diffusion","原始SSS_Channel为3时启用；Body槽原始值0，不参与扩散。");
+            scalar("skinDiffusionBlend","Material blend","源SSS_BlendRate，面部还乘原控制图R。",0,1);
+            scalar("reSkinSpecularReflectance","Reflectance","源SpecularReflectance：介电F0=0.04×该值，面部再乘控制图A。",0,2);
+            scalar("reSkinTranslucency","Translucency","源Translucency，面部乘控制图R；默认MDF为0。",0,1);
+        }
+        if(values.contains("eyeEnabled")&&ImGui::CollapsingHeader("EYE / 眼部折射",ImGuiTreeNodeFlags_DefaultOpen)){
+            flag("eyeEnabled","Eye shading","使用原始UV0虹膜与UV1巩膜坐标；关闭后显示通用PBR基准。");
+            scalar("eyeRefractionStrength","Refraction","虹膜位移/视差强度；0可与无折射结果对照。",0,1);
+            scalar("ior","Cornea IOR","源MDF值1.4；当前用于Fresnel适配，原Shader直接消费IOR的路径尚未确认。虹膜视差使用源深度公式。",1.01f,2.f);
+            component("eyeIrisShape",0,"Iris radius","源Iris_Radius，控制虹膜与巩膜的边界。",.1f,1.f);
+            component("eyeIrisShape",3,"Iris rotation","源左右眼独立的虹膜旋转角，单位度。",-180,180);
+            component("eyeParallax",0,"Lens zoom","源LensDepthZoom，改变虹膜采样缩放。",0,1);
+            component("eyeParallax",2,"Iris depth","源IrisDepth，控制虹膜位移的深度。",0,1);
+            component("eyeParallax",3,"Ray offset","源IrisOffset：倾斜视线下的虹膜位移尺度。",0,1);
+            component("eyeDisplacement",0,"POM layers","源DisplacementLayers，控制深度相交采样步数；增加会增加GPU开销。",4,32);
+            component("eyeDisplacement",1,"Displacement","源DisplacementHeight，配合原始虹膜位移图。",0,1);
+            component("eyeDisplacement",2,"Pupil radius","源Pupil_Radius，允许负值；保留左右眼独立的默认参数。",-.4f,.4f);
+            component("eyePupilOffset",0,"Pupil offset X","源瞳孔水平偏移，左右眼分别保存。",-.3f,.3f);
+            component("eyePupilOffset",1,"Pupil offset Y","源瞳孔垂直偏移。",-.3f,.3f);
+            component("eyeSpecularReflectance",0,"Lens F0","源LensSpecReflectance；IOR为1.4时直接保留该反射率。",0,.15f);
+            component("eyeSpecularReflectance",1,"Sclera F0","源ScleraSpecReflectance；巩膜与虹膜按源边界权重混合。",0,.15f);
+        }
+        if(values.contains("eyeShellEnabled")&&ImGui::CollapsingHeader("EYE SHELL / 眼壳后处理",ImGuiTreeNodeFlags_DefaultOpen)){
+            ImGui::TextWrapped("Source mesh + independent HDR/depth snapshot. Use the global checkbox above for an A/B.");
+            component("eyeShellSurface",0,"Depth window","源CheckDepthDifference；仅处理眼壳后方、深度窗口内的表面。",.001f,1.f);
+            component("eyeShellSurface",1,"Shell occlusion","源OcclusionStrength=.47，与原UV轮廓/填充遮罩生成眼周遮蔽。",0,1);
+            component("eyeShellSurface",2,"Shell blur","源BlurStrength=.86，径向双向采样HDR；源投影尺度到宿主的适配仍有限。",0,2);
+            component("eyeShellSurface",3,"Highlight reject","源SpecBlurReduction=8，限制高亮样本向邻域扩散。",0,16);
+            const auto group=[&](const char* key,const char* label,const char* explanation,float maximum){
+                auto it=values.find(key);if(it==values.end())return;if(auto* value=std::get_if<glm::vec4>(&it->second)){
+                    ImGui::TextUnformatted(label);help(explanation);ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x*.93f);
+                    if(ImGui::DragFloat4((std::string("##")+key).c_str(),&value->x,.01f,0,maximum,"%.2f"))set(key,*value);
+                }
+            };
+            if(ImGui::TreeNode("Occlusion shape / 遮蔽形状")){
+                group("eyeShellOutlineArea","Outline area: T B I O","源Top/Bottom/Inner/OuterOutlineArea，依次为上、下、内、外边界。",2);
+                group("eyeShellOutlineSmooth","Outline smooth: T B I O","四个边界的源OutlineSmooth，控制轮廓过渡。",4);
+                group("eyeShellFillArea","Fill area: T B I O","四个方向的源FillArea，控制内部填充范围。",2);
+                group("eyeShellFillSmooth","Fill smooth: T B I O","四个方向的源FillSmooth，控制内部填充过渡。",4);
+                ImGui::TreePop();
+            }
+            if(ImGui::TreeNode("Blur shape / 模糊形状")){
+                group("eyeShellBlurOutlineArea","Blur outline: T B I O","源四方向OutlineArea_Blur，限制径向模糊的轮廓范围。",2);
+                group("eyeShellBlurOutlineSmooth","Blur outline smooth","源四方向OutlineSmooth_Blur，控制模糊轮廓过渡。",4);
+                group("eyeShellBlurFillArea","Blur fill: T B I O","源四方向FillArea_Blur，控制模糊填充范围。",2);
+                group("eyeShellBlurFillSmooth","Blur fill smooth","源四方向FillSmooth_Blur，控制模糊填充过渡。",4);
+                ImGui::TreePop();
+            }
+            component("eyeShellSpecular",0,"Shell roughness","源Roughness=.01；宿主GGX保持最小稳定粗糙度，额外直接高光属于适配。",.01f,1);
+            component("eyeShellSpecular",1,"Shell specular","源Specular=.85，眼壳附加高光幅度。",0,1);
+            component("eyeShellSpecular",3,"Specular threshold","源SpecularClamp=1，高光输出阈值；按源Shader分支处理。",0,4);
+            component("eyeShellCavity",0,"Cavity area","源CavityFillArea=1，眼角填充范围。",0,2);
+            component("eyeShellCavity",1,"Cavity smooth","源CavityFillSmooth=.54，眼角填充过渡。",.01f,4);
+            component("eyeShellCavity",2,"Tearline normal","源NormalStrength=.2，使用实际泪线法线图。",0,1);
+            component("eyeShellCavity",3,"Depth unit adapter","宿主适配：每米模型空间对应的源线性深度单位。默认1，原运行时ZToLinear单位尚未确认；不能将DSVolume单位直接套用到眼壳。",.1f,100);
+            if(ImGui::TreeNode("Fake specular / 源假高光")){
+                component("eyeShellFake",0,"Fake intensity","源FakeSpecularIntensity=0，默认不叠加假高光。",0,4);
+                component("eyeShellFake",1,"Fake offset X","源FakeSpecularX=-.31，假高光纹理水平偏移。",-1,1);
+                component("eyeShellFake",2,"Fake offset Y","源FakeSpecularY=.03，假高光纹理垂直偏移。",-1,1);
+                component("eyeShellFake",3,"Fake size","源FakeSpecularSize=1.02，假高光纹理缩放。",.01f,3);
+                ImGui::TreePop();
+            }
+            group("eyeShellDebug","Debug: occlusion / blur / cavity / normal","源四个DebugView，0关闭、1以源诊断颜色显示各遮罩。",1);
+        }
+        if(ImGui::Combo("Display transform",&displayStudy_,"Host ACES\0Source ST30_100 study\0Source ST30_200 study\0"))ApplyDisplayStudy(displayStudy_);
+        help("Source研究模式：原三段曲线、ACEScct域33^3 ColorCube及sRGB输出，通过Render/RHI执行。OCIO矩阵取单位阵、RGC关闭、曝光沿用宿主；尚未确认参考图的运行时显示链，默认保留ACES。");
+        ImGui::SeparatorText("STRAND MATERIAL / 头发");
+        auto& h=strandHair_.material;ImGui::Checkbox("Visible hair",&strandHair_.visible);
+        bool hairChanged=ImGui::Checkbox("Fiber scattering",&h.physicalScattering);help("R表面反射、TT穿透、TRT内部反射与局部多次散射。关闭可对照此前双高光近似。");
+        if(h.gradientTable){hairChanged|=ImGui::Checkbox("Source gradient / HSV",&h.sourceColor);help("使用原始顶点中的渐变位置与每根发丝的随机字节，选择A/B/C渐变后在线性RGB上执行源HSV公式；关闭使用此前端点均值颜色。未执行运行时BAB覆盖。");}
+        if(h.nttTable){hairChanged|=ImGui::Checkbox("Native Ntt lookup",&h.useNttLookup);help("使用从游戏可执行文件提取的128×128双通道表，保留原float到半精度截断上传值。关闭后对照此前的computeDSLUT解析拟合；源RG共同控制TT方位分布。");}
+        if(ImGui::Checkbox("原生逐段着色 / Segment shading",&h.sourceSegmentShading)){
+            hairChanged=true;
+            if(!h.sourceSegmentShading)pbrSettings_.strandNativeOit=false;
+        }
+        help("段起点提供视向和切线；段终点查询灯光、体积遮蔽与颜色坐标，再插值已着色端色。关闭可对照逐片元路径；不改变发丝宽度或覆盖率。");
+        hairChanged|=ImGui::Checkbox("原生曲线 / Native curves",&h.sourceCurveGeometry);
+        help("四控制点曲线让弯曲发丝更连续；采用原硬件分支的可见性和屏幕长度细分公式，最多15段。列表调度暂由CPU完成，可能增加调度成本。关闭对照控制点直线带。");
+        if(h.sourceCurveGeometry)ImGui::TextDisabled("Visible segments %llu / %llu; curve pieces %llu",
+            static_cast<unsigned long long>(pbr_.Statistics().strandCurveVisibleSegments),
+            static_cast<unsigned long long>(pbr_.Statistics().strandCurveOriginalSegments),
+            static_cast<unsigned long long>(pbr_.Statistics().strandCurvePieces));
+        if(h.nativeMomentTable){
+            hairChanged|=ImGui::Checkbox("Native full DSLUT",&h.useNativeMomentLut);
+            help("完整64×64×16散射表，按原computeDSLUT采样估计器离线生成并量化至RGBA16F；运行时在角度、粗糙度和吸收三轴插值。关闭可对照此前16×16当前粗糙度切片，不会重新生成完整表。");
+            if(h.useNativeMomentLut&&!NativeHairMomentKeyMatches(h))ImGui::TextColored(ImVec4(1,.72f,.28f,1),"DSLUT key changed: legacy16x16 fallback");
+            else ImGui::TextDisabled("DSLUT: %s",NativeHairMomentStatus(h));
+            ImGui::TextDisabled("Baked IOR %.3f / F0 %.6f / az %.3f / tilt %.3f",h.nativeMomentParameters.x,h.nativeMomentParameters.y,h.nativeMomentParameters.z,h.nativeMomentParameters.w);
+            help("离线表不可变。改变IOR、方位粗糙度或鳞片倾角时自动回退旧切片；恢复原值即可复用缓存。纵向粗糙度使用表的64层动态采样，不触发表失配。");
+        }
+        int oitMode=pbrSettings_.strandNativeOit?(pbrSettings_.strandNativeOitLayers==8?3:2):(pbrSettings_.strandFrontLayerTransparency?1:0);
+        if(ImGui::Combo("透明模式 / Hair OIT",&oitMode,"加权混合（旧）\0深度分组（宿主）\0原生 Wu + MLAB4\0原生 Wu + MLAB8\0")){
+            pbrSettings_.strandNativeOit=oitMode>=2;
+            if(oitMode<2)pbrSettings_.strandFrontLayerTransparency=oitMode==1;
+            else {pbrSettings_.strandNativeOitLayers=oitMode==3?8u:4u;h.sourceSegmentShading=true;}
+            hairChanged=true;
+        }
+        help("原生研究模式使用软件Wu覆盖、每像素4/8槽局部合并和全局4槽透明合成，自动启用逐段着色；可保留直线或原生曲线。采用确定的GPU像素归属调度，未复现原atomic争用或确认参考帧分支；计算与显存开销可能明显增加。深度分组保留此前宿主适配作对照。");
+        if(pbrSettings_.strandNativeOit)ImGui::TextDisabled("Native OIT %s | K%u | %u compute passes | %.2f MiB",
+            pbr_.Statistics().strandNativeOitActive?"active":"inactive",
+            pbr_.Statistics().strandNativeOitLayers,pbr_.Statistics().strandNativeOitComputePasses,
+            double(pbr_.Statistics().strandNativeOitBytes)/(1024.0*1024.0));
+        ImGui::BeginDisabled(pbrSettings_.strandNativeOit);
+        hairChanged|=ImGui::Checkbox("Area preserving coverage",&h.areaPreservingCoverage);help("修复旧软边重复削减亚像素覆盖的问题，保留投影物理宽度的积分面积。原生Wu模式使用源覆盖公式，不使用此宿主滤波选项。");
+        ImGui::EndDisabled();
+        int quality=pbrSettings_.strandFrontDepthGroups==2?0:pbrSettings_.strandFrontDepthGroups==3?1:2;
+        int hairDebug=int(pbrSettings_.strandDebugMode);
+        if(ImGui::Combo("Hair diagnostics",&hairDebug,"Beauty\0Base color\0Direct\0Indirect\0Direct ballistic\0Direct multiple\0IBL ballistic\0IBL multiple\0Reflection R\0Transmission TT\0Internal TRT\0Sun N\0IBL N+/N-\0Opaque visibility\0IBL incident\0")){
+            pbrSettings_.strandDebugMode=Render::StrandDebugMode(hairDebug);hairChanged=true;
+        }
+        help("分开显示原发色、白色反射、透射、多重散射和遮挡，定位偏灰与阴影来源。仅影响头发显示，保留实际覆盖率；Beauty恢复正常渲染，不修改材质。");
+        ImGui::BeginDisabled(pbrSettings_.strandNativeOit);
+        hairChanged|=ImGui::Checkbox("Paired transparency",&pbrSettings_.strandPairedLayerTransparency);
+        help("一次绘制同时累积HDR颜色和透射率，减少重复着色；颜色使用32位浮点以保留很薄的发丝尾层。关闭可对照旧分离绘制，排序组数与物理宽度不变。");
+        ImGui::EndDisabled();
+        if(ImGui::Combo("Hair quality",&quality,"Balanced: 2 groups / default32^3\0High: 3 groups / default64^3\0Ultra: 7 groups / default64^3\0")){
+            pbrSettings_.strandFrontDepthGroups=quality==0?2:quality==1?3:7;h.volumeResolution=quality==0?32:64;hairChanged=true;
+        }help("预设同时设置前层排序和体积预算，下方Volume budget可独立覆盖内部阴影精度；保留全部17500根发丝、物理宽度和源颜色。Ultra增加显存与GPU开销。");
+        if(ImGui::Checkbox("Hair depth for TAA",&pbrSettings_.strandTemporalDepth))hairChanged=true;
+        help("覆盖率达到.95时将最近发丝深度送入TAA及深度历史，减少按头皮重投影；与下面的逐丝运动和独立颜色历史开关分别控制。");
+        if(ImGui::Checkbox("Hair motion vectors",&pbrSettings_.strandMotionVectors))hairChanged=true;
+        help("在单采样TAA中，以上一次实际完成帧的发丝位置和模型变换计算运动，分别积累预乘颜色与完整覆盖率，再与身体复合。暂停模拟仍保留相机/模型运动；多采样或非TAA不启用该路径。");
+        ImGui::TextDisabled("Motion passes %u | hair TAA %u | history %s",pbr_.Statistics().strandMotionPasses,pbr_.Statistics().strandHairTemporalPasses,pbr_.Statistics().strandHairHistoryUsed?"reused":"reset");
+        ImGui::TextDisabled("Transparency %u passes / %u geometry draws | %s",pbr_.Statistics().strandPasses,pbr_.Statistics().strandTransparencyRasterPasses,pbr_.Statistics().strandPairedTransparencyActive?"paired HDR":"legacy");
+        hairChanged|=ImGui::Checkbox("Adaptive hair history",&pbrSettings_.temporal.hairCoverageHistoryRejection);
+        help("按发丝运动、覆盖率变化和高光颜色变化限制旧帧贡献，减少快运动拖影；静止和亚像素运动仍保留抗锯齿积累，只作用于独立头发层。");
+        if(pbrSettings_.temporal.hairCoverageHistoryRejection){
+            hairChanged|=ImGui::SliderFloat("Fast motion px",&pbrSettings_.temporal.hairFastMotionPixels,1,32,"%.1f");
+            help("每帧移动达到此像素数时严格限制历史覆盖率；较小更快清除拖影，较大保留更多时间平滑。不是曝光或发丝宽度。");
+        }
+        hairChanged|=ImGui::Checkbox("Hair geometry shutter",&pbrSettings_.temporal.hairMotionBlurEnabled);
+        help("用4个独立时间的发丝几何样本平均颜色与覆盖率，表现真实发丝运动模糊。不会把时间样本叠厚；开销明显增加。需要连续执行历史，遮挡和灯光冻结当前帧。");
+        if(pbrSettings_.temporal.hairMotionBlurEnabled){
+            float shutterMs=pbrSettings_.temporal.hairMotionBlurShutterSeconds*1000.f;
+            ImGui::TextDisabled("Shutter %u samples / %u passes",pbr_.Statistics().strandShutterSamples,pbr_.Statistics().strandShutterPasses);
+            if(ImGui::SliderFloat("Hair shutter ms",&shutterMs,.1f,33.3f,"%.2f")){pbrSettings_.temporal.hairMotionBlurShutterSeconds=shutterMs*.001f;hairChanged=true;}
+            help("快门曝光时间；较长产生更长的运动轨迹。最多使用上次执行帧到当前帧的区间，不对缺失的运动作外推。");
+        }
+        hairChanged|=ImGui::Checkbox("Source direct scattering",&h.sourceDirectScattering);
+        help("使用原Emissive Shader的单次、局部回散射及传播前/后散射闭包。关闭保留旧通用直射模型作对照；原单次闭包固定IOR1.5。");
+        if(pbr_.Statistics().strandTransparencyMultisampleFallback)ImGui::TextDisabled("MSAA: weighted transparency fallback");
+        float minWidthMm=h.minWidthMetres*1000.f,maxWidthMm=h.maxWidthMetres*1000.f;
+        if(ImGui::DragFloat("Min width mm",&minWidthMm,.001f,0.f,maxWidthMm>0?maxWidthMm:2.f,"%.3f")){h.minWidthMetres=minWidthMm*.001f;hairChanged=true;}help("源软件光栅最小全宽，CPU按毫米转米；Diana为0。投影前限制，和最小像素滤波支持范围不同。");
+        if(ImGui::DragFloat("Max width mm",&maxWidthMm,.01f,h.minWidthMetres*1000.f,4.f,"%.3f")){h.maxWidthMetres=maxWidthMm*.001f;hairChanged=true;}help("源软件光栅最大全宽，Diana为1毫米；0不限制。LOD减少抽样时，按源CPU公式对宽度及上下限同时作倒数补偿。");
+        ImGui::BeginDisabled(h.sourceColor);
+        hairChanged|=ImGui::ColorEdit3("Root tint",&h.rootColor.x);help("原始三个渐变加权后的发根线性颜色，也决定吸收系数。");
+        hairChanged|=ImGui::ColorEdit3("Tip tint",&h.tipColor.x);help("发梢颜色；渐变位置沿实际发丝弧长插值。");
+        ImGui::EndDisabled();
+        if(h.sourceColor&&ImGui::TreeNode("Source hair color / 原始逐丝颜色")){
+            hairChanged|=ImGui::DragFloat3("Weights A/B/C",&h.gradientWeights.x,.01f,0,4,"%.3f");help("三张原始渐变图的相对选择权重；由原随机字节加选择偏移决定，原值1 / .4 / .2。三者为0时按源阈值选择C。");
+            hairChanged|=ImGui::DragFloat4("Offsets C/H/S/V",&h.colorRandomOffsets.x,.005f,-1,1,"%.3f");help("依次为渐变选择、色相、饱和度和明度的随机偏移，按源公式取小数部分。原选择偏移.3，其余0。");
+            hairChanged|=ImGui::DragFloat3("Variation H/S/V",&h.hsvVariation.x,.005f,0,1,"%.3f");help("色相扰动及饱和度/明度混合强度；原值.02 / .3 / .03。源Shader将后两者限制在.999以内，不引入新的随机哈希。");
+            ImGui::TreePop();
+        }
+        const auto hairScalar=[&](const char* label,float& value,float low,float high,const char* explanation){ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x*.50f);hairChanged|=ImGui::SliderFloat(label,&value,low,high,"%.3f");help(explanation);};
+        hairScalar("Hair roughness",h.roughness,.05f,1,"源Roughness，控制表面R瓣和内部反射瓣的纵向宽度。");
+        if(h.physicalScattering){
+            hairChanged|=ImGui::Checkbox("Native longitudinal transfer",&h.sourceRoughnessMapping);
+            help("恢复原CPU从作者LongitudialRoughness到Shader hm_v的非线性映射：(.726r+.812r²+3.7r²⁰)²，作者.5得到约.32036。关闭为此前raw宽度对照；不修改原色、吸收、灯光或投影消光。");
+            hairScalar("Longitudinal input",h.longitudinalRoughness,.05f,1,"启用Native transfer时编辑原作者参数，Render派生hm_v用于散射与LUT；关闭时直接作为Shader宽度。保留原作者.5，不把派生值写回资产。");
+            ImGui::Text("Input %.6f -> shader hm_v %.9f",h.longitudinalRoughness,Render::EffectiveStrandLongitudinalRoughness(h));
+            hairScalar("Azimuthal",h.azimuthalRoughness,.05f,1,"源AzimuthalRoughness，控制TRT闪光与TT的Ntt采样纵坐标。启用Native Ntt时读取已提取的原始双通道表；关闭则使用旧解析拟合作对照。");
+            hairScalar("Fiber IOR",h.ior,1.01f,2.f,"源DSLUT生成IOR=1.55；原直射/IBL单次闭包固定IOR1.5。此项调整散射矩表，旧通用直射也会读取。");
+            hairScalar("Cuticle tilt",h.cuticleShift,-.15f,.15f,"源CuticleTiltAngle=.02弧度，分别偏移R、TT和TRT高光位置。");
+            hairScalar("Absorption",h.absorptionScale,0,3,"源log2颜色平方吸收公式的调节系数；1保留提取的映射。");
+            hairScalar("Multiple scatter",h.multipleScattering,0,1,"源MultipleScattering/FakeMultipleScatteringFactor默认1；结合材质前后向散射矩和空间光路重建多次散射。");
+            hairScalar("Density scale",h.scatteringDensity,0,4,"空间体积启用时缩放实际发丝积分光路；关闭时使用此前的局部密度估计。");
+            hairScalar("Albedo blend",h.albedoBlendRate,0,1,"源AlbedoBlendRate=.51，将环境辐照度在原色与亮度乘发色之间混合。");
+            hairScalar("Ambient scale",h.indirectLightingMultiplier,0,2,"源IndirectLightingMultiplier=.8，只缩放已有预计算环境光。");
+            bool renderTangents=strandHair_.simulation.Settings().reconstructRenderTangents;
+            if(ImGui::Checkbox("Actual strand tangents",&renderTangents)){Check(strandHair_.SetRenderTangents(renderTangents),strandHair_.Error());hairChanged=true;}
+            help("从实际渲染发丝的相邻位置重建曲线方向，保留冠部和分缝的局部弯曲；关闭对照原三引导发方向。只更新着色方向，不推进或重置模拟。");
+            hairChanged|=ImGui::Checkbox("Spatial IBL incident",&h.sourceSpatialIbl);
+            help("按原Shader的P减中心坐标查询一次入射环境光，两路散射共享该颜色；以groom包围盒中心估计原探针中心，尚非原运行时位置。关闭使用原有按两路方向分别查询的宿主适配。");
+            ImGui::SeparatorText("DSVOLUME / 体积自遮蔽");
+            hairChanged|=ImGui::Checkbox("Spatial hair volume",&h.spatialVolume);help("从真实发丝累积空间密度，并对太阳与点光积分光路。关闭可对照局部散射基准；不运行光追或实时GI。");
+            if(ImGui::Checkbox("Native DSVolume / 原生占用体积",&h.sourceDSVolume)){
+                if(h.sourceDSVolume&&h.volumeResolution!=32&&h.volumeResolution!=64&&h.volumeResolution!=128)h.volumeResolution=64;
+                hairChanged=true;
+            }
+            help("原Texture路径：全宽归一化注入24位定点占用量、8位不透明薄壳、六级平均mip，再按源cursor/LOD规则查询N/G。使用恢复的前缀计数与RasterWidthScale补偿，WidthAve保持源header值；实际运行时列表内容和Texture格式仍需捕获验证。");
+            if(h.sourceDSVolume){
+                ImGui::TextDisabled("Texture cube R32/64/128, 6 mips, manual trilinear RGBA32F adapter");
+                hairScalar("Injection step",h.volumeRasterTraceStep,.1f,1.f,"源DSVolumeRasterTraceStepScale=.5，原CPU限制为.1..1。原控制段注入间距=min(voxel.xyz)乘此值；相邻重复baseCell跳过，不改变屏幕发丝宽度。");
+                hairScalar("Injection rate",h.volumeInjectionRate,0.f,1.f,"仅quality<2或Min LOD factor启用时应用；计算计数前将请求rate钳至至少.01。最终前缀还受incoming上限与单精度截断影响，实际比例读取下方提交统计。前缀与RasterWidthScale补偿成对执行，WidthAve保持源header值。");
+                hairScalar("Injection LOD fraction",h.volumeInjectionLodFraction,0.f,1.f,"先生成incoming=floor(double(totalSegments)*double(float(LOD fraction)))，再进行注入率选择；0产生空注入。该项是传入原列表的显式LOD适配，不改变渲染发丝数量。");
+                int injectionQuality=int(h.volumeInjectionQuality);
+                ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x*.5f);
+                if(ImGui::SliderInt("Injection quality",&injectionQuality,0,3)){h.volumeInjectionQuality=std::uint32_t(injectionQuality);hairChanged=true;}
+                help("原CPU quality0/1应用注入率；quality2/3且Min LOD factor关闭时使用完整incoming列表。该枚举仅控制DSVolume注入，不等于预览总质量预设。");
+                hairChanged|=ImGui::Checkbox("Injection Min LOD factor",&h.volumeInjectionMinLodFactor);
+                help("启用后quality2/3也应用注入率，并同步补偿RasterWidthScale；WidthAve不随选择率改变。与前缀选择是同一源策略，不独立缩放吸收或高光。");
+                ImGui::TextDisabled("Rate %s; LOD fraction %.4f",h.volumeInjectionMinLodFactor||h.volumeInjectionQuality<2?"requested by policy":"bypassed at quality2/3",h.volumeInjectionLodFraction);
+                const auto& submittedDs=pbr_.Statistics();
+                ImGui::Text("Previous frame DS segments: %llu -> %llu",
+                    static_cast<unsigned long long>(submittedDs.strandNativeDsInputSegments),
+                    static_cast<unsigned long long>(submittedDs.strandNativeDsInjectedSegments));
+                ImGui::Text("Last native item: fraction %.6f | RasterWidthScale %.6f",
+                    submittedDs.strandNativeDsInjectionFraction,submittedDs.strandNativeDsRasterWidthScale);
+                ImGui::Text("Submitted WidthAve: %.9g",submittedDs.strandNativeDsAverageWidth);
+                help("以上是上一帧Render实际提交统计：段计数为所有Native item总计，比例、RasterWidthScale与WidthAve为最后一个Native item。空incoming不计算倒数；不把请求rate当作实际注入比例。");
+                int traceCap=int(h.volumeTraceLimit),filteredCursor=int(h.volumeInterpolationSamples);
+                ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x*.5f);
+                if(ImGui::SliderInt("Trace factor cap",&traceCap,1,32)){h.volumeTraceLimit=float(traceCap);hairChanged=true;}
+                help("源DSInfo_VolumeTraceLimit限制增长后的步长倍数，不是循环次数。已恢复原CPU默认上限32；降低此项增加远段采样精度与开销。");
+                ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x*.5f);
+                if(ImGui::SliderInt("Filtered cursor",&filteredCursor,0,32)){h.volumeInterpolationSamples=float(filteredCursor);hairChanged=true;}
+                help("源DSTraceInterpolationSampleNum=4：cursor小于此阈值时使用过滤采样，之后按整数坐标与LOD读取；不是成功读取的样本数量。");
+                help("Native路径不使用旧inverse-metre积分、近场修复或Exact integration；负LOD钳0为宿主安全适配。注入率、LOD输入前缀和RasterWidthScale补偿采用恢复的CPU策略，WidthAve保持源header值；实际帧绑定仍待捕获。");
+            }
+            hairChanged|=ImGui::Checkbox("Hardware volume filtering",&h.volumeHardwareFiltering);help("每个体积采样用两次硬件XY线性过滤加Z层插值，保留原分辨率、密度和积分步长。关闭使用此前八点手工插值作性能/画质对照；硬件权重精度可能带来很小数值差异。");
+            hairChanged|=ImGui::Checkbox("Source volume widths",&h.normalizedVolumeWidth);help("源DSVolume使用相对平均宽度×.005厘米（50微米），独立于屏幕发丝宽度。Diana的WidthAve保持STRD文件头平均全宽，Native注入选择率补偿写入RasterWidthScale。实际帧DSInfo尚未捕获。旧路径关闭此项使用物理直径。");
+            hairChanged|=ImGui::Checkbox("Exact volume integration",&h.volumeExactIntegration);
+            help("逐个插值单元积分重建的密度场，减少大步长漏过细发束的阴影；保持颜色、密度和宽度。动态或旋转相机时成本较高，静止可缓存；这是宿主精度选项。");
+            if(h.normalizedVolumeWidth){float microns=h.volumeAverageWidth*1e6f;ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x*.5f);if(ImGui::SliderFloat("Source mean um",&microns,0,300,"%.2f")){h.volumeAverageWidth=microns*1e-6f;hairChanged=true;}help("源STRD头部平均全宽，单位微米；Diana原值138.52。0改用上传几何的样本平均全宽；固定参考宽度50微米不随此项改变。");}
+            hairChanged|=ImGui::Checkbox("Opaque sun shadows",&h.receiveOpaqueShadows);help("复用Render现有太阳CSM，使头部/衣服等不透明物体遮挡照向发丝的阳光；不包含点光阴影。");
+            hairScalar("Opaque shadow power",h.opaqueShadowPower,.05f,4.f,"仅对头发接收的外部太阳CSM可见度作pow。1保持旧适配；原生hm_shadowPow构造默认.5且发现CPU常量写入，当前运行时值尚未捕获。小于1抬升部分阴影，保留可见度0/1端点；不改DS、IBL、发色或头发投到皮肤的阴影。");
+            hairChanged|=ImGui::Checkbox("Opaque volume blockers",&h.volumeOpaqueBlockers);help("从当前相机可见头部/衣物表面生成体积遮挡壳，独立积分每个光照方向的最大遮挡；不改变发丝密度，不是封闭头部体积。");
+            hairChanged|=ImGui::Checkbox("Closed head proxies",&h.volumeProxyBlockers);
+            help("将提取的两条头部碰撞胶囊作为封闭遮挡补充，改善背面与离屏头部漏光；只影响遮挡，不改变发丝密度。碰撞代理不等同于皮肤网格，也不覆盖全身或场景。");
+            hairChanged|=ImGui::Checkbox("Stable opaque shadows",&h.volumeStableOpaqueCache);
+            help("物理视角与不透明模型不变时复用首个体积遮挡采样，避免仅由抗锯齿投影抖动触发重算。镜头或模型运动会重建；关闭可对照逐帧采样，不增加几何细节。");
+            hairChanged|=ImGui::Checkbox("Point IBL paths",&h.volumePointIbl);
+            help("按实际发丝点与方向积分两路环境遮挡，修正体素平均方向与实际着色方向不同的问题。保留原密度、偏移和散射参数；增加GPU开销。");
+            hairScalar("Blocker shell m",h.volumeDepthThreshold,.001f,.10f,"源DSVolumeRasterDepthThreshold=.05米，限制不透明表面后方被注入的壳厚度；并非发丝宽度或吸收倍率。");
+            hairChanged|=ImGui::Checkbox("Hair casts sun shadow",&h.castDirectionalShadows);help("使头发遮挡照向脸部、头皮和衣服的太阳光。下方选择Ordered二值覆盖或DeepOpacity连续透射；头发接收独立的不透明CSM，避免与DSVolume重复自遮蔽。");
+            int shadowCoverage=int(pbrSettings_.shadows.strandCoverage);
+            if(ImGui::Combo("Hair shadow coverage",&shadowCoverage,"Ordered coverage (host)\0Deep opacity 8 nodes (host)\0")){pbrSettings_.shadows.strandCoverage=Render::StrandShadowCoverage(shadowCoverage);hairChanged=true;}
+            help("Ordered保持此前稳定8x8二值覆盖。DeepOpacity使用连续解析覆盖和8深度节点透射，避免二值覆盖抖动；仅改变头发投到模型的阴影，不改DS或发丝照明公式。这是HOST深度不透明度近似，未恢复原游戏shadow PSO。");
+            ImGui::BeginDisabled(pbrSettings_.shadows.strandCoverage!=Render::StrandShadowCoverage::DeepOpacity);
+            if(ImGui::SliderFloat("DOM extinction scale",&pbrSettings_.shadows.strandOpacityScale,0.f,2.f,"%.3f"))hairChanged=true;
+            help("HOST有效投影消光倍率，只缩放DOM深度节点的光学厚度。1保持此前结果；较小可减轻发影，0保留模型自身阴影并移除DOM发影。不改头发接收阴影、DS、发色或曝光；不会自动保存到材质profile。");
+            ImGui::EndDisabled();
+            if(pbrSettings_.shadows.strandCoverage==Render::StrandShadowCoverage::DeepOpacity)ImGui::TextDisabled("Opacity shadow: %u passes | %u atlas",pbr_.Statistics().strandOpacityShadowPasses,pbr_.Statistics().strandOpacityShadowResolution);
+            int iblMode=!h.volumeSkyTransmission?0:h.dualScatteringIbl?2:1;
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x*.5f);
+            if(ImGui::Combo("Hair IBL",&iblMode,"Legacy ambient\0Forward only\0Source dual scattering\0")){h.volumeSkyTransmission=iblMode!=0;h.dualScatteringIbl=iblMode==2;hairChanged=true;}
+            help("同光照对照：Legacy为此前无环境体积遮蔽；Forward只保留六方向透射；Source补入原Shader的双方向角分布、局部/传播回散射与方差补偿。间接光可用宿主SH或六向源公式适配；体素平均切线的双方向密度积分仍为重建。");
+            if(iblMode==2)hairScalar("TT / back gain",h.backscatterScale,0,4,"源BackscatterScale，默认1，同时缩放TT与传播回散射。0仍保留局部回散射；不会改变源发色或体积密度。");
+            hairScalar("Voxel size m",h.volumeVoxelSize,.002f,.02f,"源DSVolumeVoxelSize=.5，结合Shader厘米坐标换算为.005米；受体积预算限制时有效体素可增大。");
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x*.5f);
+            if(h.sourceDSVolume){
+                int resolution=h.volumeResolution==32?0:h.volumeResolution==64?1:2;
+                if(ImGui::Combo("Volume budget",&resolution,"32^3\0" "64^3\0" "128^3\0")){h.volumeResolution=std::array<std::uint32_t,3>{32,64,128}[resolution];hairChanged=true;}
+            }else{
+                int resolution=h.volumeResolution==16?0:h.volumeResolution==32?1:h.volumeResolution==48?2:h.volumeResolution==64?3:4;
+                if(ImGui::Combo("Volume budget",&resolution,"16^3\0" "32^3\0" "48^3\0" "64^3\0" "128^3\0")){h.volumeResolution=std::array<std::uint32_t,5>{16,32,48,64,128}[resolution];hairChanged=true;}
+            }
+            help("独立的内部阴影体积预算，不增加透明排序组或发丝数。128预算可达到Diana请求的5毫米体素，分离冠部细束；增加体积积分时间与显存，静止几何和光照会缓存。");
+            hairScalar("Raster width",h.volumeRasterWidthScale,.5f,3.f,"源体积栅格化宽度倍率1.5，影响密度覆盖；独立于屏幕最小发丝宽度。");
+            hairScalar("Trace growth",h.volumeTraceStep,1.f,1.5f,"源光路积分步长增长因子1.1；越小采样越细，开销越高。");
+            hairScalar("Volume bias",h.volumeBiasVoxels,0,3,"源偏移系数默认1，用于避免自身密度自遮挡。启用近场阴影时乘请求体素尺寸；关闭时乘预算限制后的实际体素尺寸。过大会漏掉近邻阴影。");
+            hairChanged|=ImGui::Checkbox("Preserve near shadows",&h.volumePreserveNearField);
+            help("宿主适配：以请求的体素尺寸计算物理偏移，避免预算不足时将5毫米偏移扩大到16毫米而漏掉发束近场阴影。保留原偏移系数和密度；关闭可对照旧粗体素偏移。");
+            if(h.spatialVolume)ImGui::TextDisabled("Trace exclusion: %.2f mm",pbr_.Statistics().strandVolumeBiasMetres*1000.f/std::max(pbrSettings_.skinDiffusion.worldUnitScale,1e-6f));
+            if(h.spatialVolume){const auto& volume=pbr_.Statistics();ImGui::Text("Volume max axis: %u / %.2f mm",volume.strandVolumeResolution,volume.strandVolumeVoxelSize*1000.f/std::max(pbrSettings_.skinDiffusion.worldUnitScale,1e-6f));ImGui::Text("Volume passes: %u | blockers: %u | %s",volume.strandVolumePasses,volume.strandBlockerPasses,volume.strandVolumeUpdated?"updated":"cached");}
+        }else{
+            hairScalar("Hair second lobe",h.secondarySpecular,0,2,"此前双高光近似的次级高光强度，仅旧模式生效。");
+            hairScalar("Hair transmission",h.transmission,0,2,"此前背透近似强度，仅旧模式生效。");
+        }
+        if(hairChanged)pbr_.ResetHistory(false);
+        ImGui::TextWrapped("Render/RHI area coverage, optional front-layer sorting and a weighted tail; spatial strand-density and light paths remain cached independently.");
+    }
     void PreviewMaterialControls() {
         if(!pbrEnabled_&&!skinProfile_.loaded)return;
         if(!ImGui::CollapsingHeader("Skin / lighting",ImGuiTreeNodeFlags_DefaultOpen))return;
         if(!pbrEnabled_)ImGui::TextDisabled("Skin lighting requires the PBR preview.");
         ImGui::SetNextItemWidth(150);
-        if(ImGui::Combo("Lighting",&lightingPreset_,"Studio\0Side\0Back\0"))ApplyLightingPreset();
-        if(ImGui::IsItemHovered())ImGui::SetTooltip("Lights orient to camera when a preset is selected.\nOrbit afterwards to inspect highlights with fixed world-space lighting.");
+        if(ImGui::Combo("Lighting",&lightingPreset_,"Studio\0Side\0Back\0Reference study\0ST30_101 cube study\0Reference neutral key study\0"))ApplyLightingPreset();
+        if(ImGui::IsItemHovered())ImGui::SetTooltip("Lights orient to camera when a preset is selected.\nReference neutral key is a host lighting calibration at equal Rec.709 incoming luminance; not recovered game illumination.");
         if(!skinProfile_.loaded){ImGui::TextDisabled("No skin profile loaded.");return;}
         auto& s=skinProfile_.settings;bool changed=ImGui::Checkbox("Skin response",&s.enabled);
         ImGui::TextWrapped("Off: base color + corrected roughness baseline.");
@@ -1592,7 +2606,7 @@ class Editor {
     void DetailsPanel() {
         ImGui::TextColored(ImVec4(.3f,.75f,1,1),"DETAILS / INSPECTOR");
         ImGui::BeginChild("inspector-scroll",ImVec2(0,0));
-        PreviewMaterialControls();
+        if(selection_!=Selection::StrandHair&&!characterMaterials_)PreviewMaterialControls();
         switch(selection_) {
             case Selection::Mesh:MeshDetails();break;
             case Selection::Skeleton:SkeletonDetails();break;
@@ -1602,6 +2616,8 @@ class Editor {
             case Selection::Retarget:RetargetDetails();break;
             case Selection::Cloth:ClothDetails();break;
             case Selection::Hair:HairDetails();break;
+            case Selection::StrandHair:strandHair_.Controls();break;
+            case Selection::CharacterMaterials:CharacterMaterialDetails();break;
             case Selection::MeshRegions:MeshRegionDetails();break;
             case Selection::Diagnostics:
                 ImGui::TextWrapped("Asset: %s",asset_->id.c_str());ImGui::TextWrapped("Source: %s",Utf8(asset_->sourcePath).c_str());
@@ -1668,7 +2684,9 @@ class Editor {
         const float center=std::max(260.f,ImGui::GetContentRegionAvail().x-374);
         ImGui::BeginChild("viewport-and-timeline",ImVec2(center,workHeight),ImGuiChildFlags_Borders);
         int pipeline=pbrEnabled_?1:0;ImGui::SetNextItemWidth(85);
+        ImGui::BeginDisabled(strandHair_.loaded);
         if(ImGui::Combo("##preview-pipeline",&pipeline,"Toon\0PBR\0"))Try([&]{SelectPipeline(pipeline==1);});
+        ImGui::EndDisabled();
         if(ImGui::IsItemHovered())ImGui::SetTooltip("PBR: studio / side / back lighting, ACES display transform.\nSkin response is applied only to exact names in --skin-profile; source textures stay unchanged.");
         ImGui::SameLine();
         if(displayPerformance_.frame>0) {
@@ -1676,8 +2694,18 @@ class Editor {
             if(ImGui::IsItemHovered())ImGui::SetTooltip("Pose %.2f ms | cloth apply %.2f ms\nRender %.2f | UI %.2f | swap %.2f | render sync %.2f ms\nGPU scene span %.2f ms | %llu fixed steps in last frame\nRender sync overlaps render/UI/swap timings; upload includes its own wait.\nGPU results are polled without blocking; scene span includes dispatch gaps.\nOrbit: RMB / pan: MMB / zoom: wheel",displayPerformance_.pose,displayPerformance_.apply,displayPerformance_.render,displayPerformance_.ui,displayPerformance_.swap,displayPerformance_.sync,std::max(0.,displayPerformance_.gpu),static_cast<unsigned long long>(displayPerformance_.steps));
         } else ImGui::Text("Viewport / CPU skinning | %zu bones | orbit: RMB / pan: MMB / zoom: wheel",asset_->skeleton.bones.size());
         viewportSize_=ImGui::GetContentRegionAvail();viewportSize_.y=std::max(120.f,viewportSize_.y-118);viewportOrigin_=ImGui::GetCursorScreenPos();
+        const auto referenceSlotOrigin=viewportOrigin_,referenceSlotSize=viewportSize_;
+        if(referenceCameraEnabled_&&referenceCamera_.lockReferenceAspect){
+            const auto fitted=EditorPreview::DianaReferenceViewport({viewportSize_.x,viewportSize_.y},referenceCamera_);
+            viewportSize_={fitted.x,fitted.y};
+            viewportOrigin_.x+=.5f*(referenceSlotSize.x-viewportSize_.x);viewportOrigin_.y+=.5f*(referenceSlotSize.y-viewportSize_.y);
+            ImGui::SetCursorScreenPos(viewportOrigin_);
+        }
         ImGui::Image(ImTextureID(previewTexture_),viewportSize_,ImVec2(0,1),ImVec2(1,0));
         const bool viewportHovered=ImGui::IsItemHovered();
+        if(referenceCameraEnabled_&&referenceCamera_.lockReferenceAspect){
+            ImGui::SetCursorScreenPos(ImVec2(referenceSlotOrigin.x,referenceSlotOrigin.y+referenceSlotSize.y));ImGui::Dummy(ImVec2(0,0));
+        }
         auto& io=ImGui::GetIO();
         if(viewportHovered&&ImGui::IsMouseClicked(ImGuiMouseButton_Middle))cameraPanning_=true;
         if(!ImGui::IsMouseDown(ImGuiMouseButton_Middle))cameraPanning_=false;
@@ -1692,7 +2720,13 @@ class Editor {
         }
         if(viewportHovered) {
             if(ImGui::IsMouseDragging(ImGuiMouseButton_Right)){yaw_-=io.MouseDelta.x*.006f;pitch_=std::clamp(pitch_+io.MouseDelta.y*.006f,-1.3f,1.3f);}
-            distance_=std::clamp(distance_*std::exp(-io.MouseWheel*.12f),1.f,20.f);
+            const float referenceScale=referenceCameraEnabled_?float(glm::length(glm::dvec3(referenceCameraSnapshot_.placement[0]))):1.f;
+            distance_=std::clamp(distance_*std::exp(-io.MouseWheel*.12f),referenceCameraEnabled_?.12f*referenceScale:1.f,referenceCameraEnabled_?5.f*referenceScale:20.f);
+        }
+        if(referenceCameraEnabled_){
+            referenceCamera_.yawDegrees=glm::degrees(yaw_);referenceCamera_.pitchDegrees=glm::degrees(pitch_);
+            referenceCamera_.distanceLocalMetres=distance_/float(glm::length(glm::dvec3(referenceCameraSnapshot_.placement[0])));
+            referenceCamera_.focusLocal=glm::vec3(glm::inverse(placement_)*glm::dvec4(cameraFocus_,1));
         }
         if(AsyncPreview()){
             if(!clothSnapshot_)ImGui::TextColored(ImVec4(1,.78f,.35f,1),"Preparing physics / 正在准备物理预览");
@@ -1728,6 +2762,50 @@ class Editor {
         if(performance_.hairWorker>0)displayPerformance_.hairWorker=performance_.hairWorker;
         if(performance_.gpu>=0)displayPerformance_.gpu=displayPerformance_.gpu<0?performance_.gpu:displayPerformance_.gpu+(performance_.gpu-displayPerformance_.gpu)*blend;
         displayPerformance_.steps=performance_.steps;
+    }
+    Json::Value ShadowSkinCaptureState() const {
+        Json::Value state;
+        const auto& hair=strandHair_.material;const auto& shadows=pbrSettings_.shadows;
+        const auto& skin=pbrSettings_.skinDiffusion;const auto& statistics=pbr_.Statistics();
+        state["castDirectionalShadows"]=hair.castDirectionalShadows;
+        state["strandShadowCoverage"]=shadows.strandCoverage==Render::StrandShadowCoverage::DeepOpacity?"deep-opacity":"ordered";
+        state["hairShadowExtinctionScale"]=shadows.strandOpacityScale;
+        state["hairSourceRoughnessMapping"]=hair.sourceRoughnessMapping;
+        state["hairAuthoredLongitudinalRoughness"]=hair.longitudinalRoughness;
+        state["hairEffectiveLongitudinalRoughness"]=Render::EffectiveStrandLongitudinalRoughness(hair);
+        state["hairHostAmbientScale"]=pbrSettings_.strandIndirect.hostAmbientScale;
+        state["receiveOpaqueShadows"]=hair.receiveOpaqueShadows;
+        state["opaqueShadowPower"]=hair.opaqueShadowPower;
+        state["volumeOpaqueBlockers"]=hair.volumeOpaqueBlockers;state["spatialVolume"]=hair.spatialVolume;
+        state["directionalShadowsEnabled"]=shadows.enabled;state["sunShadowAtlasResolution"]=shadows.atlasResolution;
+        state["sunShadowDistance"]=shadows.distance;state["sunShadowSplitLambda"]=shadows.splitLambda;
+        state["sunShadowDepthBias"]=shadows.depthBias;state["sunShadowNormalBias"]=shadows.normalBias;
+        state["sunShadowDepthBiasTexels"]=shadows.depthBiasTexels;state["sunShadowNormalBiasTexels"]=shadows.normalBiasTexels;
+        state["sunShadowCascadeBlend"]=shadows.cascadeBlend;state["sunShadowDistanceFade"]=shadows.distanceFade;
+        state["sunShadowReceiverPlaneClampTexels"]=shadows.receiverPlaneClampTexels;
+        state["sunShadowCasterPadding"]=shadows.casterPadding;
+        state["sunShadowFilter"]=shadows.filter==Render::DirectionalShadowFilter::SourcePoisson8?"source-poisson8":"tent";
+        state["sunShadowRadius"]=shadows.sourcePoissonRadius;state["sunShadowRotationRadians"]=shadows.sourcePoissonRotationRadians;
+        state["sunSurfaceShadowRadius"]=shadows.sourceSurfaceRadius;
+        state["sunSurfaceShadowEffectiveRadius"]=shadows.sourceSurfaceRadius>0.f?shadows.sourceSurfaceRadius:shadows.sourcePoissonRadius;
+        state["sunSurfaceShadowOverrideActive"]=shadows.filter==Render::DirectionalShadowFilter::SourcePoisson8&&shadows.sourceSurfaceRadius>0.f;
+        state["sunSurfaceShadowRadiusMeaning"]="host opaque CSM receiver override only;0 inherits hair radius; original skin runtime law unconfirmed";
+        state["sunShadowRadiusMeaning"]="first-cascade normalized UV; source Poisson8 study only; runtime writer unconfirmed";
+        state["skinDiffusionEnabled"]=skin.enabled;state["skinDiffusionStrength"]=skin.strength;
+        state["skinDiffusionKernel"]=skin.kernel==Render::SkinDiffusionKernel::SourceBurley?"source-burley":"gaussian";
+        state["skinDiffusionRadiusMillimeters"]=skin.radiusMillimeters;state["skinDiffusionDiskSamples"]=skin.diskSamples;
+        state["skinDiffusionWorldUnitScale"]=skin.worldUnitScale;state["skinDiffusionAlbedoPreservation"]=skin.albedoPreservation;
+        for(int i=0;i<3;++i)state["skinDiffusionChannelRadii"].append(skin.channelRadii[i]);
+        state["skinDiffusionNormalRejectCosine"]=skin.normalRejectCosine;state["skinDiffusionDepthRejectScale"]=skin.depthRejectScale;
+        state["skinDiffusionMaxRadiusPixels"]=skin.maxRadiusPixels;
+        state["postExposure"]=pbrSettings_.post.exposure;state["postGamma"]=pbrSettings_.post.gamma;
+        state["postToneMap"]=int(pbrSettings_.post.toneMap);state["postBloomEnabled"]=pbrSettings_.post.bloomEnabled;
+        state["postSsaoEnabled"]=pbrSettings_.post.ssaoEnabled;
+        state["directionalShadowPasses"]=statistics.shadowPasses;state["strandShadowDraws"]=statistics.strandShadowDraws;
+        state["strandOpacityShadowPasses"]=statistics.strandOpacityShadowPasses;
+        state["strandOpacityShadowResolution"]=statistics.strandOpacityShadowResolution;
+        state["skinDiffusionPasses"]=statistics.skinDiffusionPasses;state["skinDiffusionDraws"]=statistics.skinDiffusionDraws;
+        return state;
     }
     void ReportBenchmark(const Options& options,const std::vector<FramePerformance>& samples,std::uint32_t warmupFrames,const char* waitBackend) const {
         Check(!samples.empty(),"Benchmark ended before the warmup completed");
@@ -1769,7 +2847,54 @@ class Editor {
         std::ofstream output(options.benchmarkOutput);Check(bool(output),"Could not create benchmark report");
         output<<std::fixed<<std::setprecision(6)<<"{\n  \"mode\": \"real_time\",\n  \"initialization_excluded\": true,\n  \"warmup_frames\": "<<warmupFrames<<",\n  \"measured_frames\": "<<samples.size()<<",\n  \"visible_window\": true,\n  \"vsync\": "<<(options.noVsync?"false":"true")<<",\n  \"cloth_enabled\": "<<(clothEnabled_?"true":"false")<<",\n  \"capture_enabled\": "<<(!options.captureDirectory.empty()?"true":"false")<<",\n";
         output<<"  \"pipeline\": \""<<(pbrEnabled_?"pbr":"toon")<<"\",\n";
+        output<<"  \"directSunScale\": "<<directSunScale_<<",\n  \"directPunctualScale\": "<<directPunctualScale_<<",\n";
+        const auto shadowSkinState=ShadowSkinCaptureState();Json::StreamWriterBuilder stateWriter;stateWriter["indentation"]="";
+        for(const auto& key:shadowSkinState.getMemberNames())output<<"  "<<JsonString(key)<<": "<<Json::writeString(stateWriter,shadowSkinState[key])<<",\n";
+        output<<"  \"strand_hair_enabled\": "<<(strandHair_.loaded&&strandHair_.visible?"true":"false")<<",\n"
+            <<"  \"strand_motion_active\": "<<(pbr_.Statistics().strandMotionActive?"true":"false")<<",\n"
+            <<"  \"strand_history_used\": "<<(pbr_.Statistics().strandHairHistoryUsed?"true":"false")<<",\n"
+            <<"  \"strand_dslut\": "<<JsonString(NativeHairMomentStatus(strandHair_.material))<<",\n"
+            <<"  \"strand_volume_filter\": "<<JsonString(strandHair_.material.volumeHardwareFiltering?"linear":"legacy")<<",\n";
+        output<<"  \"strand_ds_volume_mode\": "<<JsonString(strandHair_.material.sourceDSVolume?"native":"legacy")<<",\n"
+            <<"  \"strand_ds_raster_trace_step\": "<<strandHair_.material.volumeRasterTraceStep<<",\n"
+            <<"  \"strand_ds_trace_limit\": "<<strandHair_.material.volumeTraceLimit<<",\n"
+            <<"  \"strand_ds_interpolation_samples\": "<<strandHair_.material.volumeInterpolationSamples<<",\n"
+            <<"  \"volumeInjectionRate\": "<<strandHair_.material.volumeInjectionRate<<",\n"
+            <<"  \"volumeInjectionLodFraction\": "<<strandHair_.material.volumeInjectionLodFraction<<",\n"
+            <<"  \"volumeInjectionMinLodFactor\": "<<(strandHair_.material.volumeInjectionMinLodFactor?"true":"false")<<",\n"
+            <<"  \"volumeInjectionQuality\": "<<strandHair_.material.volumeInjectionQuality<<",\n"
+            <<"  \"nativeDsInputSegments\": "<<pbr_.Statistics().strandNativeDsInputSegments<<",\n"
+            <<"  \"nativeDsInjectedSegments\": "<<pbr_.Statistics().strandNativeDsInjectedSegments<<",\n"
+            <<"  \"nativeDsInjectionFraction\": "<<pbr_.Statistics().strandNativeDsInjectionFraction<<",\n"
+            <<"  \"nativeDsRasterWidthScale\": "<<pbr_.Statistics().strandNativeDsRasterWidthScale<<",\n"
+            <<"  \"nativeDsAverageWidth\": "<<pbr_.Statistics().strandNativeDsAverageWidth<<",\n"
+            <<"  \"nativeDsInjectionPolicy\": "<<JsonString(strandHair_.material.sourceDSVolume?
+                "incoming=floor(double(total)*double(float(lodFraction))); quality<2 or MinLod gates rate; count uses incoming cap and float truncation; RasterWidthScale compensation is paired with selected prefix; WidthAve stays at source header":
+                "inactive: injection settings do not affect legacy density rendering")<<",\n";
+        output<<"  \"strand_preserve_near_field\": "<<(strandHair_.material.volumePreserveNearField?"true":"false")<<",\n"
+            <<"  \"strand_trace_exclusion_metres\": "<<pbr_.Statistics().strandVolumeBiasMetres/std::max(pbrSettings_.skinDiffusion.worldUnitScale,1e-6f)<<",\n";
+        output<<"  \"strand_actual_tangents\": "<<(strandHair_.simulation.Settings().reconstructRenderTangents?"true":"false")<<",\n"
+            <<"  \"strand_spatial_ibl_incident\": "<<(strandHair_.material.sourceSpatialIbl?"true":"false")<<",\n";
+        output<<"  \"hair_front_depth_groups\": "<<pbrSettings_.strandFrontDepthGroups<<",\n  \"hair_volume_budget\": "<<strandHair_.material.volumeResolution<<",\n  \"hair_source_direct\": "<<(strandHair_.material.sourceDirectScattering?"true":"false")<<",\n  \"hair_opaque_blockers\": "<<(strandHair_.material.volumeOpaqueBlockers?"true":"false")<<",\n  \"hair_temporal_depth\": "<<(pbrSettings_.strandTemporalDepth?"true":"false")<<",\n  \"display_study\": "<<displayStudy_<<",\n";
         output<<"  \"process_id\": "<<processId<<",\n  \"executable\": "<<JsonString(executable)<<",\n  \"logical_processors\": "<<logicalProcessors<<",\n  \"cpu_time_available\": "<<(cpuSamples?"true":"false")<<",\n  \"cpu_time_samples\": "<<cpuSamples<<",\n  \"cpu_accounting_wall_seconds\": "<<cpuWall<<",\n  \"process_user_cpu_seconds\": "<<processUser<<",\n  \"process_kernel_cpu_seconds\": "<<processKernel<<",\n  \"process_cpu_seconds\": "<<processUser+processKernel<<",\n  \"main_thread_user_cpu_seconds\": "<<mainUser<<",\n  \"main_thread_kernel_cpu_seconds\": "<<mainKernel<<",\n  \"main_thread_cpu_seconds\": "<<mainUser+mainKernel<<",\n  \"main_thread_one_core_percent\": "<<mainOneCorePercent<<",\n  \"process_one_core_percent\": "<<processOneCorePercent<<",\n  \"process_machine_percent\": "<<processMachinePercent<<",\n";
+        output<<"  \"hair_paired_transparency\": "<<(pbr_.Statistics().strandPairedTransparencyActive?"true":"false")<<",\n"
+            <<"  \"hair_oit_mode\": "<<JsonString(HairOitMode(pbrSettings_))<<",\n"
+            <<"  \"hair_native_oit_layers_requested\": "<<pbrSettings_.strandNativeOitLayers<<",\n"
+            <<"  \"hair_native_oit_active\": "<<(pbr_.Statistics().strandNativeOitActive?"true":"false")<<",\n"
+            <<"  \"hair_native_oit_layers\": "<<pbr_.Statistics().strandNativeOitLayers<<",\n"
+            <<"  \"hair_native_oit_compute_passes\": "<<pbr_.Statistics().strandNativeOitComputePasses<<",\n"
+            <<"  \"hair_native_oit_bytes\": "<<pbr_.Statistics().strandNativeOitBytes<<",\n"
+            <<"  \"hair_transparency_passes\": "<<pbr_.Statistics().strandPasses<<",\n"
+            <<"  \"hair_transparency_geometry_draws\": "<<pbr_.Statistics().strandTransparencyRasterPasses<<",\n"
+            <<"  \"hair_exact_volume_integration\": "<<(strandHair_.material.volumeExactIntegration?"true":"false")<<",\n"
+            <<"  \"hair_closed_head_proxies\": "<<(strandHair_.material.volumeProxyBlockers?"true":"false")<<",\n"
+            <<"  \"hair_stable_opaque_cache\": "<<(strandHair_.material.volumeStableOpaqueCache?"true":"false")<<",\n"
+            <<"  \"hair_point_ibl_paths\": "<<(strandHair_.material.volumePointIbl?"true":"false")<<",\n"
+            <<"  \"hair_debug_mode\": "<<std::uint32_t(pbrSettings_.strandDebugMode)<<",\n"
+            <<"  \"hair_volume_passes_final\": "<<pbr_.Statistics().strandVolumePasses<<",\n"
+            <<"  \"hair_blocker_passes_final\": "<<pbr_.Statistics().strandBlockerPasses<<",\n"
+            <<"  \"hair_adaptive_history\": "<<(pbrSettings_.temporal.hairCoverageHistoryRejection?"true":"false")<<",\n"
+            <<"  \"hair_shutter_samples\": "<<pbr_.Statistics().strandShutterSamples<<",\n";
 #ifdef NDEBUG
         output<<"  \"build\": \"Release\",\n";
 #else
@@ -1793,10 +2918,29 @@ class Editor {
     }
 public:
     Editor(GLFWwindow* window,const Render::OpenglBackendContext& context,const Options& options):window_(window),context_(context) {
+        pbrSettings_.strandMotionVectors=true;
         lightingPreset_=options.lighting;
+        sourceEnvironmentOverride_=options.sourceEnvironmentOverride;
+        hairHostAmbientScaleOverride_=options.hairHostAmbientScale;
+        sourceDirectOverride_=options.sourceDirectOverride;
+        directSunScale_=options.directSunScale;directPunctualScale_=options.directPunctualScale;
+        // Lighting/environment rebuilds edit sun input values, preserving the
+        // explicit filter study and its normalized-UV radius independently.
+        pbrSettings_.shadows.filter=options.sunShadowFilter;pbrSettings_.shadows.sourcePoissonRadius=options.sunShadowRadius;
+        pbrSettings_.shadows.sourceSurfaceRadius=options.sunSurfaceShadowRadius;
+        pbrSettings_.shadows.strandCoverage=options.hairShadowCoverage;
+        pbrSettings_.shadows.strandOpacityScale=options.hairShadowExtinctionScale;
+        hairDirectPath_=options.hairDirectProfile.empty()?Path(MODEL_SOURCE_DIR)/"Asset/Diana/st30-101-direct-lighting.json":options.hairDirectProfile;
+        hairLightingPath_=options.hairLightingProfile.empty()?Path(MODEL_SOURCE_DIR)/"Asset/Diana/st30-101-lighting.json":options.hairLightingProfile;
+        dianaPreview_=options.diana;
+        disableSkinDiffusion_=options.noSkinDiffusion;disableEyeRefraction_=options.noEyeRefraction;
+        pbrSettings_.eyeShell.enabled=!options.noEyeShell;
+        pbrSettings_.skinDiffusion.kernel=options.skinKernel;
+        if(!options.materialProfile.empty()){std::string error;characterMaterials_=CharacterMaterialProfile::Load(options.materialProfile,&error);Check(characterMaterials_.has_value(),error);}
         if(!options.skinProfile.empty())skinProfile_=EditorPreview::SkinPreviewProfile::Load(options.skinProfile);
         if(options.skin>=0)skinProfile_.settings.enabled=options.skin!=0;
         device_.Run(Render::BackendType::Opengl,context_);Check(models_.Startup(),models_.LastError());
+        if(options.dianaTest)Model::TestData::RunModelGeometryRevisionGpuOracle(models_);
         if(!options.character.empty())LoadCharacter(options.character);
         else Load(options.package.empty()?options.source:options.package,!options.package.empty());
         if(!options.retargetSource.empty()){LoadRetargetSource(options.retargetSource);retargetPlaying_=!retargetSource_->animations.empty();selection_=Selection::Retarget;}
@@ -1825,12 +2969,90 @@ public:
         }
         if(options.bindPose){selectedClip_=std::max(0,GeneratedClip(*asset_,"BindPose"));time_=0;playing_=false;retargetPlaying_=false;bindPose_=true;enableIk_=false;std::fill(manualMorphs_.begin(),manualMorphs_.end(),0);std::fill(morphOverrides_.begin(),morphOverrides_.end(),0);dirty_=true;clothReset_=true;hairReset_=true;showBones_=false;showNames_=false;}
         yaw_=float(options.yaw);distance_=float(options.distance);
+        if(!options.strandHair.empty()) {
+            Check(strandHair_.Load(options.strandHair,options.gravityMode),strandHair_.Error());
+            selection_=Selection::StrandHair;showBones_=false;showNames_=false;playing_=false;bindPose_=true;
+            const auto& bounds=strandHair_.simulation.Asset()->header;
+            const glm::dvec3 lo(bounds.boundsMin[0],bounds.boundsMin[1],bounds.boundsMin[2]),hi(bounds.boundsMax[0],bounds.boundsMax[1],bounds.boundsMax[2]);
+            // The imported head and extracted strands share metre coordinates.
+            // Frame their combined hair bounds instead of scaling the head alone.
+            if(!options.diana)placement_=glm::scale(glm::dmat4(1),glm::dvec3(2.7/(hi.y-lo.y)))*glm::translate(glm::dmat4(1),-(lo+hi)*.5);
+            cameraFocus_={0,0,0};
+            strandHair_.paused=options.diana&&!options.hairDynamic;strandHair_.visible=!options.noHair;
+            if(characterMaterials_)ApplyStrandMaterialProfile(options.hairDsVolume);
+            if(options.diana){
+                auto capsules=std::make_shared<std::vector<Render::StrandOpaqueCapsule>>();
+                // Source CLSP v3 capsules in the extracted Head bind pose.
+                capsules->push_back({{1.95595e-8f,.96886315f,-.00821461f,.06687821f},{-1.68346e-7f,.92563673f,.01308093f,.05f}});
+                capsules->push_back({{-4.58696e-7f,.90708285f,.04598658f,.04706905f},{-.00035261555f,.96938082f,.02377333f,.05984419f}});
+                strandHair_.SetOpaqueCapsules(std::move(capsules));
+            }
+            if(options.noHairScattering){strandHair_.material.physicalScattering=false;strandHair_.material.spatialVolume=false;}
+            if(options.noHairMultipleScattering)strandHair_.material.multipleScattering=0;
+            if(options.noHairVolume)strandHair_.material.spatialVolume=false;
+            if(options.noHairOpaqueShadows)strandHair_.material.receiveOpaqueShadows=false;
+            if(options.hairOpaqueShadowPowerSet)strandHair_.material.opaqueShadowPower=options.hairOpaqueShadowPower;
+            if(options.hairRoughnessInput>=0)strandHair_.material.sourceRoughnessMapping=options.hairRoughnessInput!=0;
+            if(options.noHairSourceColor)strandHair_.material.sourceColor=false;
+            if(options.noHairNtt)strandHair_.material.useNttLookup=false;
+            if(options.noHairNativeLut)strandHair_.material.useNativeMomentLut=false;
+            if(options.hairVolumeFilter>=0)strandHair_.material.volumeHardwareFiltering=options.hairVolumeFilter!=0;
+            if(options.hairDsVolume>=0)strandHair_.material.sourceDSVolume=options.hairDsVolume!=0;
+            ApplyNativeDSInjectionParameters(strandHair_.material,
+                options.hairDsInjectionRateSet?options.hairDsInjectionRate:strandHair_.material.volumeInjectionRate,
+                options.hairDsLodFractionSet?options.hairDsLodFraction:strandHair_.material.volumeInjectionLodFraction,
+                options.hairDsInjectionQualitySet?options.hairDsInjectionQuality:float(strandHair_.material.volumeInjectionQuality),
+                options.hairDsMinLod>=0?options.hairDsMinLod!=0:strandHair_.material.volumeInjectionMinLodFactor);
+            if(options.hairCoverage>=0)strandHair_.material.areaPreservingCoverage=options.hairCoverage!=0;
+            if(options.hairVolumeSky){strandHair_.material.volumeSkyTransmission=true;strandHair_.material.dualScatteringIbl=false;}
+            if(options.hairIbl>=0){strandHair_.material.volumeSkyTransmission=options.hairIbl!=0;strandHair_.material.dualScatteringIbl=options.hairIbl==2;}
+            pbrSettings_.strandFrontDepthGroups=options.hairQuality==0?2:options.hairQuality==1?3:7;
+            strandHair_.material.volumeResolution=options.hairQuality==0?32:64;
+            if(options.hairVolumeResolution>0)strandHair_.material.volumeResolution=std::uint32_t(options.hairVolumeResolution);
+            Check(!strandHair_.material.sourceDSVolume||strandHair_.material.volumeResolution==32||strandHair_.material.volumeResolution==64||strandHair_.material.volumeResolution==128,
+                "Native DSVolume requires volume budget32,64 or128; choose --hair-ds-volume legacy to use16 or48");
+            if(options.hairVolumeIntegration>=0)strandHair_.material.volumeExactIntegration=options.hairVolumeIntegration!=0;
+            if(options.hairProxyBlockers>=0)strandHair_.material.volumeProxyBlockers=options.hairProxyBlockers!=0;
+            if(options.hairStableCache>=0)strandHair_.material.volumeStableOpaqueCache=options.hairStableCache!=0;
+            if(options.hairPointIbl>=0)strandHair_.material.volumePointIbl=options.hairPointIbl!=0;
+            pbrSettings_.strandDebugMode=Render::StrandDebugMode(options.hairDebug);
+            if(options.hairShading>=0)strandHair_.material.sourceSegmentShading=options.hairShading!=0;
+            if(options.hairGeometry>=0)strandHair_.material.sourceCurveGeometry=options.hairGeometry!=0;
+            if(options.hairPairedTransparency>=0)pbrSettings_.strandPairedLayerTransparency=options.hairPairedTransparency!=0;
+            if(options.hairAdaptiveHistory>=0)pbrSettings_.temporal.hairCoverageHistoryRejection=options.hairAdaptiveHistory!=0;
+            if(options.hairFastMotionPixels>=0)pbrSettings_.temporal.hairFastMotionPixels=options.hairFastMotionPixels;
+            pbrSettings_.temporal.hairMotionBlurEnabled=options.hairShutter;
+            if(options.noHairNearShadow)strandHair_.material.volumePreserveNearField=false;
+            if(options.hairTangents>=0)Check(strandHair_.SetRenderTangents(options.hairTangents!=0),strandHair_.Error());
+            if(options.hairIblIncident>=0)strandHair_.material.sourceSpatialIbl=options.hairIblIncident!=0;
+            pbrSettings_.strandTemporalDepth=!options.noHairTemporalDepth;
+            if(options.noHairMotion)pbrSettings_.strandMotionVectors=false;
+            if(options.noHairSourceDirect)strandHair_.material.sourceDirectScattering=false;
+            if(options.noHairBlockers)strandHair_.material.volumeOpaqueBlockers=false;
+            if(options.noHairCastShadows)strandHair_.material.castDirectionalShadows=false;
+            if(options.noHairBackscatter)strandHair_.material.backscatterScale=0;
+        }
+        if(options.diana){selection_=Selection::CharacterMaterials;for(std::size_t i=0;i<characterMaterialEdits_.size();++i)if(characterMaterialEdits_[i].name=="Face_mat")selectedCharacterMaterial_=int(i);}
         if(options.frameRegion>=-1)FramePreviewRegions(options.frameRegion);
+        if(options.dianaFace)FrameCharacter(true);
+        ApplyDisplayStudy(options.displayStudy);
         if(!options.focusBone.empty()){for(std::size_t i=0;i<asset_->skeleton.bones.size();++i)if(asset_->skeleton.bones[i].name==options.focusBone||asset_->skeleton.bones[i].englishName==options.focusBone){trackedCameraBone_=int(i);break;}Check(trackedCameraBone_>=0,"Camera focus bone was not found");}
         settings_.backgroundColor=glm::vec4(.95f,.96f,.98f,1);settings_.groundHeight=-1.5f;
         // Prepare only the selected renderer; switching initializes the other
         // one lazily and never submits both pipelines for one preview frame.
         SelectPipeline(options.pbr);
+        if(options.noHairSourceIndirect)pbrSettings_.strandIndirect.enabled=false;
+        if(!options.cameraReferenceProfile.empty())referenceCamera_=EditorPreview::LoadDianaCameraReference(options.cameraReferenceProfile);
+        captureCameraMetadata_=!options.cameraReferenceExport.empty()||!options.hairLinearCapture.empty();
+        // Initialize lights at the existing default camera first. Applying a
+        // reference view must not reorient or retint the selected light rig.
+        if(options.cameraReference=="game-shot")ApplyReferenceCamera(true);
+        pbrSettings_.strandFrontLayerTransparency=options.hairTransparency>=0?options.hairTransparency!=0:options.diana;
+        if(options.hairOit>=0){
+            pbrSettings_.strandNativeOit=options.hairOit>0;
+            if(options.hairOit>0){pbrSettings_.strandNativeOitLayers=std::uint32_t(options.hairOit);strandHair_.material.sourceSegmentShading=true;}
+            else pbrSettings_.strandFrontLayerTransparency=true;
+        }
         IMGUI_CHECKVERSION();ImGui::CreateContext();guiReady_=true;
         auto& io=ImGui::GetIO();io.IniFilename=nullptr;io.ConfigFlags|=ImGuiConfigFlags_NavEnableKeyboard;
         RebuildFonts();
@@ -1838,11 +3060,35 @@ public:
         style.Colors[ImGuiCol_WindowBg]=ImVec4(.07f,.085f,.11f,1);style.Colors[ImGuiCol_ChildBg]=ImVec4(.09f,.108f,.14f,1);
         Check(ImGui_ImplGlfw_InitForOpenGL(window_,true),"Could not initialize editor input backend");
         OnRender([this]{Check(ImGui_ImplOpenGL3_Init("#version 450 core"),"Could not initialize editor OpenGL UI");rendererReady_=true;Check(ImGui_ImplOpenGL3_CreateDeviceObjects(),"Could not create editor UI resources");for(auto& timer:gpuTimers_)glGenQueries(GLsizei(timer.query.size()),timer.query.data());if(const auto value=glGetString(GL_VENDOR))gpuVendor_=reinterpret_cast<const char*>(value);if(const auto value=glGetString(GL_RENDERER))gpuRenderer_=reinterpret_cast<const char*>(value);});
-        std::cout<<"Skeletal asset editor: "<<asset_->name<<" | "<<asset_->skeleton.bones.size()<<" bones | "<<asset_->morphs.size()<<" morphs | "<<asset_->animations.size()<<" sequences | "<<asset_->ikRig.chains.size()<<" IK chains | pipeline="<<(pbrEnabled_?"pbr":"toon")<<" | lighting="<<std::array<const char*,3>{"studio","side","back"}[lightingPreset_]<<'\n';
+        std::cout<<"Skeletal asset editor: "<<asset_->name<<" | "<<asset_->skeleton.bones.size()<<" bones | "<<asset_->morphs.size()<<" morphs | "<<asset_->animations.size()<<" sequences | "<<asset_->ikRig.chains.size()<<" IK chains | pipeline="<<(pbrEnabled_?"pbr":"toon")<<" | lighting="<<std::array<const char*,6>{"studio","side","back","reference","source-cube","reference-neutral"}[lightingPreset_]
+            <<" | hair-ibl="<<(!strandHair_.material.volumeSkyTransmission?"legacy":strandHair_.material.dualScatteringIbl?"source":"forward")<<" | TT/back gain="<<strandHair_.material.backscatterScale
+            <<" | hair-dslut="<<NativeHairMomentStatus(strandHair_.material)<<" | volume-filter="<<(strandHair_.material.volumeHardwareFiltering?"linear":"legacy")
+            <<" | hair-motion="<<pbrSettings_.strandMotionVectors<<" | hair-dynamic="<<(strandHair_.loaded&&!strandHair_.paused)<<'\n';
+        std::cout<<"Hair OIT="<<HairOitMode(pbrSettings_)<<"; native study uses deterministic GPU scheduling; source runtime branch/atomic contention remains unobserved\n";
+        std::cout<<"Hair shadow coverage="<<(pbrSettings_.shadows.strandCoverage==Render::StrandShadowCoverage::DeepOpacity?"deep-opacity":"ordered")
+            <<"; extinction scale="<<pbrSettings_.shadows.strandOpacityScale
+            <<"; HOST caster adapter, native shadow PSO unobserved; DS and hair receiving closure retained\n";
+        std::cout<<"Hair longitudinal input="<<strandHair_.material.longitudinalRoughness
+            <<"; source transfer="<<strandHair_.material.sourceRoughnessMapping
+            <<"; shader hm_v="<<Render::EffectiveStrandLongitudinalRoughness(strandHair_.material)<<'\n';
+        std::cout<<"Hair external sun CSM: receive="<<strandHair_.material.receiveOpaqueShadows<<"; opaqueShadowPower="<<strandHair_.material.opaqueShadowPower
+            <<"; native constructor default.5 and CPU constant writer recovered; runtime value unobserved; DS/IBL and skin caster response unchanged\n";
+        std::cout<<"Hair DSVolume="<<(strandHair_.material.sourceDSVolume?"native-texture":"legacy-density")
+            <<"; raster step="<<strandHair_.material.volumeRasterTraceStep<<"; trace factor cap="<<strandHair_.material.volumeTraceLimit
+            <<"; filtered cursor="<<strandHair_.material.volumeInterpolationSamples
+            <<"; source CPU trace cap32 recovered; Texture allocation/sampler remain host adapters\n";
+        std::cout<<"Hair DS injection: rate="<<strandHair_.material.volumeInjectionRate
+            <<"; LOD fraction="<<strandHair_.material.volumeInjectionLodFraction
+            <<"; MinLodFactor="<<strandHair_.material.volumeInjectionMinLodFactor
+            <<"; quality="<<strandHair_.material.volumeInjectionQuality
+            <<"; "<<(strandHair_.material.sourceDSVolume?"active":"inactive in legacy mode")
+            <<"; incoming=floor(double(total)*double(float(LOD fraction))); rate requested only at quality<2 or MinLodFactor"
+            <<"; selected prefix and RasterWidthScale compensation are paired; WidthAve stays at source header; submitted statistics available after rendering\n";
     }
     ~Editor() {
         clothWorker_.reset();
-        if(rendererReady_)OnRender([this]{if(pbrDisplayTexture_)glDeleteTextures(1,&pbrDisplayTexture_);for(auto& timer:gpuTimers_)glDeleteQueries(GLsizei(timer.query.size()),timer.query.data());ImGui_ImplOpenGL3_Shutdown();});
+        strandHair_.Release();
+        if(rendererReady_)OnRender([this]{for(auto& timer:gpuTimers_)glDeleteQueries(GLsizei(timer.query.size()),timer.query.data());ImGui_ImplOpenGL3_Shutdown();});
         if(guiReady_){ImGui_ImplGlfw_Shutdown();ImGui::DestroyContext();}
         garmentResource_.reset();resource_.reset();pbr_.Shutdown();toon_.Shutdown();models_.Shutdown();device_.StopAndRelease();
         while(!device_.returnSystem.callbacks.empty())device_.returnSystem.DrainCallbacks();
@@ -1898,8 +3144,11 @@ public:
             suspendPreview(background||physicsFrozen);
             if(fontsDirty_)RebuildFonts();
             auto now=PerfClock::now();performance_.wallDelta=std::chrono::duration<double>(now-previous).count();double delta=background||resuming||physicsFrozen?0:std::clamp(performance_.wallDelta,0.,.1);previous=now;
-            if(options.smoke)delta=options.clothTest||options.hairTest?1.0/60.0:.2;
+            if(options.smoke)delta=options.clothTest||options.hairTest||options.strandTest?1.0/60.0:.2;
+            if(options.hairOrbitStudy)delta=1./60.;
             performance_.acceptedDelta=delta;
+            hairRenderTime_+=delta;
+            if(options.hairOrbitStudy)yaw_=float(options.yaw+.18*std::sin(double(frame)*.19));
             performance_.frameLimit=background?(options.maxFps>0?std::min(15.,options.maxFps):15.):options.maxFps;
             if(options.holdAt>=0&&playing_&&time_>=options.holdAt){playing_=false;dirty_=true;}
             if(options.equipTest&&frame==30) {
@@ -1924,7 +3173,7 @@ public:
                     else for(std::size_t i=0;i<positions.size();++i)heldMovement=std::max(heldMovement,glm::length(positions[i]-heldCloth[i]));
                 }
             }
-            if(options.smoke){
+            if(options.smoke&&!options.strandTest&&!options.dianaTest){
                 if(frame==0)for(const auto& mesh:deformed_.meshes)for(const auto& v:mesh.vertices)baseline.push_back(v.position);
                 else {std::size_t i=0;for(const auto& mesh:deformed_.meshes)for(const auto& v:mesh.vertices)smokeMotion=std::max(smokeMotion,glm::length(v.position-baseline[i++]));}
                 if(!options.motionTest&&frame==3){if(!options.meshRegions)selection_=Selection::Morphs;for(std::size_t i=0;i<asset_->morphs.size();++i)if(std::any_of(asset_->morphs[i].deltas.begin(),asset_->morphs[i].deltas.end(),[](const auto& delta){return glm::length2(delta.position)>1e-12;})){manualMorphs_[i]=.5f;morphOverrides_[i]=1;dirty_=true;break;}}
@@ -1932,8 +3181,12 @@ public:
                 if(!options.motionTest&&!options.meshRegions&&frame==5){selection_=retargetSource_?Selection::Retarget:Selection::Ik;}
             }
             const auto scale=ImGui::GetIO().DisplayFramebufferScale;
-            const auto pw=std::uint32_t(std::clamp(viewportSize_.x*std::max(1.f,scale.x),128.f,2048.f));
-            const auto ph=std::uint32_t(std::clamp(viewportSize_.y*std::max(1.f,scale.y),128.f,2048.f));
+            auto pw=std::uint32_t(std::clamp(viewportSize_.x*std::max(1.f,scale.x),128.f,2048.f));
+            auto ph=std::uint32_t(std::clamp(viewportSize_.y*std::max(1.f,scale.y),128.f,2048.f));
+            if(referenceCameraEnabled_&&referenceCamera_.lockReferenceAspect){
+                const auto fitted=EditorPreview::DianaReferenceViewport({float(pw),float(ph)},referenceCamera_);
+                pw=std::uint32_t(std::max(128.f,std::floor(fitted.x)));ph=std::uint32_t(std::max(128.f,std::floor(fitted.y)));
+            }
             Measure(performance_.render,[&]{RenderPreview(pw,ph);});
             if(!options.captureDirectory.empty()&&frame>=2&&frame%options.captureEvery==0){char name[64];std::snprintf(name,sizeof(name),"frame_%05u.png",captureIndex++);SavePreviewCapture(options.captureDirectory/name);}
             if(options.smoke&&frame>=1) {
@@ -1973,7 +3226,151 @@ public:
                 if(wasReady&&frame>=options.benchmarkWarmup){if(benchmarkSamples.empty())benchmarkFirstMeasuredFrame=frame;benchmarkSamples.push_back(performance_);}
             }
         }
+        if(!options.cameraReferenceExport.empty())EditorPreview::SaveDianaCameraReferenceMetadata(options.cameraReferenceExport,CameraReferenceMetadata());
         if(options.benchmark)ReportBenchmark(options,benchmarkSamples,benchmarkFirstMeasuredFrame,options.maxFps>0?frameWaiter.Backend():"unused (uncapped)");
+        if(!options.hairLinearCapture.empty()){
+            const auto textures=pbr_.DebugTextures();
+            Check(textures.strandResolvedColor.IsValid(),"Hair linear capture requires separate hair temporal resources");
+            fs::create_directories(options.hairLinearCapture);
+            Json::Value report;report["schema"]="model.hair-linear-capture.v1";
+            report["camera"]=CameraReferenceMetadata();
+            report["frameIndex"]=Json::UInt64(frameIndex_);report["diagnosticMode"]=int(pbrSettings_.strandDebugMode);
+            report["temporalSequence"]=Json::UInt64(textures.completedTemporalSequence);
+            report["jitterUV"].append(textures.completedJitterUV.x);report["jitterUV"].append(textures.completedJitterUV.y);
+            for(int column=0;column<4;++column)for(int row=0;row<4;++row){
+                report["jitteredViewProjectionColumnMajor"].append(textures.completedJitteredViewProjection[column][row]);
+                report["unjitteredViewProjectionColumnMajor"].append(textures.completedUnjitteredViewProjection[column][row]);
+            }
+            report["bodyGeometryRevision"]=Json::UInt64(resource_->GeometryRevision());
+            report["lightingPreset"]=lightingPreset_;report["displayStudy"]=displayStudy_;
+            report["sourceEnvironmentOverride"]=sourceEnvironmentOverride_;
+            report["sourceDirectOverride"]=sourceDirectOverride_;
+            if(sourceDirectOverride_&&sourceHairDirect_){
+                report["sourceDirectProfile"]=Utf8(hairDirectPath_);
+                report["sourceDirectParameterOrigin"]=sourceHairDirect_->parameterOrigin;
+                report["sourceDirectHostUnitEV"]=sourceHairDirect_->hostUnitEV;
+                report["sourceDirectCount"]=pbrSettings_.strandSourceDirect.count;
+                report["sourceDirectDistanceScale"]=pbrSettings_.strandSourceDirect.distanceToSourceMetres;
+                report["opaqueProxyLuminanceCoverage"]=appliedSourceDirect_.proxyLuminanceCoverage;
+                for(int i:appliedSourceDirect_.proxySourceInstances)report["opaqueProxySourceInstances"].append(i);
+            }
+            report["postExposure"]=pbrSettings_.post.exposure;report["postGamma"]=pbrSettings_.post.gamma;
+            const auto shadowSkinState=ShadowSkinCaptureState();
+            for(const auto& key:shadowSkinState.getMemberNames())report[key]=shadowSkinState[key];
+            report["sourceSpatialIbl"]=strandHair_.material.sourceSpatialIbl;
+            report["sourceSegmentShading"]=strandHair_.material.sourceSegmentShading;
+            report["sourceCurveGeometry"]=strandHair_.material.sourceCurveGeometry;
+            report["hairDsVolumeMode"]=strandHair_.material.sourceDSVolume?"native":"legacy";
+            report["sourceDSVolume"]=strandHair_.material.sourceDSVolume;
+            report["volumeRasterTraceStep"]=strandHair_.material.volumeRasterTraceStep;
+            report["volumeTraceLimit"]=strandHair_.material.volumeTraceLimit;
+            report["volumeInterpolationSamples"]=strandHair_.material.volumeInterpolationSamples;
+            report["volumeInjectionRate"]=strandHair_.material.volumeInjectionRate;
+            report["volumeInjectionLodFraction"]=strandHair_.material.volumeInjectionLodFraction;
+            report["volumeInjectionMinLodFactor"]=strandHair_.material.volumeInjectionMinLodFactor;
+            report["volumeInjectionQuality"]=strandHair_.material.volumeInjectionQuality;
+            report["nativeDsInputSegments"]=Json::UInt64(pbr_.Statistics().strandNativeDsInputSegments);
+            report["nativeDsInjectedSegments"]=Json::UInt64(pbr_.Statistics().strandNativeDsInjectedSegments);
+            report["nativeDsInjectionFraction"]=pbr_.Statistics().strandNativeDsInjectionFraction;
+            report["nativeDsRasterWidthScale"]=pbr_.Statistics().strandNativeDsRasterWidthScale;
+            report["nativeDsAverageWidth"]=pbr_.Statistics().strandNativeDsAverageWidth;
+            report["nativeDsInjectionPolicy"]=strandHair_.material.sourceDSVolume?
+                "incoming=floor(double(total)*double(float(lodFraction))); quality<2 or MinLod gates rate; count uses incoming cap and float truncation; RasterWidthScale compensation is paired with selected prefix; WidthAve stays at source header":
+                "inactive: injection settings do not affect legacy density rendering";
+            report["nativeDsTextureAdapter"]="Texture cubeR32/64/128,6mips,manual trilinear RGBA32F; negativeLOD clamp0; source CPU trace cap32 and injection prefix/width policy recovered; actual frame list/format remain unobserved";
+            report["hairOitMode"]=HairOitMode(pbrSettings_);
+            report["nativeOitLayersRequested"]=pbrSettings_.strandNativeOitLayers;
+            report["nativeOitActive"]=pbr_.Statistics().strandNativeOitActive;
+            report["nativeOitLayers"]=pbr_.Statistics().strandNativeOitLayers;
+            report["nativeOitComputePasses"]=pbr_.Statistics().strandNativeOitComputePasses;
+            report["nativeOitBytes"]=Json::UInt64(pbr_.Statistics().strandNativeOitBytes);
+            if(pbr_.Statistics().strandNativeOitActive){
+                // Explicit final capture only: this API stalls for GPU readback.
+                // Ordinary preview frames and benchmark statistics never call it.
+                const auto counters=pbr_.CaptureStrandNativeOitCounters();
+                report["nativeOitCandidateReferences"]=counters[0];
+                report["nativeOitFallbackTiles"]=counters[1];
+                report["nativeOitMaxTileCandidates"]=counters[2];
+                report["nativeOitReservedReferences"]=counters[3];
+                report["nativeOitCounterScope"]="last strand object, after completed final capture";
+            }
+            report["nativeOitScheduling"]="GPU projection/count/prefix/scatter and deterministic pixel ownership; source Wu/MLAB arithmetic study, not native atomic contention or captured runtime branch";
+            report["curveOriginalSegments"]=Json::UInt64(pbr_.Statistics().strandCurveOriginalSegments);
+            report["curveVisibleSegments"]=Json::UInt64(pbr_.Statistics().strandCurveVisibleSegments);
+            report["curvePieces"]=Json::UInt64(pbr_.Statistics().strandCurvePieces);
+            report["curveAtlasUploads"]=pbr_.Statistics().strandCurveUploads;
+            report["curveShadowAtlasUploads"]=pbr_.Statistics().strandCurveShadowUploads;
+            report["curveShadowPieces"]=Json::UInt64(pbr_.Statistics().strandCurveShadowPieces);
+            report["curveScheduling"]="CPU source-formula compaction; RHI GPU curve evaluation and instanced drawing";
+            report["segmentShadingPasses"]=pbr_.Statistics().strandShadingPasses;
+            report["segmentShadingComputePasses"]=pbr_.Statistics().strandShadingComputePasses;
+            report["segmentShadingRasterPasses"]=pbr_.Statistics().strandShadingRasterPasses;
+            report["segmentShadingEvaluations"]=Json::UInt64(pbr_.Statistics().strandShadingEvaluations);
+            report["segmentShadingOutputPoints"]=Json::UInt64(pbr_.Statistics().strandShadingOutputPoints);
+            report["volumePointIbl"]=strandHair_.material.volumePointIbl;
+            report["volumeResolution"]=strandHair_.material.volumeResolution;
+            report["frontDepthGroups"]=pbrSettings_.strandFrontDepthGroups;
+            report["pairedTransparency"]=pbrSettings_.strandPairedLayerTransparency;
+            report["producerEnabled"]=pbrSettings_.strandIndirect.enabled;
+            report["producerMultiplier"]=pbrSettings_.strandIndirect.multiplier;
+            report["hostUnitEV"]=pbrSettings_.strandIndirect.exposureEV;
+            report["probeRotationRadians"]=pbrSettings_.strandIndirect.rotation;
+            report["realtimeGiEnabled"]=pbrSettings_.lumenGi.enabled||pbrSettings_.realtimeGi.enabled||pbrSettings_.surfaceCacheGi.enabled;
+            auto vec=[](const auto& v){Json::Value a(Json::arrayValue);for(int i=0;i<3;++i)a.append(v[i]);return a;};
+            report["cameraPosition"]=vec(camera_.position);report["cameraFocus"]=vec(cameraFocus_);
+            report["sunColor"]=vec(pbrSettings_.shadows.sunColor);report["sunDirection"]=vec(pbrSettings_.shadows.sunDirection);
+            report["sunIntensity"]=pbrSettings_.shadows.sunIntensity;
+            report["directSunScale"]=directSunScale_;report["directPunctualScale"]=directPunctualScale_;
+            report["ambient"]=vec(pbrSettings_.lighting.ambientAndExposure);
+            report["skyIntensity"]=pbrSettings_.sky.intensity;report["skyRotation"]=pbrSettings_.sky.rotation;
+            report["hairLightingProfile"]=Utf8(hairLightingPath_);
+            for(unsigned i=0;i<4;++i){
+                Json::Value p=vec(pbrSettings_.lighting.lightPositions[i]);p.append(pbrSettings_.lighting.lightPositions[i].w);
+                Json::Value c=vec(pbrSettings_.lighting.lightColors[i]);c.append(pbrSettings_.lighting.lightColors[i].w);
+                report["pointPositions"].append(p);report["pointColors"].append(c);
+            }
+            for(const auto& c:pbrSettings_.strandIndirect.coefficients)report["indirectCoefficients"].append(vec(c));
+            const auto read=[&](const char* name,auto handle,const char* meaning,const char* alpha){
+                if(!handle.IsValid())return;
+                std::vector<float> values;OnRender([&]{values=device_.BackendDiagnostics()->ReadTexture(handle);});
+                report["textures"][name]=EditorPreview::WriteHairLinearTexture(options.hairLinearCapture,name,meaning,alpha,previewWidth_,previewHeight_,values);
+            };
+            read("hair",textures.strandResolvedColor,"hair-only scene-linear after transparency resolve, before TAA; no display transform","straight coverage");
+            if(pbrSettings_.strandDebugMode==Render::StrandDebugMode::Beauty){
+                read("hair-temporal",textures.strandTemporalColor,"hair-only scene-linear after hair TAA, before display transform","premultiplied coverage");
+                read("background",textures.strandBackgroundColor,"complete scene-linear background before hair and TAA","opaque");
+                read("background-temporal",textures.strandTemporalBackgroundColor,"scene-linear background after opaque TAA","opaque");
+                read("scene",textures.sceneColor,"scene-linear raw hair over background, before temporal AA","opaque");
+            }
+            read("display",textures.displayColor,"display encoded final internal-resolution preview","opaque");
+            std::ofstream file(options.hairLinearCapture/"capture.json");file<<report;Check(bool(file),"Could not save linear capture metadata");
+            std::cout<<"Opt-in linear Render/RHI hair capture: "<<Utf8(options.hairLinearCapture)<<'\n';
+        }
+        if(!options.hairVolumeReport.empty()){
+            const auto textures=pbr_.DebugTextures();
+            Check(textures.strandDensity.IsValid(),"Hair volume report requires an enabled spatial volume");
+            std::vector<float> density,paths,extra,ambient;
+            OnRender([&]{
+                auto* diagnostics=device_.BackendDiagnostics();
+                density=diagnostics->ReadTexture(textures.strandDensity);paths=diagnostics->ReadTexture(textures.strandPaths);
+                extra=diagnostics->ReadTexture(textures.strandPathsExtra);ambient=diagnostics->ReadTexture(textures.strandPathsAmbient);
+            });
+            Check(!density.empty()&&paths.size()==density.size()&&extra.size()==density.size()&&ambient.size()==density.size(),"Hair volume diagnostic readback mismatch");
+            std::ofstream report(options.hairVolumeReport);Check(bool(report),"Could not create hair volume report");
+            const bool sourceIbl=strandHair_.material.dualScatteringIbl&&strandHair_.material.volumeSkyTransmission;
+            report<<"atlas_texel,density_per_m,sun,point0,point1,point2,point3,";
+            report<<(sourceIbl?"reserved_x,reserved_y,reserved_z,":"positive_x,positive_y,positive_z,");
+            report<<(sourceIbl?"ibl_plus,ibl_minus,reserved\n":"negative_x,negative_y,negative_z\n");
+            for(std::size_t i=0;i<density.size();i+=4)if(density[i]>0){
+                report<<i/4<<','<<density[i];
+                for(unsigned c=0;c<4;++c)report<<','<<paths[i+c];
+                for(unsigned c=0;c<4;++c)report<<','<<extra[i+c];
+                for(unsigned c=0;c<3;++c)report<<','<<ambient[i+c];
+                report<<'\n';
+            }
+            Check(bool(report),"Could not write hair volume report");
+            std::cout<<"Opt-in RHI volume readback: "<<Utf8(options.hairVolumeReport)<<" | atlas="<<textures.strandVolumeWidth<<'x'<<textures.strandVolumeHeight<<'\n';
+        }
         if(options.asyncClothTest){
             Check(clothWorker_&&modular_&&clothSnapshot_,"Asynchronous cloth produced no completed snapshot");
             Check(asyncSnapshotsObserved_>=10&&asyncTotalSteps_>=30,"Asynchronous cloth did not advance while rendering");
@@ -1986,8 +3383,40 @@ public:
         if(options.smoke){
             Check(frameIndex_>=3,"Editor smoke ended too early");
             const bool heldFromStart=(options.clothTest||options.hairTest)&&options.holdAt>=0&&options.startTime>=options.holdAt;
-            if(!heldFromStart){Check(smokeMotion>1e-6,"Generated animation did not deform preview vertices");Check(smokeChangedPixels>16,"Animated geometry did not change the rendered preview");}
-            std::cout<<"Editor GPU smoke passed; maximum animated vertex displacement="<<smokeMotion<<", changed viewport pixels="<<smokeChangedPixels<<"\n";
+            if(options.dianaTest){
+                OnRender([this]{Check(device_.BackendDiagnostics()->ValidationErrorCount()==0,"Diana preview reported RHI texture validation errors");});
+                Check(characterMaterials_.has_value()&&characterMaterialReport_.matchedMaterials==17,"Diana material profile was not applied");
+                Check(characterMaterialReport_.textureBindings>=79,"Diana enhanced material bindings are missing");
+                Check(!pbrSettings_.lumenGi.enabled&&!pbrSettings_.realtimeGi.enabled&&!pbrSettings_.surfaceCacheGi.enabled,"Diana preview unexpectedly enabled GI");
+                Check(strandHair_.loaded,"Diana strand resource missing");
+                if(pbrSettings_.skinDiffusion.enabled)Check(pbr_.Statistics().skinDiffusionPasses==6&&pbr_.Statistics().skinDiffusionDraws>=3,"Diana spatial skin diffusion was not recorded");
+                if(pbrSettings_.eyeShell.enabled)Check(pbr_.Statistics().eyeShellPasses>0&&pbr_.Statistics().eyeShellDraws>0,"Diana eye-shell postprocess was not recorded");
+                if(strandHair_.visible&&strandHair_.material.spatialVolume)Check(pbr_.Statistics().strandVolumeResolution>0&&pbr_.Statistics().strandVolumeVoxelSize>0,"Diana spatial hair volume was not built");
+                if(strandHair_.visible&&pbrSettings_.strandTemporalDepth&&pbrSettings_.strandMotionVectors&&pbrSettings_.temporal.antialiasing==Render::AntialiasingMode::TAA&&pbrSettings_.temporal.msaaSamples==1)
+                    Check(pbr_.Statistics().strandMotionActive&&pbr_.Statistics().strandHairTemporalPasses>0,"Diana separate hair motion/history was not recorded");
+                if(options.hairDynamic)Check(strandHair_.simulation.Stats().fixedSteps>0,"Requested dynamic Diana hair simulation did not advance");
+                if(options.hairShutter&&strandHair_.visible&&pbrSettings_.strandTemporalDepth&&pbrSettings_.strandMotionVectors){
+                    if(options.hairOrbitStudy||options.hairDynamic)Check(pbr_.Statistics().strandShutterSamples==4,"Requested moving geometry hair shutter was not recorded");
+                    else Check(pbr_.Statistics().strandShutterSamples==0&&pbr_.Statistics().strandHairHistoryUsed,"Static hair shutter did not preserve sharp TAA without extra geometry samples");
+                }
+                std::cout<<"Diana hair reconstruction: dslut="<<NativeHairMomentStatus(strandHair_.material)<<", volume-filter="<<(strandHair_.material.volumeHardwareFiltering?"linear":"legacy")
+                    <<", motion="<<pbr_.Statistics().strandMotionActive<<", motion passes="<<pbr_.Statistics().strandMotionPasses<<", hair temporal passes="<<pbr_.Statistics().strandHairTemporalPasses
+                    <<", hair history="<<pbr_.Statistics().strandHairHistoryUsed<<", simulation steps="<<strandHair_.simulation.Stats().fixedSteps<<'\n';
+                std::cout<<"Hair quality13: paired="<<pbr_.Statistics().strandPairedTransparencyActive<<", raster draws="<<pbr_.Statistics().strandTransparencyRasterPasses
+                    <<", exact volume="<<strandHair_.material.volumeExactIntegration<<", head proxies="<<strandHair_.material.volumeProxyBlockers
+                    <<", adaptive history="<<pbrSettings_.temporal.hairCoverageHistoryRejection<<", shutter samples="<<pbr_.Statistics().strandShutterSamples<<'\n';
+                std::cout<<"Hair transport: stable opaque="<<strandHair_.material.volumeStableOpaqueCache<<", point IBL="<<strandHair_.material.volumePointIbl
+                    <<", diagnostic="<<std::uint32_t(pbrSettings_.strandDebugMode)<<", volume passes="<<pbr_.Statistics().strandVolumePasses
+                    <<", blocker passes="<<pbr_.Statistics().strandBlockerPasses<<'\n';
+                std::cout<<"Hair internal shadow: near-field="<<strandHair_.material.volumePreserveNearField<<", trace exclusion="
+                    <<pbr_.Statistics().strandVolumeBiasMetres*1000.f/std::max(pbrSettings_.skinDiffusion.worldUnitScale,1e-6f)<<" mm; density accumulation RGBA32F\n";
+                std::cout<<"Hair direction/incident: tangents="<<(strandHair_.simulation.Settings().reconstructRenderTangents?"actual-render":"guide")
+                    <<", IBL="<<(strandHair_.material.sourceSpatialIbl?"spatial-center-estimate":"angular-adapter")<<'\n';
+                std::cout<<"Diana PBR preview passed; meshes="<<resource_->Source().meshes.size()<<", triangles="<<resource_->Source().TriangleCount()<<", matched materials="<<characterMaterialReport_.matchedMaterials<<", texture bindings="<<characterMaterialReport_.textureBindings<<", SSS passes="<<pbr_.Statistics().skinDiffusionPasses<<", eye-shell passes="<<pbr_.Statistics().eyeShellPasses<<", volume="<<pbr_.Statistics().strandVolumeResolution<<"^3 ("<<pbr_.Statistics().strandVolumeVoxelSize*1000.f/std::max(pbrSettings_.skinDiffusion.worldUnitScale,1e-6f)<<" mm), physical fibers="<<strandHair_.material.physicalScattering<<", multiple scattering="<<strandHair_.material.multipleScattering<<", coverage="<<(strandHair_.material.areaPreservingCoverage?"area":"legacy")<<", transparency="<<(pbr_.Statistics().strandNativeOitActive?HairOitMode(pbrSettings_):(pbr_.Statistics().strandFrontLayerTransparencyActive?"depth-groups":"weighted"))<<", groups="<<pbr_.Statistics().strandFrontDepthGroups<<", hair depth="<<pbr_.Statistics().strandTemporalDepthActive<<", hair shadow draws="<<pbr_.Statistics().strandShadowDraws<<", strand passes="<<pbr_.Statistics().strandPasses<<", Render RHI, RT/realtime GI disabled\n";
+            }
+            else if(options.strandTest){const auto& s=strandHair_.simulation.Stats();Check(s.gpuReady&&s.fixedSteps>=30,"Vulkan strand simulation did not advance");Check(s.nonFiniteNodes==0&&s.maxRootError<1e-5,"Invalid strand state or detached roots");Check(smokeChangedPixels>16,"Vulkan hair did not change the Model viewport");std::cout<<"Model Vulkan strand preview passed; steps="<<s.fixedSteps<<", displacement="<<s.maxGuideDisplacement<<", changed pixels="<<smokeChangedPixels<<", submit="<<s.submitMilliseconds<<" ms, readback="<<s.readbackMilliseconds<<" ms\n";}
+            else if(!heldFromStart){Check(smokeMotion>1e-6,"Generated animation did not deform preview vertices");Check(smokeChangedPixels>16,"Animated geometry did not change the rendered preview");}
+            if(!options.strandTest&&!options.dianaTest)std::cout<<"Editor GPU smoke passed; maximum animated vertex displacement="<<smokeMotion<<", changed viewport pixels="<<smokeChangedPixels<<"\n";
         }
         if(options.clothTest){Check(clothSimulator_.Stats().steps>=30,"Cloth did not advance fixed simulation steps");Check(clothSimulator_.Stats().pinned>0,"Cloth has no pinned attachments");Check(maxPhysicalDifference>1e-5,"Cloth output is identical to animated skinning");std::cout<<"Cloth GPU smoke passed; physical-vs-skinned displacement="<<maxPhysicalDifference<<", max contacts="<<maxClothContacts<<", solver steps="<<clothSimulator_.Stats().steps<<"\n";}
         if(options.clothTest&&!options.equipTest)Check(clothSimulator_.Stats().resets==1,"Continuous cloth preview unexpectedly reset its inertia");

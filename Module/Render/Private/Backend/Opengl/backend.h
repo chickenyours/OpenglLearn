@@ -2,11 +2,20 @@
 
 #include <glad/glad.h>
 #include <algorithm>
+#include <array>
+#include <atomic>
+#include <bit>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include <cmath>
 #include <limits>
+#include <iterator>
 #include <unordered_map>
+#include <unordered_set>
+#include <regex>
 
 #include "Render/Private/Backend/backend.h"
 #include "Render/Public/render_backend_context.h"
@@ -20,6 +29,29 @@ namespace Render {
 
 class OpenglBackend : public IBackend {
 private:
+    struct ComputeBuffer { GLuint name=0; size_t bytes=0; std::string label; };
+    struct ComputePipeline {
+        GLuint name=0; uint32_t bindings=0,pushBytes=0; bool frame=false;
+        Compute::FramePipelineDesc description;
+    };
+    inline static std::atomic<uint64_t> nextComputeOwner_{0x474c000000000001ull};
+    const uint64_t computeOwner_=nextComputeOwner_.fetch_add(1);
+    uint64_t nextComputeId_=1;
+    bool computeAvailable_=false,computeFrameOpen_=false;
+    GLuint computePushBuffer_=0;
+    Compute::Statistics computeStatistics_;
+    std::array<GLint,3> computeGroupCount_{},computeGroupSize_{};
+    GLint computeInvocations_=0,computeImageUnits_=0,computeUniformBlocks_=0,computeTextureUnits_=0;
+    std::unordered_map<uint64_t,ComputeBuffer> computeBuffers_;
+    std::unordered_map<uint64_t,ComputePipeline> computePipelines_;
+    std::unordered_set<GLuint> computeStorageTextures_;
+    ComputeBuffer& GetComputeBuffer(Compute::BufferHandle);
+    ComputePipeline& GetComputePipeline(Compute::PipelineHandle);
+    Compute::PipelineHandle MakeComputePipeline(const Compute::FramePipelineDesc&,bool);
+    void InitializeCompute();
+    void ShutdownCompute();
+    void CheckComputeError(const char*);
+    void WaitCompute();
     // 后端属性
     OpenglBackendContext context_;
     // rhi_id = vao
@@ -40,7 +72,57 @@ private:
     IndexType currentIndexType = IndexType::UInt32;
     // 绘制状态
     GLenum topology = GL_TRIANGLES;
+    const bool verifyDrawState_=[] {
+        const char* value=std::getenv("MATERIAL_LAB_GL_VERIFY_STATE");
+        return value&&value[0]&&value[0]!='0';
+    }();
+    bool drawStateVerificationAnnounced_=false;
+    // Rejected sampler binds must be observable by GPU regressions and Model
+    // smoke checks; logging alone can otherwise leave a falsely passing frame.
+    std::uint32_t textureValidationErrors_=0;
 private:
+    bool VerifyDrawState() {
+        if(!verifyDrawState_)return true; // No driver queries on the ordinary path.
+        if(!drawStateVerificationAnnounced_){
+            LOG_INFO("OpenGL.VerifyState","MATERIAL_LAB_GL_VERIFY_STATE enabled");drawStateVerificationAnnounced_=true;
+        }
+        const auto* target=rhiContext_.resourcePool->renderTargetTable.Get(currentRenderTarget);
+        const auto* pipeline=rhiContext_.resourcePool->PipelineTable.Get(currentPipeline);
+        const auto* program=pipeline?rhiContext_.resourcePool->shaderProgramTable.Get(pipeline->shaderProgram):nullptr;
+        const auto* color=target?rhiContext_.resourcePool->TextureTable.Get(target->color):nullptr;
+        const GLuint expectedFbo=target?target->rhi_id:0,expectedColor=color?color->rhi_id:0,expectedProgram=program?program->rhi_id:0;
+        GLint actualFbo=0,actualColor=0,actualProgram=0;
+        glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,&actualFbo);glGetIntegerv(GL_CURRENT_PROGRAM,&actualProgram);
+        if(target&&actualFbo!=0)glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,
+            GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME,&actualColor);
+        const auto identity=" target="+std::to_string(currentRenderTarget.id)+":"+std::to_string(currentRenderTarget.version)+
+            " fbo_expected="+std::to_string(expectedFbo)+" fbo_actual="+std::to_string(actualFbo)+
+            " color_expected="+std::to_string(expectedColor)+" color_actual="+std::to_string(actualColor)+
+            " pipeline="+std::to_string(currentPipeline.id)+":"+std::to_string(currentPipeline.version)+
+            " program_expected="+std::to_string(expectedProgram)+" program_actual="+std::to_string(actualProgram);
+        if((currentRenderTarget.IsValid()&&!target)||!program||!expectedProgram||
+            actualFbo!=GLint(expectedFbo)||(target&&actualColor!=GLint(expectedColor))||
+            actualProgram!=GLint(expectedProgram)||currentShaderProgram!=pipeline->shaderProgram){
+            LOG_ERROR("OpenGL.VerifyState","DrawIndexed target/program mismatch"+identity);return false;
+        }
+        const GLint irradianceLocation=glGetUniformLocation(expectedProgram,"pgIrradiance");
+        if(irradianceLocation>=0){
+            GLint samplerUnit=-1,activeTexture=0,actualTexture=0;
+            glGetUniformiv(expectedProgram,irradianceLocation,&samplerUnit);
+            glGetIntegerv(GL_ACTIVE_TEXTURE,&activeTexture);glActiveTexture(GL_TEXTURE0+7);
+            glGetIntegerv(GL_TEXTURE_BINDING_2D,&actualTexture);glActiveTexture(GLenum(activeTexture));
+            const auto entry=boundTextures.find(7);
+            const auto tracked=entry==boundTextures.end()?RenderResourceHandle<RHITextureSpec>{}:entry->second;
+            const auto* texture=rhiContext_.resourcePool->TextureTable.Get(tracked);
+            const GLuint expectedTexture=texture?texture->rhi_id:0;
+            if(samplerUnit!=7||(tracked.IsValid()&&!texture)||actualTexture!=GLint(expectedTexture)){
+                LOG_ERROR("OpenGL.VerifyState","DrawIndexed pgIrradiance binding mismatch"+identity+
+                    " sampler_unit="+std::to_string(samplerUnit)+" texture_RHI="+std::to_string(tracked.id)+":"+std::to_string(tracked.version)+
+                    " texture_expected="+std::to_string(expectedTexture)+" texture_actual="+std::to_string(actualTexture));return false;
+            }
+        }
+        return true;
+    }
     void InvalidateDrawState() {
         currentPipeline = {};
         currentShaderProgram = {};
@@ -270,14 +352,46 @@ private:
     }
 
 public:
+    std::vector<float> ReadTexture(RenderResourceHandle<RHITextureSpec> handle) override {
+        const auto* texture=rhiContext_.resourcePool->TextureTable.Get(handle);
+        if(!texture || texture->samples!=1)return {};
+        const bool depth=IsDepthFormat(texture->textureDataStoreType);
+        const size_t count=size_t(texture->width)*texture->height*(depth?1u:4u);
+        if(count>size_t(std::numeric_limits<GLsizei>::max())/sizeof(float))return {};
+        std::vector<float> result(count);
+        GLint alignment=4,rowLength=0;
+        glGetIntegerv(GL_PACK_ALIGNMENT,&alignment);glGetIntegerv(GL_PACK_ROW_LENGTH,&rowLength);
+        glPixelStorei(GL_PACK_ALIGNMENT,1);glPixelStorei(GL_PACK_ROW_LENGTH,0);
+        glGetTextureImage(texture->rhi_id,0,depth?GL_DEPTH_COMPONENT:GL_RGBA,GL_FLOAT,
+            GLsizei(result.size()*sizeof(float)),result.data());
+        glPixelStorei(GL_PACK_ALIGNMENT,alignment);glPixelStorei(GL_PACK_ROW_LENGTH,rowLength);
+        return result;
+    }
+    bool GeometryShadersAvailable() const override { return GLAD_GL_VERSION_3_2 != 0; }
+    Compute::BufferHandle ComputeCreateBuffer(size_t,const void*,const std::string&) override;
+    void ComputeUpload(Compute::BufferHandle,const void*,size_t,size_t) override;
+    Compute::PipelineHandle ComputeCreatePipeline(const std::string&,uint32_t,uint32_t,const std::string&) override;
+    Compute::PipelineHandle ComputeCreateFramePipeline(const Compute::FramePipelineDesc&) override;
+    void ComputeSubmit(const Compute::Batch&) override;
+    void DispatchFrameCompute(const RHICommand::DispatchFrameCompute&) override;
+    std::vector<std::byte> ComputeReadback(Compute::BufferHandle,size_t,size_t) override;
+    void ComputeCopyToVertexBuffer(Compute::BufferHandle,RenderResourceHandle<VertexBufferSpec>,size_t,size_t,size_t) override;
+    void ComputeDestroy(Compute::BufferHandle) override;
+    void ComputeDestroy(Compute::PipelineHandle) override;
+    Compute::Statistics ComputeDiagnostics() const override;
+    std::vector<uint32_t> CompletedComputeWords(Compute::BufferHandle,uint32_t) const override;
+    void AbortFrame() override { computeFrameOpen_=false; }
+    std::uint32_t ValidationErrorCount() const override { return textureValidationErrors_+computeStatistics_.validationErrors; }
     OpenglBackend(
         const RHIBackContext& rhiContext) : IBackend(rhiContext){}
     virtual void Init(void* specData) override {
         context_ = *reinterpret_cast<OpenglBackendContext*>(specData);
         context_.thread_TakeRenderContext();
+        InitializeCompute();
 
     }
     virtual void Shutdown() override {
+        ShutdownCompute();
         glBindVertexArray(0);
         glUseProgram(0);
         context_.thread_DetachRenderContext();
@@ -601,6 +715,8 @@ public:
             if (newPipeline->blendMode == BlendMode::AlphaComposite) {
                 glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA,
                     GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+            } else if (newPipeline->blendMode == BlendMode::AdditiveRaw) {
+                glBlendFuncSeparate(GL_ONE, GL_ONE, GL_ONE, GL_ONE);
             } else if (newPipeline->blendMode == BlendMode::Additive) {
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE);
             } else {
@@ -649,6 +765,7 @@ public:
     }
 
     virtual void BeginFrame(const RHICommand::BeginFrame& command) override {
+        computeFrameOpen_=true;
         // A new frame is also a state-cache boundary. Resources may be streamed
         // independently, so stale handles must never leak across it.
         RHICommand::SetRenderTarget target;
@@ -692,6 +809,10 @@ public:
                 RejectRenderTarget("invalid target, retired attachment, or oversized viewport");
                 return;
             }
+            for(const auto attachment:target->additionalColors)
+                if(attachment.IsValid()&&!rhiContext_.resourcePool->TextureTable.Get(attachment)) {
+                    RejectRenderTarget("retired additional color attachment");return;
+                }
         }
         glBindFramebuffer(GL_FRAMEBUFFER, target ? target->rhi_id : 0);
         if (target && glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
@@ -702,7 +823,8 @@ public:
         renderTargetValid = true;
         if (target) {
             for (auto& [slot, texture] : boundTextures) {
-                if (texture.IsValid() && (texture == target->color || texture == target->depth)) {
+                if (texture.IsValid() && (texture == target->color || texture == target->depth ||
+                    std::find(target->additionalColors.begin(),target->additionalColors.end(),texture)!=target->additionalColors.end())) {
                     glActiveTexture(GL_TEXTURE0 + slot);
                     glBindTexture(GL_TEXTURE_2D, 0);
                     texture = {};
@@ -733,6 +855,16 @@ public:
     virtual void ResolveRenderTarget(const RHICommand::ResolveRenderTarget& command) override {
         const auto* source = rhiContext_.resourcePool->renderTargetTable.Get(command.source);
         const auto* destination = rhiContext_.resourcePool->renderTargetTable.Get(command.destination);
+        const auto multipleColors=[](const RenderTargetSpec* target) {
+            return target&&std::any_of(target->additionalColors.begin(),target->additionalColors.end(),
+                [](auto attachment){return attachment.IsValid();});
+        };
+        // A GL blit broadcasts one read attachment to all enabled draw buffers.
+        // Probe MRT targets are single-sample; do not silently broadcast color 0
+        // for an unsupported multi-color MSAA resolve.
+        if(command.color&&(multipleColors(source)||multipleColors(destination))) {
+            LOG_ERROR("ResolveRenderTarget","OpenGL multi-color MSAA resolve is unsupported");return;
+        }
         if (!source || !destination || !source->rhi_id || !destination->rhi_id ||
             command.source == command.destination || (!command.color && !command.depth) ||
             !IsValidTextureSampleCount(source->samples) || source->samples == 1 || destination->samples != 1 ||
@@ -790,6 +922,7 @@ public:
     }
 
     virtual void EndFrame(const RHICommand::EndFrame& command) override {
+        computeFrameOpen_=false;
         if (command.present) context_.thread_Swap();
     }
 
@@ -815,6 +948,7 @@ public:
         GLint units = 0;
         glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &units);
         if (command.slot >= static_cast<std::uint32_t>(units)) {
+            ++textureValidationErrors_;
             LOG_ERROR("BindTexture", "texture slot exceeds the device limit");
             pipelineValid = false;
             return;
@@ -822,12 +956,15 @@ public:
         const RHITextureSpec* spec =
             rhiContext_.resourcePool->TextureTable.Get(command.texture);
         if (spec && spec->samples != 1) {
+            ++textureValidationErrors_;
             LOG_ERROR("BindTexture", "resolve multisample textures before sampler2D binding");
             spec = nullptr;
             pipelineValid = false;
         }
         if (const auto* target = rhiContext_.resourcePool->renderTargetTable.Get(currentRenderTarget)) {
-            if (command.texture.IsValid() && (command.texture == target->color || command.texture == target->depth)) {
+            if (command.texture.IsValid() && (command.texture == target->color || command.texture == target->depth ||
+                std::find(target->additionalColors.begin(),target->additionalColors.end(),command.texture)!=target->additionalColors.end())) {
+                ++textureValidationErrors_;
                 LOG_ERROR("BindTexture", "cannot sample the active render target attachment");
                 spec = nullptr;
                 pipelineValid = false;
@@ -887,6 +1024,7 @@ public:
             LOG_ERROR("DrawIndexed", "index range exceeds bound mesh buffer");
             return;
         }
+        if(!VerifyDrawState()){pipelineValid=false;return;}
         const GLenum type = ToOpenGLIndexType(currentIndexType);
         const uintptr_t byteOffset = static_cast<uintptr_t>(command.firstIndex) *
             (currentIndexType == IndexType::UInt16 ? sizeof(uint16_t) : sizeof(uint32_t));
@@ -1150,6 +1288,8 @@ public:
 
     static GLint ToOpenGLInternalFormat(RHITextureFormat format) {
     switch (format) {
+    case RHITextureFormat::R8_UNORM:
+        return GL_R8;
     case RHITextureFormat::RGB8:
         return GL_RGB8;
     case RHITextureFormat::RGBA8:
@@ -1170,6 +1310,8 @@ public:
 
     static GLenum ToOpenGLPixelFormat(RHITextureFormat format) {
         switch (format) {
+        case RHITextureFormat::R8_UNORM:
+            return GL_RED;
         case RHITextureFormat::RGB8:
         case RHITextureFormat::RGB32F:
             return GL_RGB;
@@ -1189,6 +1331,7 @@ public:
 
     static GLenum ToOpenGLPixelType(RHITextureFormat format) {
         switch (format) {
+        case RHITextureFormat::R8_UNORM:
         case RHITextureFormat::RGB8:
         case RHITextureFormat::RGBA8:
             return GL_UNSIGNED_BYTE;
@@ -1266,6 +1409,14 @@ public:
         const CreateTextureCommand& command
     ) override {
         const CreateRHITextureSpec& createSpec = command.spec;
+
+        if(createSpec.storage&&(!computeAvailable_||createSpec.samples!=1||createSpec.mipmaps||
+            (createSpec.textureDataStoreType!=RHITextureFormat::RGBA8&&
+             createSpec.textureDataStoreType!=RHITextureFormat::RGBA16F&&
+             createSpec.textureDataStoreType!=RHITextureFormat::RGBA32F))) {
+            LOG_ERROR("CreateTexture","OpenGL storage images require compute, single sample, no mipmaps and RGBA8/16F/32F");
+            return {};
+        }
 
         GLint maxTextureSize = 0;
         glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTextureSize);
@@ -1419,6 +1570,7 @@ public:
 
         RenderResourceHandle<RHITextureSpec> handle =
             rhiContext_.resourcePool->TextureTable.Add(rhiSpec);
+        if(createSpec.storage)computeStorageTextures_.insert(texture);
 
         return handle;
     }
@@ -1481,9 +1633,11 @@ public:
             LOG_ERROR("DeleteTexture", "texture handle not found");
             return;
         }
+        computeStorageTextures_.erase(spec->rhi_id);
 
         if (const auto* target = rhiContext_.resourcePool->renderTargetTable.Get(currentRenderTarget)) {
-            if (target->color == command.handle || target->depth == command.handle)
+            if (target->color == command.handle || target->depth == command.handle ||
+                std::find(target->additionalColors.begin(),target->additionalColors.end(),command.handle)!=target->additionalColors.end())
                 RejectRenderTarget("active render target attachment deleted");
         }
 
@@ -1503,8 +1657,13 @@ public:
         const auto& desc = command.desc;
         const auto* color = rhiContext_.resourcePool->TextureTable.Get(desc.color);
         const auto* depth = rhiContext_.resourcePool->TextureTable.Get(desc.depth);
+        std::array<const RHITextureSpec*,3> additionalColors{};
+        for(std::size_t i=0;i<additionalColors.size();++i) {
+            additionalColors[i]=rhiContext_.resourcePool->TextureTable.Get(desc.additionalColors[i]);
+            if(desc.additionalColors[i].IsValid()&&!additionalColors[i])return {};
+        }
         if ((desc.color.IsValid() && !color) || (desc.depth.IsValid() && !depth) ||
-            !AreRenderTargetAttachmentsCompatible(color, depth)) {
+            !AreRenderTargetAttachmentsCompatible(color, depth, additionalColors)) {
             LOG_ERROR("CreateRenderTarget", "invalid formats, dimensions, mipmaps, or attachment handles");
             return {};
         }
@@ -1519,7 +1678,13 @@ public:
             color->samples > 1 ? GL_TEXTURE_2D_MULTISAMPLE : GL_TEXTURE_2D, color->rhi_id, 0);
         if (depth) glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
             depth->samples > 1 ? GL_TEXTURE_2D_MULTISAMPLE : GL_TEXTURE_2D, depth->rhi_id, 0);
-        glDrawBuffer(color ? GL_COLOR_ATTACHMENT0 : GL_NONE);
+        std::array<GLenum,4> drawBuffers{{GL_COLOR_ATTACHMENT0,GL_COLOR_ATTACHMENT1,GL_COLOR_ATTACHMENT2,GL_COLOR_ATTACHMENT3}};
+        GLsizei colorCount=color?1:0;
+        for(std::size_t i=0;i<additionalColors.size();++i)if(const auto* extra=additionalColors[i]) {
+            glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT1+GLenum(i),
+                extra->samples>1?GL_TEXTURE_2D_MULTISAMPLE:GL_TEXTURE_2D,extra->rhi_id,0);++colorCount;
+        }
+        if(colorCount)glDrawBuffers(colorCount,drawBuffers.data());else glDrawBuffer(GL_NONE);
         glReadBuffer(color ? GL_COLOR_ATTACHMENT0 : GL_NONE);
         const bool complete = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, static_cast<GLuint>(oldDraw));
@@ -1537,6 +1702,7 @@ public:
         spec.color = desc.color;
         spec.depth = desc.depth;
         spec.samples = sizeSource->samples;
+        spec.additionalColors=desc.additionalColors;
         return rhiContext_.resourcePool->renderTargetTable.Add(spec);
     }
 
@@ -1554,6 +1720,6 @@ public:
     }
 };
 
-
+#include "Render/Private/Backend/Opengl/compute_backend.inl"
 
 } // namespace Render

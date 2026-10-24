@@ -1,0 +1,59 @@
+{
+  "schema": "model.source-display-study.v1",
+  "enabled": false,
+  "label": "ST30 source three-section study (runtime selection unverified)",
+  "source": "hair-display-evidence.json",
+  "table": "cc-st30-100-display.lutbin",
+  "tableSize": 33,
+  "tableEncoding": "ACEScct",
+  "alternatives": [
+    "hdr-linear-display.lutbin",
+    "cc-st30-100-display.lutbin",
+    "cc-st30-200-display.lutbin"
+  ],
+  "curve": {
+    "contrast": 1.0,
+    "linearBegin": 0.2199999988079071,
+    "linearLength": 0.4000000059604645,
+    "toe": 1.0,
+    "maxNit": 1.0,
+    "coefficients": [
+      [
+        1.0,
+        0.2199999988079071,
+        0.4000000059604645,
+        1.0
+      ],
+      [
+        1.0,
+        0.5320000039339066,
+        0.46799999606609344,
+        -3.0826817372135586
+      ],
+      [
+        1.639986696324595,
+        4.545454570084564,
+        0.0,
+        0.0
+      ]
+    ],
+    "maxNitIsHostStudyChoice": true,
+    "maxNitNativeBranch": "P1 exists in source CPU ordinary-output branch; current runtime branch is not captured"
+  },
+  "adapters": {
+    "preExposure": 1.0,
+    "ocioMatrix": "identity study choice; original not captured",
+    "referenceGamutCompression": false,
+    "displayGamma": 1.0,
+    "convertToLimit": 1.0,
+    "lowerLimit": 0.0
+  },
+  "applyOrder": [
+    "explicit host preExposure",
+    "source SDR three-section core",
+    "ACEScct encode / original cube / decode",
+    "source sRGB OETF / explicit output adjustment"
+  ],
+  "sourceScene": "ST30 broad candidates, not captured reference image lighting",
+  "note": "Opt-in research profile. Does not replace the default ACES preview or claim original EV/white balance."
+}

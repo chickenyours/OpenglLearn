@@ -19,6 +19,12 @@ inline std::string SpatialProbeGLSL() {return R"GLSL(
 layout(binding=3) uniform sampler2D sfUniform;
 layout(binding=4) uniform sampler2D sfSpawned;
 bool SFFinite(vec3 v) {return !any(isnan(v))&&!any(isinf(v));}
+// Both callers pass normalized normals. Matching means the same stratum
+// index is reusable within the existing numeric tolerance, not identical rays.
+bool SFMatchingAngularStrata(vec3 normal,vec3 otherNormal) {
+    return dot(normal,otherNormal)>1.0-1e-6&&
+        (abs(normal.z)<.99)==(abs(otherNormal.z)<.99);
+}
 vec4 SFProbe(int probe,int part) {
     bool uniformProbe=probe<spTraceAtlas.z;
     int slot=uniformProbe?probe:probe-spTraceAtlas.z;
@@ -51,11 +57,10 @@ float SFGeometryWeight(vec4 p,vec4 nd,vec4 other,vec4 otherNd) {
     float agreement=dot(n,nn);if(agreement<sfFilter.z)return 0;
     // Our curved nearest-stratum warp is not measure preserving. Repeating it
     // across three passes can leave a probe-dependent dark bias even after
-    // the Monte Carlo noise converges. In stationary high-confidence history,
-    // reuse only the exact one-to-one local angular frame; retain ordinary
-    // spatial filtering for flat walls and all the existing contact filters.
-    if((int(spRefinement.x+.5)&16)!=0&&
-        (agreement<=1.0-1e-6||(abs(n.z)<.99)!=(abs(nn.z)<.99)))return 0;
+    // the Monte Carlo noise converges. The runtime restriction keeps only
+    // numerically matching angular frames, including optional motion reuse;
+    // flat-wall spatial filtering and the existing contact filters remain.
+    if((int(spRefinement.x+.5)&16)!=0&&!SFMatchingAngularStrata(n,nn))return 0;
     vec3 delta=other.xyz-p.xyz;
     float depth=max(min(nd.w,otherNd.w),.0001);
     bool curvedWeights=SPGiCurvatureAwareWeightsEnabled();
@@ -221,15 +226,27 @@ void main() {
 // a common world cone, as UE does after scattering traces into its gather grid.
 // Preserve original trace status and all hit/direction metadata: spatial
 // filtering never manufactures a valid ray out of an unreadable cache hole.
-inline std::string SpatialFilterShader() {
-    return std::string("#version 450 core\n")+ScreenProbeTraceDetail::ConstantsGLSL()+
+inline std::string SpatialFilterShader(bool radianceOnly=false) {
+    return std::string("#version 450 core\n#define SF_RADIANCE_ONLY ")+(radianceOnly?"1\n":"0\n")+ScreenProbeTraceDetail::ConstantsGLSL()+
         SpatialConstantsGLSL()+SpatialProbeGLSL()+R"GLSL(
 in vec2 vUV;layout(location=0) out vec4 outColor;
 layout(binding=0) uniform sampler2D sfInputRays;
+#if SF_RADIANCE_ONLY
+// Hit, normal, direction and status metadata are immutable across filter
+// passes. Keep them in the producer's packed atlas instead of copying them.
+layout(binding=6) uniform sampler2D sfRayMetadata;
+#endif
 layout(binding=5) uniform sampler2D sfNeighbors;
 layout(binding=10) uniform sampler2D sfSafeOrigins;
 vec4 SFRay(int probe,int ray,int part) {
     int address=(probe*spTracing.x*spTracing.x+ray)*4+part;
+#if SF_RADIANCE_ONLY
+    if(part!=0)return texelFetch(sfRayMetadata,ivec2(address%spTraceAtlas.x,address/spTraceAtlas.x),0);
+    if(sfOptions.x!=0) {
+        int compactAddress=address/4,width=spTraceAtlas.x/4;
+        return texelFetch(sfInputRays,ivec2(compactAddress%width,compactAddress/width),0);
+    }
+#endif
     return texelFetch(sfInputRays,ivec2(address%spTraceAtlas.x,address/spTraceAtlas.x),0);
 }
 bool SFReadable(int state) {return state==1||state==9||state==10||state==5||state==13;}
@@ -241,11 +258,19 @@ float SFHitDistance(int probe,int ray,int state) {
 }
 void main() {
     ivec2 pixel=ivec2(gl_FragCoord.xy);
+#if SF_RADIANCE_ONLY
+    int globalRay=pixel.x+pixel.y*(spTraceAtlas.x/4),part=0;
+    int count=spTracing.x*spTracing.x;
+    int probe=globalRay/count,ray=globalRay%count;
+    outColor=SFRay(probe,ray,0);
+#else
     int address=pixel.x+pixel.y*spTraceAtlas.x,part=address%4;
     outColor=texelFetch(sfInputRays,pixel,0);
-    if(part!=0||sfFilter.w<=0)return;
     int count=spTracing.x*spTracing.x,globalRay=address/4;
-    int probe=globalRay/count,ray=globalRay%count,state=int(outColor.w+.5);
+    int probe=globalRay/count,ray=globalRay%count;
+#endif
+    if(part!=0||sfFilter.w<=0)return;
+    int state=int(outColor.w+.5);
     if(probe>=spTraceAtlas.w||!SFReadable(state)||!SFFinite(outColor.rgb))return;
     vec4 position=SFProbe(probe,0),nd=SFProbe(probe,1);
     vec3 direction=SFRay(probe,ray,3).xyz;
@@ -289,9 +314,8 @@ void main() {
             azimuthCoordinate);
         ivec2 first=ivec2(floor(square*float(spTracing.x)-.5));
         vec3 ownNormal=normalize(nd.xyz);int closestRay=-1;
-        if(dot(ownNormal,normal)>1.0-1e-6&&
-            (abs(ownNormal.z)<.99)==(abs(normal.z)<.99)) {
-            // Equal local frames already share the same directional strata.
+        if(SFMatchingAngularStrata(ownNormal,normal)) {
+            // Numerically matching local frames share directional strata.
             // Keep that mapping one-to-one: nearest jittered-ray selection
             // would duplicate some samples and omit others, biasing planar
             // energy even before the actual spatial weights are applied.

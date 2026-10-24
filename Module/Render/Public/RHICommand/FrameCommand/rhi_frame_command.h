@@ -10,6 +10,7 @@
 
 #include "Render/Public/RHICommand/FrameCommand/rhi_command_dispatcher.h"
 #include "Render/Public/RHIResourceType/rhi_resource_type.h"
+#include "Render/Public/Compute/gpu_compute.h"
 
 namespace Render::RHICommand {
 
@@ -54,7 +55,39 @@ struct DrawRect {};
 // an unavailable result instead of substituting CPU submission time.
 enum class GpuTimingScope : uint32_t {
     SurfaceCacheContactFilter = 0,
-    SurfaceCacheContactTrace,
+    SurfaceCacheContactTrace = 1,
+    // Append ids: existing captures and contact timing consumers keep 0 / 1.
+    ProbeScreenTrace = 2, // safe origins, source copy, HZB and screen rays
+    ProbeSdfTrace = 3, // screen-hit confirmation and mesh / global fallback
+    SurfaceCacheProbeReconstruction = 4, // active mask, integration and raw reconstruction
+    SurfaceCacheProbeSpatial = 5, // neighbors, ray filtering, integration and reconstruction
+    SurfaceCacheTemporal = 6, // accumulation, saved geometry and radiance resolve
+    SurfaceCacheLighting = 7, // only when cached card lighting is invalidated
+    SurfaceCacheReceiverMotion = 8, // optional previous-receiver raster capture and normal palette upload
+    SurfaceCacheFreshSampling = 9, // pre-contact geometric exposure classification; excludes receiver ray gathering
+    SurfaceCacheAccelerationBuild = 10, // native AS build; nested in the first contact/cache query scope
+    AreaLightShadowUpdate = 11, // rectangle depth-atlas refresh, absent when cached
+    ProbeSdfKernel = 12, // nested in ProbeSdfTrace: certification, field tracing and radiance lookup
+    ProbeSdfPack = 13, // nested in ProbeSdfTrace: MRT outputs to the public packed ray atlas
+    SurfaceCacheContactRisk = 14, // opt-in nested contact probe-risk reduction
+    SurfaceCacheContactMask = 15, // opt-in nested receiver classification/expansion
+    SurfaceCacheContactOrigins = 16, // optional separate receiver safe-origin pass
+    SurfaceCacheContactGather = 17, // opt-in nested receiver ray gathering only
+    DirectionalShadows = 18,
+    PlanarReflection = 19,
+    MainOpaque = 20,
+    ProbePlacement = 21, // captures and placement, excludes screen/ray tracing
+    PostAndOutput = 22,
+    SurfaceCacheCapture = 23,
+    SurfaceCacheDirectResolve = 24,
+    NativeProbeNeighbors = 25, // optional detail nested in native probe spatial
+    NativeProbeCoefficientFilter = 26, // optional detail nested in native probe spatial
+    NativeProbeBaseReconstruction = 27, // optional detail nested in native probe spatial
+    PlacementUniform = 28, // optional detail nested in ProbePlacement
+    PlacementMark = 29, // optional detail nested in ProbePlacement
+    PlacementSpawn = 30, // optional detail nested in ProbePlacement
+    UeLumenRadianceCache = 31, // fixed UE demand/update/trace/resolve world-cache stage
+    UeLumenProbeImportance = 32, // BRDF / incoming-light PDF and structured RayInfo generation
     Count
 };
 inline constexpr size_t GpuTimingScopeCount = static_cast<size_t>(GpuTimingScope::Count);
@@ -75,6 +108,10 @@ struct BeginFrame {
     float clearDepth = 1.0f;
     int32_t clearStencil = 0;
     bool collectGpuTimings = false;
+    bool reuseSurfaceCacheAccelerationStorage = false;
+    bool reuseUniformSnapshotContents = false;
+    bool updateSurfaceCacheAccelerationStructures = false;
+    bool sparseSurfaceCacheVertexUpdates = false;
 };
 
 struct EndFrame {
@@ -161,6 +198,16 @@ struct ResolveRenderTarget {
     bool depth = false;
 };
 
+struct DispatchFrameCompute {
+    Compute::PipelineHandle pipeline;
+    std::array<Compute::BufferHandle, 8> buffers{};
+    std::array<RenderResourceHandle<RHITextureSpec>, 8> images{};
+    uint32_t groupsX = 1, groupsY = 1, groupsZ = 1;
+    Compute::BufferHandle indirect;
+    uint32_t indirectOffset = 0, pushBytes = 0;
+    std::array<std::byte, 128> pushConstants{};
+};
+
 // Existing command ids stay stable (0..5). New commands are appended so old
 // captured buffers and tests remain readable.
 using FrameCommandsSet = CommandTable<
@@ -182,7 +229,8 @@ using FrameCommandsSet = CommandTable<
     SetRenderTarget,
     ResolveRenderTarget,
     BeginGpuTiming,
-    EndGpuTiming
+    EndGpuTiming,
+    DispatchFrameCompute
 >;
 
 } // namespace Render::RHICommand

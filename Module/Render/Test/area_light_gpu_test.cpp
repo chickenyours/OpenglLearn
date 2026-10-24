@@ -3,6 +3,8 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
+#include <future>
 #include <iomanip>
 #include <iostream>
 #include <limits>
@@ -18,6 +20,9 @@
 #include "Render/Private/Pipeline/pipeline_resource_builder.h"
 #include "Render/Public/Material/pbr_material.h"
 #include "Render/Public/Pipeline/area_lights.h"
+#include "Render/Public/Pipeline/material_render_pipeline.h"
+#include "Render/Public/Pipeline/probe_sdf_scene.h"
+#include "Render/Public/Pipeline/surface_cache.h"
 
 namespace {
 using namespace Render;
@@ -45,11 +50,12 @@ layout(location=1) in vec2 uv;
 out vec3 vWorldPosition;
 out vec3 vWorldNormal;
 out vec2 vTexCoord;
+out vec2 vTexCoord1;
 out vec4 vWorldTangent;
 void main() {
     gl_Position = vec4(position,0,1);
     vWorldPosition = vec3(0); vWorldNormal = vec3(0,1,0);
-    vTexCoord = uv; vWorldTangent = vec4(1,0,0,1);
+    vTexCoord = uv; vTexCoord1=vTexCoord; vWorldTangent = vec4(1,0,0,1);
 }
 )GLSL";
 }
@@ -516,11 +522,17 @@ void TestSpecularCells(Fixture& fixture) {
         Check(mean > .2 && mean < .9, "Area filtering erased or amplified the finite-emitter highlight");
     }
 }
+#include "area_light_shadow_submission_test.inl"
 } // namespace
 
-int main() {
+int main(int argc,char** argv) {
     int result = 0;
     try {
+        bool contracts=false,vulkan=false,validation=false;
+        for(int i=1;i<argc;++i){const std::string argument=argv[i];contracts|=argument=="--shadow-submission-contracts";
+            vulkan|=argument=="--vulkan";validation|=argument=="--validation";}
+        Check(!vulkan||contracts,"Use --shadow-submission-contracts for the Vulkan lifetime test entry point");
+        if(contracts){TestShadowSubmissionContracts(vulkan,validation);glfwTerminate();return 0;}
         TestValidation();
         TestSamplingStructure();
         Check(glfwInit() == GLFW_TRUE, "glfwInit failed");

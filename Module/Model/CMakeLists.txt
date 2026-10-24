@@ -3,6 +3,12 @@ if(NOT MODEL_BUILD)
     return()
 endif()
 
+add_executable(strand_submission_history_test Test/strand_submission_history_test.cpp)
+target_compile_features(strand_submission_history_test PRIVATE cxx_std_20)
+target_include_directories(strand_submission_history_test PRIVATE ${CMAKE_SOURCE_DIR}/Module)
+add_test(NAME strand_submission_history_test COMMAND strand_submission_history_test)
+set_tests_properties(strand_submission_history_test PROPERTIES TIMEOUT 10)
+
 include(${CMAKE_CURRENT_SOURCE_DIR}/assimp_dependency.cmake)
 if(NOT MODEL_ASSIMP_AVAILABLE)
     # The dependency resolver reports the compatible package/source options.
@@ -21,9 +27,14 @@ target_include_directories(model_importer PUBLIC ${CMAKE_SOURCE_DIR}/Module ${CM
 target_include_directories(model_importer BEFORE PRIVATE ${MODEL_ASSIMP_INCLUDE_DIRS})
 target_link_libraries(model_importer PUBLIC model_blend PRIVATE Model::Assimp)
 
-add_library(model_module STATIC Private/model_module.cpp)
+add_library(model_module STATIC Private/model_module.cpp Private/character_material_profile.cpp)
 target_compile_features(model_module PUBLIC cxx_std_20)
-target_link_libraries(model_module PUBLIC model_importer render_effects)
+target_link_libraries(model_module PUBLIC model_importer render_effects PRIVATE jsonloader)
+add_executable(character_material_profile_test Test/character_material_profile_test.cpp)
+target_link_libraries(character_material_profile_test PRIVATE model_module)
+target_compile_definitions(character_material_profile_test PRIVATE MODEL_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+add_test(NAME character_material_profile_test COMMAND character_material_profile_test)
+set_tests_properties(character_material_profile_test PROPERTIES TIMEOUT 120)
 
 add_executable(static_model_test Test/static_model_test.cpp)
 target_link_libraries(static_model_test PRIVATE model_importer)

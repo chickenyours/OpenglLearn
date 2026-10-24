@@ -1,0 +1,34 @@
+{
+  "strands": {
+    "sourceColor": true,
+    "gradientWeights": [
+      1.0,
+      0.4000000059604645,
+      0.20000000298023224
+    ],
+    "colorRandomOffsets": [
+      0.30000001192092896,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "hsvVariation": [
+      0.019999999552965164,
+      0.30000001192092896,
+      0.029999999329447746
+    ]
+  },
+  "strandAssets": {
+    "gradientTable": "hair-gradients.lutbin",
+    "colorCoordinates": "hair-colorcoords.bin"
+  },
+  "evidence": {
+    "source": "hair-color-evidence.json",
+    "colorCoordinatesSha256": "acf65949305e57f81140ca2d9cd6e8c9175abb8965faf05d29c44f2955d5a753",
+    "gradientTableSha256": "135fac1fd9223143aa1903bab2ae0d9e02b78aa4f42752077b03f8d206f20888",
+    "colorSpace": "Original sRGB bytes decoded once before filtering; scene-linear float32 RGBA atlas",
+    "sourceColorMapEnabled": false,
+    "sourceMaterialTransColorRate": 0.0,
+    "runtimeBabOverrideCaptured": false
+  }
+}

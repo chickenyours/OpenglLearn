@@ -19,6 +19,9 @@ class ProbeMeshSdf {
   public:
     const std::vector<glm::vec4>& Pixels() const { return pixels_; }
     const std::vector<ProbeTriangle>& Triangles() const { return triangles_; }
+    // Optional immutable vertex shading normals, in original input triangle order.
+    // This sidecar never enters the intersection/BVH/GPU geometry ABI.
+    const std::vector<std::array<glm::vec3,3>>& ShadingNormals() const { return shadingNormals_; }
     const std::shared_ptr<const RealtimeGiScene>& Geometry() const { return geometry_; }
     glm::vec3 Origin() const { return origin_; }
     glm::vec3 Spacing() const { return spacing_; }
@@ -36,6 +39,7 @@ class ProbeMeshSdf {
   private:
     std::vector<glm::vec4> pixels_;
     std::vector<ProbeTriangle> triangles_;
+    std::vector<std::array<glm::vec3,3>> shadingNormals_;
     std::shared_ptr<const RealtimeGiScene> geometry_;
     glm::vec3 origin_{0}, spacing_{1}, boundsMin_{0}, boundsMax_{0};
     glm::uvec3 counts_{1};
@@ -43,10 +47,11 @@ class ProbeMeshSdf {
     std::uint32_t resolution_=40;
     float interpolationError_ = 0,surfaceBias_ = 0;
     ProbeSdfBakeStatistics statistics_;
-    friend std::shared_ptr<const ProbeMeshSdf> BakeProbeMeshSdf(std::span<const ProbeTriangle>, std::uint32_t, bool,float);
+    friend std::shared_ptr<const ProbeMeshSdf> BakeProbeMeshSdf(std::span<const ProbeTriangle>, std::uint32_t, bool,float,std::span<const std::array<glm::vec3,3>>);
 };
 std::shared_ptr<const ProbeMeshSdf> BakeProbeMeshSdf(std::span<const ProbeTriangle> triangles,
-                                                  std::uint32_t longestAxis = 40, bool closedMesh = true,float surfaceExpansionVoxels = 0);
+                                                  std::uint32_t longestAxis = 40, bool closedMesh = true,float surfaceExpansionVoxels = 0,
+                                                  std::span<const std::array<glm::vec3,3>> shadingNormals = {});
 
 struct ProbeSdfInstance {
     std::shared_ptr<const ProbeMeshSdf> mesh;
@@ -76,6 +81,9 @@ struct ProbeSdfStatistics {
     std::uint64_t bakedVoxels = 0, distanceTriangleTests = 0, signTriangleTests = 0;
     std::uint32_t meshAssets = 0, instances = 0;
     double updateMilliseconds = 0;
+    // CPU preparation details. Refits separate immutable snapshot allocation/
+    // copy from validation/BVH work; these do not include GPU upload callbacks.
+    double geometryTransformMilliseconds=0,geometrySnapshotMilliseconds=0,geometryRefitMilliseconds=0,metadataMilliseconds=0;
     bool fullRebuild = false;
 };
 
@@ -101,12 +109,13 @@ class ProbeSdfScene {
     const std::shared_ptr<ProbeSdfClipmapVolume>& Clipmaps() const { return clipmaps_; }
     // Logical brick coordinates for the legacy fixed volume only. Clipmap
     // updates expose physical atlas ranges and per-level brick statistics.
-    const std::vector<glm::uvec3>& DirtyBricks() const { return dirtyBricks_; }
+    const std::vector<glm::uvec3>& DirtyBricks() const { EnsureGlobalField();return dirtyBricks_; }
     // Linear atlas ranges actually changed by the latest update. Split these
     // at Width() boundaries to issue partial texture-row uploads.
     const std::vector<ProbeSdfAtlasRange>& DirtyRanges() const;
     std::uint64_t MeshGeneration() const { return meshGeneration_; }
-    std::uint64_t GlobalGeneration() const { return globalGeneration_; }
+    std::uint64_t GlobalGeneration() const { EnsureGlobalField();return globalGeneration_; }
+    bool GlobalFieldDeferred() const { return globalFieldDeferred_; }
     std::uint64_t GeometryGeneration() const { return geometryGeneration_; }
     const ProbeSdfStatistics& Statistics() const { return statistics_; }
     const std::shared_ptr<const RealtimeGiScene>& PackedGeometry() const { return packedGeometry_; }
@@ -118,7 +127,10 @@ class ProbeSdfScene {
     // Returns false when nothing changed. No-op updates preserve generation.
     // In clipmap mode this prepares metadata only; explicitly call the global
     // update once after all source/instance changes for the frame are ready.
-    bool UpdateInstances(std::span<const ProbeSdfInstance> instances);
+    // Triangle-only consumers may defer fixed-volume recomposition. Geometry
+    // and object metadata stay current; every field read synchronously catches
+    // up before exposing pixels/generation/ranges to a software consumer.
+    bool UpdateInstances(std::span<const ProbeSdfInstance> instances,bool deferGlobalField=false,bool incrementalGeometry=false,bool snapshotRowCatchup=false);
     // Build defers the first clipmap capture to this call. Optional arrays
     // provide one source per level and instance (null uses globalMesh/mesh).
     // Camera scrolling never changes the source triangle BVH generation.
@@ -138,8 +150,13 @@ class ProbeSdfScene {
     float maximumWorldMeshError_ = 0;
     std::uint64_t meshGeneration_ = 0;
     std::uint64_t globalGeneration_ = 0,geometryGeneration_ = 0;
-    void RepackAssets(bool rebuildMeshAtlas = true);
-    void UpdateGeometry(bool topologyChanged);
+    bool globalFieldDeferred_=false;
+    std::vector<ProbeSdfInstance> geometryInputs_;
+    std::vector<ProbeTriangle> transformedTriangles_;
+    std::vector<std::uint32_t> changedGeometryTriangles_;
+    void EnsureGlobalField() const;
+    void RepackAssets(bool rebuildMeshAtlas = true,std::span<const std::uint32_t> changedObjects = {});
+    void UpdateGeometry(bool topologyChanged,bool incremental=false,bool snapshotRowCatchup=false);
     void RebuildBricks(std::span<const std::uint8_t> staticDirty, std::span<const std::uint8_t> dynamicDirty);
     friend std::shared_ptr<ProbeSdfScene> BuildProbeSdfScene(std::span<const ProbeSdfInstance>, const ProbeGlobalSdfSettings&);
 };

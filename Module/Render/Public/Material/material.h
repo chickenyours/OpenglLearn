@@ -208,7 +208,7 @@ inline void WriteValue(std::vector<std::byte>& bytes, const ParameterLayout& lay
 // ownership are required to create templates and edit their parameter blocks.
 class MaterialTemplate {
 public:
-    static constexpr std::size_t MaxParameterBytes = 512;
+    static constexpr std::size_t MaxParameterBytes = 1024;
 
     static std::shared_ptr<const MaterialTemplate> Create(MaterialTemplateDesc desc,
                                                          std::string* error = nullptr) {

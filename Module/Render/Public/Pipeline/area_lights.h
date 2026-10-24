@@ -34,6 +34,7 @@ struct AreaLightsSettings {
     // Zero is a diagnostic unfiltered reference; this is not shadow filtering.
     float specularFilter = 1.0f;
     bool stratifiedSamples = false; // fixed multi-jitter pattern; false retains cell midpoints
+    bool specularOnly = false; // diffuse supplied by a separate cached transport pass
 };
 
 // A deterministic sample in every 2D cell, and exactly one sample in each of
@@ -118,7 +119,7 @@ inline AreaLightsConstants MakeAreaLightsConstants(const AreaLightsSettings& set
         result.lights[i].centerEnabled = glm::vec4(light.center, 1);
         const float signedGrid = float(settings.samplesPerAxis) * (settings.stratifiedSamples ? -1.f : 1.f);
         result.lights[i].halfAxisU = glm::vec4(light.halfAxisU, signedGrid);
-        result.lights[i].halfAxisV = glm::vec4(light.halfAxisV, settings.specularFilter);
+        result.lights[i].halfAxisV = glm::vec4(light.halfAxisV, settings.specularOnly?-(1.f+settings.specularFilter):settings.specularFilter);
         result.lights[i].radianceTwoSided = glm::vec4(light.radiance, light.twoSided ? 1.0f : 0.0f);
     }
     return result;
@@ -226,6 +227,7 @@ void EvaluateAreaLightingInternal(vec3 worldPosition, vec3 viewDirection, vec3 s
             vec3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
             vec3 incoming = max(light.radianceTwoSided.rgb, vec3(0)) *
                             (cellArea * emitterCosine * NdotL * geometricHorizon / distanceSquared);
+            if(light.halfAxisV.w>=0.0) {
 #if defined(PBR_SKIN_LIGHTING)
             // The PBR caller supplies its opt-in skin kernel. Other area-light
             // callers retain the original Lambert integral and API.
@@ -235,9 +237,10 @@ void EvaluateAreaLightingInternal(vec3 worldPosition, vec3 viewDirection, vec3 s
 #else
             directDiffuse += ((vec3(1) - F) * (1.0 - metallic) * albedo / areaPi) * incoming;
 #endif
+            }
             if(NdotL<=0.0)continue; // Skin diffuse may wrap, GGX remains front-facing.
             float filteredRoughness = AreaCellRoughness(roughness, V, L, H, distanceToLight,
-                                                       cellU, cellV, clamp(light.halfAxisV.w, 0.0, 2.0));
+                cellU, cellV, clamp(light.halfAxisV.w<0.0?-light.halfAxisV.w-1.0:light.halfAxisV.w, 0.0, 2.0));
             float distribution = DistributionGGX(N, H, filteredRoughness);
             float geometry = GeometrySmith(N, V, L, filteredRoughness);
             directSpecular += distribution * geometry * F / max(4.0 * NdotV * NdotL, 1e-5) * incoming;

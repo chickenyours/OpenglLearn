@@ -82,10 +82,13 @@ void PipelineBlendState() {
     select(BlendMode::Additive);
     assert(enabled && sourceColor == GL_SRC_ALPHA && destinationColor == GL_ONE);
     assert(sourceAlpha == GL_SRC_ALPHA && destinationAlpha == GL_ONE);
+    select(BlendMode::AdditiveRaw);
+    assert(enabled && sourceColor == GL_ONE && destinationColor == GL_ONE);
+    assert(sourceAlpha == GL_ONE && destinationAlpha == GL_ONE);
     select(BlendMode::AlphaComposite, false);
     assert(!enabled);
     select(BlendMode::Opaque);
-    assert(!enabled && blendChanges == 3);
+    assert(!enabled && blendChanges == 4);
 }
 }
 

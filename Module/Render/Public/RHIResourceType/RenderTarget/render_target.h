@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <array>
 #include "Render/Public/rhi_resource_handle.h"
 #include "Render/Public/RHIResourceType/Texture/texture.h"
 
@@ -13,11 +14,14 @@ struct RenderTargetSpec {
     RenderResourceHandle<RHITextureSpec> color;
     RenderResourceHandle<RHITextureSpec> depth;
     std::uint32_t samples = 1;
+    // Optional dense color attachments 1..3. Attachment zero remains color.
+    std::array<RenderResourceHandle<RHITextureSpec>,3> additionalColors{};
 };
 
 struct CreateRenderTargetDesc {
     RenderResourceHandle<RHITextureSpec> color;
     RenderResourceHandle<RHITextureSpec> depth;
+    std::array<RenderResourceHandle<RHITextureSpec>,3> additionalColors{};
 };
 
 inline bool AreRenderTargetAttachmentsCompatible(const RHITextureSpec* color,
@@ -33,6 +37,24 @@ inline bool AreRenderTargetAttachmentsCompatible(const RHITextureSpec* color,
     if (depth && !IsDepthFormat(depth->textureDataStoreType)) return false;
     return !color || !depth || (color->width == depth->width && color->height == depth->height &&
                                color->samples == depth->samples);
+}
+
+inline bool AreRenderTargetAttachmentsCompatible(const RHITextureSpec* color,
+                                                 const RHITextureSpec* depth,
+                                                 const std::array<const RHITextureSpec*,3>& additionalColors) {
+    if (!AreRenderTargetAttachmentsCompatible(color,depth)) return false;
+    bool gap=false;
+    for (std::size_t i=0;i<additionalColors.size();++i) {
+        const auto* attachment=additionalColors[i];
+        if (!attachment) { gap=true; continue; }
+        if (gap || !color || !AreRenderTargetAttachmentsCompatible(attachment,nullptr) ||
+            attachment->width!=color->width || attachment->height!=color->height ||
+            attachment->samples!=color->samples) return false;
+        if (attachment==color) return false;
+        for (std::size_t earlier=0;earlier<i;++earlier)
+            if (attachment==additionalColors[earlier]) return false;
+    }
+    return true;
 }
 
 } // namespace Render

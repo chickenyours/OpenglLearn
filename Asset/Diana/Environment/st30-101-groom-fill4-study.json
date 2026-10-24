@@ -1,0 +1,65 @@
+{
+  "schema": "model.hair-lighting.v1",
+  "label": "ST30_101 static groom-center probe mix / HOST EV -5 calibration study",
+  "environmentTable": "lc_st30_101_01.lutbin",
+  "indirectCube": [
+    [
+      6.1798402127787995,
+      6.565001899671188,
+      6.967411111527326
+    ],
+    [
+      6.371383981173494,
+      6.99227265576701,
+      7.7804070791717095
+    ],
+    [
+      5.164235273747181,
+      5.555516325279314,
+      6.007816705161531
+    ],
+    [
+      8.189230825686536,
+      8.732662357648223,
+      9.332188160122314
+    ],
+    [
+      9.113442921510796,
+      9.534572145752463,
+      10.119537676442633
+    ],
+    [
+      5.545084764364219,
+      5.964398577778411,
+      6.3942812870845955
+    ]
+  ],
+  "producerMultiplier": 0.800000011920929,
+  "hostExposureEV": -5,
+  "rotationRadians": 0,
+  "source": {
+    "member": "natives/stm/light/cubemap/st/st30/st30_101/lc_st30_101_01.tex.251111100",
+    "texSha256": "558b285ac56662fe091c36a0a6574db5b36d163d0a67459b67ee1c874b9eeaaf",
+    "tableSha256": "f0e39637ae073f3b74e15cd4fa1e992f87f27f6572e61fb5017af7c3210a0a9f",
+    "cubeCoefficients": "Original last available mip axis-center values; native LOD8 clamp only if no runtime extension.",
+    "hostExposure": "-7 EV is existing host unit adapter, not source camera exposure.",
+    "chapterMapping": "checkpoint catalog links m030 and st30_101; no screenshot room identification",
+    "sourceGain": "CPU owner+4f0 independently writes producer CB24 and consumer Material168; static Diana .8 each",
+    "placement": "Conditional checkpoint52 + static rest-groom center blend; identity authored character rotation, half-extent OBB, scene-order direct-float fade, packed exponent0. HDR sky remains LC01; no runtime injection/mip extension. Not original reference-frame probes.",
+    "conditionalBlendWeights": [
+      0.004194078501313925,
+      0.9815190434455872,
+      0.01428687572479248,
+      0.0,
+      0.0
+    ],
+    "calibration": "Host EV is explicit lighting-unit calibration; source producer and material .8 remain separate. No ray tracing or realtime GI.",
+    "conditionalProbeSamplePosition": [
+      -11.789302825927734,
+      -3.661890745162964,
+      -153.56741333007812
+    ],
+    "conditionalProbeSamplePositionLimit": "Active physics/skinned AABB, frame transform and actual screenshot room remain unobserved"
+  },
+  "hostAmbientScale": 0
+}

@@ -178,6 +178,9 @@ private:
             case 18:
                 ok = DispatchFrameCommand<RHICommand::EndGpuTiming>(
                     buffer, cursor, &IBackend::EndGpuTiming); break;
+            case 19:
+                ok = DispatchFrameCommand<RHICommand::DispatchFrameCompute>(
+                    buffer, cursor, &IBackend::DispatchFrameCompute); break;
             default:
                 break;
             }

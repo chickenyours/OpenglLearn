@@ -564,6 +564,44 @@ vec4 SPGiSelectRepresentative(ivec2 tile,int sampleIndex,bool normalPart) {
 }
 
 )GLSL"; }
+// UE5.7.1 LumenScreenProbeGather.usf:142-201,213-234,1695-1700,
+// 1717-1778 and 1798-1915. These weights and candidates are independent of
+// this renderer's legacy cosine/refinement surface-representative policy.
+inline std::string UePlacementGLSL(){return R"GLSL(
+float SPUePlaneWeight(vec3 p,vec3 n,float depth,vec4 probe){
+    if(probe.w<.5)return 0.0;
+    return exp2(-200.0*abs(dot(probe.xyz-p,n))/depth);
+}
+float SPUeUniformCoverage(ivec2 pixel,vec3 p,vec3 n,float depth){
+    ivec2 base=SPCornerBase(pixel),full=clamp(pixel-SPJitter(),ivec2(0),spScreen.xy-1);
+    vec2 f=vec2(full-base*spGrid.w+1)/float(spGrid.w+2);float total=0;
+    for(int c=0;c<4;++c){ivec2 tile=SPCorner(base,c);vec4 nd=SPNormalDepth(spUniform,tile);
+        float bilinear=(c%2==0?1-f.x:f.x)*(c/2==0?1-f.y:f.y);
+        if(nd.w>0)total+=bilinear*SPUePlaneWeight(p,n,depth,SPPosition(spUniform,tile));}
+    return total;
+}
+float SPUeAdaptiveWeight(ivec2 pixel,vec3 p,vec3 n,float depth,ivec2 otherPixel,vec4 other){
+    vec2 delta=abs(vec2(otherPixel)-vec2(pixel));
+    return SPUePlaneWeight(p,n,depth,other)*(1.0-clamp(min(delta.x,delta.y)/float(spGrid.w),0.0,1.0));
+}
+void SPUeMarkCandidate(ivec2 tile,int sampleIndex,out vec4 position,out vec4 normalDepth){
+    position=vec4(0);normalDepth=vec4(0);if(spOptions.z<.5)return;
+    ivec2 pixel=SPCandidatePixel(tile,sampleIndex);vec3 p,n;float depth;
+    if(!SPSurface(pixel,p,n,depth))return;
+    position=vec4(p,SPUeUniformCoverage(pixel,p,n,depth)<.01?2.0:1.0);normalDepth=vec4(n,depth);
+}
+bool SPUeSpawnCandidate(ivec2 tile,int sampleIndex,vec4 position,vec4 normalDepth){
+    if(spOptions.z<.5||position.w<1.5)return false;
+    ivec2 pixel=SPCandidatePixel(tile,sampleIndex),base=SPCornerBase(pixel);vec4 weights=vec4(0);
+    for(int c=0;c<4;++c){ivec2 neighbor=SPCorner(base,c);
+        for(int previous=0;previous<16;++previous){if(previous>=sampleIndex)break;
+            vec4 other=SPPosition(spMarked,SPSlot(neighbor,previous));if(other.w<1.5)continue;
+            weights[c]=max(weights[c],SPUeAdaptiveWeight(pixel,position.xyz,normalDepth.xyz,normalDepth.w,
+                SPCandidatePixel(neighbor,previous),other));
+            if(dot(weights,vec4(1))>=.01)return false;}}
+    return true;
+}
+)GLSL";}
 inline std::string UniformShader(){return Common()+R"GLSL(
 void main(){ivec2 texel=ivec2(gl_FragCoord.xy),tile=ivec2(texel.x/2,texel.y);
     ivec2 pixel=SPUniformPixel(tile);vec3 p,n;float depth;bool valid=SPSurface(pixel,p,n,depth);
@@ -571,7 +609,14 @@ void main(){ivec2 texel=ivec2(gl_FragCoord.xy),tile=ivec2(texel.x/2,texel.y);
     float state=valid?1.0+SPGiIntersectionStrength(pixel,p,n,depth):1.0;
     outColor=!valid?vec4(0):vec4(p,state);}
 )GLSL";}
-inline std::string MarkShader(){return Common()+R"GLSL(
+inline std::string MarkShader(bool uePlacement=false){
+    if(uePlacement)return Common()+UePlacementGLSL()+R"GLSL(
+void main(){ivec2 texel=ivec2(gl_FragCoord.xy),slot=ivec2(texel.x/2,texel.y);
+    ivec2 tile=ivec2(slot.x/spGrid.z,slot.y);int sampleIndex=slot.x%spGrid.z;
+    vec4 position,normalDepth;SPUeMarkCandidate(tile,sampleIndex,position,normalDepth);
+    outColor=texel.x%2==0?position:normalDepth;}
+)GLSL";
+    return Common()+R"GLSL(
 void main(){ivec2 texel=ivec2(gl_FragCoord.xy),slot=ivec2(texel.x/2,texel.y);
     ivec2 tile=ivec2(slot.x/spGrid.z,slot.y);int sampleIndex=slot.x%spGrid.z;
     if((spTracing.w&2)!=0) {
@@ -583,7 +628,15 @@ void main(){ivec2 texel=ivec2(gl_FragCoord.xy),slot=ivec2(texel.x/2,texel.y);
     float state=SPUniformCoverage(pixel,p,n,depth)<SP_MIN_WEIGHT?2.0:1.0;
     outColor=texel.x%2==0?vec4(p,state):vec4(n,depth);}
 )GLSL";}
-inline std::string SpawnShader(){return Common()+R"GLSL(
+inline std::string SpawnShader(bool uePlacement=false){
+    if(uePlacement)return Common()+UePlacementGLSL()+R"GLSL(
+void main(){ivec2 texel=ivec2(gl_FragCoord.xy),slot=ivec2(texel.x/2,texel.y);
+    ivec2 tile=ivec2(slot.x/spGrid.z,slot.y);int sampleIndex=slot.x%spGrid.z;
+    vec4 position=SPPosition(spMarked,slot),normalDepth=SPNormalDepth(spMarked,slot);
+    bool place=SPUeSpawnCandidate(tile,sampleIndex,position,normalDepth);
+    outColor=!place?vec4(0):(texel.x%2==0?vec4(position.xyz,1):normalDepth);}
+)GLSL";
+    return Common()+R"GLSL(
 void main(){ivec2 texel=ivec2(gl_FragCoord.xy),slot=ivec2(texel.x/2,texel.y);
     ivec2 tile=ivec2(slot.x/spGrid.z,slot.y);int sampleIndex=slot.x%spGrid.z;
     vec4 p=SPPosition(spMarked,slot),nd=SPNormalDepth(spMarked,slot);

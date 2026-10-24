@@ -1,0 +1,50 @@
+{
+  "schema": "model.hair-lighting.v1",
+  "label": "ST30_101 LC_03 / chapter m030 source resource study",
+  "environmentTable": "lc_st30_101_03.lutbin",
+  "indirectCube": [
+    [
+      20.31640625,
+      21.1796875,
+      23.94140625
+    ],
+    [
+      20.91015625,
+      21.87890625,
+      24.38671875
+    ],
+    [
+      36.421875,
+      39.8359375,
+      48.75
+    ],
+    [
+      2.203125,
+      2.189697265625,
+      2.228759765625
+    ],
+    [
+      11.333984375,
+      11.654296875,
+      12.794921875
+    ],
+    [
+      35.890625,
+      37.84375,
+      42.71875
+    ]
+  ],
+  "producerMultiplier": 0.800000011920929,
+  "hostExposureEV": -7,
+  "rotationRadians": 0,
+  "source": {
+    "member": "natives/stm/light/cubemap/st/st30/st30_101/lc_st30_101_03.tex.251111100",
+    "texSha256": "145709b5afb2b9cdf3eefa5b2252f7076da35b2b0ffed395de04639517580035",
+    "tableSha256": "840d05306b7d5f0937269e7454c19676d457e93125ee1adc2c560689b8ca9ec8",
+    "cubeCoefficients": "Original last available mip axis-center values; native LOD8 clamp only if no runtime extension.",
+    "hostExposure": "-7 EV is existing host unit adapter, not source camera exposure.",
+    "chapterMapping": "checkpoint catalog links m030 and st30_101; no screenshot room identification",
+    "sourceGain": "CPU owner+4f0 independently writes producer CB24 and consumer Material168; static Diana .8 each",
+    "placement": "Source SCN gameobject component table and authored OBB preserved; profile samples a selected cube alone, not native OBB/probe blending."
+  }
+}

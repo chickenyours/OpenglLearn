@@ -1,0 +1,35 @@
+#version 450
+layout(local_size_x=128) in;
+struct Vertex { vec4 positionRadius; vec4 tangentArc; };
+layout(std430,binding=5) buffer Vertices { Vertex vertices[]; };
+layout(std430,binding=6) readonly buffer Parameters {
+    vec4 gravityDt; vec4 windDrag; uvec4 solver; vec4 complianceDamping;
+    vec4 shapeCollision; vec4 limitsTime; vec4 rootTranslation;
+    vec4 headA; vec4 headB; vec4 headA1; vec4 headB1; uvec4 counts;
+} p;
+layout(std430,binding=7) readonly buffer Neighbors { uvec2 neighbors[]; };
+vec3 safeDirection(vec3 value,vec3 fallbackValue) {
+    float n=dot(value,value);
+    return n>1e-16&&!isnan(n)&&!isinf(n)?value*inversesqrt(n):fallbackValue;
+}
+void main() {
+    uint id=gl_GlobalInvocationID.x;if(id>=p.solver.w)return;
+    uvec2 pair=neighbors[id];vec3 center=vertices[id].positionRadius.xyz;
+    vec3 incoming=center-vertices[pair.x].positionRadius.xyz;
+    vec3 outgoing=vertices[pair.y].positionRadius.xyz-center;
+    // Source boundary flags extrapolate Pprev=2*P-Pnext (and vice versa),
+    // rather than sampling the adjacent, unrelated strand in the point buffer.
+    if(pair.x==id)incoming=outgoing;
+    if(pair.y==id)outgoing=incoming;
+    // calcShading %142..226 forms the centripetal Catmull-Rom derivative
+    // sqrt(b/a)*incoming + sqrt(a/b)*outgoing, up to positive scale.
+    // Its normalized direction is exactly the sum of the two unit secants.
+    // Coincident/reversing secants are undefined in that native expression;
+    // retain a finite direction as an explicit host extension there.
+    vec3 fallbackValue=safeDirection(vertices[id].tangentArc.xyz,vec3(0.0,0.0,1.0));
+    vec3 a=safeDirection(incoming,vec3(0.0)),b=safeDirection(outgoing,vec3(0.0));
+    vec3 tangent=safeDirection(a+b,safeDirection(outgoing,safeDirection(incoming,fallbackValue)));
+    // Neighbor threads only read positionRadius; no pass writes positions.
+    // Only this invocation writes its own tangent, with the authored arc intact.
+    vertices[id].tangentArc.xyz=tangent;
+}

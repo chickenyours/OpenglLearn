@@ -10,7 +10,8 @@ namespace Render{
         RGB32F,
         RGBA32F,
         RGBA16F, // 16-bit float storage; CPU uploads use 32-bit floats.
-        Depth32F
+        Depth32F,
+        R8_UNORM // Appended: single-channel linear UNORM, UE scalar short-range AO.
     };
 
 
@@ -40,6 +41,7 @@ namespace Render{
         case RHITextureFormat::RGBA32F: return 16;
         case RHITextureFormat::RGBA16F: return 16;
         case RHITextureFormat::Depth32F: return 4;
+        case RHITextureFormat::R8_UNORM: return 1;
         }
         return 0;
     }
@@ -78,6 +80,8 @@ namespace Render{
         bool mipmaps = true;
         // Multisample storage is allocation-only: no upload and no mipmaps.
         uint32_t samples = 1;
+        // Explicit RHI storage-image opt-in; single sample and mip level 0.
+        bool storage = false;
     };
 
     // Packed rows, no padding. The device copies byteSize bytes before returning.
@@ -86,5 +90,9 @@ namespace Render{
         RHITextureFormat format = RHITextureFormat::RGBA8;
         const void* data = nullptr;
         std::size_t byteSize = 0;
+        // Opt in to recording an owned copy before the next frame/diagnostic
+        // command stream. Completion then means accepted/staged, not GPU idle.
+        // Backends without batching may complete the upload immediately.
+        bool deferUntilFrame = false;
     };
 }

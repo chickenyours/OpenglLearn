@@ -89,9 +89,8 @@ void main(){ivec2 source=ivec2(gl_FragCoord.xy)*2,size=textureSize(stPreviousHzb
     outColor=vec4(closest,0,0,1);}
 )GLSL";}
 
-inline std::string TraceShader(bool safeOrigins=false){return std::string("#version 450 core\n#define ST_SAFE_ORIGINS ")+
+inline std::string TraceCommonGLSL(bool safeOrigins=false){return std::string("#define ST_SAFE_ORIGINS ")+
     (safeOrigins?"1\n":"0\n")+ConstantsGLSL()+MarkerTraceGLSL()+R"GLSL(
-in vec2 vUV;layout(location=0) out vec4 outColor;
 #if ST_SAFE_ORIGINS
 // The GI variant needs screen visibility only. Its hit radiance is read from
 // the Surface Cache in the fallback stage, leaving slot zero for this atlas.
@@ -171,6 +170,10 @@ void STTrace(int probe,int ray,out vec4 color,out vec4 hit,out vec4 metadata,out
     bool cosineHemisphere=(spTracing.w&2)!=0;
     if(cosineHemisphere){direction=normalize(STCosineRayDirection(probe,ray,normal));directionAndFetches.xyz=direction;}
     if(dot(direction,normal)<=(cosineHemisphere?0.0:.02)){color.w=5;return;}
+    // A validated native-only gather consumes the same cosine directions and
+    // safe origins, then queries the full interval once. It needs no screen
+    // depth hint that would be immediately re-certified against triangles.
+    if(cosineHemisphere&&spCurvature.z>1.5){color.w=2;return;}
     mat4 projection=spViewProjection*spInverseView;
     vec4 probeClip=spViewProjection*vec4(position.xyz,1);
     if(probeClip.w<=0){color.w=6;return;}
@@ -266,12 +269,88 @@ void STTrace(int probe,int ray,out vec4 color,out vec4 hit,out vec4 metadata,out
     color=vec4(radiance,1);
 #endif
 }
+)GLSL";}
+
+inline std::string TraceShader(bool safeOrigins=false){return std::string("#version 450 core\n")+TraceCommonGLSL(safeOrigins)+R"GLSL(
+layout(location=0) out vec4 outColor;
 void main(){ivec2 pixel=ivec2(gl_FragCoord.xy);int linear=pixel.y*spTraceAtlas.x+pixel.x;
     int rayGlobal=linear/4,part=linear%4,raysPerProbe=spTracing.x*spTracing.x;
     vec4 color,hit,metadata,direction;
     STTrace(rayGlobal/raysPerProbe,rayGlobal%raysPerProbe,color,hit,metadata,direction);
     outColor=part==0?color:(part==1?hit:(part==2?metadata:direction));}
 )GLSL";}
+
+// Keep tracing in the fragment stage: the earlier geometry-stage experiment
+// reduced invocation count but serialized the expensive marcher on the tested
+// GPU. Four color outputs store one ray's complete tuple without retracing it.
+// The public interleaved atlas is rebuilt by a separate fetch-only pass below.
+inline std::string TraceOutputsShader(bool safeOrigins=false){return std::string("#version 450 core\n")+TraceCommonGLSL(safeOrigins)+R"GLSL(
+layout(location=0) out vec4 outColor;
+layout(location=1) out vec4 outHit;
+layout(location=2) out vec4 outMetadata;
+layout(location=3) out vec4 outDirection;
+void main(){ivec2 pixel=ivec2(gl_FragCoord.xy);
+    int rayGlobal=pixel.y*(spTraceAtlas.x/4)+pixel.x,raysPerProbe=spTracing.x*spTracing.x;
+    STTrace(rayGlobal/raysPerProbe,rayGlobal%raysPerProbe,outColor,outHit,outMetadata,outDirection);}
+)GLSL";}
+
+inline std::string PackTraceOutputsShader(){return R"GLSL(#version 450 core
+layout(binding=0) uniform sampler2D rayColor;
+layout(binding=1) uniform sampler2D rayHit;
+layout(binding=2) uniform sampler2D rayMetadata;
+layout(binding=3) uniform sampler2D rayDirection;
+layout(location=0) out vec4 outColor;
+void main(){ivec2 pixel=ivec2(gl_FragCoord.xy),rayPixel=ivec2(pixel.x/4,pixel.y);
+    int part=pixel.x%4;
+    if(part==0)outColor=texelFetch(rayColor,rayPixel,0);
+    else if(part==1)outColor=texelFetch(rayHit,rayPixel,0);
+    else if(part==2)outColor=texelFetch(rayMetadata,rayPixel,0);
+    else outColor=texelFetch(rayDirection,rayPixel,0);}
+)GLSL";}
+
+inline std::string RayQuadVertexShader(){return R"GLSL(#version 450 core
+layout(location=0) out int rqRay;
+void main(){rqRay=gl_InstanceID;gl_Position=vec4(0,0,0,1);}
+)GLSL";}
+// The original tracing routines use explicit texelFetch only. Keeping their
+// arithmetic in one shared body avoids a second transport implementation.
+inline std::string RayQuadGeometryMain(const std::string& traceCall){return R"GLSL(
+layout(points) in;layout(triangle_strip,max_vertices=4) out;
+layout(location=0) in int rqRay[];
+layout(location=0) flat out vec4 rqColor;
+layout(location=1) flat out vec4 rqHit;
+layout(location=2) flat out vec4 rqMetadata;
+layout(location=3) flat out vec4 rqDirection;
+void main(){
+    int rayGlobal=rqRay[0];vec4 color,hit,metadata,direction;
+)GLSL"+traceCall+R"GLSL(
+    int linear=rayGlobal*4;
+    ivec2 base=ivec2(linear%spTraceAtlas.x,linear/spTraceAtlas.x);
+    // A four-pixel row, not point-size-dependent rasterization. All vertices
+    // carry the same flat tuple, so provoking-vertex conventions cannot matter.
+    for(int vertex=0;vertex<4;++vertex){
+        ivec2 pixel=base+ivec2((vertex&1)*4,vertex/2);
+        gl_Position=vec4(vec2(pixel)*2.0/vec2(spTraceAtlas.xy)-1.0,0,1);
+        rqColor=color;rqHit=hit;rqMetadata=metadata;rqDirection=direction;
+        EmitVertex();
+    }
+    EndPrimitive();
+}
+)GLSL";}
+inline std::string RayQuadFragmentShader(){return R"GLSL(#version 450 core
+layout(location=0) flat in vec4 rqColor;
+layout(location=1) flat in vec4 rqHit;
+layout(location=2) flat in vec4 rqMetadata;
+layout(location=3) flat in vec4 rqDirection;
+layout(location=0) out vec4 outColor;
+void main(){int part=int(gl_FragCoord.x)%4;
+    outColor=part==0?rqColor:(part==1?rqHit:(part==2?rqMetadata:rqDirection));}
+)GLSL";}
+inline std::string TraceGeometryShader(bool safeOrigins=false){
+    return std::string("#version 450 core\n")+TraceCommonGLSL(safeOrigins)+
+        RayQuadGeometryMain("    int raysPerProbe=spTracing.x*spTracing.x;\n"
+            "    STTrace(rayGlobal/raysPerProbe,rayGlobal%raysPerProbe,color,hit,metadata,direction);\n");
+}
 
 inline std::string DisplayShader(){return std::string("#version 450 core\n")+ConstantsGLSL()+MarkerTraceGLSL()+R"GLSL(
 in vec2 vUV;layout(location=0) out vec4 outColor;

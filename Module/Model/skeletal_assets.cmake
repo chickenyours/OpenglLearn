@@ -171,6 +171,9 @@ target_link_libraries(model_editor_imgui INTERFACE imgui_core imgui_glfw imgui_o
 
 add_executable(skeletal_asset_editor Tools/skeletal_asset_editor.cpp)
 target_link_libraries(skeletal_asset_editor PRIVATE model_skeletal model_module model_editor_imgui)
+if(TARGET hair_simulation)
+    target_link_libraries(skeletal_asset_editor PRIVATE hair_simulation)
+endif()
 if(WIN32)
     target_link_libraries(skeletal_asset_editor PRIVATE comdlg32)
 endif()
@@ -197,6 +200,18 @@ if(MODEL_ASSIMP_RUNTIME_FILE)
     endforeach()
 endif()
 if(MODEL_GPU_TESTS)
+    if(TARGET hair_simulation_gpu_test)
+        add_test(NAME diana_character_gpu_test COMMAND skeletal_asset_editor --diana-test --frames 7)
+        set_tests_properties(diana_character_gpu_test PROPERTIES TIMEOUT 180 LABELS "gpu;character" RUN_SERIAL TRUE)
+    endif()
+    if(TARGET hair_simulation_gpu_test)
+        foreach(gravity_mode IN ITEMS normal low zero)
+            add_test(NAME model_strand_${gravity_mode}_gpu_test COMMAND skeletal_asset_editor
+                --strand-test --gravity ${gravity_mode} --frames 90)
+            set_tests_properties(model_strand_${gravity_mode}_gpu_test PROPERTIES
+                TIMEOUT 180 LABELS "gpu;hair" RUN_SERIAL TRUE)
+        endforeach()
+    endif()
     add_test(NAME skeletal_editor_gpu_test COMMAND skeletal_asset_editor --smoke-test
         --source "${CMAKE_SOURCE_DIR}/Asset/Model/Rikka_Uniform/Rikka_Uniform.pmx")
     set_tests_properties(skeletal_editor_gpu_test PROPERTIES TIMEOUT 120 LABELS "gpu" RUN_SERIAL TRUE)

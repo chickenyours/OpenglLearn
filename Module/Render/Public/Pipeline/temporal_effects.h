@@ -15,7 +15,8 @@ inline constexpr std::uint32_t TemporalJitterPeriod = 8;
 enum class AntialiasingMode : std::uint32_t { None = 0, FXAA = 1, TAA = 2 };
 
 // MSAA is independently selected; supported sample counts still depend on the
-// RHI/device. TAA and blur use camera motion only, without object motion vectors.
+// RHI/device. Generic TAA and blur use camera reprojection; the material pipeline
+// can separately accumulate a strand layer using explicit per-fiber motion.
 struct TemporalEffectsSettings {
     AntialiasingMode antialiasing = AntialiasingMode::FXAA;
     std::uint32_t msaaSamples = 1;
@@ -24,6 +25,13 @@ struct TemporalEffectsSettings {
     float depthRejectRelative = 0.01f; // fraction of current camera distance
     float fxaaEdgeThreshold = 0.125f;
     float fxaaMinThreshold = 0.0312f;
+    // Separate hair-layer history only; opaque TAA remains independent.
+    bool hairCoverageHistoryRejection = true;
+    float hairFastMotionPixels = 8.0f;
+    // Four independent trailing-shutter geometry samples, averaged as one layer.
+    // Requires explicit executed-frame timing and valid strand provenance.
+    bool hairMotionBlurEnabled = false;
+    float hairMotionBlurShutterSeconds = 1.0f / 120.0f;
     bool motionBlurEnabled = false;
     float motionBlurStrength = 1.0f;
     float motionBlurShutterSeconds = 1.0f / 120.0f;
@@ -46,6 +54,10 @@ inline bool ValidateTemporalEffectsSettings(const TemporalEffectsSettings& setti
         !range(settings.depthRejectRelative, 0, 0.25f)) return fail("Invalid temporal history settings");
     if (!range(settings.fxaaEdgeThreshold, 0, 1) || !range(settings.fxaaMinThreshold, 0, 1))
         return fail("Invalid FXAA edge thresholds");
+    if (!range(settings.hairFastMotionPixels, 1, 256))
+        return fail("Invalid hair fast-motion rejection threshold");
+    if (!range(settings.hairMotionBlurShutterSeconds, 0.0001f, 0.25f))
+        return fail("Invalid hair shutter duration");
     if (!range(settings.motionBlurStrength, 0, 4) || !range(settings.motionBlurShutterSeconds, 0.0001f, 0.25f) ||
         !range(settings.motionBlurMaxPixels, 0, 256) || settings.motionBlurSamples < 2 || settings.motionBlurSamples > 32)
         return fail("Invalid camera motion blur settings");

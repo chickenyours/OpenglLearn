@@ -10,8 +10,8 @@ namespace Render::SurfaceCacheDetail {
 // Carlo weight is exactly one, including known-black rays in the denominator.
 // The compact integration atlas has spGrid.x columns and
 // spGrid.y * (1 + spGrid.z) rows, in the existing logical-probe index order.
-inline std::string ProbeIntegrateShader() {
-    return std::string("#version 450 core\n")+ScreenProbeTraceDetail::ConstantsGLSL()+R"GLSL(
+inline std::string ProbeIntegrateShader(bool radianceOnly=false) {
+    return std::string("#version 450 core\n#define PG_RADIANCE_ONLY ")+(radianceOnly?"1\n":"0\n")+ScreenProbeTraceDetail::ConstantsGLSL()+R"GLSL(
 in vec2 vUV;layout(location=0) out vec4 outColor;
 layout(binding=0) uniform sampler2D pgUniform;
 layout(binding=1) uniform sampler2D pgSpawned;
@@ -28,7 +28,12 @@ void main() {
     int count=spTracing.x*spTracing.x,readable=0;vec3 sum=vec3(0);
     for(int ray=0;ray<256;++ray) {
         if(ray>=count)break;int address=(probe*count+ray)*4;
+#if PG_RADIANCE_ONLY
+        address/=4;int rayWidth=spTraceAtlas.x/4;
+        vec4 value=texelFetch(pgRays,ivec2(address%rayWidth,address/rayWidth),0);
+#else
         vec4 value=texelFetch(pgRays,ivec2(address%spTraceAtlas.x,address/spTraceAtlas.x),0);
+#endif
         int status=int(value.w+.5);
         if(status==1||status==5||status==9||status==10||status==13) {
             if(!any(isnan(value.rgb))&&!any(isinf(value.rgb))) {
@@ -49,12 +54,17 @@ void main() {
 // Its irradiance evaluated along the launch normal remains exactly E/pi.
 // Only the x-coefficient texel's otherwise unused alpha stores the nearest
 // geometry-hit inverse distance for conservative curved-support reuse.
-inline std::string ProbeDirectionalIntegrateShader() {
-    return std::string("#version 450 core\n")+ScreenProbeTraceDetail::ConstantsGLSL()+R"GLSL(
+inline std::string ProbeDirectionalIntegrateShader(bool radianceOnly=false) {
+    return std::string("#version 450 core\n#define PG_RADIANCE_ONLY ")+(radianceOnly?"1\n":"0\n")+ScreenProbeTraceDetail::ConstantsGLSL()+R"GLSL(
 in vec2 vUV;layout(location=0) out vec4 outColor;
 layout(binding=0) uniform sampler2D pgUniform;
 layout(binding=1) uniform sampler2D pgSpawned;
 layout(binding=7) uniform sampler2D pgRays;
+#if PG_RADIANCE_ONLY
+layout(binding=6) uniform sampler2D pgRayMetadata;
+#else
+#define pgRayMetadata pgRays
+#endif
 vec4 PGDirectionalProbePart(int probe,int part) {
     bool uniformProbe=probe<spTraceAtlas.z;int slot=uniformProbe?probe:probe-spTraceAtlas.z;
     int columns=spGrid.x*(uniformProbe?1:spGrid.z);
@@ -75,8 +85,13 @@ void main() {
     vec3 sum=vec3(0),directionSum=vec3(0),momentX=vec3(0),momentY=vec3(0),momentZ=vec3(0);
     for(int ray=0;ray<256;++ray) {
         if(ray>=count)break;int address=(probe*count+ray)*4;
+#if PG_RADIANCE_ONLY
+        int compactAddress=address/4,rayWidth=spTraceAtlas.x/4;
+        vec4 value=texelFetch(pgRays,ivec2(compactAddress%rayWidth,compactAddress/rayWidth),0);
+#else
         vec4 value=texelFetch(pgRays,ivec2(address%spTraceAtlas.x,address/spTraceAtlas.x),0);
-        vec3 direction=texelFetch(pgRays,ivec2((address+3)%spTraceAtlas.x,(address+3)/spTraceAtlas.x),0).xyz;
+#endif
+        vec3 direction=texelFetch(pgRayMetadata,ivec2((address+3)%spTraceAtlas.x,(address+3)/spTraceAtlas.x),0).xyz;
         // An invalid direction cannot contribute a directional measurement.
         // Its scalar sample and denominator still obey the original contract.
         direction=PGDirectionalFinite(direction)&&dot(direction,direction)>.5?normalize(direction):normal;
@@ -84,7 +99,7 @@ void main() {
         if(collectHitSupport&&(status==1||status==17||status==9||status==10||status==11||status==12)) {
             // A single certified close surface can invalidate displaced
             // reuse. Include black and cache-unknown geometry conservatively.
-            float hitDistance=texelFetch(pgRays,ivec2((address+1)%spTraceAtlas.x,(address+1)/spTraceAtlas.x),0).w;
+            float hitDistance=texelFetch(pgRayMetadata,ivec2((address+1)%spTraceAtlas.x,(address+1)/spTraceAtlas.x),0).w;
             if(hitDistance>0&&!isnan(hitDistance)&&!isinf(hitDistance))nearestHitInverse=max(nearestHitInverse,1.0/hitDistance);
         }
         if((status==1||status==5||status==9||status==10||status==13)&&PGDirectionalFinite(value.rgb)) {

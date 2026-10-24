@@ -19,6 +19,15 @@ struct ScreenProbeTraceSettings {
     // GI rays cover a normal-oriented cosine hemisphere. The original
     // equal-area sphere remains available for the tracing diagnostic study.
     bool cosineHemisphere=false;
+    // Experimental: trace once per ray in a geometry invocation and rasterize
+    // its original four atlas texels. Unsupported backends retain fragment tracing.
+    bool singleInvocation=false;
+    // Trace once in a fragment invocation, write four outputs, then pack the
+    // unchanged public ray atlas. This retains the ordinary fragment estimator.
+    bool singlePassOutputs=false;
+    // GPU-only classify/certify + compact pending SDF/GDF work. Requires the
+    // single-evaluation output contract; unsupported backends retain MRT tracing.
+    bool compactSdfRays=false;
     // Independent two-dimensional jitter per probe and angular stratum. A
     // fixed seed is useful without temporal accumulation; callers may change
     // it explicitly to inspect convergence without reusing any history.

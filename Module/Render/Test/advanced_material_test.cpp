@@ -24,8 +24,13 @@ void CheckLayoutAndValues() {
     static_assert(sizeof(SurfacePassConstants)==176 && SurfacePassBinding==7);
     static_assert(offsetof(SurfacePassConstants,screenTime)==128 && offsetof(SurfacePassConstants,options)==144);
     const auto surface=MakePbrTemplate(), glass=MakePbrTemplate(Domain::Translucent);
-    assert(surface && glass && surface->ByteSize()==448 && glass->ByteSize()==448);
+    // Optional skin/eye fields append to the stable legacy prefix. The exact
+    // offsets below remain the compatibility contract for existing materials.
+    assert(surface && glass && surface->ByteSize()>=448 && surface->ByteSize()==glass->ByteSize());
     assert(surface->ByteSize()<=MaterialTemplate::MaxParameterBytes);
+    assert(surface->FindLayout("reSkinEnabled")->offset==436);
+    assert(surface->FindLayout("eyeEnabled")->offset>surface->FindLayout("skinDiffusionBlend")->offset);
+    assert(PbrVertexLayout().typeSlots.size()==4 && PbrVertexLayout(true).typeSlots.size()==5);
     assert(!MakePbrTemplate(Domain::Sprite));
     assert(!MakePbrTemplate(static_cast<Domain>(255)));
     assert(!MakeUnlitTemplate(Domain::Translucent));

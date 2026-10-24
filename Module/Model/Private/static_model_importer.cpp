@@ -789,6 +789,7 @@ std::shared_ptr<const StaticModel> StaticModelLoader::Load(const std::filesystem
             mesh.indices.reserve(static_cast<std::size_t>(source.mNumFaces) * 3);
             hasBones |= source.HasBones();
             hasMorphs |= source.mNumAnimMeshes > 0;
+            mesh.hasSecondUV=source.HasTextureCoords(1);
             for(std::uint32_t vertex = 0; vertex < source.mNumVertices; ++vertex) {
                 StaticVertex value;
                 const auto& position = source.mVertices[vertex];
@@ -802,6 +803,12 @@ std::shared_ptr<const StaticModel> StaticModelLoader::Load(const std::filesystem
                     const auto& uv = source.mTextureCoords[0][vertex];
                     if(!std::isfinite(uv.x) || !std::isfinite(uv.y)) throw std::runtime_error("Mesh contains non-finite UVs: " + mesh.name);
                     value.uv = {static_cast<float>(uv.x), static_cast<float>(uv.y)};
+                }
+                value.uv1=value.uv;
+                if(source.HasTextureCoords(1)) {
+                    const auto& uv=source.mTextureCoords[1][vertex];
+                    if(!std::isfinite(uv.x)||!std::isfinite(uv.y))throw std::runtime_error("Mesh contains non-finite secondary UVs: "+mesh.name);
+                    value.uv1={static_cast<float>(uv.x),static_cast<float>(uv.y)};
                 }
                 const auto axis = std::abs(value.normal.z) < 0.999f ? glm::vec3(0, 0, 1) : glm::vec3(0, 1, 0);
                 auto tangent = SafeNormal(glm::cross(axis, value.normal), {1, 0, 0});

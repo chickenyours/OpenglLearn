@@ -40,6 +40,7 @@ layout(std140,binding=10) uniform PatchData { vec4 patchOptions; };
 out vec3 vWorldPosition;
 out vec3 vWorldNormal;
 out vec2 vTexCoord;
+out vec2 vTexCoord1;
 out vec4 vWorldTangent;
 void main() {
     gl_Position=vec4(position,0,1);
@@ -47,7 +48,7 @@ void main() {
     vWorldNormal=vec3((position+patchOptions.xy)*patchOptions.z,1);
     if (patchOptions.w>1.5) vWorldNormal=-vWorldNormal;
     vWorldTangent=vec4(1,0,0,1);
-    vTexCoord=texCoord;
+    vTexCoord=texCoord; vTexCoord1=vTexCoord;
 }
 )GLSL";
 }

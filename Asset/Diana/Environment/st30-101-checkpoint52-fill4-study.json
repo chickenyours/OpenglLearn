@@ -1,0 +1,59 @@
+{
+  "schema": "model.hair-lighting.v1",
+  "label": "ST30_101 checkpoint52 conditional probe mix / HOST EV -5 study",
+  "environmentTable": "lc_st30_101_01.lutbin",
+  "indirectCube": [
+    [
+      6.439611005742336,
+      6.841330950584961,
+      7.2967368560202885
+    ],
+    [
+      6.629193108339678,
+      7.286763015756151,
+      8.140632215858204
+    ],
+    [
+      5.844609487976413,
+      6.340187130204868,
+      7.008661842904985
+    ],
+    [
+      8.225152123486623,
+      8.762132847536122,
+      9.356571431097109
+    ],
+    [
+      9.288387181950384,
+      9.734447257214924,
+      10.356093404916464
+    ],
+    [
+      5.82636814918078,
+      6.262813095454476,
+      6.748814655496972
+    ]
+  ],
+  "producerMultiplier": 0.800000011920929,
+  "hostExposureEV": -5,
+  "rotationRadians": 0,
+  "source": {
+    "member": "natives/stm/light/cubemap/st/st30/st30_101/lc_st30_101_01.tex.251111100",
+    "texSha256": "558b285ac56662fe091c36a0a6574db5b36d163d0a67459b67ee1c874b9eeaaf",
+    "tableSha256": "f0e39637ae073f3b74e15cd4fa1e992f87f27f6572e61fb5017af7c3210a0a9f",
+    "cubeCoefficients": "Original last available mip axis-center values; native LOD8 clamp only if no runtime extension.",
+    "hostExposure": "-7 EV is existing host unit adapter, not source camera exposure.",
+    "chapterMapping": "checkpoint catalog links m030 and st30_101; no screenshot room identification",
+    "sourceGain": "CPU owner+4f0 independently writes producer CB24 and consumer Material168; static Diana .8 each",
+    "placement": "Conditional checkpoint52 blend of source last-mip axes; scene-order/direct-float fade, authored half-extents, exponent0, no runtime extension/injection/global term. HDR sky remains LC01. Not actual reference-frame probes.",
+    "conditionalBlendWeights": [
+      0.006987210363149643,
+      0.9699875712394714,
+      0.023025214672088623,
+      0.0,
+      0.0
+    ],
+    "calibration": "Host EV is explicit lighting-unit calibration; source producer and material .8 remain separate. No ray tracing or realtime GI."
+  },
+  "hostAmbientScale": 0
+}

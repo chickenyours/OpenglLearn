@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+asset_validator.exe
+asset_validator.obj

@@ -1,0 +1,175 @@
+{
+  "profile": {
+    "distanceLocalMetres": 0.29280492663383484,
+    "focusLocal": [
+      0.00019980414072051644,
+      0.9409165382385254,
+      0.07343073934316635
+    ],
+    "label": "game-shot-study-v1",
+    "lockReferenceAspect": true,
+    "modelEulerDegrees": [
+      0.0,
+      0.0,
+      -10.532564163208008
+    ],
+    "pitchDegrees": -11.676421165466309,
+    "pivotLocal": [
+      0.00019980105571448803,
+      0.9409165382385254,
+      0.07343074679374695
+    ],
+    "principalPoint": [
+      0.5991921424865723,
+      0.40677833557128906
+    ],
+    "referenceHeight": 678,
+    "referenceWidth": 1210,
+    "schema": "model.diana-camera-reference.v1",
+    "verticalFovDegrees": 43.0,
+    "yawDegrees": 12.382837295532227
+  },
+  "calibration": "Optional rigid pose and actual off-axis perspective calibrated to manually annotated eye/nose anchors; native camera and facial/groom animation are not recovered.",
+  "referenceDimensions": [
+    1210,
+    678
+  ],
+  "landmarks": [
+    {
+      "deltaAtReferenceDimensions": [
+        -0.04317617550270825,
+        0.00872644207203166
+      ],
+      "fittedAnchor": true,
+      "local": [
+        -0.02478827862,
+        0.9409222603,
+        0.073365964
+      ],
+      "name": "eye_viewer_left",
+      "projectable": true,
+      "projectedPixel": [
+        478.68584746862075,
+        194.20991089797295
+      ],
+      "projectedUv": [
+        0.5421130775409069,
+        0.3923432543393393
+      ],
+      "provenance": "EyeBall_R_Mat bounds XY center / front Z; approximate visible iris anchor",
+      "referencePixel": [
+        656.0,
+        266.0
+      ],
+      "world": [
+        -0.07019823696290434,
+        1.2332392723066092,
+        0.4034944174632481
+      ]
+    },
+    {
+      "deltaAtReferenceDimensions": [
+        0.049995595880659494,
+        0.002068907416287402
+      ],
+      "fittedAnchor": true,
+      "local": [
+        0.02518788073,
+        0.9409108162,
+        0.07349553
+      ],
+      "name": "eye_viewer_right",
+      "projectable": true,
+      "projectedPixel": [
+        581.6488810836055,
+        208.8068202200163
+      ],
+      "projectedUv": [
+        0.6587190046246948,
+        0.421831960040437
+      ],
+      "provenance": "EyeBall_L_Mat bounds XY center / front Z; approximate visible iris anchor",
+      "referencePixel": [
+        797.0,
+        286.0
+      ],
+      "world": [
+        0.07134947716790474,
+        1.2068881979166568,
+        0.40386769273655987
+      ]
+    },
+    {
+      "deltaAtReferenceDimensions": [
+        -0.03175671990959472,
+        -0.009808627916811474
+      ],
+      "fittedAnchor": true,
+      "local": [
+        0.0024421296548098326,
+        0.9135200381278992,
+        0.0915146917104721
+      ],
+      "name": "nose_tip",
+      "projectable": true,
+      "projectedPixel": [
+        513.7222800134875,
+        255.52381228492797
+      ],
+      "projectedUv": [
+        0.5817919365951161,
+        0.5162097217877333
+      ],
+      "provenance": "Face_mat vertex5685, selected against the old host preview",
+      "referencePixel": [
+        704.0,
+        350.0
+      ],
+      "world": [
+        -0.00750081416044962,
+        1.1412843288119878,
+        0.45578028950056887
+      ]
+    },
+    {
+      "deltaAtReferenceDimensions": [
+        0.19932006111969258,
+        -13.915780146102634
+      ],
+      "fittedAnchor": false,
+      "local": [
+        0.00011214871483389288,
+        0.8698635697364807,
+        0.06794662028551102
+      ],
+      "name": "chin_check",
+      "projectable": true,
+      "projectedPixel": [
+        503.67437984625514,
+        354.88449679598705
+      ],
+      "projectedUv": [
+        0.570412661207537,
+        0.7169383773656304
+      ],
+      "provenance": "Face_mat vertex2703; independent loose silhouette check, expression dependent",
+      "referencePixel": [
+        690.0,
+        500.0
+      ],
+      "world": [
+        -0.037090868267485255,
+        1.0188576654215178,
+        0.38788147111778454
+      ]
+    }
+  ],
+  "limits": [
+    "Host presentation profile, not recovered native FOV or animation; focal length/distance remain ambiguous from one screenshot.",
+    "Reference pixels were manually annotated with about3-pixel uncertainty. Eye surface centers are approximate gaze anchors.",
+    "Current static GLB has four scene nodes, without the original driven facial rig; expression, eyelid/gaze changes and source groom state are not recovered.",
+    "Rigid pose applies to the entire character, strands and local opaque capsules together; it does not articulate the native neck/face.",
+    "Landmarks describe the source bind pose; do not use their residuals as a whole-image native-fidelity score.",
+    "No lighting, exposure, hair color/width/density or image resampling is changed by this camera profile."
+  ]
+}

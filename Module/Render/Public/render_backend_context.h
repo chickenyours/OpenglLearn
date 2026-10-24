@@ -24,6 +24,7 @@ namespace Render{
         bool validation = false;
         bool requireHardwareRayTracing = false;
         bool hardwareRayTracing = true; // Disable for software/hardware comparisons.
+        bool headlessCompute = false; // No GLFW/surface/swapchain; compute queues only.
     };
     // Supplied by render_effects when built with the Vulkan SDK. Returns false
     // on builds without Vulkan; existing header-only OpenGL clients need no SDK.

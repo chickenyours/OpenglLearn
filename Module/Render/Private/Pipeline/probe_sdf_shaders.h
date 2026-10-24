@@ -2,6 +2,8 @@
 #include "Render/Private/Pipeline/screen_probe_trace_shaders.h"
 #include "Render/Private/Pipeline/surface_cache_shaders.h"
 #include <string>
+#include <stdexcept>
+#include <utility>
 
 namespace Render::ProbeSdfDetail {
 inline std::string ConstantsGLSL() { return R"GLSL(
@@ -26,18 +28,84 @@ layout(binding=6) uniform sampler2D psMeshes;
 layout(binding=7) uniform sampler2D psObjects;
 layout(binding=8) uniform sampler2D psGlobal;
 layout(binding=11) uniform sampler2D psRanges;
+#ifndef PS_FAST_ATLAS_ADDRESSING
+#define PS_FAST_ATLAS_ADDRESSING 0
+#endif
+#ifndef PS_REUSE_TRACE_SAMPLES
+#define PS_REUSE_TRACE_SAMPLES 0
+#endif
+ivec2 PSAtlasAddress(int index,int width) {
+#if PS_FAST_ATLAS_ADDRESSING
+    // The packed mesh/object/triangle atlases are normally 1024 texels wide.
+    // Keep signed division semantics for other widths and negative indices.
+    if(width==1024&&index>=0)return ivec2(index&1023,index>>10);
+#endif
+    return ivec2(index%width,index/width);
+}
 bool PSFinite(vec3 value) { return !any(isnan(value))&&!any(isinf(value)); }
 vec4 PSObject(int object,int part) {
     int index=object*psFlags.z+part;
+#if PS_FAST_ATLAS_ADDRESSING
+    // Only selected after the CPU validates this resident layout's width.
+    return texelFetch(psObjects,ivec2(index&1023,index>>10),0);
+#else
     return texelFetch(psObjects,ivec2(index%psAtlas.y,index/psAtlas.y),0);
+#endif
 }
 float PSBoxDistance(vec3 p,vec3 low,vec3 high) {
     return length(max(max(low-p,p-high),vec3(0)));
 }
 float PSMeshTexel(ivec3 cell,ivec3 counts,int offset) {
     int index=offset+(cell.z*counts.y+cell.y)*counts.x+cell.x;
+#if PS_FAST_ATLAS_ADDRESSING
+    return texelFetch(psMeshes,ivec2(index&1023,index>>10),0).x;
+#else
     return texelFetch(psMeshes,ivec2(index%psAtlas.x,index/psAtlas.x),0).x;
+#endif
 }
+#if PS_REUSE_TRACE_SAMPLES
+float PSMeshSample(int object,vec3 p,vec4 countsScale,out vec3 localPosition,out vec3 clampedPosition) {
+    mat4 inverseTransform=mat4(PSObject(object,0),PSObject(object,1),PSObject(object,2),PSObject(object,3));
+    vec4 origin=PSObject(object,4),spacing=PSObject(object,5);
+    ivec3 counts=max(ivec3(countsScale.xyz),ivec3(1));
+    localPosition=(inverseTransform*vec4(p,1)).xyz;
+    vec3 grid=clamp((localPosition-origin.xyz)/spacing.xyz,vec3(0),vec3(counts-1));
+    clampedPosition=origin.xyz+grid*spacing.xyz;
+    ivec3 cell=ivec3(floor(grid));vec3 f=fract(grid);
+    float result=0;
+    for(int z=0;z<2;++z)for(int y=0;y<2;++y)for(int x=0;x<2;++x) {
+        vec3 weight=mix(1.0-f,f,vec3(x,y,z));
+        result+=PSMeshTexel(min(cell+ivec3(x,y,z),counts-1),counts,int(origin.w))*weight.x*weight.y*weight.z;
+    }
+    return result;
+}
+float PSObjectDistance(int object,vec3 p,bool conservative,vec4 countsScale,vec4 worldLowBias,vec4 worldHigh,inout float fetches) {
+    vec3 localPosition,clampedPosition;
+    // Reuse only this object's immutable metadata in the current evaluation.
+    // Keep the sampled-distance expressions and eight-tap accumulation intact.
+    float rawDistance=PSMeshSample(object,p,countsScale,localPosition,clampedPosition),surfaceBias=worldLowBias.w;fetches+=8;
+    float distance=rawDistance-surfaceBias;
+    vec4 errors=PSObject(object,9);
+    if(length(localPosition-clampedPosition)>1e-6) {
+        float lower=max(PSBoxDistance(localPosition,PSObject(object,7).xyz,PSObject(object,8).xyz),
+            max(0.0,rawDistance-errors.x-length(localPosition-clampedPosition)));
+        distance=max(max(0.0,lower-surfaceBias)*countsScale.w,
+            max(0.0,PSBoxDistance(p,worldLowBias.xyz,worldHigh.xyz)-surfaceBias*countsScale.w));
+    } else distance*=countsScale.w;
+    return conservative?max(0.0,distance-errors.y):distance;
+}
+float PSMeshDistance(vec3 p,inout float fetches) {
+    float distance=1e20;
+    for(int object=0;object<psAtlas.z;++object) {
+        vec4 worldLowBias=PSObject(object,10),worldHigh=PSObject(object,11),countsScale=PSObject(object,6);
+        float box=max(0.0,PSBoxDistance(p,worldLowBias.xyz,worldHigh.xyz)-worldLowBias.w*countsScale.w);
+        if(box>=distance)continue;
+        distance=min(distance,max(box,PSObjectDistance(object,p,true,countsScale,worldLowBias,worldHigh,fetches)));
+        if(distance<=psTrace.z)return distance;
+    }
+    return distance;
+}
+#else
 float PSMeshSample(int object,vec3 p,out vec3 localPosition,out vec3 clampedPosition) {
     mat4 inverseTransform=mat4(PSObject(object,0),PSObject(object,1),PSObject(object,2),PSObject(object,3));
     vec4 origin=PSObject(object,4),spacing=PSObject(object,5),countsScale=PSObject(object,6);
@@ -84,6 +152,7 @@ float PSMeshDistance(vec3 p,inout float fetches) {
     }
     return distance;
 }
+#endif
 int PSGlobalLevelCount() { return psClipmap.x>0?clamp(psClipmap.x,1,4):1; }
 bool PSGlobalLevelReady(int level) {
     return level>=0&&level<PSGlobalLevelCount()&&(psClipmap.x==0||psClipScroll[level].w!=0);
@@ -184,10 +253,136 @@ float PSGlobalTransition(vec3 p,vec3 d,int current,bool viewSelection) {
 }
 )GLSL"; }
 
-inline std::string FallbackShader(bool safeOrigins=false) {
-    return std::string("#version 450 core\n#define PS_SAFE_ORIGINS ")+(safeOrigins?"1\n":"0\n")+
+inline std::string NativeRefineGLSL() {return R"GLSL(
+// The backend uses this marker to share the existing expanded candidate AS.
+// PSGeometry and its triangle IDs remain the original packed source geometry.
+#define SC_NATIVE_GEOMETRY_SLOT 9
+#ifdef RENDER_NATIVE_RAY_QUERY
+layout(set=2,binding=0) uniform accelerationStructureEXT psAcceleration;
+#endif
+bool PSRefine(vec3 origin,vec3 direction,float minimum,inout float maximum,out int triangle,out vec3 normal,inout float fetches,out bool exhausted) {
+#ifdef RENDER_NATIVE_RAY_QUERY
+    triangle=-1;normal=vec3(0);exhausted=false;
+    if(psGeometry.z==0||maximum<=minimum)return false;
+    float lower=max(minimum,1e-5);
+    if(maximum<lower)return false;
+    rayQueryEXT query;
+    // PSRefine has a closed upper endpoint; include that original float while
+    // allowing the conservative candidate geometry's last-ULP rounding.
+    float lowerSlack=max(1e-7,abs(lower)*2e-6),upperSlack=max(1e-7,abs(maximum)*2e-6);
+    float queryLower=max(0.0,lower-lowerSlack),upper=maximum+upperSlack;
+    rayQueryInitializeEXT(query,psAcceleration,gl_RayFlagsOpaqueEXT,255,origin,queryLower,direction,upper);
+    while(rayQueryProceedEXT(query)) {}
+    // Independently rounded expansion of a non-axis triangle may tilt its
+    // candidate plane. At a grazing angle a strict original hit can therefore
+    // disappear from the native query. Misses retain the full accepted BVH;
+    // a native hit supplies a tighter bound for the same exact certification.
+    if(rayQueryGetIntersectionTypeEXT(query,true)==gl_RayQueryCommittedIntersectionNoneEXT)
+        return PSSoftwareRefine(origin,direction,minimum,maximum,triangle,normal,fetches,exhausted);
+    int candidate=int(rayQueryGetIntersectionPrimitiveIndexEXT(query,true));
+    if(candidate<0||candidate>=psGeometry.w)
+        return PSSoftwareRefine(origin,direction,minimum,maximum,triangle,normal,fetches,exhausted);
+    int offset=psGeometry.x+candidate*5;
+    vec3 a=PSGeometry(offset).xyz,ab=PSGeometry(offset+1).xyz-a,ac=PSGeometry(offset+2).xyz-a;fetches+=3;
+    vec3 q=cross(direction,ac);float determinant=dot(ab,q);
+    if(abs(determinant)<1e-9)
+        return PSSoftwareRefine(origin,direction,minimum,maximum,triangle,normal,fetches,exhausted);
+    vec3 relative=origin-a;float u=dot(relative,q)/determinant;
+    vec3 r=cross(relative,ab);float v=dot(direction,r)/determinant;
+    float distance=dot(ac,r)/determinant;
+    // Hardware selects only a candidate. Recover the accepted float distance
+    // and normal with the unchanged strict probe predicate. Resolve expanded
+    // edges, shared-edge ownership and endpoint rounding with the legacy BVH.
+    float endpointSlack=max(1e-7,abs(distance)*2e-6);
+    if(u<0||u>1||v<0||u+v>1||distance<lower||distance>maximum||
+        abs(rayQueryGetIntersectionTEXT(query,true)-distance)>endpointSlack||
+        min(u,min(v,1.0-u-v))<=8e-6||
+        abs(distance-lower)<=endpointSlack||abs(distance-maximum)<=endpointSlack)
+        return PSSoftwareRefine(origin,direction,minimum,maximum,triangle,normal,fetches,exhausted);
+#ifdef PS_NATIVE_INTERIOR
+    // Production-style native nearest policy. The exact certification profile
+    // below remains available; this policy permits hardware rounding changes.
+    triangle=candidate;normal=normalize(cross(ab,ac));maximum=distance;return true;
+#endif
+    // A far native hit can mask a natively invisible closer grazing triangle.
+    // Use hardware as a segment upper bound, then certify the nearest original
+    // hit once with the accepted BVH. This also retains its coplanar tie/owner
+    // choice. It replaces repeated SDF-window traversals, not the final exact
+    // predicate. Keep one ULP so a closed endpoint at the candidate survives.
+    float verifiedMaximum=min(maximum,uintBitsToFloat(floatBitsToUint(distance)+1u));
+    bool verified=PSSoftwareRefine(origin,direction,minimum,verifiedMaximum,triangle,normal,fetches,exhausted);
+    if(verified||exhausted){maximum=verifiedMaximum;return verified;}
+    // The candidate may pass the triangle predicate but fail the original BVH
+    // bounds. Its distance then cannot safely cap the remaining original ray.
+    return PSSoftwareRefine(origin,direction,minimum,maximum,triangle,normal,fetches,exhausted);
+#else
+    return PSSoftwareRefine(origin,direction,minimum,maximum,triangle,normal,fetches,exhausted);
+#endif
+}
+)GLSL";}
+// This changes only the bounded certification of a fully validated native
+// candidate. Reaching the candidate's leaf through the original traversal is
+// still required: the hint never seeds the nearest result or shrinks a box.
+inline std::string NativeRefineReusingCandidateGLSL() {
+    auto source=NativeRefineGLSL();
+    const std::string from="    bool verified=PSSoftwareRefine(origin,direction,minimum,verifiedMaximum,triangle,normal,fetches,exhausted);";
+    const auto at=source.find(from);
+    if(at==std::string::npos||source.find(from,at+from.size())!=std::string::npos)
+        throw std::logic_error("Native candidate certification source anchor changed");
+    source.replace(at,from.size(),R"GLSL(    vec3 candidateNormal=normalize(cross(ab,ac));
+    bool verified;
+    if(PSFinite(candidateNormal)&&!isnan(distance)&&!isinf(distance))
+        verified=PSSoftwareRefineReusingNativeCandidate(origin,direction,minimum,verifiedMaximum,triangle,normal,fetches,exhausted,candidate,distance,candidateNormal);
+    else verified=PSSoftwareRefine(origin,direction,minimum,verifiedMaximum,triangle,normal,fetches,exhausted);)GLSL");
+    return source;
+}
+// Derive the hint variant from both accepted software implementations. Their
+// parent/child tests, order, strict predicate, maximum updates and exhaustion
+// guards stay unchanged. Keep the old implementations in the generated shader
+// for every fallback that lacks an authoritative native candidate.
+inline std::string SoftwareRefineReusingNativeCandidateGLSL(const std::string& accepted) {
+    const std::string beginAnchor="#if PS_REUSE_TRACE_SAMPLES && PS_SAFE_ORIGINS\nbool PSSoftwareRefine(";
+    const std::string endAnchor="\n#endif\nbool PSMarch(";
+    const auto begin=accepted.find(beginAnchor),end=accepted.find(endAnchor,begin);
+    if(begin==std::string::npos||end==std::string::npos)
+        throw std::logic_error("Native candidate software traversal source anchors changed");
+    auto source=accepted.substr(begin,end+std::string("\n#endif").size()-begin)+"\n";
+    const auto replaceExactlyTwice=[&](const std::string& from,const std::string& to) {
+        std::size_t at=0;unsigned count=0;
+        while((at=source.find(from,at))!=std::string::npos){source.replace(at,from.size(),to);at+=to.size();++count;}
+        if(count!=2)throw std::logic_error("Native candidate software traversal replacement changed: "+from);
+    };
+    replaceExactlyTwice(
+        "bool PSSoftwareRefine(vec3 origin,vec3 direction,float minimum,inout float maximum,out int triangle,out vec3 normal,inout float fetches,out bool exhausted) {",
+        "bool PSSoftwareRefineReusingNativeCandidate(vec3 origin,vec3 direction,float minimum,inout float maximum,out int triangle,out vec3 normal,inout float fetches,out bool exhausted,int nativeTriangle,float nativeDistance,vec3 nativeNormal) {");
+    replaceExactlyTwice(
+        "            int index=int(low.w)+i,offset=psGeometry.x+index*5;\n"
+        "            vec3 a=PSGeometry(offset).xyz,ab=PSGeometry(offset+1).xyz-a,ac=PSGeometry(offset+2).xyz-a;fetches+=3;",
+        "            int index=int(low.w)+i,offset=psGeometry.x+index*5;\n"
+        "            // Preserve logical request counters; only physical redundant reads and math are omitted.\n"
+        "            fetches+=3;\n"
+        "            if(index==nativeTriangle) {\n"
+        "                if(nativeDistance<max(minimum,1e-5)||nativeDistance>maximum)continue;\n"
+        "                maximum=nativeDistance;triangle=index;normal=nativeNormal;continue;\n"
+        "            }\n"
+        "            vec3 a=PSGeometry(offset).xyz,ab=PSGeometry(offset+1).xyz-a,ac=PSGeometry(offset+2).xyz-a;");
+    return source;
+}
+// One original triangle query over the complete requested interval. This uses
+// the triangle-format trace profile, not SDF/GDF stepping, and deliberately
+// declares neither the native-AS marker nor a hardware ray-query binding.
+inline std::string DirectSoftwareRefineGLSL() {return R"GLSL(
+#define PS_DIRECT_SOFTWARE_REFINEMENT 1
+bool PSRefine(vec3 origin,vec3 direction,float minimum,inout float maximum,out int triangle,out vec3 normal,inout float fetches,out bool exhausted) {
+    return PSSoftwareRefine(origin,direction,minimum,maximum,triangle,normal,fetches,exhausted);
+}
+)GLSL";}
+inline std::string FallbackCommonGLSL(bool safeOrigins=false,bool fastAtlasAddressing=false,bool reuseTraceSamples=false,bool hardwareRayTracing=false,
+    bool reuseNativeCandidate=false,bool directSoftwareRefinement=false,bool queryDiagnostics=false,bool nativeInterior=false) {
+    auto source=std::string("#define PS_SAFE_ORIGINS ")+(safeOrigins?"1\n":"0\n")+
+        "#define PS_FAST_ATLAS_ADDRESSING "+(fastAtlasAddressing?"1\n":"0\n")+
+        "#define PS_REUSE_TRACE_SAMPLES "+(reuseTraceSamples?"1\n":"0\n")+
         ScreenProbeTraceDetail::ConstantsGLSL()+ConstantsGLSL()+SamplingGLSL()+SurfaceCacheDetail::LookupGLSL()+R"GLSL(
-in vec2 vUV;layout(location=0) out vec4 outColor;
 layout(binding=0) uniform sampler2D psScreenRays;
 layout(binding=1) uniform sampler2D psSceneColor;
 layout(binding=2) uniform sampler2D psViewPositions;
@@ -211,7 +406,11 @@ vec4 PSProbe(int probe,int part) {
     return uniformProbe?texelFetch(psUniform,texel,0):texelFetch(psSpawned,texel,0);
 }
 vec4 PSGeometry(int index) {
+#if PS_FAST_ATLAS_ADDRESSING
+    return texelFetch(psTriangles,ivec2(index&1023,index>>10),0);
+#else
     return texelFetch(psTriangles,ivec2(index%psGeometry.y,index/psGeometry.y),0);
+#endif
 }
 bool PSRayBox(vec3 origin,vec3 direction,vec3 low,vec3 high,inout float near,inout float far) {
     for(int axis=0;axis<3;++axis) {
@@ -224,6 +423,56 @@ bool PSRayBox(vec3 origin,vec3 direction,vec3 low,vec3 high,inout float near,ino
     }
     return true;
 }
+#if PS_REUSE_TRACE_SAMPLES && PS_SAFE_ORIGINS
+bool PSRefine(vec3 origin,vec3 direction,float minimum,inout float maximum,out int triangle,out vec3 normal,inout float fetches,out bool exhausted) {
+    triangle=-1;normal=vec3(0);exhausted=false;
+    if(psGeometry.z==0||maximum<=minimum)return false;
+    int stack[64];stack[0]=0;int size=1;
+    int cachedNode=-1;vec4 cachedLow,cachedHigh;
+    for(int visit=0;visit<16384&&size>0;++visit) {
+        int node=stack[--size];vec4 low,high;bool cached=node==cachedNode;
+        if(cached){low=cachedLow;high=cachedHigh;cachedNode=-1;}
+        else {low=PSGeometry(node*2);high=PSGeometry(node*2+1);}
+        // Packed fetches remain logical requests, matching the accepted path;
+        // cached reads below are not actual physical texture-read counters.
+        fetches+=2;
+        float near=minimum,far=maximum;
+        // Only the immediately next child is cached. No triangle can shrink
+        // maximum between its parent's test and this pop. Far siblings always
+        // reload and retest against the potentially reduced maximum.
+        if(!cached&&!PSRayBox(origin,direction,low.xyz,high.xyz,near,far))continue;
+        if(high.w>=0) {
+            if(size>61){exhausted=true;return false;}
+            int left=int(low.w),right=int(high.w);
+            vec4 leftLow=PSGeometry(left*2),leftHigh=PSGeometry(left*2+1);
+            vec4 rightLow=PSGeometry(right*2),rightHigh=PSGeometry(right*2+1);fetches+=4;
+            float leftNear=minimum,leftFar=maximum,rightNear=minimum,rightFar=maximum;
+            bool leftHit=PSRayBox(origin,direction,leftLow.xyz,leftHigh.xyz,leftNear,leftFar);
+            bool rightHit=PSRayBox(origin,direction,rightLow.xyz,rightHigh.xyz,rightNear,rightFar);
+            if(leftHit&&rightHit) {
+                stack[size++]=leftNear<rightNear?right:left;
+                stack[size++]=leftNear<rightNear?left:right;
+                cachedNode=stack[size-1];cachedLow=leftNear<rightNear?leftLow:rightLow;cachedHigh=leftNear<rightNear?leftHigh:rightHigh;
+            } else if(leftHit){stack[size++]=left;cachedNode=left;cachedLow=leftLow;cachedHigh=leftHigh;}
+            else if(rightHit){stack[size++]=right;cachedNode=right;cachedLow=rightLow;cachedHigh=rightHigh;}
+            continue;
+        }
+        for(int i=0;i<int(-high.w);++i) {
+            int index=int(low.w)+i,offset=psGeometry.x+index*5;
+            vec3 a=PSGeometry(offset).xyz,ab=PSGeometry(offset+1).xyz-a,ac=PSGeometry(offset+2).xyz-a;fetches+=3;
+            vec3 q=cross(direction,ac);float determinant=dot(ab,q);
+            if(abs(determinant)<1e-9)continue;
+            vec3 relative=origin-a;float u=dot(relative,q)/determinant;if(u<0||u>1)continue;
+            vec3 r=cross(relative,ab);float v=dot(direction,r)/determinant;if(v<0||u+v>1)continue;
+            float distance=dot(ac,r)/determinant;
+            if(distance<max(minimum,1e-5)||distance>maximum)continue;
+            maximum=distance;triangle=index;normal=normalize(cross(ab,ac));
+        }
+    }
+    if(size>0)exhausted=true;
+    return triangle>=0;
+}
+#else
 bool PSRefine(vec3 origin,vec3 direction,float minimum,inout float maximum,out int triangle,out vec3 normal,inout float fetches,out bool exhausted) {
     triangle=-1;normal=vec3(0);exhausted=false;
     if(psGeometry.z==0||maximum<=minimum)return false;
@@ -269,6 +518,7 @@ bool PSRefine(vec3 origin,vec3 direction,float minimum,inout float maximum,out i
     if(size>0)exhausted=true;
     return triangle>=0;
 }
+#endif
 bool PSMarch(vec3 origin,vec3 direction,float start,float finish,bool globalField,
     inout float distance,inout int steps,inout float fetches,out int triangle,out vec3 normal,out bool exhausted) {
     triangle=-1;normal=vec3(0);exhausted=false;
@@ -431,10 +681,240 @@ void PSTrace(int rayGlobal,out vec4 color,out vec4 hit,out vec4 metadata,out vec
     metadata.xy=readable?vec2(pixel):vec2(-1);
     color=vec4(readable?radiance:vec3(0),invalidRadiance?7:(globalHit?(readable?10:12):(readable?9:11)));
 }
+)GLSL";
+    if(hardwareRayTracing) {
+        const auto replace=[&](const std::string& from,const std::string& to) {
+            std::size_t at=0;bool found=false;
+            while((at=source.find(from,at))!=std::string::npos){source.replace(at,from.size(),to);at+=to.size();found=true;}
+            if(!found)throw std::logic_error("Native probe trace source anchor changed: "+from);
+        };
+        replace("bool PSRefine(","bool PSSoftwareRefine(");
+        const auto march=source.find("bool PSMarch(");
+        if(march==std::string::npos)throw std::logic_error("Native probe march anchor changed");
+        const bool reuseCandidate=reuseNativeCandidate&&!directSoftwareRefinement;
+        const auto candidateSoftware=reuseCandidate?SoftwareRefineReusingNativeCandidateGLSL(source):std::string{};
+        source.insert(march,candidateSoftware+(directSoftwareRefinement?DirectSoftwareRefineGLSL():
+            reuseCandidate?NativeRefineReusingCandidateGLSL():NativeRefineGLSL()));
+        replace("    float at=start;\n    for(int iteration=0;iteration<512;++iteration) {",
+            std::string(directSoftwareRefinement?"#ifdef PS_DIRECT_SOFTWARE_REFINEMENT\n":"#ifdef RENDER_NATIVE_RAY_QUERY\n")+
+            "    distance=finish;++steps;\n"
+            "    bool found=PSRefine(origin,direction,start,distance,triangle,normal,fetches,exhausted);\n"
+            "    return found&&!exhausted;\n"
+            "#endif\n"
+            "    float at=start;\n    for(int iteration=0;iteration<512;++iteration) {");
+    }
+    if(nativeInterior&&!directSoftwareRefinement) {
+        const std::string begin="    float nearEnd=clamp(psTrace.x,0.0,spTraceParams.x),distance=0,fetches=0;";
+        const auto at=source.find(begin);if(at==std::string::npos)throw std::logic_error("Native full-range entry anchor changed");
+        source.insert(at,R"GLSL(
+#if defined(PS_NATIVE_INTERIOR) && defined(RENDER_NATIVE_RAY_QUERY)
+    float distance=spTraceParams.x,fetches=0;int steps=1,triangle=-1;
+    vec3 hitNormal;bool exhausted=false,globalHit=false;
+    bool found=PSRefine(origin,direction,0.0,distance,triangle,hitNormal,fetches,exhausted);
+    if(!found&&!exhausted)color=vec4(0,0,0,13);
+#else
+)GLSL");
+        const std::string end="    if(exhausted)color=vec4(0,0,0,15);";
+        const auto finish=source.find(end,at);if(finish==std::string::npos)throw std::logic_error("Native full-range exit anchor changed");
+        source.insert(finish,"#endif\n");
+        source="#define PS_NATIVE_INTERIOR 1\n"+source;
+    }
+    if(queryDiagnostics) {
+        source="uvec2 psExecutedQueries=uvec2(0);\n"+source;
+        const auto countFunction=[&](const std::string& name) {
+            const auto at=source.find("bool "+name+"(");
+            if(at==std::string::npos)throw std::logic_error("Missing diagnostic query entry");
+            source.insert(source.find('{',at)+1,"\n++psExecutedQueries.x;\n");
+        };
+        countFunction(hardwareRayTracing?"PSSoftwareRefine":"PSRefine");
+        const std::string query="rayQueryInitializeEXT(query,psAcceleration,";
+        for(std::size_t at=0;(at=source.find(query,at))!=std::string::npos;) {
+            source.insert(at,"++psExecutedQueries.y;\n");at+=query.size()+25;
+        }
+        const auto at=source.find("void PSTrace(");
+        if(at==std::string::npos)throw std::logic_error("Missing diagnostic ray entry");
+        source.replace(at,13,"void PSDiagnosticTrace(");
+        source+=R"GLSL(
+void PSTrace(int rayGlobal,out vec4 color,out vec4 hit,out vec4 metadata,out vec4 directionData) {
+    psExecutedQueries=uvec2(0);
+    PSDiagnosticTrace(rayGlobal,color,hit,metadata,directionData);
+    metadata.xy=vec2(psExecutedQueries);
+    directionData.w=float(psExecutedQueries.x+psExecutedQueries.y);
+}
+)GLSL";
+    }
+    return source;
+}
+inline std::string FallbackShader(bool safeOrigins=false,bool fastAtlasAddressing=false,bool reuseTraceSamples=false,bool hardwareRayTracing=false,
+    bool reuseNativeCandidate=false,bool directSoftwareRefinement=false,bool queryDiagnostics=false,bool nativeInterior=false) {
+    return std::string("#version 450 core\n")+FallbackCommonGLSL(safeOrigins,fastAtlasAddressing,reuseTraceSamples,hardwareRayTracing,reuseNativeCandidate,directSoftwareRefinement,queryDiagnostics,nativeInterior)+R"GLSL(
+layout(location=0) out vec4 outColor;
 void main() {
     ivec2 pixel=ivec2(gl_FragCoord.xy);int texel=pixel.y*spTraceAtlas.x+pixel.x;
     vec4 color,hit,metadata,directionData;PSTrace(texel/4,color,hit,metadata,directionData);
     outColor=texel%4==0?color:(texel%4==1?hit:(texel%4==2?metadata:directionData));
+}
+)GLSL";
+}
+
+inline std::string FallbackGeometryShader(bool safeOrigins=false,bool fastAtlasAddressing=false,bool reuseTraceSamples=false) {
+    return std::string("#version 450 core\n")+FallbackCommonGLSL(safeOrigins,fastAtlasAddressing,reuseTraceSamples)+
+        ScreenProbeTraceDetail::RayQuadGeometryMain("    PSTrace(rayGlobal,color,hit,metadata,direction);\n");
+}
+
+inline std::string FallbackOutputsShader(bool safeOrigins=false,bool fastAtlasAddressing=false,bool reuseTraceSamples=false,bool hardwareRayTracing=false,
+    bool reuseNativeCandidate=false,bool directSoftwareRefinement=false,bool queryDiagnostics=false,bool nativeInterior=false) {
+    return std::string("#version 450 core\n")+FallbackCommonGLSL(safeOrigins,fastAtlasAddressing,reuseTraceSamples,hardwareRayTracing,reuseNativeCandidate,directSoftwareRefinement,queryDiagnostics,nativeInterior)+R"GLSL(
+layout(location=0) out vec4 outColor;
+layout(location=1) out vec4 outHit;
+layout(location=2) out vec4 outMetadata;
+layout(location=3) out vec4 outDirection;
+void main(){ivec2 pixel=ivec2(gl_FragCoord.xy);int rayGlobal=pixel.y*(spTraceAtlas.x/4)+pixel.x;
+    PSTrace(rayGlobal,outColor,outHit,outMetadata,outDirection);}
+)GLSL";
+}
+
+// Derive both queue stages from the same source as the accepted fragment
+// estimator. Leave that estimator's source unchanged: a future edit which
+// removes an anchor must fail explicitly rather than silently diverge here.
+inline std::string CompactCommonGLSL(bool safeOrigins=false,bool fastAtlasAddressing=false,bool reuseTraceSamples=false) {
+    const auto accepted=FallbackCommonGLSL(safeOrigins,fastAtlasAddressing,reuseTraceSamples);
+    const auto anchor=[&](const std::string& text,std::size_t from=0) {
+        const auto at=accepted.find(text,from);
+        if(at==std::string::npos)throw std::logic_error("SDF compact trace source anchor changed: "+text);
+        return at;
+    };
+    const auto declaration=anchor("void PSTrace(int rayGlobal,");
+    const auto body=anchor("{",declaration)+1;
+    const auto split=anchor("\n    if(!found&&!exhausted&&psFlags.x!=0&&nearEnd>0)",body);
+    const auto end=accepted.rfind("\n}");
+    if(end==std::string::npos||end<split)throw std::logic_error("SDF compact trace closing anchor changed");
+    auto prefix=accepted.substr(body,split-body),suffix=accepted.substr(split,end-split);
+    const auto replace=[](std::string text,const std::string& from,const std::string& to) {
+        std::size_t at=0;bool found=false;
+        while((at=text.find(from,at))!=std::string::npos){text.replace(at,from.size(),to);at+=to.size();found=true;}
+        if(!found)throw std::logic_error("SDF compact trace replacement anchor changed: "+from);
+        return text;
+    };
+    prefix=replace(std::move(prefix),"if(psAtlas.w==0||int(color.w+.5)==0)return;",
+        "if(psAtlas.w==0||int(color.w+.5)==0){reason=5u;return;}");
+    prefix=replace(std::move(prefix),"if(int(color.w+.5)==1&&!confirmScreenHit) {",
+        "if(int(color.w+.5)==1&&!confirmScreenHit) {\n        reason=6u;");
+    prefix=replace(std::move(prefix),"return;","return false;");
+    const auto finish=anchor("\n    if(exhausted)color=vec4(0,0,0,15);",split);
+    const auto globalBegin=anchor("\n        float globalStart=",split);
+    const auto globalElse=anchor("\n        else {",globalBegin);
+    // The classifier must have no reachable PSMarch call. Merely guarding the
+    // accepted full suffix with !fieldWork is not enough to guarantee that a
+    // driver removes its marcher stack/register requirements from this kernel.
+    const auto classifyGlobal=accepted.substr(globalBegin,globalElse-globalBegin);
+    const auto classifyFinish=replace(accepted.substr(finish,end-finish),"return;","return false;");
+    auto marchSuffix=replace(suffix,
+        "if(!found&&!exhausted&&psFlags.x!=0&&nearEnd>0)\n        found=PSMarch(origin,direction,0,nearEnd,false,distance,steps,fetches,triangle,hitNormal,exhausted);",
+        "if(!found&&!exhausted&&psFlags.x!=0&&nearEnd>0){\n        meshCalls=1u;found=PSMarch(origin,direction,0,nearEnd,false,distance,steps,fetches,triangle,hitNormal,exhausted);}");
+    marchSuffix=replace(std::move(marchSuffix),
+        "found=PSMarch(origin,direction,near,far,true,distance,steps,fetches,triangle,hitNormal,exhausted);globalHit=found;",
+        "globalCalls=1u;found=PSMarch(origin,direction,near,far,true,distance,steps,fetches,triangle,hitNormal,exhausted);globalHit=found;");
+    return accepted+R"GLSL(
+struct PSCompactItem {uvec4 identity;vec4 originNear;vec4 directionFetches;};
+layout(std430,set=2,binding=0) buffer PSCompactCounters {uint pcWords[];};
+layout(std430,set=2,binding=1) buffer PSCompactQueue {PSCompactItem pcQueue[];};
+layout(rgba32f,set=3,binding=0) uniform writeonly image2D psCompactOutput;
+void PSCompactStore(uint ray,vec4 color,vec4 hit,vec4 metadata,vec4 directionData) {
+    int index=int(ray)*4;ivec2 at=ivec2(index%spTraceAtlas.x,index/spTraceAtlas.x);
+    imageStore(psCompactOutput,at,color);imageStore(psCompactOutput,at+ivec2(1,0),hit);
+    imageStore(psCompactOutput,at+ivec2(2,0),metadata);imageStore(psCompactOutput,at+ivec2(3,0),directionData);
+}
+bool PSCompactPrepare(int rayGlobal,out vec4 color,out vec4 hit,out vec4 metadata,out vec4 directionData,
+    out vec4 originNear,out vec4 directionFetches,out uint reason,out bool certificationMiss) {
+    reason=10u;certificationMiss=false;originNear=vec4(0);directionFetches=vec4(0);
+)GLSL"+prefix+R"GLSL(
+    certificationMiss=confirmScreenHit&&!found&&!exhausted;
+    if(found)reason=7u;else if(exhausted)reason=9u;
+    if(!found&&!exhausted) {
+        bool fieldWork=psFlags.x!=0&&nearEnd>0;
+        if(!fieldWork&&psFlags.y!=0) {
+)GLSL"+classifyGlobal+R"GLSL(
+            else fieldWork=true;
+        } else if(!fieldWork)color=vec4(0,0,0,13);
+        if(fieldWork) {
+            originNear=vec4(origin,nearEnd);directionFetches=vec4(direction,fetches);
+            reason=0u;return true;
+        }
+        reason=11u;
+    }
+)GLSL"+classifyFinish+R"GLSL(
+    return false;
+}
+void PSCompactResume(PSCompactItem item,out vec4 color,out vec4 hit,out vec4 metadata,out vec4 directionData,
+    out uint meshCalls,out uint globalCalls) {
+    bool cacheOnlyRadiance=(spTracing.w&2)!=0;
+    vec3 origin=item.originNear.xyz,direction=item.directionFetches.xyz;
+    float nearEnd=item.originNear.w,distance=0,fetches=item.directionFetches.w;
+    int steps=0,triangle=-1;vec3 hitNormal;bool exhausted=false,found=false,globalHit=false;
+    color=vec4(0);hit=vec4(0);metadata=vec4(0);directionData=vec4(0);meshCalls=0u;globalCalls=0u;
+)GLSL"+marchSuffix+R"GLSL(
+}
+)GLSL";
+}
+
+inline std::string CompactResetShader() {return R"GLSL(#version 450 core
+layout(local_size_x=64) in;
+layout(std430,set=2,binding=0) buffer PSCompactCounters {uint pcWords[];};
+layout(push_constant) uniform PSCompactReset {uint capacity;} pcReset;
+void main(){uint at=gl_GlobalInvocationID.x;if(at<16u)pcWords[at]=(at==2u||at==3u)?1u:(at==4u?pcReset.capacity:0u);}
+)GLSL";}
+
+inline std::string CompactClassifyShader(bool safeOrigins=false,bool fastAtlasAddressing=false,bool reuseTraceSamples=false) {
+    return std::string("#version 450 core\n")+CompactCommonGLSL(safeOrigins,fastAtlasAddressing,reuseTraceSamples)+R"GLSL(
+layout(local_size_x=64) in;
+shared uint pcGroupCounts[16];shared uint pcGroupPending,pcGroupBase;
+void main(){
+    uint local=gl_LocalInvocationIndex,ray=gl_GlobalInvocationID.x;
+    if(local<16u)pcGroupCounts[local]=0u;if(local==0u){pcGroupPending=0u;pcGroupBase=0u;}barrier();
+    uint capacity=uint(spTraceAtlas.x)*uint(spTraceAtlas.y)/4u,rank=0u,reason=0u;
+    bool pending=false,certificationMiss=false;vec4 color,hit,metadata,directionData,originNear,directionFetches;
+    if(ray<capacity){
+        pending=PSCompactPrepare(int(ray),color,hit,metadata,directionData,originNear,directionFetches,reason,certificationMiss);
+        // Initialize every physical record, including inactive/padding and
+        // pending rays. A zero/shrinking queue can never expose last-frame data.
+        PSCompactStore(ray,color,hit,metadata,directionData);
+        if(pending)rank=atomicAdd(pcGroupPending,1u);else atomicAdd(pcGroupCounts[reason],1u);
+        if(certificationMiss)atomicAdd(pcGroupCounts[8],1u);
+    }
+    barrier();
+    if(local==0u){
+        pcGroupBase=atomicAdd(pcWords[0],pcGroupPending);
+        if(pcGroupPending>0u)atomicMax(pcWords[1],(min(pcGroupBase+pcGroupPending,capacity)+63u)/64u);
+        for(uint at=5u;at<=11u;++at)if(pcGroupCounts[at]>0u)atomicAdd(pcWords[at],pcGroupCounts[at]);
+    }
+    barrier();
+    if(pending){uint at=pcGroupBase+rank;
+        if(at<capacity){pcQueue[at].identity=uvec4(ray,certificationMiss?1u:0u,uint(PSRayTexel(int(ray),0).w+.5),0u);
+            pcQueue[at].originNear=originNear;pcQueue[at].directionFetches=directionFetches;}
+        else atomicAdd(pcWords[15],1u);
+    }
+}
+)GLSL";
+}
+
+inline std::string CompactTraceShader(bool safeOrigins=false,bool fastAtlasAddressing=false,bool reuseTraceSamples=false) {
+    return std::string("#version 450 core\n")+CompactCommonGLSL(safeOrigins,fastAtlasAddressing,reuseTraceSamples)+R"GLSL(
+layout(local_size_x=64) in;
+shared uint pcGroupMesh,pcGroupGlobal;
+void main(){uint local=gl_LocalInvocationIndex,index=gl_GlobalInvocationID.x;
+    if(local==0u){pcGroupMesh=0u;pcGroupGlobal=0u;}barrier();
+    uint capacity=uint(spTraceAtlas.x)*uint(spTraceAtlas.y)/4u,pending=min(pcWords[0],capacity);
+    if(index<pending){
+        PSCompactItem item=pcQueue[index];vec4 color,hit,metadata,directionData;uint meshCalls,globalCalls;
+        PSCompactResume(item,color,hit,metadata,directionData,meshCalls,globalCalls);
+        PSCompactStore(item.identity.x,color,hit,metadata,directionData);
+        atomicAdd(pcGroupMesh,meshCalls);atomicAdd(pcGroupGlobal,globalCalls);
+    }
+    barrier();if(local==0u){
+        uint base=gl_WorkGroupID.x*64u;atomicAdd(pcWords[12],min(64u,pending-base));
+        if(pcGroupMesh>0u)atomicAdd(pcWords[13],pcGroupMesh);if(pcGroupGlobal>0u)atomicAdd(pcWords[14],pcGroupGlobal);
+    }
 }
 )GLSL";
 }

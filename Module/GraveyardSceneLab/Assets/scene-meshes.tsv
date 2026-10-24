@@ -1,0 +1,12 @@
+# role	mesh binary: uint32 count + float12 position/UV/normal/RGBA metadata
+tree	meshes/tree.bin
+tree2	meshes/tree2.bin
+bush	meshes/bush.bin
+rock	meshes/rock.bin
+house	meshes/house.bin
+grave	meshes/grave.bin
+grave2	meshes/grave2.bin
+gravebase	meshes/gravebase.bin
+bridge	meshes/bridge.bin
+lantern	meshes/lantern.bin
+flowerbed	meshes/flowerbed.bin

@@ -84,7 +84,7 @@ struct ScreenProbePlacementConstants {
     glm::ivec4 traceAtlas{1,1,0,0}; // width, height, uniform slots, total probe slots
     glm::ivec4 traceDisplay{0,-1,1,1}; // radiance/status mode, selected probe, panel enabled, HZB levels
     glm::vec4 refinement{0,.75f,.5f,.70710678f}; // flags: bit0 junctions/bit1 visibility/bit2 curvature/bit3 curved weights/bit4 runtime matching-frame filtering; detection/support, cosine
-    glm::vec4 curvature{.98480775f,.75f,0,1}; // normal cosine, plane pixel error, runtime safe-origin availability, continuous coarse interpolation
+    glm::vec4 curvature{.98480775f,.75f,0,1}; // normal cosine, plane pixel error, safe origins (2: native-only directions), continuous interpolation
 };
 static_assert(sizeof(ScreenProbePlacementConstants)==400);
 inline constexpr std::uint32_t ScreenProbePlacementBinding=9;

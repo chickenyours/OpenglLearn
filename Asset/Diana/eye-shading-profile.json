@@ -1,0 +1,2595 @@
+{
+  "schema": "model.character-materials.eye-patch.v1",
+  "materials": [
+    {
+      "name": "EyeBall_L_Mat",
+      "textures": {
+        "albedo": "Textures/ch0100_10_iris_type1_alb__e835f9e0.png",
+        "normal": "Textures/ch0100_10_iris_type1_nrm__67b08b13.png",
+        "distortion": "Textures/eye_depth_vein_packed_v1.png",
+        "flow": "Textures/eye_sclera_l_linear_v2.png",
+        "emissive": "Textures/ch0100_10_fake_specular0__e1da0ea7.png"
+      },
+      "parameters": {
+        "eyeEnabled": true,
+        "eyeRefractionStrength": 1.0,
+        "ior": 1.399999976158142,
+        "eyeIrisShape": [
+          0.5600000023841858,
+          0.0,
+          0.8299999833106995,
+          2.0
+        ],
+        "eyeParallax": [
+          0.12999999523162842,
+          0.0,
+          0.4000000059604645,
+          0.4399999976158142
+        ],
+        "eyeDisplacement": [
+          16.0,
+          0.20000000298023224,
+          -0.05000000074505806,
+          0.0
+        ],
+        "eyePupilOffset": [
+          -0.05000000074505806,
+          -0.029999999329447746
+        ],
+        "eyeLimbus": [
+          0.30000001192092896,
+          0.699999988079071,
+          0.30000001192092896,
+          0.0
+        ],
+        "eyeLimbusColor": [
+          0.08235294371843338,
+          0.08235294371843338,
+          0.08235294371843338,
+          1.0
+        ],
+        "eyeSpecularReflectance": [
+          0.029999999329447746,
+          0.019999999552965164
+        ],
+        "eyeFakeReflection": [
+          0.23000000417232513,
+          -0.07999999821186066,
+          10.0,
+          25.0
+        ],
+        "eyeSclera": [
+          -0.05999999865889549,
+          332.0,
+          0.30000001192092896,
+          0.0
+        ],
+        "eyeRedness": [
+          0.5,
+          0.800000011920929
+        ],
+        "eyeRednessColor": [
+          0.5058823823928833,
+          0.16862745583057404,
+          0.16862745583057404,
+          1.0
+        ],
+        "eyeReflectionIllumination": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "normalScale": 0.10000000149011612,
+        "baseColorIsSRGB": true,
+        "useFlowMap": false,
+        "useDistortionMap": false,
+        "useEmissiveMap": false
+      },
+      "rendererApproximation": {
+        "eyeReflectionIllumination": "zero until explicit light proxy configured; source reads runtime BAB RGB buffer",
+        "F0": "source .03/.02 at IOR1.4; scaled by physical IOR Fresnel ratio for renderer control",
+        "roughness": "keep .045 raster stability floor; source .01",
+        "limbusShadow": "source light-dependent width unavailable in helper; uses .3 authored base"
+      },
+      "sourceProperties": [
+        {
+          "name": "ScleraColor",
+          "values": [
+            0.6549019813537598,
+            0.6549019813537598,
+            0.6549019813537598,
+            1.0
+          ],
+          "headerOffset": 13048,
+          "valueOffset": 52712,
+          "byteLength": 16,
+          "rawHex": "a8a7273fa8a7273fa8a7273f0000803f",
+          "nameHashUTF16": "02dd2657",
+          "nameHashUTF8": "4fd698d9"
+        },
+        {
+          "name": "RednessColor",
+          "values": [
+            0.5058823823928833,
+            0.16862745583057404,
+            0.16862745583057404,
+            1.0
+          ],
+          "headerOffset": 13072,
+          "valueOffset": 52728,
+          "byteLength": 16,
+          "rawHex": "8281013fadac2c3eadac2c3e0000803f",
+          "nameHashUTF16": "d5f96702",
+          "nameHashUTF8": "4748b2b0"
+        },
+        {
+          "name": "Layer1Color",
+          "values": [
+            0.7098039388656616,
+            0.0313725508749485,
+            0.0313725508749485,
+            1.0
+          ],
+          "headerOffset": 13096,
+          "valueOffset": 52744,
+          "byteLength": 16,
+          "rawHex": "b6b5353f8180003d8180003d0000803f",
+          "nameHashUTF16": "4d5e51b3",
+          "nameHashUTF8": "430d8a60"
+        },
+        {
+          "name": "Layer2Color",
+          "values": [
+            1.0,
+            0.14901961386203766,
+            0.13333334028720856,
+            1.0
+          ],
+          "headerOffset": 13120,
+          "valueOffset": 52760,
+          "byteLength": 16,
+          "rawHex": "0000803f9998183e8988083e0000803f",
+          "nameHashUTF16": "b22d6c6e",
+          "nameHashUTF8": "e13efc5a"
+        },
+        {
+          "name": "Layer3Color",
+          "values": [
+            0.5254902243614197,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "headerOffset": 13144,
+          "valueOffset": 52776,
+          "byteLength": 16,
+          "rawHex": "8786063f00000000000000000000803f",
+          "nameHashUTF16": "417c1368",
+          "nameHashUTF8": "10e24047"
+        },
+        {
+          "name": "LimbusColor",
+          "values": [
+            0.08235294371843338,
+            0.08235294371843338,
+            0.08235294371843338,
+            1.0
+          ],
+          "headerOffset": 13168,
+          "valueOffset": 52792,
+          "byteLength": 16,
+          "rawHex": "a9a8a83da9a8a83da9a8a83d0000803f",
+          "nameHashUTF16": "2feed146",
+          "nameHashUTF8": "d6fe3753"
+        },
+        {
+          "name": "IrisColor",
+          "values": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "headerOffset": 13192,
+          "valueOffset": 52808,
+          "byteLength": 16,
+          "rawHex": "0000803f0000803f0000803f0000803f",
+          "nameHashUTF16": "e41d17aa",
+          "nameHashUTF8": "fc8ea98d"
+        },
+        {
+          "name": "CausticModifier",
+          "values": [
+            1.0,
+            1.0,
+            0.5,
+            3.0
+          ],
+          "headerOffset": 13216,
+          "valueOffset": 52824,
+          "byteLength": 16,
+          "rawHex": "0000803f0000803f0000003f00004040",
+          "nameHashUTF16": "30d0515c",
+          "nameHashUTF8": "3c308dfe"
+        },
+        {
+          "name": "FakeRelection_Rotation_Add_x",
+          "values": [
+            0.23000000417232513
+          ],
+          "headerOffset": 13240,
+          "valueOffset": 52840,
+          "byteLength": 4,
+          "rawHex": "1f856b3e",
+          "nameHashUTF16": "83621dd2",
+          "nameHashUTF8": "0b9a6531"
+        },
+        {
+          "name": "FakeRelection_Rotation_Add_y",
+          "values": [
+            -0.07999999821186066
+          ],
+          "headerOffset": 13264,
+          "valueOffset": 52844,
+          "byteLength": 4,
+          "rawHex": "0ad7a3bd",
+          "nameHashUTF16": "770c4f9f",
+          "nameHashUTF8": "f19fef46"
+        },
+        {
+          "name": "Additional_Adjustment_x",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 13288,
+          "valueOffset": 52848,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "e4c4d022",
+          "nameHashUTF8": "2247dfa7"
+        },
+        {
+          "name": "Additional_Adjustment_y",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 13312,
+          "valueOffset": 52852,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "b24d2831",
+          "nameHashUTF8": "61901958"
+        },
+        {
+          "name": "RednessMask",
+          "values": [
+            0.5
+          ],
+          "headerOffset": 13336,
+          "valueOffset": 52856,
+          "byteLength": 4,
+          "rawHex": "0000003f",
+          "nameHashUTF16": "d03d3b8a",
+          "nameHashUTF8": "a1b8544a"
+        },
+        {
+          "name": "RednessPower",
+          "values": [
+            0.800000011920929
+          ],
+          "headerOffset": 13360,
+          "valueOffset": 52860,
+          "byteLength": 4,
+          "rawHex": "cdcc4c3f",
+          "nameHashUTF16": "81b32c4d",
+          "nameHashUTF8": "d6d58d8e"
+        },
+        {
+          "name": "ScleraStartUV",
+          "values": [
+            -0.05999999865889549
+          ],
+          "headerOffset": 13384,
+          "valueOffset": 52864,
+          "byteLength": 4,
+          "rawHex": "8fc275bd",
+          "nameHashUTF16": "7cb8209c",
+          "nameHashUTF8": "c8464bee"
+        },
+        {
+          "name": "FlipNormal",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 13408,
+          "valueOffset": 52868,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "06deefe4",
+          "nameHashUTF8": "1da4d469"
+        },
+        {
+          "name": "NormalStrength",
+          "values": [
+            0.30000001192092896
+          ],
+          "headerOffset": 13432,
+          "valueOffset": 52872,
+          "byteLength": 4,
+          "rawHex": "9a99993e",
+          "nameHashUTF16": "69c1f768",
+          "nameHashUTF8": "89a0b807"
+        },
+        {
+          "name": "Layer1Rotation",
+          "values": [
+            332.0
+          ],
+          "headerOffset": 13456,
+          "valueOffset": 52876,
+          "byteLength": 4,
+          "rawHex": "0000a643",
+          "nameHashUTF16": "2242e6e3",
+          "nameHashUTF8": "e455da37"
+        },
+        {
+          "name": "Layer1Mask",
+          "values": [
+            1.0
+          ],
+          "headerOffset": 13480,
+          "valueOffset": 52880,
+          "byteLength": 4,
+          "rawHex": "0000803f",
+          "nameHashUTF16": "458f2d5f",
+          "nameHashUTF8": "92db7900"
+        },
+        {
+          "name": "Layer1Power",
+          "values": [
+            0.699999988079071
+          ],
+          "headerOffset": 13504,
+          "valueOffset": 52884,
+          "byteLength": 4,
+          "rawHex": "3333333f",
+          "nameHashUTF16": "0fe26c38",
+          "nameHashUTF8": "caf517c3"
+        },
+        {
+          "name": "Layer2Rotation",
+          "values": [
+            195.2100067138672
+          ],
+          "headerOffset": 13528,
+          "valueOffset": 52888,
+          "byteLength": 4,
+          "rawHex": "c3354343",
+          "nameHashUTF16": "5d216262",
+          "nameHashUTF8": "c2fcbc38"
+        },
+        {
+          "name": "Layer2Mask",
+          "values": [
+            1.0
+          ],
+          "headerOffset": 13552,
+          "valueOffset": 52892,
+          "byteLength": 4,
+          "rawHex": "0000803f",
+          "nameHashUTF16": "6bd13e52",
+          "nameHashUTF8": "6da4ab88"
+        },
+        {
+          "name": "Layer2Power",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 13576,
+          "valueOffset": 52896,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "8487ff35",
+          "nameHashUTF8": "72c26efe"
+        },
+        {
+          "name": "Layer3Rotation",
+          "values": [
+            224.00999450683594
+          ],
+          "headerOffset": 13600,
+          "valueOffset": 52900,
+          "byteLength": 4,
+          "rawHex": "8f026043",
+          "nameHashUTF16": "1f43880c",
+          "nameHashUTF8": "566e4628"
+        },
+        {
+          "name": "Layer3Mask",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 13624,
+          "valueOffset": 52904,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "d07ba52a",
+          "nameHashUTF8": "df434acf"
+        },
+        {
+          "name": "Layer3Power",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 13648,
+          "valueOffset": 52908,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "5bd2fe3f",
+          "nameHashUTF8": "02aa8933"
+        },
+        {
+          "name": "BlendRadius",
+          "values": [
+            0.30000001192092896
+          ],
+          "headerOffset": 13672,
+          "valueOffset": 52912,
+          "byteLength": 4,
+          "rawHex": "9a99993e",
+          "nameHashUTF16": "7ff3b9dd",
+          "nameHashUTF8": "dc31e88d"
+        },
+        {
+          "name": "LimbusPower",
+          "values": [
+            0.699999988079071
+          ],
+          "headerOffset": 13696,
+          "valueOffset": 52916,
+          "byteLength": 4,
+          "rawHex": "3333333f",
+          "nameHashUTF16": "01abb4e9",
+          "nameHashUTF8": "81e18e8e"
+        },
+        {
+          "name": "LimbusRadius",
+          "values": [
+            0.30000001192092896
+          ],
+          "headerOffset": 13720,
+          "valueOffset": 52920,
+          "byteLength": 4,
+          "rawHex": "9a99993e",
+          "nameHashUTF16": "2946ec03",
+          "nameHashUTF8": "c45ad778"
+        },
+        {
+          "name": "LimbusShadow",
+          "values": [
+            0.20000000298023224
+          ],
+          "headerOffset": 13744,
+          "valueOffset": 52924,
+          "byteLength": 4,
+          "rawHex": "cdcc4c3e",
+          "nameHashUTF16": "c44f6ac9",
+          "nameHashUTF8": "6b61243a"
+        },
+        {
+          "name": "OutsideLimbusRadius",
+          "values": [
+            0.15000000596046448
+          ],
+          "headerOffset": 13768,
+          "valueOffset": 52928,
+          "byteLength": 4,
+          "rawHex": "9a99193e",
+          "nameHashUTF16": "986d487b",
+          "nameHashUTF8": "9c8bf654"
+        },
+        {
+          "name": "IrisNormalStrength",
+          "values": [
+            0.10000000149011612
+          ],
+          "headerOffset": 13792,
+          "valueOffset": 52932,
+          "byteLength": 4,
+          "rawHex": "cdcccc3d",
+          "nameHashUTF16": "520fb469",
+          "nameHashUTF8": "4d322b3b"
+        },
+        {
+          "name": "IrisStartUV",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 13816,
+          "valueOffset": 52936,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "3354867f",
+          "nameHashUTF8": "b2a43d90"
+        },
+        {
+          "name": "IrisEndUV",
+          "values": [
+            0.8299999833106995
+          ],
+          "headerOffset": 13840,
+          "valueOffset": 52940,
+          "byteLength": 4,
+          "rawHex": "e17a543f",
+          "nameHashUTF16": "6e75552b",
+          "nameHashUTF8": "6cb38da5"
+        },
+        {
+          "name": "IrisRotation",
+          "values": [
+            2.0
+          ],
+          "headerOffset": 13864,
+          "valueOffset": 52944,
+          "byteLength": 4,
+          "rawHex": "00000040",
+          "nameHashUTF16": "3fb332f6",
+          "nameHashUTF8": "a724178b"
+        },
+        {
+          "name": "IrisRadius",
+          "values": [
+            0.5600000023841858
+          ],
+          "headerOffset": 13888,
+          "valueOffset": 52948,
+          "byteLength": 4,
+          "rawHex": "295c0f3f",
+          "nameHashUTF16": "deeb5a78",
+          "nameHashUTF8": "ceb98d26"
+        },
+        {
+          "name": "ZoomDepthMap",
+          "values": [
+            0.12999999523162842
+          ],
+          "headerOffset": 13912,
+          "valueOffset": 52952,
+          "byteLength": 4,
+          "rawHex": "b81e053e",
+          "nameHashUTF16": "580aac72",
+          "nameHashUTF8": "844b12a5"
+        },
+        {
+          "name": "LensDistortion",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 13936,
+          "valueOffset": 52956,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "26d51451",
+          "nameHashUTF8": "3b767fb3"
+        },
+        {
+          "name": "IrisDspLayer",
+          "values": [
+            16.0
+          ],
+          "headerOffset": 13960,
+          "valueOffset": 52960,
+          "byteLength": 4,
+          "rawHex": "00008041",
+          "nameHashUTF16": "ac90a755",
+          "nameHashUTF8": "6e92e153"
+        },
+        {
+          "name": "IrisDspHeight",
+          "values": [
+            0.20000000298023224
+          ],
+          "headerOffset": 13984,
+          "valueOffset": 52964,
+          "byteLength": 4,
+          "rawHex": "cdcc4c3e",
+          "nameHashUTF16": "5a1b7b24",
+          "nameHashUTF8": "36867204"
+        },
+        {
+          "name": "IrisDspOffset",
+          "values": [
+            0.4399999976158142
+          ],
+          "headerOffset": 14008,
+          "valueOffset": 52968,
+          "byteLength": 4,
+          "rawHex": "ae47e13e",
+          "nameHashUTF16": "2204d1f6",
+          "nameHashUTF8": "2015d611"
+        },
+        {
+          "name": "IrisDepth",
+          "values": [
+            0.4000000059604645
+          ],
+          "headerOffset": 14032,
+          "valueOffset": 52972,
+          "byteLength": 4,
+          "rawHex": "cdcccc3e",
+          "nameHashUTF16": "cfabf412",
+          "nameHashUTF8": "e0aa67d0"
+        },
+        {
+          "name": "PupilMapSize",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 14056,
+          "valueOffset": 52976,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "f479096d",
+          "nameHashUTF8": "0fb5d270"
+        },
+        {
+          "name": "Blindness",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 14080,
+          "valueOffset": 52980,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "9bafa295",
+          "nameHashUTF8": "3aeab06d"
+        },
+        {
+          "name": "PupilRadius",
+          "values": [
+            -0.05000000074505806
+          ],
+          "headerOffset": 14104,
+          "valueOffset": 52984,
+          "byteLength": 4,
+          "rawHex": "cdcc4cbd",
+          "nameHashUTF16": "296f3291",
+          "nameHashUTF8": "223a425a"
+        },
+        {
+          "name": "PupilOffsetX",
+          "values": [
+            -0.05000000074505806
+          ],
+          "headerOffset": 14128,
+          "valueOffset": 52988,
+          "byteLength": 4,
+          "rawHex": "cdcc4cbd",
+          "nameHashUTF16": "97e3faca",
+          "nameHashUTF8": "e68e7d39"
+        },
+        {
+          "name": "PupilOffsetY",
+          "values": [
+            -0.029999999329447746
+          ],
+          "headerOffset": 14152,
+          "valueOffset": 52992,
+          "byteLength": 4,
+          "rawHex": "8fc2f5bc",
+          "nameHashUTF16": "00fd05d4",
+          "nameHashUTF8": "b8554f4f"
+        },
+        {
+          "name": "CloudRange",
+          "values": [
+            0.5099999904632568
+          ],
+          "headerOffset": 14176,
+          "valueOffset": 52996,
+          "byteLength": 4,
+          "rawHex": "5c8f023f",
+          "nameHashUTF16": "870da7d8",
+          "nameHashUTF8": "0720fc9c"
+        },
+        {
+          "name": "CloudBlend",
+          "values": [
+            0.5
+          ],
+          "headerOffset": 14200,
+          "valueOffset": 53000,
+          "byteLength": 4,
+          "rawHex": "0000003f",
+          "nameHashUTF16": "5968d6d7",
+          "nameHashUTF8": "047ab50e"
+        },
+        {
+          "name": "CloudOppacity",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 14224,
+          "valueOffset": 53004,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "2c20d37e",
+          "nameHashUTF8": "0a56ee0b"
+        },
+        {
+          "name": "CausticIntensity",
+          "values": [
+            0.5
+          ],
+          "headerOffset": 14248,
+          "valueOffset": 53008,
+          "byteLength": 4,
+          "rawHex": "0000003f",
+          "nameHashUTF16": "ef4c08f7",
+          "nameHashUTF8": "adc98103"
+        },
+        {
+          "name": "IOR",
+          "values": [
+            1.399999976158142
+          ],
+          "headerOffset": 14272,
+          "valueOffset": 53012,
+          "byteLength": 4,
+          "rawHex": "3333b33f",
+          "nameHashUTF16": "194af7fc",
+          "nameHashUTF8": "0d6c87da"
+        },
+        {
+          "name": "CausticArea",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 14296,
+          "valueOffset": 53016,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "d631668f",
+          "nameHashUTF8": "fcc8f4fa"
+        },
+        {
+          "name": "LensSpecReflectance",
+          "values": [
+            0.029999999329447746
+          ],
+          "headerOffset": 14320,
+          "valueOffset": 53020,
+          "byteLength": 4,
+          "rawHex": "8fc2f53c",
+          "nameHashUTF16": "6b898d4b",
+          "nameHashUTF8": "d4f2bbc7"
+        },
+        {
+          "name": "ScleraSpecReflectance",
+          "values": [
+            0.019999999552965164
+          ],
+          "headerOffset": 14344,
+          "valueOffset": 53024,
+          "byteLength": 4,
+          "rawHex": "0ad7a33c",
+          "nameHashUTF16": "d4c48278",
+          "nameHashUTF8": "da20cd89"
+        },
+        {
+          "name": "Roughness",
+          "values": [
+            0.009999999776482582
+          ],
+          "headerOffset": 14368,
+          "valueOffset": 53028,
+          "byteLength": 4,
+          "rawHex": "0ad7233c",
+          "nameHashUTF16": "45086f97",
+          "nameHashUTF8": "674ddd44"
+        },
+        {
+          "name": "SSSChannel",
+          "values": [
+            3.0
+          ],
+          "headerOffset": 14392,
+          "valueOffset": 53032,
+          "byteLength": 4,
+          "rawHex": "00004040",
+          "nameHashUTF16": "3042dbf5",
+          "nameHashUTF8": "543dbfff"
+        },
+        {
+          "name": "Translucency",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 14416,
+          "valueOffset": 53036,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "d56b7dac",
+          "nameHashUTF8": "8f7a7a0d"
+        },
+        {
+          "name": "Metallic",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 14440,
+          "valueOffset": 53040,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "5283bef0",
+          "nameHashUTF8": "f9078a81"
+        },
+        {
+          "name": "EmissiveIntensity",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 14464,
+          "valueOffset": 53044,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "ad91238a",
+          "nameHashUTF8": "e5de2501"
+        },
+        {
+          "name": "NormalMap_BlendRate",
+          "values": [
+            0.10000000149011612
+          ],
+          "headerOffset": 14488,
+          "valueOffset": 53048,
+          "byteLength": 4,
+          "rawHex": "cdcccc3d",
+          "nameHashUTF16": "b5f19196",
+          "nameHashUTF8": "e13017af"
+        },
+        {
+          "name": "FakeRelection_Intensity",
+          "values": [
+            10.0
+          ],
+          "headerOffset": 14512,
+          "valueOffset": 53052,
+          "byteLength": 4,
+          "rawHex": "00002041",
+          "nameHashUTF16": "016f2ea0",
+          "nameHashUTF8": "6e7bf963"
+        },
+        {
+          "name": "Light_MaxLux",
+          "values": [
+            25.0
+          ],
+          "headerOffset": 14536,
+          "valueOffset": 53056,
+          "byteLength": 4,
+          "rawHex": "0000c841",
+          "nameHashUTF16": "00e5440d",
+          "nameHashUTF8": "7cfaa8e0"
+        },
+        {
+          "name": "BAB_OffSet",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 14560,
+          "valueOffset": 53060,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "3f3bdf1d",
+          "nameHashUTF8": "53490386"
+        }
+      ],
+      "roughness": 0.045
+    },
+    {
+      "name": "EyeBall_R_Mat",
+      "textures": {
+        "albedo": "Textures/ch0100_10_iris_type1_alb__e835f9e0.png",
+        "normal": "Textures/ch0100_10_iris_type1_nrm__67b08b13.png",
+        "distortion": "Textures/eye_depth_vein_packed_v1.png",
+        "flow": "Textures/eye_sclera_r_linear_v2.png",
+        "emissive": "Textures/ch0100_10_fake_specular0__e1da0ea7.png"
+      },
+      "parameters": {
+        "eyeEnabled": true,
+        "eyeRefractionStrength": 1.0,
+        "ior": 1.399999976158142,
+        "eyeIrisShape": [
+          0.5600000023841858,
+          0.0,
+          0.8299999833106995,
+          39.0
+        ],
+        "eyeParallax": [
+          0.12999999523162842,
+          0.0,
+          0.4000000059604645,
+          0.4399999976158142
+        ],
+        "eyeDisplacement": [
+          16.0,
+          0.20000000298023224,
+          -0.05000000074505806,
+          0.0
+        ],
+        "eyePupilOffset": [
+          0.0,
+          -0.029999999329447746
+        ],
+        "eyeLimbus": [
+          0.30000001192092896,
+          0.699999988079071,
+          0.30000001192092896,
+          0.0
+        ],
+        "eyeLimbusColor": [
+          0.08235294371843338,
+          0.08235294371843338,
+          0.08235294371843338,
+          1.0
+        ],
+        "eyeSpecularReflectance": [
+          0.029999999329447746,
+          0.019999999552965164
+        ],
+        "eyeFakeReflection": [
+          0.23000000417232513,
+          -0.07999999821186066,
+          10.0,
+          25.0
+        ],
+        "eyeSclera": [
+          -0.05999999865889549,
+          116.0,
+          0.30000001192092896,
+          0.0
+        ],
+        "eyeRedness": [
+          0.5,
+          0.800000011920929
+        ],
+        "eyeRednessColor": [
+          0.5058823823928833,
+          0.16862745583057404,
+          0.16862745583057404,
+          1.0
+        ],
+        "eyeReflectionIllumination": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "normalScale": 0.10000000149011612,
+        "baseColorIsSRGB": true,
+        "useFlowMap": false,
+        "useDistortionMap": false,
+        "useEmissiveMap": false
+      },
+      "rendererApproximation": {
+        "eyeReflectionIllumination": "zero until explicit light proxy configured; source reads runtime BAB RGB buffer",
+        "F0": "source .03/.02 at IOR1.4; scaled by physical IOR Fresnel ratio for renderer control",
+        "roughness": "keep .045 raster stability floor; source .01",
+        "limbusShadow": "source light-dependent width unavailable in helper; uses .3 authored base"
+      },
+      "sourceProperties": [
+        {
+          "name": "ScleraColor",
+          "values": [
+            0.6549019813537598,
+            0.6549019813537598,
+            0.6549019813537598,
+            1.0
+          ],
+          "headerOffset": 14584,
+          "valueOffset": 53064,
+          "byteLength": 16,
+          "rawHex": "a8a7273fa8a7273fa8a7273f0000803f",
+          "nameHashUTF16": "02dd2657",
+          "nameHashUTF8": "4fd698d9"
+        },
+        {
+          "name": "RednessColor",
+          "values": [
+            0.5058823823928833,
+            0.16862745583057404,
+            0.16862745583057404,
+            1.0
+          ],
+          "headerOffset": 14608,
+          "valueOffset": 53080,
+          "byteLength": 16,
+          "rawHex": "8281013fadac2c3eadac2c3e0000803f",
+          "nameHashUTF16": "d5f96702",
+          "nameHashUTF8": "4748b2b0"
+        },
+        {
+          "name": "Layer1Color",
+          "values": [
+            0.7098039388656616,
+            0.0313725508749485,
+            0.0313725508749485,
+            1.0
+          ],
+          "headerOffset": 14632,
+          "valueOffset": 53096,
+          "byteLength": 16,
+          "rawHex": "b6b5353f8180003d8180003d0000803f",
+          "nameHashUTF16": "4d5e51b3",
+          "nameHashUTF8": "430d8a60"
+        },
+        {
+          "name": "Layer2Color",
+          "values": [
+            1.0,
+            0.14901961386203766,
+            0.13333334028720856,
+            1.0
+          ],
+          "headerOffset": 14656,
+          "valueOffset": 53112,
+          "byteLength": 16,
+          "rawHex": "0000803f9998183e8988083e0000803f",
+          "nameHashUTF16": "b22d6c6e",
+          "nameHashUTF8": "e13efc5a"
+        },
+        {
+          "name": "Layer3Color",
+          "values": [
+            0.5254902243614197,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "headerOffset": 14680,
+          "valueOffset": 53128,
+          "byteLength": 16,
+          "rawHex": "8786063f00000000000000000000803f",
+          "nameHashUTF16": "417c1368",
+          "nameHashUTF8": "10e24047"
+        },
+        {
+          "name": "LimbusColor",
+          "values": [
+            0.08235294371843338,
+            0.08235294371843338,
+            0.08235294371843338,
+            1.0
+          ],
+          "headerOffset": 14704,
+          "valueOffset": 53144,
+          "byteLength": 16,
+          "rawHex": "a9a8a83da9a8a83da9a8a83d0000803f",
+          "nameHashUTF16": "2feed146",
+          "nameHashUTF8": "d6fe3753"
+        },
+        {
+          "name": "IrisColor",
+          "values": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "headerOffset": 14728,
+          "valueOffset": 53160,
+          "byteLength": 16,
+          "rawHex": "0000803f0000803f0000803f0000803f",
+          "nameHashUTF16": "e41d17aa",
+          "nameHashUTF8": "fc8ea98d"
+        },
+        {
+          "name": "CausticModifier",
+          "values": [
+            1.0,
+            1.0,
+            0.5,
+            3.0
+          ],
+          "headerOffset": 14752,
+          "valueOffset": 53176,
+          "byteLength": 16,
+          "rawHex": "0000803f0000803f0000003f00004040",
+          "nameHashUTF16": "30d0515c",
+          "nameHashUTF8": "3c308dfe"
+        },
+        {
+          "name": "FakeRelection_Rotation_Add_x",
+          "values": [
+            0.23000000417232513
+          ],
+          "headerOffset": 14776,
+          "valueOffset": 53192,
+          "byteLength": 4,
+          "rawHex": "1f856b3e",
+          "nameHashUTF16": "83621dd2",
+          "nameHashUTF8": "0b9a6531"
+        },
+        {
+          "name": "FakeRelection_Rotation_Add_y",
+          "values": [
+            -0.07999999821186066
+          ],
+          "headerOffset": 14800,
+          "valueOffset": 53196,
+          "byteLength": 4,
+          "rawHex": "0ad7a3bd",
+          "nameHashUTF16": "770c4f9f",
+          "nameHashUTF8": "f19fef46"
+        },
+        {
+          "name": "Additional_Adjustment_x",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 14824,
+          "valueOffset": 53200,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "e4c4d022",
+          "nameHashUTF8": "2247dfa7"
+        },
+        {
+          "name": "Additional_Adjustment_y",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 14848,
+          "valueOffset": 53204,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "b24d2831",
+          "nameHashUTF8": "61901958"
+        },
+        {
+          "name": "RednessMask",
+          "values": [
+            0.5
+          ],
+          "headerOffset": 14872,
+          "valueOffset": 53208,
+          "byteLength": 4,
+          "rawHex": "0000003f",
+          "nameHashUTF16": "d03d3b8a",
+          "nameHashUTF8": "a1b8544a"
+        },
+        {
+          "name": "RednessPower",
+          "values": [
+            0.800000011920929
+          ],
+          "headerOffset": 14896,
+          "valueOffset": 53212,
+          "byteLength": 4,
+          "rawHex": "cdcc4c3f",
+          "nameHashUTF16": "81b32c4d",
+          "nameHashUTF8": "d6d58d8e"
+        },
+        {
+          "name": "ScleraStartUV",
+          "values": [
+            -0.05999999865889549
+          ],
+          "headerOffset": 14920,
+          "valueOffset": 53216,
+          "byteLength": 4,
+          "rawHex": "8fc275bd",
+          "nameHashUTF16": "7cb8209c",
+          "nameHashUTF8": "c8464bee"
+        },
+        {
+          "name": "FlipNormal",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 14944,
+          "valueOffset": 53220,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "06deefe4",
+          "nameHashUTF8": "1da4d469"
+        },
+        {
+          "name": "NormalStrength",
+          "values": [
+            0.30000001192092896
+          ],
+          "headerOffset": 14968,
+          "valueOffset": 53224,
+          "byteLength": 4,
+          "rawHex": "9a99993e",
+          "nameHashUTF16": "69c1f768",
+          "nameHashUTF8": "89a0b807"
+        },
+        {
+          "name": "Layer1Rotation",
+          "values": [
+            116.0
+          ],
+          "headerOffset": 14992,
+          "valueOffset": 53228,
+          "byteLength": 4,
+          "rawHex": "0000e842",
+          "nameHashUTF16": "2242e6e3",
+          "nameHashUTF8": "e455da37"
+        },
+        {
+          "name": "Layer1Mask",
+          "values": [
+            1.0
+          ],
+          "headerOffset": 15016,
+          "valueOffset": 53232,
+          "byteLength": 4,
+          "rawHex": "0000803f",
+          "nameHashUTF16": "458f2d5f",
+          "nameHashUTF8": "92db7900"
+        },
+        {
+          "name": "Layer1Power",
+          "values": [
+            0.699999988079071
+          ],
+          "headerOffset": 15040,
+          "valueOffset": 53236,
+          "byteLength": 4,
+          "rawHex": "3333333f",
+          "nameHashUTF16": "0fe26c38",
+          "nameHashUTF8": "caf517c3"
+        },
+        {
+          "name": "Layer2Rotation",
+          "values": [
+            195.2100067138672
+          ],
+          "headerOffset": 15064,
+          "valueOffset": 53240,
+          "byteLength": 4,
+          "rawHex": "c3354343",
+          "nameHashUTF16": "5d216262",
+          "nameHashUTF8": "c2fcbc38"
+        },
+        {
+          "name": "Layer2Mask",
+          "values": [
+            1.0
+          ],
+          "headerOffset": 15088,
+          "valueOffset": 53244,
+          "byteLength": 4,
+          "rawHex": "0000803f",
+          "nameHashUTF16": "6bd13e52",
+          "nameHashUTF8": "6da4ab88"
+        },
+        {
+          "name": "Layer2Power",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 15112,
+          "valueOffset": 53248,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "8487ff35",
+          "nameHashUTF8": "72c26efe"
+        },
+        {
+          "name": "Layer3Rotation",
+          "values": [
+            224.00999450683594
+          ],
+          "headerOffset": 15136,
+          "valueOffset": 53252,
+          "byteLength": 4,
+          "rawHex": "8f026043",
+          "nameHashUTF16": "1f43880c",
+          "nameHashUTF8": "566e4628"
+        },
+        {
+          "name": "Layer3Mask",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 15160,
+          "valueOffset": 53256,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "d07ba52a",
+          "nameHashUTF8": "df434acf"
+        },
+        {
+          "name": "Layer3Power",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 15184,
+          "valueOffset": 53260,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "5bd2fe3f",
+          "nameHashUTF8": "02aa8933"
+        },
+        {
+          "name": "BlendRadius",
+          "values": [
+            0.30000001192092896
+          ],
+          "headerOffset": 15208,
+          "valueOffset": 53264,
+          "byteLength": 4,
+          "rawHex": "9a99993e",
+          "nameHashUTF16": "7ff3b9dd",
+          "nameHashUTF8": "dc31e88d"
+        },
+        {
+          "name": "LimbusPower",
+          "values": [
+            0.699999988079071
+          ],
+          "headerOffset": 15232,
+          "valueOffset": 53268,
+          "byteLength": 4,
+          "rawHex": "3333333f",
+          "nameHashUTF16": "01abb4e9",
+          "nameHashUTF8": "81e18e8e"
+        },
+        {
+          "name": "LimbusRadius",
+          "values": [
+            0.30000001192092896
+          ],
+          "headerOffset": 15256,
+          "valueOffset": 53272,
+          "byteLength": 4,
+          "rawHex": "9a99993e",
+          "nameHashUTF16": "2946ec03",
+          "nameHashUTF8": "c45ad778"
+        },
+        {
+          "name": "LimbusShadow",
+          "values": [
+            0.20000000298023224
+          ],
+          "headerOffset": 15280,
+          "valueOffset": 53276,
+          "byteLength": 4,
+          "rawHex": "cdcc4c3e",
+          "nameHashUTF16": "c44f6ac9",
+          "nameHashUTF8": "6b61243a"
+        },
+        {
+          "name": "OutsideLimbusRadius",
+          "values": [
+            0.15000000596046448
+          ],
+          "headerOffset": 15304,
+          "valueOffset": 53280,
+          "byteLength": 4,
+          "rawHex": "9a99193e",
+          "nameHashUTF16": "986d487b",
+          "nameHashUTF8": "9c8bf654"
+        },
+        {
+          "name": "IrisNormalStrength",
+          "values": [
+            0.10000000149011612
+          ],
+          "headerOffset": 15328,
+          "valueOffset": 53284,
+          "byteLength": 4,
+          "rawHex": "cdcccc3d",
+          "nameHashUTF16": "520fb469",
+          "nameHashUTF8": "4d322b3b"
+        },
+        {
+          "name": "IrisStartUV",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 15352,
+          "valueOffset": 53288,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "3354867f",
+          "nameHashUTF8": "b2a43d90"
+        },
+        {
+          "name": "IrisEndUV",
+          "values": [
+            0.8299999833106995
+          ],
+          "headerOffset": 15376,
+          "valueOffset": 53292,
+          "byteLength": 4,
+          "rawHex": "e17a543f",
+          "nameHashUTF16": "6e75552b",
+          "nameHashUTF8": "6cb38da5"
+        },
+        {
+          "name": "IrisRotation",
+          "values": [
+            39.0
+          ],
+          "headerOffset": 15400,
+          "valueOffset": 53296,
+          "byteLength": 4,
+          "rawHex": "00001c42",
+          "nameHashUTF16": "3fb332f6",
+          "nameHashUTF8": "a724178b"
+        },
+        {
+          "name": "IrisRadius",
+          "values": [
+            0.5600000023841858
+          ],
+          "headerOffset": 15424,
+          "valueOffset": 53300,
+          "byteLength": 4,
+          "rawHex": "295c0f3f",
+          "nameHashUTF16": "deeb5a78",
+          "nameHashUTF8": "ceb98d26"
+        },
+        {
+          "name": "ZoomDepthMap",
+          "values": [
+            0.12999999523162842
+          ],
+          "headerOffset": 15448,
+          "valueOffset": 53304,
+          "byteLength": 4,
+          "rawHex": "b81e053e",
+          "nameHashUTF16": "580aac72",
+          "nameHashUTF8": "844b12a5"
+        },
+        {
+          "name": "LensDistortion",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 15472,
+          "valueOffset": 53308,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "26d51451",
+          "nameHashUTF8": "3b767fb3"
+        },
+        {
+          "name": "IrisDspLayer",
+          "values": [
+            16.0
+          ],
+          "headerOffset": 15496,
+          "valueOffset": 53312,
+          "byteLength": 4,
+          "rawHex": "00008041",
+          "nameHashUTF16": "ac90a755",
+          "nameHashUTF8": "6e92e153"
+        },
+        {
+          "name": "IrisDspHeight",
+          "values": [
+            0.20000000298023224
+          ],
+          "headerOffset": 15520,
+          "valueOffset": 53316,
+          "byteLength": 4,
+          "rawHex": "cdcc4c3e",
+          "nameHashUTF16": "5a1b7b24",
+          "nameHashUTF8": "36867204"
+        },
+        {
+          "name": "IrisDspOffset",
+          "values": [
+            0.4399999976158142
+          ],
+          "headerOffset": 15544,
+          "valueOffset": 53320,
+          "byteLength": 4,
+          "rawHex": "ae47e13e",
+          "nameHashUTF16": "2204d1f6",
+          "nameHashUTF8": "2015d611"
+        },
+        {
+          "name": "IrisDepth",
+          "values": [
+            0.4000000059604645
+          ],
+          "headerOffset": 15568,
+          "valueOffset": 53324,
+          "byteLength": 4,
+          "rawHex": "cdcccc3e",
+          "nameHashUTF16": "cfabf412",
+          "nameHashUTF8": "e0aa67d0"
+        },
+        {
+          "name": "PupilMapSize",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 15592,
+          "valueOffset": 53328,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "f479096d",
+          "nameHashUTF8": "0fb5d270"
+        },
+        {
+          "name": "Blindness",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 15616,
+          "valueOffset": 53332,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "9bafa295",
+          "nameHashUTF8": "3aeab06d"
+        },
+        {
+          "name": "PupilRadius",
+          "values": [
+            -0.05000000074505806
+          ],
+          "headerOffset": 15640,
+          "valueOffset": 53336,
+          "byteLength": 4,
+          "rawHex": "cdcc4cbd",
+          "nameHashUTF16": "296f3291",
+          "nameHashUTF8": "223a425a"
+        },
+        {
+          "name": "PupilOffsetX",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 15664,
+          "valueOffset": 53340,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "97e3faca",
+          "nameHashUTF8": "e68e7d39"
+        },
+        {
+          "name": "PupilOffsetY",
+          "values": [
+            -0.029999999329447746
+          ],
+          "headerOffset": 15688,
+          "valueOffset": 53344,
+          "byteLength": 4,
+          "rawHex": "8fc2f5bc",
+          "nameHashUTF16": "00fd05d4",
+          "nameHashUTF8": "b8554f4f"
+        },
+        {
+          "name": "CloudRange",
+          "values": [
+            0.5099999904632568
+          ],
+          "headerOffset": 15712,
+          "valueOffset": 53348,
+          "byteLength": 4,
+          "rawHex": "5c8f023f",
+          "nameHashUTF16": "870da7d8",
+          "nameHashUTF8": "0720fc9c"
+        },
+        {
+          "name": "CloudBlend",
+          "values": [
+            0.5
+          ],
+          "headerOffset": 15736,
+          "valueOffset": 53352,
+          "byteLength": 4,
+          "rawHex": "0000003f",
+          "nameHashUTF16": "5968d6d7",
+          "nameHashUTF8": "047ab50e"
+        },
+        {
+          "name": "CloudOppacity",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 15760,
+          "valueOffset": 53356,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "2c20d37e",
+          "nameHashUTF8": "0a56ee0b"
+        },
+        {
+          "name": "CausticIntensity",
+          "values": [
+            0.5
+          ],
+          "headerOffset": 15784,
+          "valueOffset": 53360,
+          "byteLength": 4,
+          "rawHex": "0000003f",
+          "nameHashUTF16": "ef4c08f7",
+          "nameHashUTF8": "adc98103"
+        },
+        {
+          "name": "IOR",
+          "values": [
+            1.399999976158142
+          ],
+          "headerOffset": 15808,
+          "valueOffset": 53364,
+          "byteLength": 4,
+          "rawHex": "3333b33f",
+          "nameHashUTF16": "194af7fc",
+          "nameHashUTF8": "0d6c87da"
+        },
+        {
+          "name": "CausticArea",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 15832,
+          "valueOffset": 53368,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "d631668f",
+          "nameHashUTF8": "fcc8f4fa"
+        },
+        {
+          "name": "LensSpecReflectance",
+          "values": [
+            0.029999999329447746
+          ],
+          "headerOffset": 15856,
+          "valueOffset": 53372,
+          "byteLength": 4,
+          "rawHex": "8fc2f53c",
+          "nameHashUTF16": "6b898d4b",
+          "nameHashUTF8": "d4f2bbc7"
+        },
+        {
+          "name": "ScleraSpecReflectance",
+          "values": [
+            0.019999999552965164
+          ],
+          "headerOffset": 15880,
+          "valueOffset": 53376,
+          "byteLength": 4,
+          "rawHex": "0ad7a33c",
+          "nameHashUTF16": "d4c48278",
+          "nameHashUTF8": "da20cd89"
+        },
+        {
+          "name": "Roughness",
+          "values": [
+            0.009999999776482582
+          ],
+          "headerOffset": 15904,
+          "valueOffset": 53380,
+          "byteLength": 4,
+          "rawHex": "0ad7233c",
+          "nameHashUTF16": "45086f97",
+          "nameHashUTF8": "674ddd44"
+        },
+        {
+          "name": "SSSChannel",
+          "values": [
+            3.0
+          ],
+          "headerOffset": 15928,
+          "valueOffset": 53384,
+          "byteLength": 4,
+          "rawHex": "00004040",
+          "nameHashUTF16": "3042dbf5",
+          "nameHashUTF8": "543dbfff"
+        },
+        {
+          "name": "Translucency",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 15952,
+          "valueOffset": 53388,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "d56b7dac",
+          "nameHashUTF8": "8f7a7a0d"
+        },
+        {
+          "name": "Metallic",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 15976,
+          "valueOffset": 53392,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "5283bef0",
+          "nameHashUTF8": "f9078a81"
+        },
+        {
+          "name": "EmissiveIntensity",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 16000,
+          "valueOffset": 53396,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "ad91238a",
+          "nameHashUTF8": "e5de2501"
+        },
+        {
+          "name": "NormalMap_BlendRate",
+          "values": [
+            0.10000000149011612
+          ],
+          "headerOffset": 16024,
+          "valueOffset": 53400,
+          "byteLength": 4,
+          "rawHex": "cdcccc3d",
+          "nameHashUTF16": "b5f19196",
+          "nameHashUTF8": "e13017af"
+        },
+        {
+          "name": "FakeRelection_Intensity",
+          "values": [
+            10.0
+          ],
+          "headerOffset": 16048,
+          "valueOffset": 53404,
+          "byteLength": 4,
+          "rawHex": "00002041",
+          "nameHashUTF16": "016f2ea0",
+          "nameHashUTF8": "6e7bf963"
+        },
+        {
+          "name": "Light_MaxLux",
+          "values": [
+            25.0
+          ],
+          "headerOffset": 16072,
+          "valueOffset": 53408,
+          "byteLength": 4,
+          "rawHex": "0000c841",
+          "nameHashUTF16": "00e5440d",
+          "nameHashUTF8": "7cfaa8e0"
+        },
+        {
+          "name": "BAB_OffSet",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 16096,
+          "valueOffset": 53412,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "3f3bdf1d",
+          "nameHashUTF8": "53490386"
+        }
+      ],
+      "roughness": 0.045
+    },
+    {
+      "name": "EyeShell_Mat",
+      "parameters": {
+        "eyeShellSurface": [
+          0.10000000149011612,
+          0.4699999988079071,
+          0.8600000143051147,
+          8.0
+        ],
+        "eyeShellSpecular": [
+          0.009999999776482582,
+          0.8500000238418579,
+          2.0,
+          1.0
+        ],
+        "eyeShellFake": [
+          0.0,
+          -0.3100000023841858,
+          0.029999999329447746,
+          1.0199999809265137
+        ],
+        "eyeShellCavity": [
+          1.0,
+          0.5400000214576721,
+          0.20000000298023224,
+          1.0
+        ],
+        "eyeShellDebug": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "eyeShellOutlineArea": [
+          0.8399999737739563,
+          0.3499999940395355,
+          0.6100000143051147,
+          0.7099999785423279
+        ],
+        "eyeShellBlurOutlineArea": [
+          0.800000011920929,
+          0.8999999761581421,
+          1.1399999856948853,
+          0.7300000190734863
+        ],
+        "eyeShellOutlineSmooth": [
+          1.5,
+          1.9199999570846558,
+          1.5399999618530273,
+          2.9200000762939453
+        ],
+        "eyeShellBlurOutlineSmooth": [
+          1.0,
+          0.30000001192092896,
+          0.9100000262260437,
+          2.0
+        ],
+        "eyeShellFillArea": [
+          1.100000023841858,
+          1.2000000476837158,
+          0.75,
+          1.059999942779541
+        ],
+        "eyeShellBlurFillArea": [
+          0.3100000023841858,
+          0.20000000298023224,
+          0.1899999976158142,
+          0.30000001192092896
+        ],
+        "eyeShellFillSmooth": [
+          0.8999999761581421,
+          1.5,
+          1.3200000524520874,
+          1.4199999570846558
+        ],
+        "eyeShellBlurFillSmooth": [
+          0.6200000047683716,
+          0.30000001192092896,
+          1.8700000047683716,
+          0.8999999761581421
+        ],
+        "eyeShellEnabled": true,
+        "useEmissiveMap": false
+      },
+      "textures": {
+        "normal": "Textures/tearline_nrm__7ae3313d.png",
+        "emissive": "Textures/fake_specular__4dff9e74.png"
+      },
+      "sourceProperties": [
+        {
+          "name": "OcclusionDebugView",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 16120,
+          "valueOffset": 53416,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "57e166db",
+          "nameHashUTF8": "f052638a"
+        },
+        {
+          "name": "BlurDebugView",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 16144,
+          "valueOffset": 53420,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "1fe0b0f9",
+          "nameHashUTF8": "3ead8eac"
+        },
+        {
+          "name": "CavityDebugView",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 16168,
+          "valueOffset": 53424,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "5f14ca7f",
+          "nameHashUTF8": "49dda96d"
+        },
+        {
+          "name": "NormalDebugView",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 16192,
+          "valueOffset": 53428,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "df625827",
+          "nameHashUTF8": "b02b1cc4"
+        },
+        {
+          "name": "CheckDepthDifference",
+          "values": [
+            0.10000000149011612
+          ],
+          "headerOffset": 16216,
+          "valueOffset": 53432,
+          "byteLength": 4,
+          "rawHex": "cdcccc3d",
+          "nameHashUTF16": "45536305",
+          "nameHashUTF8": "767802db"
+        },
+        {
+          "name": "OcclusionStrength",
+          "values": [
+            0.4699999988079071
+          ],
+          "headerOffset": 16240,
+          "valueOffset": 53436,
+          "byteLength": 4,
+          "rawHex": "d7a3f03e",
+          "nameHashUTF16": "50265638",
+          "nameHashUTF8": "bd2c94aa"
+        },
+        {
+          "name": "TopOutlineArea",
+          "values": [
+            0.8399999737739563
+          ],
+          "headerOffset": 16264,
+          "valueOffset": 53440,
+          "byteLength": 4,
+          "rawHex": "3d0a573f",
+          "nameHashUTF16": "da677692",
+          "nameHashUTF8": "b5562bf9"
+        },
+        {
+          "name": "TopOutlineSmooth",
+          "values": [
+            1.5
+          ],
+          "headerOffset": 16288,
+          "valueOffset": 53444,
+          "byteLength": 4,
+          "rawHex": "0000c03f",
+          "nameHashUTF16": "9de9cee0",
+          "nameHashUTF8": "b8b613ce"
+        },
+        {
+          "name": "TopFillArea",
+          "values": [
+            1.100000023841858
+          ],
+          "headerOffset": 16312,
+          "valueOffset": 53448,
+          "byteLength": 4,
+          "rawHex": "cdcc8c3f",
+          "nameHashUTF16": "2401965c",
+          "nameHashUTF8": "dd22e1d7"
+        },
+        {
+          "name": "TopFillSmooth",
+          "values": [
+            0.8999999761581421
+          ],
+          "headerOffset": 16336,
+          "valueOffset": 53452,
+          "byteLength": 4,
+          "rawHex": "6666663f",
+          "nameHashUTF16": "c179b2b5",
+          "nameHashUTF8": "ae6104be"
+        },
+        {
+          "name": "BottomOutlineArea",
+          "values": [
+            0.3499999940395355
+          ],
+          "headerOffset": 16360,
+          "valueOffset": 53456,
+          "byteLength": 4,
+          "rawHex": "3333b33e",
+          "nameHashUTF16": "a738c363",
+          "nameHashUTF8": "51dfb833"
+        },
+        {
+          "name": "BottomOutlineSmooth",
+          "values": [
+            1.9199999570846558
+          ],
+          "headerOffset": 16384,
+          "valueOffset": 53460,
+          "byteLength": 4,
+          "rawHex": "8fc2f53f",
+          "nameHashUTF16": "738b94fa",
+          "nameHashUTF8": "658683cc"
+        },
+        {
+          "name": "BottomFillArea",
+          "values": [
+            1.2000000476837158
+          ],
+          "headerOffset": 16408,
+          "valueOffset": 53464,
+          "byteLength": 4,
+          "rawHex": "9a99993f",
+          "nameHashUTF16": "dc492b15",
+          "nameHashUTF8": "45c966e0"
+        },
+        {
+          "name": "BottomFillSmooth",
+          "values": [
+            1.5
+          ],
+          "headerOffset": 16432,
+          "valueOffset": 53468,
+          "byteLength": 4,
+          "rawHex": "0000c03f",
+          "nameHashUTF16": "f108222e",
+          "nameHashUTF8": "229bdab4"
+        },
+        {
+          "name": "InnerOutlineArea",
+          "values": [
+            0.6100000143051147
+          ],
+          "headerOffset": 16456,
+          "valueOffset": 53472,
+          "byteLength": 4,
+          "rawHex": "f6281c3f",
+          "nameHashUTF16": "1132a61c",
+          "nameHashUTF8": "bcc725dd"
+        },
+        {
+          "name": "InnerOutlineSmooth",
+          "values": [
+            1.5399999618530273
+          ],
+          "headerOffset": 16480,
+          "valueOffset": 53476,
+          "byteLength": 4,
+          "rawHex": "b81ec53f",
+          "nameHashUTF16": "c169057f",
+          "nameHashUTF8": "b2707406"
+        },
+        {
+          "name": "InnerFillArea",
+          "values": [
+            0.75
+          ],
+          "headerOffset": 16504,
+          "valueOffset": 53480,
+          "byteLength": 4,
+          "rawHex": "0000403f",
+          "nameHashUTF16": "0c264ada",
+          "nameHashUTF8": "dcb29350"
+        },
+        {
+          "name": "InnerFillSmooth",
+          "values": [
+            1.3200000524520874
+          ],
+          "headerOffset": 16528,
+          "valueOffset": 53484,
+          "byteLength": 4,
+          "rawHex": "c3f5a83f",
+          "nameHashUTF16": "0c1394a3",
+          "nameHashUTF8": "24e41e62"
+        },
+        {
+          "name": "OuterOutlineArea",
+          "values": [
+            0.7099999785423279
+          ],
+          "headerOffset": 16552,
+          "valueOffset": 53488,
+          "byteLength": 4,
+          "rawHex": "8fc2353f",
+          "nameHashUTF16": "70bceb0a",
+          "nameHashUTF8": "f7960312"
+        },
+        {
+          "name": "OuterOutlineSmooth",
+          "values": [
+            2.9200000762939453
+          ],
+          "headerOffset": 16576,
+          "valueOffset": 53492,
+          "byteLength": 4,
+          "rawHex": "48e13a40",
+          "nameHashUTF16": "e315be2a",
+          "nameHashUTF8": "a1c2050c"
+        },
+        {
+          "name": "OuterFillArea",
+          "values": [
+            1.059999942779541
+          ],
+          "headerOffset": 16600,
+          "valueOffset": 53496,
+          "byteLength": 4,
+          "rawHex": "14ae873f",
+          "nameHashUTF16": "9339ce81",
+          "nameHashUTF8": "28295af1"
+        },
+        {
+          "name": "OuterFillSmooth",
+          "values": [
+            1.4199999570846558
+          ],
+          "headerOffset": 16624,
+          "valueOffset": 53500,
+          "byteLength": 4,
+          "rawHex": "8fc2b53f",
+          "nameHashUTF16": "df82462a",
+          "nameHashUTF8": "6bf5658c"
+        },
+        {
+          "name": "BlurStrength",
+          "values": [
+            0.8600000143051147
+          ],
+          "headerOffset": 16648,
+          "valueOffset": 53504,
+          "byteLength": 4,
+          "rawHex": "f6285c3f",
+          "nameHashUTF16": "ec2f88a3",
+          "nameHashUTF8": "9c43c115"
+        },
+        {
+          "name": "SpecBlurReduction",
+          "values": [
+            8.0
+          ],
+          "headerOffset": 16672,
+          "valueOffset": 53508,
+          "byteLength": 4,
+          "rawHex": "00000041",
+          "nameHashUTF16": "afa1d38d",
+          "nameHashUTF8": "2934495e"
+        },
+        {
+          "name": "TopOutlineArea_Blur",
+          "values": [
+            0.800000011920929
+          ],
+          "headerOffset": 16696,
+          "valueOffset": 53512,
+          "byteLength": 4,
+          "rawHex": "cdcc4c3f",
+          "nameHashUTF16": "b79d659c",
+          "nameHashUTF8": "52edb5ce"
+        },
+        {
+          "name": "TopOutlineSmooth_Blur",
+          "values": [
+            1.0
+          ],
+          "headerOffset": 16720,
+          "valueOffset": 53516,
+          "byteLength": 4,
+          "rawHex": "0000803f",
+          "nameHashUTF16": "9460d37b",
+          "nameHashUTF8": "f85300f4"
+        },
+        {
+          "name": "TopFillArea_Blur",
+          "values": [
+            0.3100000023841858
+          ],
+          "headerOffset": 16744,
+          "valueOffset": 53520,
+          "byteLength": 4,
+          "rawHex": "52b89e3e",
+          "nameHashUTF16": "0248e3de",
+          "nameHashUTF8": "35ba95e2"
+        },
+        {
+          "name": "TopFillSmooth_Blur",
+          "values": [
+            0.6200000047683716
+          ],
+          "headerOffset": 16768,
+          "valueOffset": 53524,
+          "byteLength": 4,
+          "rawHex": "52b81e3f",
+          "nameHashUTF16": "011fcaea",
+          "nameHashUTF8": "2f756c0a"
+        },
+        {
+          "name": "BottomOutlineArea_Blur",
+          "values": [
+            0.8999999761581421
+          ],
+          "headerOffset": 16792,
+          "valueOffset": 53528,
+          "byteLength": 4,
+          "rawHex": "6666663f",
+          "nameHashUTF16": "45fdcfd4",
+          "nameHashUTF8": "9750b827"
+        },
+        {
+          "name": "BottomOutlineSmooth_Blur",
+          "values": [
+            0.30000001192092896
+          ],
+          "headerOffset": 16816,
+          "valueOffset": 53532,
+          "byteLength": 4,
+          "rawHex": "9a99993e",
+          "nameHashUTF16": "7b8aec9c",
+          "nameHashUTF8": "e4caff5f"
+        },
+        {
+          "name": "BottomFillArea_Blur",
+          "values": [
+            0.20000000298023224
+          ],
+          "headerOffset": 16840,
+          "valueOffset": 53536,
+          "byteLength": 4,
+          "rawHex": "cdcc4c3e",
+          "nameHashUTF16": "ef7a64e2",
+          "nameHashUTF8": "6aa97ff9"
+        },
+        {
+          "name": "BottomFillSmooth_Blur",
+          "values": [
+            0.30000001192092896
+          ],
+          "headerOffset": 16864,
+          "valueOffset": 53540,
+          "byteLength": 4,
+          "rawHex": "9a99993e",
+          "nameHashUTF16": "fbf80bb1",
+          "nameHashUTF8": "b6e661cb"
+        },
+        {
+          "name": "InnerOutlineArea_Blur",
+          "values": [
+            1.1399999856948853
+          ],
+          "headerOffset": 16888,
+          "valueOffset": 53544,
+          "byteLength": 4,
+          "rawHex": "85eb913f",
+          "nameHashUTF16": "e76ed5e6",
+          "nameHashUTF8": "3cfb1b07"
+        },
+        {
+          "name": "InnerOutlineSmooth_Blur",
+          "values": [
+            0.9100000262260437
+          ],
+          "headerOffset": 16912,
+          "valueOffset": 53548,
+          "byteLength": 4,
+          "rawHex": "c3f5683f",
+          "nameHashUTF16": "05d9490d",
+          "nameHashUTF8": "b4f4ba9e"
+        },
+        {
+          "name": "InnerFillArea_Blur",
+          "values": [
+            0.1899999976158142
+          ],
+          "headerOffset": 16936,
+          "valueOffset": 53552,
+          "byteLength": 4,
+          "rawHex": "5c8f423e",
+          "nameHashUTF16": "f4e67eef",
+          "nameHashUTF8": "1c81ddfe"
+        },
+        {
+          "name": "InnerFillSmooth_Blur",
+          "values": [
+            1.8700000047683716
+          ],
+          "headerOffset": 16960,
+          "valueOffset": 53556,
+          "byteLength": 4,
+          "rawHex": "295cef3f",
+          "nameHashUTF16": "6b4a2438",
+          "nameHashUTF8": "34e62e25"
+        },
+        {
+          "name": "OuterOutlineArea_Blur",
+          "values": [
+            0.7300000190734863
+          ],
+          "headerOffset": 16984,
+          "valueOffset": 53560,
+          "byteLength": 4,
+          "rawHex": "48e13a3f",
+          "nameHashUTF16": "18330fbb",
+          "nameHashUTF8": "c0f6313d"
+        },
+        {
+          "name": "OuterOutlineSmooth_Blur",
+          "values": [
+            2.0
+          ],
+          "headerOffset": 17008,
+          "valueOffset": 53564,
+          "byteLength": 4,
+          "rawHex": "00000040",
+          "nameHashUTF16": "15c53158",
+          "nameHashUTF8": "d60d04a1"
+        },
+        {
+          "name": "OuterFillArea_Blur",
+          "values": [
+            0.30000001192092896
+          ],
+          "headerOffset": 17032,
+          "valueOffset": 53568,
+          "byteLength": 4,
+          "rawHex": "9a99993e",
+          "nameHashUTF16": "c4e5bbce",
+          "nameHashUTF8": "fb9a78f8"
+        },
+        {
+          "name": "OuterFillSmooth_Blur",
+          "values": [
+            0.8999999761581421
+          ],
+          "headerOffset": 17056,
+          "valueOffset": 53572,
+          "byteLength": 4,
+          "rawHex": "6666663f",
+          "nameHashUTF16": "922b7c00",
+          "nameHashUTF8": "49be7681"
+        },
+        {
+          "name": "FakeSpecularIntensity",
+          "values": [
+            0.0
+          ],
+          "headerOffset": 17080,
+          "valueOffset": 53576,
+          "byteLength": 4,
+          "rawHex": "00000000",
+          "nameHashUTF16": "4f2eacc0",
+          "nameHashUTF8": "3cdd6073"
+        },
+        {
+          "name": "FakeSpecularX",
+          "values": [
+            -0.3100000023841858
+          ],
+          "headerOffset": 17104,
+          "valueOffset": 53580,
+          "byteLength": 4,
+          "rawHex": "52b89ebe",
+          "nameHashUTF16": "fa61d403",
+          "nameHashUTF8": "5d94a2c6"
+        },
+        {
+          "name": "FakeSpecularY",
+          "values": [
+            0.029999999329447746
+          ],
+          "headerOffset": 17128,
+          "valueOffset": 53584,
+          "byteLength": 4,
+          "rawHex": "8fc2f53c",
+          "nameHashUTF16": "cf30c082",
+          "nameHashUTF8": "33287986"
+        },
+        {
+          "name": "FakeSpecularSize",
+          "values": [
+            1.0199999809265137
+          ],
+          "headerOffset": 17152,
+          "valueOffset": 53588,
+          "byteLength": 4,
+          "rawHex": "5c8f823f",
+          "nameHashUTF16": "3807d852",
+          "nameHashUTF8": "93c2b224"
+        },
+        {
+          "name": "SpecularClamp",
+          "values": [
+            1.0
+          ],
+          "headerOffset": 17176,
+          "valueOffset": 53592,
+          "byteLength": 4,
+          "rawHex": "0000803f",
+          "nameHashUTF16": "70ad1e0b",
+          "nameHashUTF8": "c0b987f8"
+        },
+        {
+          "name": "CavityFillArea",
+          "values": [
+            1.0
+          ],
+          "headerOffset": 17200,
+          "valueOffset": 53596,
+          "byteLength": 4,
+          "rawHex": "0000803f",
+          "nameHashUTF16": "f3a8f07e",
+          "nameHashUTF8": "47ac1549"
+        },
+        {
+          "name": "CavityFillSmooth",
+          "values": [
+            0.5400000214576721
+          ],
+          "headerOffset": 17224,
+          "valueOffset": 53600,
+          "byteLength": 4,
+          "rawHex": "713d0a3f",
+          "nameHashUTF16": "4d0ab041",
+          "nameHashUTF8": "51c84b5f"
+        },
+        {
+          "name": "Roughness",
+          "values": [
+            0.009999999776482582
+          ],
+          "headerOffset": 17248,
+          "valueOffset": 53604,
+          "byteLength": 4,
+          "rawHex": "0ad7233c",
+          "nameHashUTF16": "45086f97",
+          "nameHashUTF8": "674ddd44"
+        },
+        {
+          "name": "Specular",
+          "values": [
+            0.8500000238418579
+          ],
+          "headerOffset": 17272,
+          "valueOffset": 53608,
+          "byteLength": 4,
+          "rawHex": "9a99593f",
+          "nameHashUTF16": "89c06ddc",
+          "nameHashUTF8": "31cf87b9"
+        },
+        {
+          "name": "SpecularSample",
+          "values": [
+            2.0
+          ],
+          "headerOffset": 17296,
+          "valueOffset": 53612,
+          "byteLength": 4,
+          "rawHex": "00000040",
+          "nameHashUTF16": "9b06590b",
+          "nameHashUTF8": "b871a6aa"
+        },
+        {
+          "name": "NormalStrength",
+          "values": [
+            0.20000000298023224
+          ],
+          "headerOffset": 17320,
+          "valueOffset": 53616,
+          "byteLength": 4,
+          "rawHex": "cdcc4c3e",
+          "nameHashUTF16": "69c1f768",
+          "nameHashUTF8": "89a0b807"
+        }
+      ],
+      "rendererApproximation": {
+        "routing": "Dedicated HDR postprocess. Ordinary transparent draw is excluded even with global effect disabled. No legacy white glass in A/B.",
+        "directSpecular": "Source direct-light forward shading/normal-gather/BRDF LUT replaced by bounded GGX direct-light adapter; raw Specular preserved.",
+        "fakeSpecular": "Default source intensity0 inactive. BC6 source texture PNG is8-bit diagnostic; nonzero edits are approximate.",
+        "blur": "Source radial harmonic filter/brightness-rejection shape retained; host projection and model-scale conversion approximate engine packed projection units.",
+        "sourceDepthUnits": "eyeShellCavity.w=1 is an explicit host reconstruction assumption (source rendering depth units per mesh metre). Source ZToLinear runtime values unobserved; DSVolume position*100 does not establish this camera-depth convention. Value100 can test a centimetre interpretation."
+      }
+    }
+  ],
+  "notes": [
+    "merge parameters and textures into matching material names; root owns materials.json",
+    "slot7 is fake reflection, not emissive; useEmissiveMap=false",
+    "slot6 eye atlas must be sampled in UV1, all maps retain source row orientation",
+    "eyes use source raw iris normal map, not generic 254/255 decoded derived normal"
+  ],
+  "evidence": {
+    "source": "E:/REA/pragmata/diana_full/eye_evidence.json",
+    "sourceShaderHashes": {
+      "DeferredPreTransform:eyeballshader_regolith_master.mmtr.251112995": "4612c9eeacbfe198b8f6617e8c23b31ad29017a006abe4e4c2ff86f07ed8d0cf",
+      "EyeballCausticPreTransform:eyeballshader_regolith_master.mmtr.251112995": "e5f0800d265694e6b688d37d981ff6463b2eb22bff9b985312603a3390c5e81b",
+      "EyeballCopyGBufferPreTransform:eyeballshader_regolith_master.mmtr.251112995": "3f64241be0dafc92d35dde7a8ae494cd831c44feb17fc5d17ac90aeb4c3596ab",
+      "EyeballPostProcessPreTransform:eyeshellshader_master.mmtr.251112995": "7aca2651c65e8d7986db8cbb55bfb689a2ffd50b4db85c590862f265b2ea6a8a",
+      "EyeballCopyHDRPreTransform:eyeshellshader_master.mmtr.251112995": "f6eeecba1df5a2e13d46d3ecfe90aa92a2d3d42bc456abbbcee092af9f2f2b08",
+      "Standard:eyeball.sdf.251112995": "90f7572467fd953650be5b74726e6cbef7f45b91efcc1eb018dc3967b474a879",
+      "Expensive:eyeball.sdf.251112995": "35f396468840b196b017fb9b3a9527a04f707da9c1af6127a181d03a12ce4cdc",
+      "ExpensiveCaustics:eyeball.sdf.251112995": "79713b12a026a746a498fd65da7bfe17185924e0a89d2dfc4f60db1c021fb706",
+      "LightTrace:eyeball.sdf.251112995": "bbaf6a777a688c55a4601c4bd4d52aa536b5fcd8b7c41a51104f82caabf7d7ef",
+      "Render:eyeball.sdf.251112995": "f44b25d8eb3f20abc61103d20719d771a6b5d8f9ec9598c6a41b38c900fd409b",
+      "DrawTexture:eyeball.sdf.251112995": "076f3fb76d90d232f7a1b0500780f7a30f9e771b3d5eb0fd5ad035601aaac0b5"
+    },
+    "newTextureRGBABytes": 50331648,
+    "runtimeCaptureVerified": false,
+    "normalPacking": "slot5BA=sourceNormalRG,slot6A=sourceNormalB; all XYZ kept exactly, sampled independently from color UV",
+    "eyeShellParameterComponents": {
+      "eyeShellSurface": [
+        "CheckDepthDifference",
+        "OcclusionStrength",
+        "BlurStrength",
+        "SpecBlurReduction"
+      ],
+      "eyeShellSpecular": [
+        "Roughness",
+        "Specular",
+        "SpecularSample",
+        "SpecularClamp"
+      ],
+      "eyeShellFake": [
+        "FakeSpecularIntensity",
+        "FakeSpecularX",
+        "FakeSpecularY",
+        "FakeSpecularSize"
+      ],
+      "eyeShellCavity": [
+        "CavityFillArea",
+        "CavityFillSmooth",
+        "NormalStrength",
+        "hostSourceDepthUnitsPerMeshMetre (reconstruction, not MDF)"
+      ],
+      "eyeShellDebug": [
+        "OcclusionDebugView",
+        "BlurDebugView",
+        "CavityDebugView",
+        "NormalDebugView"
+      ],
+      "eyeShellOutlineArea": [
+        "TopOutlineArea",
+        "BottomOutlineArea",
+        "InnerOutlineArea",
+        "OuterOutlineArea"
+      ],
+      "eyeShellBlurOutlineArea": [
+        "TopOutlineArea_Blur",
+        "BottomOutlineArea_Blur",
+        "InnerOutlineArea_Blur",
+        "OuterOutlineArea_Blur"
+      ],
+      "eyeShellOutlineSmooth": [
+        "TopOutlineSmooth",
+        "BottomOutlineSmooth",
+        "InnerOutlineSmooth",
+        "OuterOutlineSmooth"
+      ],
+      "eyeShellBlurOutlineSmooth": [
+        "TopOutlineSmooth_Blur",
+        "BottomOutlineSmooth_Blur",
+        "InnerOutlineSmooth_Blur",
+        "OuterOutlineSmooth_Blur"
+      ],
+      "eyeShellFillArea": [
+        "TopFillArea",
+        "BottomFillArea",
+        "InnerFillArea",
+        "OuterFillArea"
+      ],
+      "eyeShellBlurFillArea": [
+        "TopFillArea_Blur",
+        "BottomFillArea_Blur",
+        "InnerFillArea_Blur",
+        "OuterFillArea_Blur"
+      ],
+      "eyeShellFillSmooth": [
+        "TopFillSmooth",
+        "BottomFillSmooth",
+        "InnerFillSmooth",
+        "OuterFillSmooth"
+      ],
+      "eyeShellBlurFillSmooth": [
+        "TopFillSmooth_Blur",
+        "BottomFillSmooth_Blur",
+        "InnerFillSmooth_Blur",
+        "OuterFillSmooth_Blur"
+      ]
+    },
+    "eyeShellEvidence": "eye-shading-evidence.json#eyeShell"
+  }
+}

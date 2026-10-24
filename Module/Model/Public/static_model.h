@@ -27,6 +27,8 @@ struct StaticVertex {
     glm::vec3 normal{0, 1, 0};
     glm::vec2 uv{0};
     glm::vec4 tangent{1, 0, 0, 1};
+    // Optional source TEXCOORD_1, retained separately from the tangent UV set.
+    glm::vec2 uv1{0};
 };
 
 struct StaticMesh {
@@ -35,6 +37,7 @@ struct StaticMesh {
     std::vector<std::uint32_t> indices;
     std::uint32_t materialIndex = 0;
     Bounds bounds;
+    bool hasSecondUV=false;
 };
 
 struct TextureImage {

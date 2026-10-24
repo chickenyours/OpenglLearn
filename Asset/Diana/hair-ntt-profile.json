@@ -1,0 +1,32 @@
+{
+  "strandAssets": {
+    "nttTable": "hair-ntt.lutbin"
+  },
+  "evidence": {
+    "schema": "pragmata.native-ntt-export.v1",
+    "sourceExeSha256": "1fc84c99e55f2a87c7e659a224f3e17984280f048d6281d58b396e9431ae9cdc",
+    "rawSourceVA": [
+      "0x149015a30",
+      "0x149078880"
+    ],
+    "nativeUploadSha256": "a280d8610f242fa5e7c15fdfa83f52b7f571fed76501335326d9b264d4972ff9",
+    "asset": {
+      "path": "hair-ntt.lutbin",
+      "sha256": "9c110e1ff244a0c467ed824391f99fb83986c24405f9eac8626179ede46b9611",
+      "bytes": 262168,
+      "header": "<8s4I: DHSLUT01,1,128,128,4",
+      "payload": "float32 RGBA; native half R/G exactly expanded, B=0 A=1; no flip or sRGB"
+    },
+    "consumer": {
+      "uv": [
+        "0.5-0.5*dot(T,L)",
+        "sqrt(max(azimuthalRoughness,0.02))"
+      ],
+      "azimuthalTerm": "sample.R * exp(-(sample.G + cosPhi)^2)",
+      "sampling": "normalized bilinear clamp, LOD 0, linear data",
+      "axes": "X reverses incident tangent sine; Y is sqrt of azimuthal roughness",
+      "identityLimitations": "Native embedded data and conversion recovered; original offline table generator remains unknown. The two separate embedded tables were compared byte-for-byte and are identical."
+    },
+    "researchExport": "E:\\REA\\pragmata\\hair_ntt\\native_ntt_export.json"
+  }
+}

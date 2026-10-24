@@ -10,6 +10,7 @@
 #include <glm/glm.hpp>
 
 #include "Render/Public/Material/material.h"
+#include "Render/Public/Material/eye_shading.h"
 #include "Render/Public/RHIResourceType/Pipeline/pipeline.h"
 #include "Render/Public/Pipeline/scene_effects.h"
 #include "Render/Public/Pipeline/surface_pass.h"
@@ -58,7 +59,7 @@ static_assert(offsetof(PbrPassConstants, outputOptions) == 144);
 static_assert(offsetof(PbrPassConstants, specularAA) == 160);
 static_assert(sizeof(PbrPassConstants) == 176);
 
-enum class PbrOutput : std::uint8_t { Surface, DiffuseRadiance, WorldNormal };
+enum class PbrOutput : std::uint8_t { Surface, DiffuseRadiance, WorldNormal, ReceiverCapture, PreviousReceiverCapture };
 
 inline std::shared_ptr<const Render::Material::MaterialTemplate> MakePbrTemplate(Domain domain = Domain::Surface) {
     using namespace Render::Material;
@@ -138,8 +139,15 @@ inline std::shared_ptr<const Render::Material::MaterialTemplate> MakePbrTemplate
         {"skinDiffuseScale", ParameterType::Float, .85f, "Native SSS diffuse scale", "Skin", 0.f, 2.f, true},
         {"skinCoarseColor", ParameterType::Vec4, glm::vec4(248.f/255,165.f/255,81.f/255,1), "Native SSS coarse color (squared in shader)", "Skin", 0.f, 1.f, true},
         {"skinDetailColorBleed", ParameterType::Vec4, glm::vec4(206.f/255,109.f/255,173.f/255,1), "Native SSS detail color (squared in shader)", "Skin", 0.f, 1.f, true},
-        {"skinCoarseColorInvRange", ParameterType::Float, 3.f, "Native SSS coarse color inverse range", "Skin", 0.f, 16.f, true}
+        {"skinCoarseColorInvRange", ParameterType::Float, 3.f, "Native SSS coarse color inverse range", "Skin", 0.f, 16.f, true},
+        {"reSkinEnabled", ParameterType::Bool, false, "RE source skin reflectance/translucency mapping", "Skin"},
+        {"useReSkinControlMap", ParameterType::Bool, false, "Slot 5: RE R=SSS/translucency, B=AO, A=reflectance", "Skin"},
+        {"reSkinSpecularReflectance", ParameterType::Float, 1.f, "Source F0=0.04*reflectance*control.A", "Skin", 0.f, 4.f, true},
+        {"reSkinTranslucency", ParameterType::Float, 0.f, "Source transmission times control.R", "Skin", 0.f, 1.f, true},
+        {"skinDiffusionEnabled", ParameterType::Bool, false, "Enable spatial skin diffuse transport", "Skin diffusion"},
+        {"skinDiffusionBlend", ParameterType::Float, 1.f, "Source SSS_BlendRate times control.R", "Skin diffusion", 0.f, 1.f, true}
     };
+    AppendEyeMaterialParameters(desc.parameters);
     // All slots are required even while their switches are off. The host binds
     // white to missing color/scalar maps and a flat normal to a missing normal map.
     desc.textures = {
@@ -150,11 +158,13 @@ inline std::shared_ptr<const Render::Material::MaterialTemplate> MakePbrTemplate
     return MaterialTemplate::Create(std::move(desc));
 }
 
-inline Render::VertexLayout PbrVertexLayout() {
+inline Render::VertexLayout PbrVertexLayout(bool secondUV = false) {
     // Packed floats: position3, normal3, uv2, tangent4 = 48 bytes. Tangent.w
     // stores the mesh's bitangent handedness; the model determinant also applies.
-    return {{Render::VertexFieldType::Vec3, Render::VertexFieldType::Vec3,
+    Render::VertexLayout result{{Render::VertexFieldType::Vec3, Render::VertexFieldType::Vec3,
              Render::VertexFieldType::Vec2, Render::VertexFieldType::Vec4}};
+    if(secondUV)result.typeSlots.push_back(Render::VertexFieldType::Vec2);
+    return result;
 }
 
 inline Render::PipelineSpec PbrPipelineSpec(
@@ -173,7 +183,7 @@ inline Render::PipelineSpec PbrPipelineSpec(
     return spec;
 }
 
-inline std::string PbrVertexShader(Domain domain = Domain::Surface) {
+inline std::string PbrVertexShader(Domain domain = Domain::Surface, bool secondUV = false) {
     if (domain != Domain::Surface && domain != Domain::Translucent) return {};
     std::string source = R"GLSL(#version 450 core
 
@@ -181,6 +191,7 @@ layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec2 aTexCoord;
 layout(location = 3) in vec4 aTangent;
+invariant gl_Position;
 
 layout(std140, binding = 0) uniform ViewData {
     mat4 uViewProjection;
@@ -190,11 +201,13 @@ layout(std140, binding = 1) uniform ObjectData {
     mat4 uModel;
 };
 )GLSL";
+    if(secondUV)source.insert(source.find('\n')+1,"#define PBR_SECOND_UV 1\nlayout(location=4) in vec2 aTexCoord1;\n");
     source += MakePbrTemplate(domain)->GenerateGLSLUniformBlock();
     source += R"GLSL(
 out vec3 vWorldPosition;
 out vec3 vWorldNormal;
 out vec2 vTexCoord;
+out vec2 vTexCoord1;
 out vec4 vWorldTangent;
 
 vec3 SafeNormalize(vec3 value, vec3 fallbackValue) {
@@ -223,6 +236,11 @@ void main() {
     vWorldNormal = N;
     vWorldTangent = vec4(T, handedness);
     vTexCoord = aTexCoord * uvTransform.xy + uvTransform.zw;
+#ifdef PBR_SECOND_UV
+    vTexCoord1 = aTexCoord1;
+#else
+    vTexCoord1 = aTexCoord;
+#endif
     gl_Position = uViewProjection * worldPosition;
 }
 )GLSL";
@@ -245,6 +263,9 @@ layout(std140, binding = 4) uniform SceneEffectsData {
     vec4 cascadeWorldTexelSize;
     vec4 cascadeInverseDepthRange;
     vec4 shadowFilter;
+    vec4 sourceShadowFilter;
+    vec4 strandShadowOpacity;
+    vec4 strandShadowDepthSpan;
 };
 )GLSL";
 }
@@ -265,8 +286,72 @@ int DirectionalCascadeIndex(float viewDepth) {
     return 3;
 }
 
+float DirectionalSourceShadowAngle(uint originalEndIndex) {
+    return fract(float(originalEndIndex) * 0.0027777778450399637) * 6.2831854820251465;
+}
+
+float DirectionalSurfaceShadowRadius() {
+    // Separate HOST calibration for opaque receivers. This does not restore
+    // the source character's sampled-depth exponential visibility law.
+    return sourceShadowFilter.w > 0.0 ? sourceShadowFilter.w : sourceShadowFilter.y;
+}
+
+// HOST DOM: one packed atlas keeps the original opaque CSM in r. The other
+// channels contain a half-resolution nearest-hair depth and eight cumulative
+// optical depths. Nodes are relative to that nearest depth, with a tight groom
+// span. This is a depth-discrete adapter, not the source game's shadow PSO.
+float DirectionalStrandOpacityTexel(int cascade, ivec2 opacityAtlasPixel, float receiverDepth) {
+    float extinction = max(strandShadowOpacity.y, 0.0);
+    if (extinction == 0.0) return 1.0;
+    int opacitySize = textureSize(shadowAtlas, 0).x / 2;
+    ivec2 p = clamp(opacityAtlasPixel, ivec2(0), ivec2(opacitySize - 1));
+    vec4 q0 = texelFetch(shadowAtlas, p, 0);
+    if (receiverDepth < q0.g) return 1.0;
+    float span = max(strandShadowDepthSpan[cascade], 1e-8);
+    float z = (receiverDepth - q0.g) / span;
+    const float node[8] = float[8](0.0, 0.00390625, 0.0078125, 0.015625, 0.03125, 0.0625, 0.25, 1.0);
+    // Prefixes contain all fragments up to a node. Interpolating their
+    // transmittances keeps the exact value between adjacent prefix bounds.
+    vec4 q1 = texelFetch(shadowAtlas, p + ivec2(opacitySize, 0), 0);
+    vec4 q2 = texelFetch(shadowAtlas, p + ivec2(0, opacitySize), 0);
+    float tau[8] = float[8](q0.b, q0.a, q1.g, q1.b, q1.a, q2.g, q2.b, q2.a);
+    if (z >= 1.0) return exp(-clamp(tau[7] * extinction, 0.0, 80.0));
+    int lower = 0;
+    for (int i = 1; i < 7; ++i) if (z >= node[i]) lower = i;
+    float phase = clamp((z - node[lower]) / (node[lower + 1] - node[lower]), 0.0, 1.0);
+    // Effective extinction belongs to each depth prefix, before either depth
+    // or spatial transmission interpolation. It is not a final color lift.
+    return mix(exp(-clamp(tau[lower] * extinction, 0.0, 80.0)), exp(-clamp(tau[lower + 1] * extinction, 0.0, 80.0)), phase);
+}
+
+float DirectionalStrandShadowOpacityPlane(int cascade, vec2 localUv, float receiverDepth, vec2 depthGradient, float correctionLimit) {
+    if (strandShadowOpacity.x < 0.5 || strandShadowOpacity.y <= 0.0) return 1.0;
+    int opacitySize = textureSize(shadowAtlas, 0).x / 2;
+    int tileSize = opacitySize / 2;
+    if (tileSize < 2) return 1.0;
+    ivec2 origin = ivec2(cascade % 2, cascade / 2) * tileSize;
+    vec2 pixel = vec2(origin) + localUv * float(tileSize) - 0.5;
+    ivec2 first = ivec2(floor(pixel));
+    vec2 phase = fract(pixel);
+    float visibility = 0.0;
+    for (int y = 0; y < 2; ++y) for (int x = 0; x < 2; ++x) {
+        ivec2 tap = clamp(first + ivec2(x,y), origin, origin + ivec2(tileSize - 1));
+        vec2 weight = mix(vec2(1) - phase, phase, vec2(x,y));
+        vec2 tapLocal = (vec2(tap - origin) + 0.5) / float(tileSize);
+        float tapDepth = receiverDepth + clamp(dot(depthGradient, tapLocal - localUv), -correctionLimit, correctionLimit);
+        // Convert EACH depth prefix to T before filtering. Averaging optical
+        // depth and exponentiating would darken sparse hair coverage.
+        visibility += DirectionalStrandOpacityTexel(cascade, tap, tapDepth) * weight.x * weight.y;
+    }
+    return visibility;
+}
+
+float DirectionalStrandShadowOpacity(int cascade, vec2 localUv, float receiverDepth) {
+    return DirectionalStrandShadowOpacityPlane(cascade, localUv, receiverDepth, vec2(0), 0.0);
+}
+
 float CascadeVisibility(int cascade, vec3 worldPosition, vec3 geometricNormal,
-                        vec3 worldDx, vec3 worldDy) {
+                        vec3 worldDx, vec3 worldDy, float sourceRotation, float sourceRadius, float receiveOpacity) {
     ivec2 atlasSize = textureSize(shadowAtlas, 0);
     if (atlasSize.x < 8 || atlasSize.x != atlasSize.y) return 1.0;
     int tileSize = atlasSize.x / 2;
@@ -315,6 +400,53 @@ float CascadeVisibility(int cascade, vec3 worldPosition, vec3 geometricNormal,
     float correctionLimit = max(shadowFilter.w, 0.0) * depthPerTexel * max(1.0, faceSlope);
 
     ivec2 tileOrigin = ivec2(cascade % 2, cascade / 2) * tileSize;
+    if (sourceShadowFilter.x > 0.5) {
+        // StrandsDualIBLOpt %830/%944, %968, %976..985: the fixed
+        // variance is a first-cascade UV footprint, scaled into this cascade.
+        // It is independent of blocker depth and is not a PCSS sun angle.
+        float cascadeScale = max(cascadeWorldTexelSize.x, 1e-8) / worldTexel;
+        float radius = max(sourceRadius * cascadeScale, 1.5 / float(tileSize));
+        const vec2 poisson[8] = vec2[8](
+            vec2(-0.6455659866333008, 0.0266201663762331),
+            vec2(-0.4189446568489075, 0.8573530316352844),
+            vec2( 0.0446054339408875, 0.5316708087921143),
+            vec2( 0.5317319631576538, 0.3773360848426819),
+            vec2( 0.6497720479965210,-0.1614876240491867),
+            vec2( 0.1247573494911194,-0.2891661524772644),
+            vec2( 0.2474198341369629,-0.8544320464134216),
+            vec2(-0.4765011072158813,-0.6853070855140686));
+        float sine = sin(sourceRotation), cosine = cos(sourceRotation);
+        // Preserve the host receiver-plane correction and its explicit zero
+        // opt-out, extending only the safety bound to cover the larger kernel.
+        float poissonLimit = shadowFilter.w > 0.0
+            ? max(shadowFilter.w, radius * float(tileSize) + 1.0) * depthPerTexel * max(1.0, faceSlope) : 0.0;
+        float visibility = 0.0;
+        for (int i = 0; i < 8; ++i) {
+            vec2 p = poisson[i];
+            vec2 offset = vec2(p.x * sine + p.y * cosine, p.y * sine - p.x * cosine);
+            vec2 texelPosition = vec2(tileOrigin) + (local.xy + offset * radius) * float(tileSize) - 0.5;
+            ivec2 first = ivec2(floor(texelPosition));
+            vec2 phase = fract(texelPosition);
+            // Explicit host bilinear comparison policy for the source
+            // sampleCmp calls; its native sampler descriptor is not closed.
+            // Compare four depths BEFORE
+            // interpolation; interpolating stored depth produces a hard edge.
+            // Clamp each fetched center to this tile, never another cascade.
+            for (int y = 0; y < 2; ++y) for (int x = 0; x < 2; ++x) {
+                ivec2 tap = clamp(first + ivec2(x,y), tileOrigin, tileOrigin + ivec2(tileSize - 1));
+                vec2 tapLocal = (vec2(tap - tileOrigin) + 0.5) / float(tileSize);
+                float correction = clamp(dot(depthGradient, tapLocal - local.xy), -poissonLimit, poissonLimit);
+                float receiverDepth = local.z + correction - depthBias;
+                float storedDepth = texelFetch(shadowAtlas, tap, 0).r;
+                vec2 weight = mix(vec2(1.0) - phase, phase, vec2(x,y));
+                float tapVisibility = receiverDepth <= storedDepth ? 1.0 : 0.0;
+                if (receiveOpacity > 0.5 && strandShadowOpacity.x > 0.5 && tapVisibility > 0.0)
+                    tapVisibility *= DirectionalStrandShadowOpacityPlane(cascade, tapLocal, receiverDepth, depthGradient, poissonLimit);
+                visibility += tapVisibility * weight.x * weight.y;
+            }
+        }
+        return visibility * 0.125;
+    }
     vec2 texelPosition = vec2(tileOrigin) + local.xy * float(tileSize) - 0.5;
     ivec2 firstTap = ivec2(floor(texelPosition)) - ivec2(1);
     float visibility = 0.0, weightSum = 0.0;
@@ -332,24 +464,40 @@ float CascadeVisibility(int cascade, vec3 worldPosition, vec3 geometricNormal,
         float correction = clamp(dot(depthGradient, tapLocal - local.xy), -correctionLimit, correctionLimit);
         float receiverDepth = local.z + correction - depthBias;
         float storedDepth = texelFetch(shadowAtlas, tap, 0).r;
-        visibility += (receiverDepth <= storedDepth ? 1.0 : 0.0) * weight;
+        float tapVisibility = receiverDepth <= storedDepth ? 1.0 : 0.0;
+        if (receiveOpacity > 0.5 && strandShadowOpacity.x > 0.5 && tapVisibility > 0.0)
+            tapVisibility *= DirectionalStrandShadowOpacityPlane(cascade, tapLocal, receiverDepth, depthGradient, correctionLimit);
+        visibility += tapVisibility * weight;
         weightSum += weight;
     }
     return visibility / max(weightSum, 1e-6);
 }
 
-float DirectionalVisibility(vec3 worldPosition, vec3 geometricNormal, vec3 worldDx, vec3 worldDy) {
+float CascadeVisibility(int cascade, vec3 worldPosition, vec3 geometricNormal, vec3 worldDx, vec3 worldDy, float sourceRotation, float sourceRadius) {
+    return CascadeVisibility(cascade, worldPosition, geometricNormal, worldDx, worldDy, sourceRotation, sourceRadius, 0.0);
+}
+
+float CascadeVisibility(int cascade, vec3 worldPosition, vec3 geometricNormal, vec3 worldDx, vec3 worldDy, float sourceRotation) {
+    // Explicit phase identifies a strand consumer; preserve its shared y radius.
+    return CascadeVisibility(cascade, worldPosition, geometricNormal, worldDx, worldDy, sourceRotation, sourceShadowFilter.y);
+}
+
+float CascadeVisibility(int cascade, vec3 worldPosition, vec3 geometricNormal, vec3 worldDx, vec3 worldDy) {
+    return CascadeVisibility(cascade, worldPosition, geometricNormal, worldDx, worldDy, sourceShadowFilter.z, DirectionalSurfaceShadowRadius(), 1.0);
+}
+
+float DirectionalVisibility(vec3 worldPosition, vec3 geometricNormal, vec3 worldDx, vec3 worldDy, float sourceRotation, float sourceRadius, float receiveOpacity) {
     if (effects.x < 0.5) return 1.0;
     float viewDepth = -(mainView * vec4(worldPosition, 1)).z;
     if (viewDepth <= 0.0 || viewDepth >= cascadeSplits.w) return 1.0;
     int cascade = DirectionalCascadeIndex(viewDepth);
     vec3 normal = ShadowSafeNormalize(geometricNormal, vec3(0, 1, 0));
-    float visibility = CascadeVisibility(cascade, worldPosition, normal, worldDx, worldDy);
+    float visibility = CascadeVisibility(cascade, worldPosition, normal, worldDx, worldDy, sourceRotation, sourceRadius, receiveOpacity);
     if (cascade < 3) {
         float previousSplit = cascade == 0 ? 0.0 : cascadeSplits[cascade - 1];
         float width = (cascadeSplits[cascade] - previousSplit) * clamp(shadowParams.z, 0.0, 0.45);
         if (width > 1e-6 && viewDepth > cascadeSplits[cascade] - width) {
-            float next = CascadeVisibility(cascade + 1, worldPosition, normal, worldDx, worldDy);
+            float next = CascadeVisibility(cascade + 1, worldPosition, normal, worldDx, worldDy, sourceRotation, sourceRadius, receiveOpacity);
             visibility = mix(visibility, next, smoothstep(cascadeSplits[cascade] - width,
                                                         cascadeSplits[cascade], viewDepth));
         }
@@ -358,6 +506,18 @@ float DirectionalVisibility(vec3 worldPosition, vec3 geometricNormal, vec3 world
     if (fadeWidth > 1e-6)
         visibility = mix(visibility, 1.0, smoothstep(cascadeSplits.w - fadeWidth, cascadeSplits.w, viewDepth));
     return visibility;
+}
+
+float DirectionalVisibility(vec3 worldPosition, vec3 geometricNormal, vec3 worldDx, vec3 worldDy, float sourceRotation, float sourceRadius) {
+    return DirectionalVisibility(worldPosition, geometricNormal, worldDx, worldDy, sourceRotation, sourceRadius, 0.0);
+}
+
+float DirectionalVisibility(vec3 worldPosition, vec3 geometricNormal, vec3 worldDx, vec3 worldDy, float sourceRotation) {
+    return DirectionalVisibility(worldPosition, geometricNormal, worldDx, worldDy, sourceRotation, sourceShadowFilter.y);
+}
+
+float DirectionalVisibility(vec3 worldPosition, vec3 geometricNormal, vec3 worldDx, vec3 worldDy) {
+    return DirectionalVisibility(worldPosition, geometricNormal, worldDx, worldDy, sourceShadowFilter.z, DirectionalSurfaceShadowRadius(), 1.0);
 }
 
 vec3 DirectionalCascadeColor(vec3 worldPosition) {
@@ -411,6 +571,7 @@ vec4 PbrSampleMap(sampler2D image,vec4 uv) {
 inline std::string PbrFragmentShader(Domain domain = Domain::Surface, PbrOutput output = PbrOutput::Surface,
                                      bool surfaceCacheAreaShadows = false) {
     if (domain != Domain::Surface && domain != Domain::Translucent) return {};
+    if ((output == PbrOutput::ReceiverCapture || output == PbrOutput::PreviousReceiverCapture) && domain != Domain::Surface) return {};
     if (surfaceCacheAreaShadows && (domain != Domain::Surface || output != PbrOutput::Surface)) return {};
     std::string source = R"GLSL(#version 450 core
 
@@ -452,8 +613,13 @@ layout(std140, binding = 3) uniform PbrPassData {
 in vec3 vWorldPosition;
 in vec3 vWorldNormal;
 in vec2 vTexCoord;
+in vec2 vTexCoord1;
 in vec4 vWorldTangent;
 layout(location = 0) out vec4 outColor;
+#if PBR_OUTPUT == 3
+layout(location = 1) out vec4 outReceiverNormal;
+layout(location = 2) out vec4 outReceiverPosition;
+#endif
 
 const float PI = 3.14159265358979323846;
 
@@ -548,6 +714,25 @@ bool PbrSkinActive() {
     return skinEnabled != 0u;
 #endif
 }
+vec4 pbrReSkinControl=vec4(1.0);
+float PbrSkinTransmissionWeight() {
+    return reSkinEnabled!=0u?clamp(reSkinTranslucency*pbrReSkinControl.r,0.0,1.0):clamp(skinTransmission,0.0,1.0);
+}
+float PbrSkinDiffusionWeight() {
+    return PbrSkinActive() && skinDiffusionEnabled!=0u?
+        clamp(skinDiffusionBlend*pbrReSkinControl.r,0.0,1.0):0.0;
+}
+bool PbrSkinCaptureVisible() {
+    // Dedicated SSS capture variants use read-only hardware Equal against
+    // opaque depth. A tolerance here would admit nearby non-skin occluders.
+    return PbrSkinDiffusionWeight()>0.0;
+}
+vec2 PbrSkinEncodeNormal(vec3 n) {
+    n/=max(abs(n.x)+abs(n.y)+abs(n.z),.000001);
+    vec2 encoded=n.xy;
+    if(n.z<0.0)encoded=(vec2(1.0)-abs(encoded.yx))*mix(vec2(-1.0),vec2(1.0),greaterThanEqual(encoded,vec2(0.0)));
+    return encoded*.5+.5;
+}
 
 // A local RGB angular diffusion approximation. The wrap kernel integrates to
 // pi over the sphere; blend replaces Lambert rather than adding light. Actual
@@ -574,7 +759,7 @@ vec3 PbrSkinDiffuseKernel(vec3 N, vec3 Ng, vec3 L) {
                 mix(coarse[c]*coarse[c],1.0,clamp(d*skinCoarseColorInvRange,0.0,1.0));
         }
         return mix(vec3(mu),result*max(skinDiffuseScale,0.0),clamp(skinScatterStrength,0.0,1.0))*
-            (1.0-clamp(skinTransmission,0.0,1.0));
+            (1.0-PbrSkinTransmissionWeight());
     }
     vec3 diffuseN=SafeNormalize(mix(N,Ng,clamp(skinDiffuseNormalBlend,0.0,1.0)),Ng);
     float diffuseMu=dot(diffuseN,L);
@@ -582,15 +767,15 @@ vec3 PbrSkinDiffuseKernel(vec3 N, vec3 Ng, vec3 L) {
     vec3 width=clamp(skinWrap,0.0,1.0)*mix(vec3(.25),vec3(1),color);
     vec3 wrapped=max(vec3(diffuseMu)+width,vec3(0))/((vec3(1)+width)*(vec3(1)+width));
     vec3 weight=clamp(skinScatterStrength,0.0,1.0)*color;
-    return mix(vec3(mu),wrapped,weight)*(1.0-clamp(skinTransmission,0.0,1.0));
+    return mix(vec3(mu),wrapped,weight)*(1.0-PbrSkinTransmissionWeight());
 }
 
 vec3 PbrSkinBackLighting(vec3 Ng,vec3 L,vec3 albedo,vec3 F0,float metallic) {
-    if (!PbrSkinActive() || skinTransmission<=0.0) return vec3(0);
+    if (!PbrSkinActive() || PbrSkinTransmissionWeight()<=0.0) return vec3(0);
     // Opt-in thin-sheet budget only. No Ambient/normal channel is guessed to
     // represent thickness; profiles without proven thickness keep this at 0.
     return (vec3(1)-F0)*(1.0-metallic)*albedo/PI *
-        clamp(skinScatterColor.rgb,vec3(0),vec3(1))*clamp(skinTransmission,0.0,1.0)*max(dot(-Ng,L),0.0);
+        clamp(skinScatterColor.rgb,vec3(0),vec3(1))*PbrSkinTransmissionWeight()*max(dot(-Ng,L),0.0);
 }
 
 float PbrSkinHorizon(vec3 Ng,vec3 L) {
@@ -657,11 +842,14 @@ vec3 EvaluateSkyLighting(vec3 N,vec3 V,vec3 albedo,float metallic,float roughnes
     }
     source += R"GLSL(
 
+)GLSL";
+    source += EyeShadingGLSL();
+    source += R"GLSL(
 // Produces scene-linear HDR radiance. It deliberately contains no exposure,
 // tone mapping or output encoding; those belong to the pipeline output pass.
 vec3 EvaluatePbrLighting(vec3 albedo, float surfaceMetallic,
                          float surfaceRoughness, float surfaceAo, vec3 N,
-                         vec3 geometricNormal, float sunVisibility, float secondRoughness, vec3 dielectricF0, vec3 environmentF0, vec3 secondWeight, out vec3 diffuseRadiance) {
+                         vec3 geometricNormal, float sunVisibility, float secondRoughness, vec3 dielectricF0, vec3 environmentF0, vec3 secondWeight, out vec3 diffuseRadiance, out vec3 transportDiffuse) {
     vec3 V = SafeNormalize(uCameraPosition.xyz - vWorldPosition, N);
     vec3 F0 = mix(dielectricF0, albedo, surfaceMetallic);
     vec3 directDiffuse = vec3(0.0), directSpecular = vec3(0.0);
@@ -799,11 +987,14 @@ vec3 EvaluatePbrLighting(vec3 albedo, float surfaceMetallic,
     }
 #endif
     vec3 worldDiffuse=probeIrradiance*albedo*probeDiffuseWeight*surfaceAo*screenAo*diffuseFraction;
+    transportDiffuse=(indirect+directDiffuse)*diffuseFraction+skyDiffuseRadiance+
+        probeCoverage*(worldDiffuse-skyDiffuseRadiance);
     return (indirect+directDiffuse)*diffuseFraction + directSpecular + sky +
            probeCoverage*(worldDiffuse-skyDiffuseRadiance);
 }
 
 vec3 PbrEmission(vec4 flowUVs) {
+    if(eyeEnabled!=0u)return vec3(0.0); // Slot seven is the source eye reflection map.
     vec3 emission=clamp(emissiveColor.rgb,vec3(0),vec3(60000))*min(emissiveIntensity,60000.0);
     if (useEmissiveMap!=0u && all(greaterThan(textureSize(emissiveMap,0),ivec2(0))))
         emission*=clamp(PbrSampleMap(emissiveMap,flowUVs).rgb,vec3(0),vec3(60000));
@@ -902,7 +1093,16 @@ void main() {
     // The map switch is draw-uniform. Obtain normalized shading normals and
     // their derivatives before shadow/BRDF divergence or alpha/plane discard.
     vec4 flowUVs=PbrFlowUVs(vTexCoord);
+    vec3 eyeT=SafeNormalize(vWorldTangent.xyz-geometricNormal*dot(vWorldTangent.xyz,geometricNormal),vec3(1.0,0.0,0.0));
+    vec3 eyeB=SafeNormalize(cross(geometricNormal,eyeT)*vWorldTangent.w,vec3(0.0,1.0,0.0));
+    vec3 eyeV=SafeNormalize(uCameraPosition.xyz-vWorldPosition,geometricNormal);
+    EyeCoordinates eyeCoordinates=EyePrepareCoordinates(vTexCoord,
+        vec3(dot(eyeV,eyeT),dot(eyeV,eyeB),dot(eyeV,geometricNormal)),distortionMap);
+    if(eyeEnabled!=0u) {vec2 eyeColorUV=EyeClampUV(albedoMap,eyeCoordinates.irisUV);flowUVs=vec4(eyeColorUV,eyeColorUV);}
+    pbrReSkinControl=useReSkinControlMap!=0u?PbrSampleMap(distortionMap,flowUVs):vec4(1.0);
     vec3 shadingNormal = SurfaceNormal(flowUVs);
+    if(eyeEnabled!=0u)shadingNormal=SafeNormalize(mat3(eyeT,eyeB,geometricNormal)*
+        EyeTangentNormal(texture(normalMap,EyeClampUV(normalMap,eyeCoordinates.irisUV)).rgb,distortionMap,flowMap,vTexCoord1,eyeCoordinates,normalScale),geometricNormal);
     vec3 normalDx = dFdx(shadingNormal);
     vec3 normalDy = dFdy(shadingNormal);
     float detailVariance=0.0;
@@ -934,6 +1134,15 @@ void main() {
         dielectricF0=f01;
         environmentF0=f02;
         secondWeight=vec3(0);
+    }
+    if(PbrSkinActive() && reSkinEnabled!=0u) {
+        // Face DXIL %764=SpecularReflectance*SSOC.A, %790=*0.04.
+        dielectricF0=vec3(clamp(.04*reSkinSpecularReflectance*pbrReSkinControl.a,0.0,1.0));
+        environmentF0=dielectricF0;
+    }
+    if(eyeEnabled!=0u) {
+        dielectricF0=EyeDielectricF0(eyeCoordinates);
+        environmentF0=dielectricF0;
     }
     float filteredRoughness=clamp(primaryRoughness,.045,1.0);
     if(detailVariance>0.0) filteredRoughness=pow(min(pow(filteredRoughness,4.0)+detailVariance,1.0),.25);
@@ -967,12 +1176,33 @@ void main() {
     if (alpha<=0.0 || opacity<=0.0) discard;
 #endif
     if (effects.z > 0.5 && dot(clipPlane, vec4(vWorldPosition, 1.0)) < 0.0) discard;
-#if PBR_OUTPUT == 2
+#if PBR_OUTPUT == 2 || PBR_OUTPUT == 4
+    if(surfaceOptions.z>12.5 && surfaceOptions.z<13.5) {
+        if(!PbrSkinCaptureVisible())discard;
+        vec3 n=SafeNormalize(mat3(surfaceView)*geometricNormal,vec3(0.0,0.0,1.0));
+        outColor=vec4(PbrSkinEncodeNormal(n),PbrSkinDiffusionWeight(),surfaceOptions.w);
+        return;
+    }
+    // Optional object-motion capture keeps the current raster/depth/alpha
+    // coverage while carrying the same receiver's previous world position.
+#if PBR_OUTPUT == 4
+    if(surfaceOptions.z>14.5 && surfaceOptions.z<15.5) {
+        // Preserve the current capture's final owner even at equal depth.
+        // Moving-only overlays must not replace a later coplanar static item.
+        if(texelFetch(diffuseIrradiance,ivec2(gl_FragCoord.xy),0).w!=surfaceOptions.w)discard;
+        outColor=vec4((surfaceView*vec4(vWorldPosition,1)).xyz,surfaceOptions.w);
+        return;
+    }
+#endif
+    if(surfaceOptions.z>3.5) {
+        outColor=vec4((surfaceView*vec4(vWorldPosition,1)).xyz,surfaceOptions.w);
+        return;
+    }
     // Direct source positions for probe placement/origin validation. Reuse the
     // normal capture's exact raster/alpha coverage; a depth reconstruction can
     // move a perfectly planar receiver off its triangle after camera motion.
     if(surfaceOptions.z>2.5) {
-        outColor=vec4((surfaceView*vec4(vWorldPosition,1)).xyz,1);
+        outColor=vec4((surfaceView*vec4(vWorldPosition,1)).xyz,surfaceOptions.w<0?-surfaceOptions.w:1);
         return;
     }
     float captureRoughness=PbrSkinActive() && useSkinControlMap!=0u?secondRoughness:filteredRoughness;
@@ -1001,22 +1231,48 @@ void main() {
     vec3 decodedAlbedo=baseColorIsSRGB != 0u ? SRGBToLinear(albedoSample.rgb) : albedoSample.rgb;
     if(PbrSkinActive() && useSkinControlMap!=0u && baseColorIsSRGB!=0u)
         decodedAlbedo=pow(max(albedoSample.rgb,vec3(0)),vec3(2.2));
+    if(eyeEnabled!=0u)decodedAlbedo=EyeMixAlbedo(decodedAlbedo,texture(flowMap,EyeClampUV(flowMap,vTexCoord1)).rgb,eyeCoordinates);
     vec3 albedo=decodedAlbedo*baseColor.rgb;
     float surfaceMetallic = clamp(useMetallicMap != 0u ? PbrSampleMap(metallicMap, flowUVs).r : metallic, 0.0, 1.0);
+#if PBR_OUTPUT == 3
+    // The same expressions as the independent mode-two rho/normal captures
+    // and mode-three position capture. Common derivatives, alpha and clip
+    // discard above execute once, with the same material and depth state.
+    outColor=vec4(clamp(albedo*(1.0-surfaceMetallic),vec3(0),vec3(1)),1);
+    float captureRoughness=PbrSkinActive() && useSkinControlMap!=0u?secondRoughness:filteredRoughness;
+    outReceiverNormal=vec4(surfaceOptions.w>.5?shadingNormal:geometricNormal,surfaceOptions.z>.5?1+captureRoughness:1);
+    outReceiverPosition=vec4((surfaceView*vec4(vWorldPosition,1)).xyz,surfaceOptions.w<0?-surfaceOptions.w:1);
+    return;
+#endif
 #if PBR_OUTPUT == 1
+    if(surfaceOptions.z>13.5 && surfaceOptions.z<14.5) {
+        if(!PbrSkinCaptureVisible())discard;
+        outColor=vec4(clamp(albedo,vec3(0.0),vec3(1.0)),1.0);return;
+    }
     // Raw transport receiver data. Reuse the material's alpha-tested capture
     // variant, but do not evaluate lighting or include emission in reflectance.
-    if(surfaceOptions.z>1.5) {
+    if(surfaceOptions.z>1.5 && surfaceOptions.z<11.5) {
         outColor=vec4(clamp(albedo*(1.0-surfaceMetallic),vec3(0),vec3(1)),1);
         return;
     }
 #endif
     float surfaceRoughness = filteredRoughness;
     float surfaceAo = clamp(useAoMap != 0u ? PbrSampleMap(aoMap, flowUVs).r : ao, 0.0, 1.0);
-    vec3 diffuseRadiance;
-    vec3 linearHDR = EvaluatePbrLighting(albedo, surfaceMetallic, surfaceRoughness, surfaceAo, shadingNormal,
-                                         geometricNormal, sunVisibility,secondRoughness,dielectricF0,environmentF0,secondWeight,diffuseRadiance);
+    vec3 diffuseRadiance,transportDiffuse;
+    vec3 lightingAlbedo=albedo;
 #if PBR_OUTPUT == 1
+    if(surfaceOptions.z>11.5 && surfaceOptions.z<12.5)lightingAlbedo=max(albedo,vec3(1e-4));
+#endif
+    vec3 linearHDR = EvaluatePbrLighting(lightingAlbedo, surfaceMetallic, surfaceRoughness, surfaceAo, shadingNormal,
+                                         geometricNormal, sunVisibility,secondRoughness,dielectricF0,environmentF0,secondWeight,diffuseRadiance,transportDiffuse);
+#if PBR_OUTPUT == 1
+    if(surfaceOptions.z>11.5 && surfaceOptions.z<12.5) {
+        if(!PbrSkinCaptureVisible())discard;
+        // Diffuse lighting per unit RGB albedo. The bounded nonzero evaluation
+        // albedo recovers incident light even at a truly black painted texel.
+        outColor=vec4(clamp(transportDiffuse/lightingAlbedo,vec3(0.0),vec3(60000.0)),PbrSkinDiffusionWeight());
+        return;
+    }
     vec3 diffuseOutput=clamp(diffuseRadiance+PbrEmission(flowUVs),vec3(0),vec3(60000));
     outColor=vec4(mix(diffuseOutput,vec3(0),isnan(diffuseOutput)),1);
     return;
@@ -1041,6 +1297,7 @@ void main() {
     // pipeline stores radiance in RGBA16F. Bound each write below half-float
     // infinity; otherwise high emission contaminates Bloom and tone mapping.
     vec3 radiance = linearHDR + PbrEmission(flowUVs);
+    if(eyeEnabled!=0u)radiance+=EyeFakeReflection(emissiveMap,mat3(surfaceView)*reflect(-eyeV,shadingNormal));
 #if PBR_TRANSLUCENT
     if (surfaceScreenTime.w>0.5) radiance*=opacity;
     radiance+=PbrTransmission(shadingNormal,flowUVs,surfaceMetallic);
@@ -1072,6 +1329,9 @@ inline std::string PbrShadowVertexShader(Domain domain = Domain::Surface) {
     std::string source = R"GLSL(#version 450 core
 layout(location = 0) in vec3 aPosition;
 layout(location = 2) in vec2 aTexCoord;
+// Match PbrVertexShader: GI normal/position captures depth-test against this
+// prepass, so both variants must preserve the same clip-position arithmetic.
+invariant gl_Position;
 layout(std140, binding = 0) uniform ViewData {
     mat4 uViewProjection;
     vec4 uCameraPosition;

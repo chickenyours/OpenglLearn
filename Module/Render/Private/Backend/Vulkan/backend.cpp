@@ -9,11 +9,15 @@ bool RegisterVulkanBackend() { return false; }
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 #include <algorithm>
+#include <atomic>
 #include <array>
+#include <chrono>
 #include <bit>
 #include <cmath>
 #include <cstring>
 #include <iostream>
+#include <iterator>
+#include <limits>
 #include <map>
 #include <regex>
 #include <shaderc/shaderc.hpp>
@@ -31,6 +35,8 @@ void Check(VkResult result, const char *operation) {
 }
 VkFormat FormatOf(RHITextureFormat f) {
   switch (f) {
+  case RHITextureFormat::R8_UNORM:
+    return VK_FORMAT_R8_UNORM;
   case RHITextureFormat::RGB8:
   case RHITextureFormat::RGBA8:
     return VK_FORMAT_R8G8B8A8_UNORM;
@@ -45,7 +51,8 @@ VkFormat FormatOf(RHITextureFormat f) {
   return VK_FORMAT_UNDEFINED;
 }
 uint32_t PixelBytes(VkFormat f) {
-  return f == VK_FORMAT_R32G32B32A32_SFLOAT   ? 16
+  return f == VK_FORMAT_R8_UNORM ? 1
+         : f == VK_FORMAT_R32G32B32A32_SFLOAT   ? 16
          : f == VK_FORMAT_R16G16B16A16_SFLOAT ? 8
                                               : 4;
 }
@@ -98,6 +105,9 @@ struct Image {
   VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
   std::vector<std::byte>
       upload; // Immutable geometry uploads are also AS input.
+  std::uint64_t uploadGeneration=0;
+  std::vector<std::uint64_t> uploadRowGenerations;
+  bool storage = false;
   bool Depth() const { return format == VK_FORMAT_D32_SFLOAT; }
 };
 struct Mesh {
@@ -114,8 +124,9 @@ struct Shader {
 };
 struct Program {
   Shader vertex, fragment, geometry;
-  bool rayQuery = false;
+  bool rayQuery = false, surfaceCacheRayQuery = false;
   int geometrySlot = 0;
+  uint32_t geometryUniformBinding = 15, geometryUniformOffset = 80;
   std::array<VkDescriptorSetLayout, 3> layouts{};
   VkPipelineLayout layout{};
   std::array<uint32_t, 2> bindings{};
@@ -124,10 +135,36 @@ struct Target {
   Image *color{};
   Image *depth{};
   uint32_t width{}, height{}, samples{1};
+  std::array<Image *,3> additionalColors{};
+  std::array<Image *,4> Colors() const {
+    return {color,additionalColors[0],additionalColors[1],additionalColors[2]};
+  }
+  uint32_t ColorCount() const {
+    uint32_t count=0;
+    for(auto *image:Colors())if(image)++count;
+    return count;
+  }
+  bool HasColor(const Image *image) const {
+    if(!image)return false;
+    for(auto *attachment:Colors())if(attachment==image)return true;
+    return false;
+  }
+  std::array<VkFormat,4> ColorFormats() const {
+    const auto images=Colors();std::array<VkFormat,4> formats{};
+    for(size_t i=0;i<images.size();++i)formats[i]=images[i]?images[i]->format:VK_FORMAT_UNDEFINED;
+    return formats;
+  }
 };
 struct Acceleration {
   VkAccelerationStructureKHR blas{}, tlas{};
   Buffer vertices, indices, instances, blasStore, tlasStore, scratch;
+  uint32_t primitiveCount=0;
+  uint32_t scratchAlignment=1;
+  bool dirty=false,allowUpdate=false;
+  std::vector<std::array<glm::vec3,3>> originalTriangles;
+  std::uint64_t uploadedGeneration=0;
+  int geometryOffset=-1;
+  std::uint64_t descriptorIdentity=0;
 };
 
 std::optional<BackendUniformBlock> ReflectBlock(const Shader &shader,
@@ -212,6 +249,49 @@ std::optional<BackendUniformBlock> ReflectBlock(const Shader &shader,
 }
 
 class VulkanBackend final : public IBackend {
+  struct ComputeBuffer {
+    Buffer allocation, readback;
+    bool readbackCoherent = true;
+    size_t bytes = 0;
+    std::string label;
+  };
+  struct ComputePipeline {
+    VkShaderModule shader{};
+    VkDescriptorSetLayout descriptors{};
+    VkPipelineLayout layout{};
+    VkPipeline pipeline{};
+    uint32_t bindings = 0, pushBytes = 0;
+    std::string label;
+    bool frame = false;
+    Compute::FramePipelineDesc frameDescription;
+    std::array<VkDescriptorSetLayout,4> frameLayouts{};
+  };
+  inline static std::atomic_uint64_t nextComputeOwner_{1};
+  const uint64_t computeOwner_ = nextComputeOwner_.fetch_add(1);
+  uint64_t nextComputeId_ = 1;
+  std::unordered_map<uint64_t, ComputeBuffer> computeBuffers_;
+  std::unordered_map<uint64_t, ComputePipeline> computePipelines_;
+  Compute::Statistics computeStats_;
+  VkDescriptorPool frameComputeDescriptors_{};
+  VkDescriptorPool activeFrameComputeDescriptors_{};
+  std::vector<VkDescriptorPool> frameComputeOverflowDescriptors_;
+  using FrameDescriptorKey=std::array<uint64_t,64>;
+  struct FrameDescriptorKeyHash {
+    size_t operator()(const FrameDescriptorKey& key) const {
+      uint64_t h=14695981039346656037ull;
+      for(auto word:key){h^=word;h*=1099511628211ull;}
+      return size_t(FinalSnapshotHash(h));
+    }
+  };
+  std::unordered_map<FrameDescriptorKey,VkDescriptorSet,FrameDescriptorKeyHash> frameComputeDescriptorSnapshots_;
+  bool frameComputeDescriptorResetRequested_=true;
+  VkDescriptorPool MakeFrameComputeDescriptorPool();
+  void ResetFrameComputeDescriptorCache();
+  bool frameComputeRecorded_=false;
+  ComputeBuffer& GetComputeBuffer(Compute::BufferHandle);
+  ComputePipeline& GetComputePipeline(Compute::PipelineHandle);
+  void DestroyComputePipeline(ComputePipeline&);
+  Buffer MakeComputeReadbackBuffer(size_t, bool& coherent);
   VulkanBackendContext context_;
   VkInstance instance_{};
   VkDebugUtilsMessengerEXT debug_{};
@@ -232,7 +312,34 @@ class VulkanBackend final : public IBackend {
   std::vector<VkImage> swapImages_;
   std::vector<bool> swapInitialized_;
   VkDescriptorPool descriptors_{};
+  VkDescriptorPool activeDescriptors_{};
+  std::vector<VkDescriptorPool> overflowDescriptors_;
+  bool descriptorCacheResetRequested_=true,descriptorCacheRetained_=false,submissionRetired_=true;
+  std::uint64_t nextAccelerationDescriptorIdentity_=1;
   Buffer uniformRing_;
+  struct DeferredTextureUpload {
+    uint32_t imageId=0,x=0,y=0,width=0,height=0;
+    std::vector<std::byte> bytes;
+  };
+  std::vector<DeferredTextureUpload> deferredTextureUploads_;
+  // All submissions retire their fence before command-pool reuse. The arena
+  // can therefore be overwritten/grown at the next StartCommands, and remains
+  // alive throughout the frame that consumes its copies.
+  Buffer textureUploadArena_;
+  TextureUploadStatistics textureUploadPending_,textureUploadFrame_;
+  HostFrameStatistics hostPending_,hostFrame_;
+  bool hostFrameActive_=false,reuseSurfaceCacheAccelerationStorage_=false;
+  bool updateSurfaceCacheAccelerationStructures_=false;
+  bool sparseSurfaceCacheVertexUpdates_=false;
+  std::chrono::steady_clock::time_point hostEncodeBegin_{};
+  static double HostMilliseconds(std::chrono::steady_clock::time_point begin) {
+    return std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begin).count();
+  }
+  struct HostSpan {
+    double& milliseconds;
+    std::chrono::steady_clock::time_point begin=std::chrono::steady_clock::now();
+    ~HostSpan(){milliseconds+=HostMilliseconds(begin);}
+  };
   size_t uniformCursor_{};
   // Reuse immutable snapshots within a frame. Updates create a new version;
   // earlier draws continue to point at their original ring bytes.
@@ -240,6 +347,23 @@ class VulkanBackend final : public IBackend {
   std::map<std::tuple<uint32_t, uint64_t, size_t, size_t>,
            VkDescriptorBufferInfo> uniformSnapshots_;
   std::map<std::array<uint64_t, 34>, VkDescriptorSet> descriptorSnapshots_;
+  struct RecentUniformSnapshot {uint64_t version=0;VkDescriptorBufferInfo buffer{};};
+  std::map<std::tuple<uint32_t,size_t,size_t>,RecentUniformSnapshot> recentUniformSnapshots_;
+  std::unordered_map<uint64_t,std::vector<VkDescriptorBufferInfo>> uniformContentSnapshots_;
+  static uint64_t FinalSnapshotHash(uint64_t value) {
+    value^=value>>33;value*=0xff51afd7ed558ccdull;
+    value^=value>>33;value*=0xc4ceb9fe1a85ec53ull;return value^(value>>33);
+  }
+  struct DescriptorSnapshotHash {
+    size_t operator()(const std::array<uint64_t,34>& key) const {
+      uint64_t value=14695981039346656037ull;
+      for(auto word:key){value^=word;value*=1099511628211ull;}
+      return size_t(FinalSnapshotHash(value));
+    }
+  };
+  std::unordered_map<std::array<uint64_t,34>,VkDescriptorSet,DescriptorSnapshotHash> hashedDescriptorSnapshots_;
+  bool reuseUniformSnapshotContents_=false;
+  UniformSnapshotStatistics uniformSnapshotFrame_;
   VkQueryPool timestamps_{};
   double gpuMs_{};
   uint32_t timestampValidBits_ = 0;
@@ -259,7 +383,8 @@ class VulkanBackend final : public IBackend {
   uint32_t validationErrors_ = 0;
   Image fallback_, windowColor_, windowDepth_;
   Target current_{};
-  bool recording_ = false, rendering_ = false, rayQuery_ = false;
+  bool recording_ = false, rendering_ = false, rayQuery_ = false, geometryShaders_ = false;
+  bool shaderFloat64_ = false;
   VkViewport viewport_{};
   VkRect2D scissor_{};
   bool scissorEnabled_ = false;
@@ -269,10 +394,13 @@ class VulkanBackend final : public IBackend {
   std::unordered_map<uint32_t, Shader> shaders_;
   std::unordered_map<uint32_t, Program> programs_;
   std::unordered_map<uint32_t, Image> images_;
-  std::map<std::tuple<uint32_t, VkFormat, VkFormat, uint32_t, uint32_t>,
+  std::map<std::tuple<uint32_t, std::array<VkFormat,4>, VkFormat, uint32_t, uint32_t>,
            VkPipeline>
       pipelines_;
-  std::unordered_map<uint32_t, Acceleration> acceleration_;
+  // Surface Cache accepts a tiny barycentric expansion of triangles; its
+  // candidate AS is distinct from the older unexpanded world-probe AS even
+  // when both consumers bind the same geometry texture.
+  std::unordered_map<uint64_t, Acceleration> acceleration_;
   std::array<RenderResourceHandle<RHITextureSpec>, 16> textureBindings_{};
   std::array<RHICommand::BindUniformBuffer, 16> uniformBindings_{};
   RenderResourceHandle<VertexBufferSpec> mesh_;
@@ -282,9 +410,15 @@ class VulkanBackend final : public IBackend {
   PFN_vkGetAccelerationStructureBuildSizesKHR asSizes_{};
   PFN_vkCmdBuildAccelerationStructuresKHR buildAS_{};
   PFN_vkGetAccelerationStructureDeviceAddressKHR asAddress_{};
-  uint32_t MemoryType(uint32_t bits, VkMemoryPropertyFlags flags) {
+  uint32_t MemoryType(uint32_t bits, VkMemoryPropertyFlags flags,
+                      VkMemoryPropertyFlags preferred = 0) {
     VkPhysicalDeviceMemoryProperties p;
     vkGetPhysicalDeviceMemoryProperties(physical_, &p);
+    if (preferred)
+      for (uint32_t i = 0; i < p.memoryTypeCount; ++i)
+        if ((bits & (1u << i)) &&
+            (p.memoryTypes[i].propertyFlags & (flags | preferred)) == (flags | preferred))
+          return i;
     for (uint32_t i = 0; i < p.memoryTypeCount; ++i)
       if ((bits & (1u << i)) &&
           (p.memoryTypes[i].propertyFlags & flags) == flags)
@@ -292,7 +426,7 @@ class VulkanBackend final : public IBackend {
     throw std::runtime_error("Vulkan: compatible memory type unavailable");
   }
   Buffer MakeBuffer(VkDeviceSize bytes, VkBufferUsageFlags usage,
-                    bool host = true) {
+                    bool host = true, bool readback = false) {
     Buffer b{};
     b.bytes = std::max<VkDeviceSize>(bytes, 16);
     VkBufferCreateInfo info{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
@@ -309,7 +443,8 @@ class VulkanBackend final : public IBackend {
     allocation.memoryTypeIndex = MemoryType(
         req.memoryTypeBits, host ? VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                                        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-                                 : VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+                                 : VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        host && readback ? VK_MEMORY_PROPERTY_HOST_CACHED_BIT : 0);
     if (usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT)
       allocation.pNext = &address;
     Check(vkAllocateMemory(device_, &allocation, nullptr, &b.memory),
@@ -321,6 +456,7 @@ class VulkanBackend final : public IBackend {
     return b;
   }
   void Destroy(Buffer &b) {
+    if(b.handle&&b.handle==uniformRing_.handle)descriptorCacheResetRequested_=true;
     if (b.mapped)
       vkUnmapMemory(device_, b.memory);
     if (b.handle)
@@ -330,6 +466,7 @@ class VulkanBackend final : public IBackend {
     b = {};
   }
   void Destroy(Image &i) {
+    if(i.handle)descriptorCacheResetRequested_=true;
     if (i.sampler)
       vkDestroySampler(device_, i.sampler, nullptr);
     if (i.view)
@@ -341,13 +478,14 @@ class VulkanBackend final : public IBackend {
     i = {};
   }
   Image MakeImage(uint32_t w, uint32_t h, VkFormat format, uint32_t samples,
-                  uint32_t mips = 1) {
+                  uint32_t mips = 1, bool storage = false) {
     Image i{};
     i.width = w;
     i.height = h;
     i.format = format;
     i.samples = samples;
     i.mips = mips;
+    i.storage = storage;
     VkImageCreateInfo ci{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
     ci.imageType = VK_IMAGE_TYPE_2D;
     ci.format = format;
@@ -360,6 +498,12 @@ class VulkanBackend final : public IBackend {
                VK_IMAGE_USAGE_TRANSFER_DST_BIT |
                (i.Depth() ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
                           : VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+    if(storage) {
+      VkFormatProperties support; vkGetPhysicalDeviceFormatProperties(physical_,format,&support);
+      if(samples!=1||mips!=1||i.Depth()||!(support.optimalTilingFeatures&VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT))
+        throw std::invalid_argument("Vulkan: unsupported storage image format or dimensions");
+      ci.usage |= VK_IMAGE_USAGE_STORAGE_BIT;
+    }
     Check(vkCreateImage(device_, &ci, nullptr, &i.handle), "create image");
     VkMemoryRequirements req;
     vkGetImageMemoryRequirements(device_, i.handle, &req);
@@ -383,10 +527,15 @@ class VulkanBackend final : public IBackend {
   }
   void StartCommands() {
     Check(vkResetCommandPool(device_, commandPool_, 0), "reset command pool");
+    if(frameComputeDescriptors_&&(!reuseUniformSnapshotContents_||frameComputeDescriptorResetRequested_||
+        descriptorCacheResetRequested_||frameComputeDescriptorSnapshots_.size()>=1024||!frameComputeOverflowDescriptors_.empty()))
+      ResetFrameComputeDescriptorCache();
     VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
     begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     Check(vkBeginCommandBuffer(command_, &begin), "begin commands");
     recording_ = true;
+    frameComputeRecorded_=false;
+    RecordDeferredTextureUploads();
   }
   void EndRendering() {
     if (rendering_) {
@@ -397,6 +546,15 @@ class VulkanBackend final : public IBackend {
   void Submit(VkSemaphore wait = VK_NULL_HANDLE,
               VkSemaphore signal = VK_NULL_HANDLE) {
     EndRendering();
+    // GPU stages consume queue writes without a host dependency between
+    // dispatches. Only the completed frame exposes diagnostic words to CPU.
+    if(frameComputeRecorded_) {
+      VkMemoryBarrier release{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
+      release.srcAccessMask=VK_ACCESS_SHADER_WRITE_BIT;
+      release.dstAccessMask=VK_ACCESS_HOST_READ_BIT;
+      vkCmdPipelineBarrier(command_,VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+          VK_PIPELINE_STAGE_HOST_BIT,0,1,&release,0,nullptr,0,nullptr);
+    }
     Check(vkEndCommandBuffer(command_), "end commands");
     Check(vkResetFences(device_, 1, &fence_), "reset fence");
     VkPipelineStageFlags stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
@@ -412,9 +570,17 @@ class VulkanBackend final : public IBackend {
       submit.signalSemaphoreCount = 1;
       submit.pSignalSemaphores = &signal;
     }
+    const auto submitBegin=std::chrono::steady_clock::now();
     Check(vkQueueSubmit(queue_, 1, &submit, fence_), "submit");
+    submissionRetired_=false;
+    const auto waitBegin=std::chrono::steady_clock::now();
     Check(vkWaitForFences(device_, 1, &fence_, VK_TRUE, UINT64_MAX),
           "wait submission");
+    submissionRetired_=true;
+    if(hostFrameActive_) {
+      hostFrame_.queueSubmitMilliseconds+=std::chrono::duration<double,std::milli>(waitBegin-submitBegin).count();
+      hostFrame_.fenceWaitMilliseconds+=HostMilliseconds(waitBegin);
+    }
     recording_ = false;
   }
   void Transition(Image &i, VkImageLayout layout) {
@@ -435,7 +601,7 @@ class VulkanBackend final : public IBackend {
       case VK_IMAGE_LAYOUT_UNDEFINED:return {VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,0};
       case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:return {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,VK_ACCESS_COLOR_ATTACHMENT_READ_BIT|VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT};
       case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:return {VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT|VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT|VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT};
-      case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:return {VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,VK_ACCESS_SHADER_READ_BIT};
+      case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:return {VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT|VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,VK_ACCESS_SHADER_READ_BIT};
       case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:return {VK_PIPELINE_STAGE_TRANSFER_BIT,VK_ACCESS_TRANSFER_READ_BIT};
       case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:return {VK_PIPELINE_STAGE_TRANSFER_BIT,VK_ACCESS_TRANSFER_WRITE_BIT};
       default:return {VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,VK_ACCESS_MEMORY_READ_BIT|VK_ACCESS_MEMORY_WRITE_BIT};
@@ -455,19 +621,20 @@ class VulkanBackend final : public IBackend {
                     float depth = 1) {
     if (rendering_)
       return;
-    if (current_.color)
-      Transition(*current_.color, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    for(auto *image:current_.Colors())if(image)
+      Transition(*image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     if (current_.depth)
       Transition(*current_.depth,
                  VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-    VkRenderingAttachmentInfo c{VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO},
-        d{VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
-    c.imageView = current_.color ? current_.color->view : VK_NULL_HANDLE;
-    c.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    c.loadOp = (flags & RHICommand::ClearColor) ? VK_ATTACHMENT_LOAD_OP_CLEAR
-                                                : VK_ATTACHMENT_LOAD_OP_LOAD;
-    c.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    std::memcpy(c.clearValue.color.float32, &color, 16);
+    std::array<VkRenderingAttachmentInfo,4> colors{};
+    const auto images=current_.Colors();
+    for(uint32_t i=0;i<current_.ColorCount();++i){
+      auto &c=colors[i];c.sType=VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+      c.imageView=images[i]->view;c.imageLayout=VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+      c.loadOp=(flags&RHICommand::ClearColor)?VK_ATTACHMENT_LOAD_OP_CLEAR:VK_ATTACHMENT_LOAD_OP_LOAD;
+      c.storeOp=VK_ATTACHMENT_STORE_OP_STORE;std::memcpy(c.clearValue.color.float32,&color,16);
+    }
+    VkRenderingAttachmentInfo d{VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
     d.imageView = current_.depth ? current_.depth->view : VK_NULL_HANDLE;
     d.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
     d.loadOp = (flags & RHICommand::ClearDepth) ? VK_ATTACHMENT_LOAD_OP_CLEAR
@@ -477,8 +644,8 @@ class VulkanBackend final : public IBackend {
     VkRenderingInfo r{VK_STRUCTURE_TYPE_RENDERING_INFO};
     r.renderArea = {{0, 0}, {current_.width, current_.height}};
     r.layerCount = 1;
-    r.colorAttachmentCount = current_.color ? 1 : 0;
-    r.pColorAttachments = current_.color ? &c : nullptr;
+    r.colorAttachmentCount = current_.ColorCount();
+    r.pColorAttachments = colors.data();
     r.pDepthAttachment = current_.depth ? &d : nullptr;
     vkCmdBeginRendering(command_, &r);
     rendering_ = true;
@@ -490,8 +657,28 @@ class VulkanBackend final : public IBackend {
     auto *t = rhiContext_.resourcePool->renderTargetTable.Get(h);
     if (!t)
       throw std::runtime_error("Vulkan: invalid target handle");
-    return {LookupImage(t->color), LookupImage(t->depth), t->width, t->height,
-            t->samples};
+    Target target{nullptr,nullptr,t->width,t->height,t->samples};
+    const auto attachment=[&](RenderResourceHandle<RHITextureSpec> handle) -> Image* {
+      if(!handle.IsValid())return nullptr;
+      auto *image=LookupImage(handle);
+      if(!image)throw std::runtime_error("Vulkan: render target attachment no longer exists");
+      if(image->width!=t->width||image->height!=t->height||image->samples!=t->samples)
+        throw std::runtime_error("Vulkan: render target attachment dimensions changed");
+      return image;
+    };
+    target.color=attachment(t->color);target.depth=attachment(t->depth);
+    if((!target.color&&!target.depth)||(target.color&&target.color->Depth())||
+        (target.depth&&!target.depth->Depth()))
+      throw std::runtime_error("Vulkan: invalid render target attachment formats");
+    bool gap=false;
+    for(size_t i=0;i<t->additionalColors.size();++i){
+      auto *image=attachment(t->additionalColors[i]);
+      if(!image){gap=true;continue;}
+      if(gap||!target.color||image->Depth()||target.HasColor(image))
+        throw std::runtime_error("Vulkan: invalid additional render target attachment");
+      target.additionalColors[i]=image;
+    }
+    return target;
   }
   Image *LookupImage(RenderResourceHandle<RHITextureSpec> h) {
     auto *t = rhiContext_.resourcePool->TextureTable.Get(h);
@@ -503,6 +690,7 @@ class VulkanBackend final : public IBackend {
   void ResizeWindow(uint32_t w, uint32_t h) {
     if (windowColor_.width == w && windowColor_.height == h)
       return;
+    descriptorCacheResetRequested_=true;
     Destroy(windowColor_);
     Destroy(windowDepth_);
     windowColor_ = MakeImage(w, h, VK_FORMAT_R8G8B8A8_UNORM, 1);
@@ -514,12 +702,35 @@ class VulkanBackend final : public IBackend {
                                  RHITextureFormat input, VkFormat output);
   void Upload(Image &, const std::vector<std::byte> &, uint32_t x = 0,
               uint32_t y = 0, uint32_t w = 0, uint32_t h = 0);
+  void RecordDeferredTextureUploads();
+  VkDescriptorBufferInfo ContentUniformSnapshot(uint32_t,uint64_t,size_t,size_t);
   Shader Compile(const CreateShaderSourceCommand &,
                  bool remapVertexDepth = true);
   VkPipeline NativePipeline(const PipelineSpec &, uint32_t meshId);
-  Acceleration &BuildAcceleration(uint32_t imageId, const glm::ivec4 &geometry);
+  Acceleration &BuildAcceleration(uint32_t imageId, const glm::ivec4 &geometry,
+                                  bool surfaceCache = false);
   void PrepareDraw();
+  VkDescriptorPool MakeDrawDescriptorPool() {
+    std::array<VkDescriptorPoolSize,3> sizes{{
+        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,65536},
+        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,65536},
+        {VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,rayQuery_?4096u:0u}}};
+    VkDescriptorPoolCreateInfo create{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+    create.maxSets=12288;create.poolSizeCount=rayQuery_?3:2;create.pPoolSizes=sizes.data();
+    VkDescriptorPool pool{};Check(vkCreateDescriptorPool(device_,&create,nullptr,&pool),"create draw descriptor pool");return pool;
+  }
+  void ResetDrawDescriptorCache() {
+    // The backend currently retires every submit fence. A future multi-frame
+    // scheduler must give each frame its own pool/cache instead of reusing this.
+    if(!submissionRetired_)throw std::runtime_error("Vulkan: draw descriptor reset before submission retirement");
+    for(auto pool:overflowDescriptors_)vkDestroyDescriptorPool(device_,pool,nullptr);
+    overflowDescriptors_.clear();
+    Check(vkResetDescriptorPool(device_,descriptors_,0),"reset descriptors");activeDescriptors_=descriptors_;
+    descriptorSnapshots_.clear();hashedDescriptorSnapshots_.clear();descriptorCacheResetRequested_=false;
+    frameComputeDescriptorResetRequested_=true;
+  }
   void Destroy(Acceleration &a) {
+    if(a.descriptorIdentity)descriptorCacheResetRequested_=true;
     if (a.tlas)
       destroyAS_(device_, a.tlas, nullptr);
     if (a.blas)
@@ -603,9 +814,27 @@ protected:
 
 public:
   explicit VulkanBackend(const RHIBackContext &c) : IBackend(c) {}
+  Compute::BufferHandle ComputeCreateBuffer(size_t, const void*, const std::string&) override;
+  void ComputeUpload(Compute::BufferHandle, const void*, size_t, size_t) override;
+  Compute::PipelineHandle ComputeCreatePipeline(const std::string&, uint32_t, uint32_t, const std::string&) override;
+  Compute::PipelineHandle ComputeCreateFramePipeline(const Compute::FramePipelineDesc&) override;
+  void DispatchFrameCompute(const RHICommand::DispatchFrameCompute&) override;
+  std::vector<uint32_t> CompletedComputeWords(Compute::BufferHandle,uint32_t) const override;
+  void ComputeSubmit(const Compute::Batch&) override;
+  std::vector<std::byte> ComputeReadback(Compute::BufferHandle, size_t, size_t) override;
+  void ComputeCopyToVertexBuffer(Compute::BufferHandle, RenderResourceHandle<VertexBufferSpec>, size_t, size_t, size_t) override;
+  void ComputeDestroy(Compute::BufferHandle) override;
+  void ComputeDestroy(Compute::PipelineHandle) override;
+  Compute::Statistics ComputeDiagnostics() const override;
   bool HardwareRayTracingAvailable() const override { return rayQuery_; }
+  bool GeometryShadersAvailable() const override { return geometryShaders_; }
   std::string DeviceName() const override { return properties_.deviceName; }
   double LastGpuMilliseconds() const override { return gpuMs_; }
+  TextureUploadStatistics LastTextureUploadStatistics() const override {
+    return textureUploadFrame_;
+  }
+  HostFrameStatistics LastHostFrameStatistics() const override { return hostFrame_; }
+  UniformSnapshotStatistics LastUniformSnapshotStatistics() const override { return uniformSnapshotFrame_; }
   RHICommand::GpuTimingResult LastGpuTiming(RHICommand::GpuTimingScope scope) const override {
     const auto index = static_cast<size_t>(scope);
     return index < gpuTimings_.size() ? gpuTimings_[index] : RHICommand::GpuTimingResult{};
@@ -617,6 +846,7 @@ public:
       // builds must reach the GPU before their tracked state is reused.
       Submit();
     }
+    hostFrameActive_=false;
   }
   uint32_t ValidationErrorCount() const override { return validationErrors_; }
   std::vector<float> ReadTexture(RenderResourceHandle<RHITextureSpec>) override;
@@ -635,19 +865,23 @@ public:
   }
 };
 
+#include "compute_backend.inl"
+#include "frame_compute_backend.inl"
+
 void VulkanBackend::Init(void *data) {
   context_ = *static_cast<VulkanBackendContext *>(data);
-  if (!context_.window)
+  if (!context_.window && !context_.headlessCompute)
     throw std::runtime_error("Vulkan: missing GLFW window");
   uint32_t extCount = 0;
-  auto extensions = glfwGetRequiredInstanceExtensions(&extCount);
-  if (!extensions)
+  auto extensions = context_.headlessCompute ? nullptr : glfwGetRequiredInstanceExtensions(&extCount);
+  if (!context_.headlessCompute && !extensions)
     throw std::runtime_error("Vulkan loader unavailable");
   VkApplicationInfo app{VK_STRUCTURE_TYPE_APPLICATION_INFO};
   app.pApplicationName = "OpenglLearn RHI";
   app.apiVersion = VK_API_VERSION_1_3;
   const char *layer = "VK_LAYER_KHRONOS_validation";
-  std::vector<const char *> instanceExts(extensions, extensions + extCount);
+  std::vector<const char *> instanceExts;
+  if (extCount) instanceExts.assign(extensions, extensions + extCount);
   if (context_.validation)
     instanceExts.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
   VkDebugUtilsMessengerCreateInfoEXT debug{
@@ -683,7 +917,7 @@ void VulkanBackend::Init(void *data) {
     Check(create(instance_, &debug, nullptr, &debug_),
           "create validation messenger");
   }
-  Check(glfwCreateWindowSurface(instance_,
+  if (!context_.headlessCompute) Check(glfwCreateWindowSurface(instance_,
                                 static_cast<GLFWwindow *>(context_.window),
                                 nullptr, &surface_),
         "create window surface");
@@ -703,10 +937,11 @@ void VulkanBackend::Init(void *data) {
     std::vector<VkQueueFamilyProperties> q(n);
     vkGetPhysicalDeviceQueueFamilyProperties(device, &n, q.data());
     for (uint32_t i = 0; i < n; ++i) {
-      VkBool32 present = 0;
-      vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface_, &present);
-      if (!present || !(q[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) ||
-          !q[i].timestampValidBits)
+      VkBool32 present = context_.headlessCompute ? VK_TRUE : VK_FALSE;
+      if (surface_) vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface_, &present);
+      const bool graphics = context_.headlessCompute || (q[i].queueFlags & VK_QUEUE_GRAPHICS_BIT);
+      if (!present || !graphics || !(q[i].queueFlags & VK_QUEUE_COMPUTE_BIT) ||
+          (!context_.headlessCompute && !q[i].timestampValidBits))
         continue;
       int score = properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU
                       ? 100
@@ -753,7 +988,7 @@ void VulkanBackend::Init(void *data) {
       VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
   features.pNext = &f13;
   vkGetPhysicalDeviceFeatures2(physical_, &features);
-  if (!f13.dynamicRendering)
+  if (!context_.headlessCompute && !f13.dynamicRendering)
     throw std::runtime_error("Vulkan dynamic rendering unavailable");
   rayQuery_ = context_.hardwareRayTracing && rayExtensions && ray.rayQuery &&
               as.accelerationStructure && f12.bufferDeviceAddress;
@@ -761,10 +996,13 @@ void VulkanBackend::Init(void *data) {
     throw std::runtime_error(
         "Selected Vulkan GPU does not support native hardware ray queries");
   VkPhysicalDeviceFeatures enabled{};
-  enabled.geometryShader = features.features.geometryShader;
+  geometryShaders_ = features.features.geometryShader != 0;
+  enabled.geometryShader = geometryShaders_;
   enabled.fillModeNonSolid = features.features.fillModeNonSolid;
+  shaderFloat64_ = features.features.shaderFloat64 != 0;
+  enabled.shaderFloat64 = shaderFloat64_;
   f13 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES};
-  f13.dynamicRendering = VK_TRUE;
+  f13.dynamicRendering = context_.headlessCompute ? VK_FALSE : VK_TRUE;
   f12 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES};
   f13.pNext = &f12;
   f12.bufferDeviceAddress = rayQuery_;
@@ -776,7 +1014,8 @@ void VulkanBackend::Init(void *data) {
     f12.pNext = &as;
     as.pNext = &ray;
   }
-  std::vector<const char *> requested{VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+  std::vector<const char *> requested;
+  if (!context_.headlessCompute) requested.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
   if (rayQuery_) {
     requested.push_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
     requested.push_back(VK_KHR_RAY_QUERY_EXTENSION_NAME);
@@ -821,6 +1060,7 @@ void VulkanBackend::Init(void *data) {
   Check(vkAllocateCommandBuffers(device_, &ca, &command_), "allocate commands");
   VkFenceCreateInfo fc{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
   Check(vkCreateFence(device_, &fc, nullptr, &fence_), "create fence");
+  if (context_.headlessCompute) return;
   VkSemaphoreCreateInfo sc{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
   Check(vkCreateSemaphore(device_, &sc, nullptr, &acquired_),
         "create acquire semaphore");
@@ -853,13 +1093,21 @@ void VulkanBackend::Init(void *data) {
   Upload(fallback_, std::vector<std::byte>(4));
   MakeSwapchain();
   std::cout << "Vulkan RHI: " << properties_.deviceName
-            << " | native ray query=" << rayQuery_ << " | UBO/sampler limits="
+            << " | native ray query=" << rayQuery_ << " | float64 predicates=" << shaderFloat64_ << " | UBO/sampler limits="
             << properties_.limits.maxPerStageDescriptorUniformBuffers << '/'
             << properties_.limits.maxPerStageDescriptorSamplers << '\n';
 }
 void VulkanBackend::Shutdown() {
   if (device_) {
     vkDeviceWaitIdle(device_);
+    for (auto& [id, p] : computePipelines_) DestroyComputePipeline(p);
+    computePipelines_.clear();
+    for(auto pool:frameComputeOverflowDescriptors_)vkDestroyDescriptorPool(device_,pool,nullptr);
+    frameComputeOverflowDescriptors_.clear();frameComputeDescriptorSnapshots_.clear();
+    if(frameComputeDescriptors_) vkDestroyDescriptorPool(device_,frameComputeDescriptors_,nullptr);
+    frameComputeDescriptors_=VK_NULL_HANDLE;
+    for (auto& [id, b] : computeBuffers_) { Destroy(b.readback); Destroy(b.allocation); }
+    computeBuffers_.clear();
     for (auto &[id, a] : acceleration_)
       Destroy(a);
     acceleration_.clear();
@@ -892,10 +1140,14 @@ void VulkanBackend::Shutdown() {
     Destroy(windowColor_);
     Destroy(windowDepth_);
     Destroy(uniformRing_);
+    deferredTextureUploads_.clear();
+    Destroy(textureUploadArena_);
     if (timestamps_)
       vkDestroyQueryPool(device_, timestamps_, nullptr);
     if (descriptors_)
       vkDestroyDescriptorPool(device_, descriptors_, nullptr);
+    for(auto pool:overflowDescriptors_)vkDestroyDescriptorPool(device_,pool,nullptr);
+    overflowDescriptors_.clear();
     if (swapchain_)
       vkDestroySwapchainKHR(device_, swapchain_, nullptr);
     if (acquired_)
@@ -1009,6 +1261,7 @@ void VulkanBackend::Present() {
   glfwGetFramebufferSize(static_cast<GLFWwindow*>(context_.window),&windowWidth,&windowHeight);
   if(windowWidth<=0||windowHeight<=0||(!swapchain_&&!MakeSwapchain())){Submit();return;}
   uint32_t index = 0;
+  const auto acquireBegin=std::chrono::steady_clock::now();
   auto result = vkAcquireNextImageKHR(device_, swapchain_, UINT64_MAX,
                                       acquired_, VK_NULL_HANDLE, &index);
   if (result == VK_ERROR_OUT_OF_DATE_KHR) {
@@ -1018,6 +1271,7 @@ void VulkanBackend::Present() {
   }
   if (result != VK_SUBOPTIMAL_KHR)
     Check(result, "acquire swapchain");
+  if(hostFrameActive_)hostFrame_.acquireMilliseconds+=HostMilliseconds(acquireBegin);
   Transition(windowColor_, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
   VkImageMemoryBarrier barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
   barrier.srcQueueFamilyIndex = barrier.dstQueueFamilyIndex =
@@ -1058,7 +1312,9 @@ void VulkanBackend::Present() {
   present.swapchainCount = 1;
   present.pSwapchains = &swapchain_;
   present.pImageIndices = &index;
+  const auto presentBegin=std::chrono::steady_clock::now();
   result = vkQueuePresentKHR(queue_, &present);
+  if(hostFrameActive_)hostFrame_.presentMilliseconds+=HostMilliseconds(presentBegin);
   if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
     MakeSwapchain();
   else
@@ -1076,10 +1332,10 @@ VulkanBackend::Convert(const std::vector<std::byte> &data,
   size_t count = data.size() / inBytes;
   std::vector<std::byte> result(count * PixelBytes(output));
   bool byte =
-      input == RHITextureFormat::RGB8 || input == RHITextureFormat::RGBA8;
+      input == RHITextureFormat::R8_UNORM || input == RHITextureFormat::RGB8 || input == RHITextureFormat::RGBA8;
   int channels =
       input == RHITextureFormat::RGB8 || input == RHITextureFormat::RGB32F ? 3
-      : input == RHITextureFormat::Depth32F                                ? 1
+      : (input == RHITextureFormat::Depth32F || input == RHITextureFormat::R8_UNORM) ? 1
                                                                            : 4;
   for (size_t i = 0; i < count; ++i) {
     float v[4]{0, 0, 0, 1};
@@ -1090,7 +1346,9 @@ VulkanBackend::Convert(const std::vector<std::byte> &data,
         std::memcpy(&v[c], data.data() + i * inBytes + c * 4, 4);
     }
     auto *out = result.data() + i * PixelBytes(output);
-    if (output == VK_FORMAT_R8G8B8A8_UNORM)
+    if (output == VK_FORMAT_R8_UNORM)
+      out[0]=std::byte(uint8_t(std::round(std::clamp(v[0],0.f,1.f)*255)));
+    else if (output == VK_FORMAT_R8G8B8A8_UNORM)
       for (int c = 0; c < 4; ++c)
         out[c] =
             std::byte(uint8_t(std::round(std::clamp(v[c], 0.f, 1.f) * 255)));
@@ -1116,6 +1374,9 @@ void VulkanBackend::Upload(Image &image, const std::vector<std::byte> &data,
     throw std::runtime_error(
         "Vulkan: resource uploads must precede frame recording");
   Buffer staging = MakeBuffer(data.size(), VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+  ++textureUploadPending_.regions;
+  textureUploadPending_.bytes+=data.size();
+  ++textureUploadPending_.stagingAllocations;
   std::memcpy(staging.mapped, data.data(), data.size());
   StartCommands();
   Transition(image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
@@ -1163,7 +1424,60 @@ void VulkanBackend::Upload(Image &image, const std::vector<std::byte> &data,
   }
   Transition(image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
   Submit();
+  ++textureUploadPending_.immediateSubmissions;
+  ++textureUploadPending_.immediateFenceWaits;
   Destroy(staging);
+}
+void VulkanBackend::RecordDeferredTextureUploads() {
+  if(deferredTextureUploads_.empty())return;
+  HostSpan hostSpan{hostPending_.deferredUploadRecordMilliseconds};
+  VkDeviceSize required=0;
+  for(const auto& upload:deferredTextureUploads_) {
+    const auto bytes=VkDeviceSize(upload.bytes.size());
+    if(required>std::numeric_limits<VkDeviceSize>::max()-15||
+        bytes>std::numeric_limits<VkDeviceSize>::max()-((required+15)&~VkDeviceSize(15)))
+      throw std::runtime_error("Vulkan: deferred texture upload size overflow");
+    required=((required+15)&~VkDeviceSize(15))+bytes;
+  }
+  if(textureUploadArena_.bytes<required) {
+    VkDeviceSize capacity=std::max<VkDeviceSize>(textureUploadArena_.bytes,65536);
+    while(capacity<required) {
+      if(capacity>std::numeric_limits<VkDeviceSize>::max()/2){capacity=required;break;}
+      capacity*=2;
+    }
+    auto replacement=MakeBuffer(capacity,VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+    Destroy(textureUploadArena_);
+    textureUploadArena_=replacement;
+    ++textureUploadPending_.stagingAllocations;
+  }
+  VkDeviceSize offset=0;
+  for(const auto& upload:deferredTextureUploads_) {
+    auto found=images_.find(upload.imageId);
+    if(found==images_.end())
+      throw std::runtime_error("Vulkan: deferred texture upload lost its image");
+    auto& image=found->second;
+    offset=(offset+15)&~VkDeviceSize(15);
+    std::memcpy(static_cast<std::byte*>(textureUploadArena_.mapped)+offset,
+        upload.bytes.data(),upload.bytes.size());
+    Transition(image,VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    VkBufferImageCopy region{};
+    region.bufferOffset=offset;
+    region.imageSubresource={VkImageAspectFlags(image.Depth()?VK_IMAGE_ASPECT_DEPTH_BIT:
+        VK_IMAGE_ASPECT_COLOR_BIT),0,0,1};
+    region.imageOffset={int(upload.x),int(upload.y),0};
+    region.imageExtent={upload.width,upload.height,1};
+    vkCmdCopyBufferToImage(command_,textureUploadArena_.handle,image.handle,
+        image.layout,1,&region);
+    ++textureUploadPending_.regions;
+    textureUploadPending_.bytes+=upload.bytes.size();
+    ++textureUploadPending_.deferredRegions;
+    textureUploadPending_.deferredBytes+=upload.bytes.size();
+    // Keep separate copies/transitions in enqueue order, including overlapping
+    // writes to one image. The transfer WAW dependency must not be discarded.
+    Transition(image,VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    offset+=upload.bytes.size();
+  }
+  deferredTextureUploads_.clear();
 }
 RenderResourceHandle<RHITextureSpec>
 VulkanBackend::CreateTexture(const CreateTextureCommand &c) {
@@ -1181,7 +1495,7 @@ VulkanBackend::CreateTexture(const CreateTextureCommand &c) {
                                    : 1;
     auto image =
         MakeImage(c.spec.width, c.spec.height,
-                  FormatOf(c.spec.textureDataStoreType), c.spec.samples, mips);
+                  FormatOf(c.spec.textureDataStoreType), c.spec.samples, mips,c.spec.storage);
     VkSamplerCreateInfo s{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
     s.magFilter = s.minFilter = c.spec.filterMode == RHIFilterMode::Linear
                                     ? VK_FILTER_LINEAR
@@ -1210,8 +1524,11 @@ VulkanBackend::CreateTexture(const CreateTextureCommand &c) {
         return {};
       }
       Upload(image, bytes);
-      if (image.format == VK_FORMAT_R32G32B32A32_SFLOAT)
+      if (image.format == VK_FORMAT_R32G32B32A32_SFLOAT) {
         image.upload = std::move(bytes);
+        image.uploadGeneration=1;
+        image.uploadRowGenerations.assign(image.height,image.uploadGeneration);
+      }
     }
     auto id = nextId_++;
     images_.emplace(id, std::move(image));
@@ -1238,25 +1555,48 @@ bool VulkanBackend::UpdateTexture(const UpdateTextureCommand &c) {
       image->samples != 1 || uint64_t(c.desc.x) + c.desc.width > image->width ||
       uint64_t(c.desc.y) + c.desc.height > image->height)
     return false;
+  HostSpan hostSpan{hostPending_.textureUpdateMilliseconds};
   try {
-    auto bytes = Convert(c.data, c.desc.format, image->format);
+    // Uploads cannot interrupt a recorded frame. In particular, do not destroy
+    // its acceleration structure before Upload rejects the invalid update.
+    if (recording_)
+      throw std::runtime_error(
+          "Vulkan: resource uploads must precede frame recording");
+    const bool deferred=c.desc.deferUntilFrame&&image->mips==1;
+    // Packed RGBA32F data already has the exact destination representation;
+    // avoid scalar conversion and preserve every bit, including signed zero.
+    auto bytes = deferred&&c.desc.format==RHITextureFormat::RGBA32F&&
+        image->format==VK_FORMAT_R32G32B32A32_SFLOAT?c.data:
+        Convert(c.data, c.desc.format, image->format);
     if (bytes.size() !=
         size_t(c.desc.width) * c.desc.height * PixelBytes(image->format))
       return false;
     auto *spec = rhiContext_.resourcePool->TextureTable.Get(c.handle);
-    auto a = acceleration_.find(spec->rhi_id);
-    if (a != acceleration_.end()) {
-      Destroy(a->second);
-      acceleration_.erase(a);
-    }
-    Upload(*image, bytes, c.desc.x, c.desc.y, c.desc.width, c.desc.height);
-    if (!image->upload.empty())
+    for (uint64_t kind = 0; kind < 2; ++kind)
+      if (auto a = acceleration_.find((uint64_t(spec->rhi_id) << 1) | kind);
+          a != acceleration_.end()) {
+        if(kind==1&&(reuseSurfaceCacheAccelerationStorage_||updateSurfaceCacheAccelerationStructures_))a->second.dirty=true;
+        else {
+          HostSpan retirement{hostPending_.accelerationRetirementMilliseconds};
+          Destroy(a->second);
+          acceleration_.erase(a);
+        }
+      }
+    if(deferred) {
+      DeferredTextureUpload upload{spec->rhi_id,c.desc.x,c.desc.y,c.desc.width,c.desc.height,std::move(bytes)};
+      deferredTextureUploads_.push_back(std::move(upload));
+    } else Upload(*image, bytes, c.desc.x, c.desc.y, c.desc.width, c.desc.height);
+    const auto& uploaded=deferred?deferredTextureUploads_.back().bytes:bytes;
+    if (!image->upload.empty()) {
+      ++image->uploadGeneration;
       for (uint32_t y = 0; y < c.desc.height; ++y)
-        std::memcpy(
+        {std::memcpy(
             image->upload.data() + ((c.desc.y + y) * image->width + c.desc.x) *
                                        PixelBytes(image->format),
-            bytes.data() + size_t(y) * c.desc.width * PixelBytes(image->format),
+            uploaded.data() + size_t(y) * c.desc.width * PixelBytes(image->format),
             size_t(c.desc.width) * PixelBytes(image->format));
+         image->uploadRowGenerations[c.desc.y+y]=image->uploadGeneration;}
+    }
     return true;
   } catch (const std::exception &e) {
     std::cerr << e.what() << '\n';
@@ -1267,11 +1607,19 @@ void VulkanBackend::DeleteTexture(const DeleteTextureCommand &c) {
   auto *spec = rhiContext_.resourcePool->TextureTable.Get(c.handle);
   if (!spec)
     return;
-  auto a = acceleration_.find(spec->rhi_id);
-  if (a != acceleration_.end()) {
-    Destroy(a->second);
-    acceleration_.erase(a);
-  }
+  const auto base = uint64_t(spec->rhi_id) << 1;
+  if (recording_ && (acceleration_.contains(base) ||
+      acceleration_.contains(base | 1)))
+    throw std::runtime_error(
+        "Vulkan: ray geometry deletion must follow frame completion");
+  // An accepted deferred update has not been consumed yet. Deleting that
+  // resource cancels its pending copies rather than retaining a dangling id.
+  std::erase_if(deferredTextureUploads_,[&](const auto& upload){return upload.imageId==spec->rhi_id;});
+  for (uint64_t kind = 0; kind < 2; ++kind)
+    if (auto a = acceleration_.find(base | kind); a != acceleration_.end()) {
+      Destroy(a->second);
+      acceleration_.erase(a);
+    }
   Destroy(images_.at(spec->rhi_id));
   images_.erase(spec->rhi_id);
   rhiContext_.resourcePool->TextureTable.Remove(c.handle);
@@ -1280,13 +1628,18 @@ RenderResourceHandle<RenderTargetSpec>
 VulkanBackend::CreateRenderTarget(const CreateRenderTargetCommand &c) {
   auto *color = rhiContext_.resourcePool->TextureTable.Get(c.desc.color);
   auto *depth = rhiContext_.resourcePool->TextureTable.Get(c.desc.depth);
+  std::array<const RHITextureSpec*,3> extras{};
+  for(size_t i=0;i<extras.size();++i){
+    extras[i]=rhiContext_.resourcePool->TextureTable.Get(c.desc.additionalColors[i]);
+    if(c.desc.additionalColors[i].IsValid()&&!extras[i])return {};
+  }
   if (c.desc.color.IsValid() && !color || c.desc.depth.IsValid() && !depth ||
-      !AreRenderTargetAttachmentsCompatible(color, depth))
+      !AreRenderTargetAttachmentsCompatible(color, depth,extras))
     return {};
   auto *dimensions = color ? color : depth;
   return rhiContext_.resourcePool->renderTargetTable.Add(
       RenderTargetSpec{dimensions->width, dimensions->height, nextId_++,
-                       c.desc.color, c.desc.depth, dimensions->samples});
+                       c.desc.color, c.desc.depth, dimensions->samples,c.desc.additionalColors});
 }
 RenderResourceHandle<VertexBufferSpec>
 VulkanBackend::CreateVertexBuffer(const CreateVertexBufferCommand &c) {
@@ -1295,7 +1648,7 @@ VulkanBackend::CreateVertexBuffer(const CreateVertexBufferCommand &c) {
   try {
     Mesh m{};
     m.vertices =
-        MakeBuffer(c.vertexData.size(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+        MakeBuffer(c.vertexData.size(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
     std::memcpy(m.vertices.mapped, c.vertexData.data(), c.vertexData.size());
     if (!c.indexData.empty()) {
       m.indices =
@@ -1328,7 +1681,7 @@ bool VulkanBackend::UpdateVertexBuffer(const UpdateVertexBufferCommand &c) {
   Destroy(m.vertices);
   Destroy(m.indices);
   m.vertices =
-      MakeBuffer(c.vertexData.size(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+      MakeBuffer(c.vertexData.size(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
   std::memcpy(m.vertices.mapped, c.vertexData.data(), c.vertexData.size());
   if (!c.indexData.empty()) {
     m.indices =
@@ -1385,6 +1738,43 @@ void VulkanBackend::UpdateUniformBuffer(
     ++uniformVersions_.at(s->rhi_id);
   }
 }
+VkDescriptorBufferInfo VulkanBackend::ContentUniformSnapshot(uint32_t bufferId,
+    uint64_t version,size_t offset,size_t bytes) {
+  // Only the latest version is needed for CPU lookup. Earlier draws retain
+  // immutable ring bytes, not an entry in this index. Keep every bound range
+  // separate so partial updates and differently sized bindings remain valid.
+  auto [recent,inserted]=recentUniformSnapshots_.try_emplace(std::tuple{bufferId,offset,bytes});
+  if(!inserted&&recent->second.version==version)return recent->second.buffer;
+  ++uniformSnapshotFrame_.contentLookups;
+  const auto* source=uniforms_.at(bufferId).data()+offset;
+  uint64_t hash=14695981039346656037ull^uint64_t(bytes);
+  size_t cursor=0;
+  for(;cursor+sizeof(uint64_t)<=bytes;cursor+=sizeof(uint64_t)) {
+    uint64_t word;std::memcpy(&word,source+cursor,sizeof(word));hash^=word;hash*=1099511628211ull;
+  }
+  if(cursor<bytes){uint64_t word=0;std::memcpy(&word,source+cursor,bytes-cursor);hash^=word;hash*=1099511628211ull;}
+  auto& candidates=uniformContentSnapshots_[FinalSnapshotHash(hash)];
+  VkDescriptorBufferInfo snapshot{};
+  for(const auto& candidate:candidates) {
+    if(candidate.range!=bytes)continue;
+    ++uniformSnapshotFrame_.contentComparisons;
+    if(std::memcmp(static_cast<const std::byte*>(uniformRing_.mapped)+candidate.offset,source,bytes)==0) {
+      snapshot=candidate;++uniformSnapshotFrame_.contentReuses;break;
+    }
+    ++uniformSnapshotFrame_.contentHashCollisions;
+  }
+  if(!snapshot.buffer) {
+    const auto alignment=std::max<VkDeviceSize>(16,properties_.limits.minUniformBufferOffsetAlignment);
+    uniformCursor_=(uniformCursor_+alignment-1)&~(alignment-1);
+    if(uniformCursor_>uniformRing_.bytes||bytes>uniformRing_.bytes-uniformCursor_)
+      throw std::runtime_error("Vulkan: per-frame uniform snapshot budget exceeded");
+    std::memcpy(static_cast<std::byte*>(uniformRing_.mapped)+uniformCursor_,source,bytes);
+    snapshot={uniformRing_.handle,uniformCursor_,bytes};uniformCursor_+=bytes;
+    candidates.push_back(snapshot);
+    ++hostFrame_.uniformSnapshotCopies;uniformSnapshotFrame_.copiedBytes+=bytes;
+  }
+  recent->second={version,snapshot};return snapshot;
+}
 Shader VulkanBackend::Compile(const CreateShaderSourceCommand &c,
                               bool remapVertexDepth) {
   Shader s{};
@@ -1407,6 +1797,10 @@ Shader VulkanBackend::Compile(const CreateShaderSourceCommand &c,
     auto line = source.find('\n');
     source.insert(line + 1, "#extension GL_EXT_ray_query : require\n#define "
                             "RENDER_NATIVE_RAY_QUERY 1\n");
+  }
+  if (shaderFloat64_ && source.find("RENDER_NATIVE_FLOAT64") != std::string::npos) {
+    auto line = source.find('\n');
+    source.insert(line + 1, "#extension GL_ARB_gpu_shader_fp64 : require\n#define RENDER_NATIVE_FLOAT64 1\n");
   }
   if (c.type == ShaderSourceType::Vertex) {
     if (remapVertexDepth) {
@@ -1432,6 +1826,13 @@ Shader VulkanBackend::Compile(const CreateShaderSourceCommand &c,
                       "depth=gl_Position.z;gl_Position.z=(depth+gl_Position.w)*"
                       ".5;EmitVertex();gl_"
                       "Position.z=depth;}\n");
+    // A source helper may emit vertices before main's wrapper definition.
+    // GLSL requires its declaration before that call. Keep preprocessing and
+    // stage layouts intact, and place the prototype before the first function.
+    std::smatch firstFunction;
+    if (std::regex_search(source, firstFunction,
+                          std::regex(R"(\b\w+\s+\w+\s*\([^;{}]*\)\s*\{)")))
+      source.insert(size_t(firstFunction.position()), "void RhiEmitVertex();\n");
   }
   shaderc::Compiler compiler;
   shaderc::CompileOptions options;
@@ -1543,6 +1944,23 @@ VulkanBackend::CreateGraphicShaderProgram(
     if (std::regex_search(p.fragment.source, slot,
                           std::regex(R"(#define\s+RT_GEOMETRY_SLOT\s+(\d+))")))
       p.geometrySlot = std::stoi(slot[1]);
+    if (p.rayQuery && std::regex_search(p.fragment.source, slot,
+          std::regex(R"(#define\s+SC_NATIVE_GEOMETRY_SLOT\s+(\d+))"))) {
+      p.surfaceCacheRayQuery = true;
+      p.geometrySlot = std::stoi(slot[1]);
+      // Surface Cache uses a different UBO from the older world-probe path.
+      // Reflect the actual shader block rather than interpreting safety data
+      // at binding 15 as a ray-scene header.
+      const auto block = ReflectBlock(p.fragment, "SurfaceCacheData");
+      if (!block || !block->offsets.contains("scGeometry"))
+        throw std::runtime_error(
+            "Vulkan: native Surface Cache shader has no geometry constants");
+      p.geometryUniformBinding = block->binding;
+      p.geometryUniformOffset = block->offsets.at("scGeometry");
+    }
+    if (p.rayQuery && (p.geometrySlot < 0 || p.geometrySlot >= 16 ||
+        p.geometryUniformBinding >= 16))
+      throw std::runtime_error("Vulkan: native ray geometry binding is invalid");
     for (uint32_t set = 0; set < 2; ++set) {
       std::vector<VkDescriptorSetLayoutBinding> bindings;
       for (uint32_t b = 0; b < 16; ++b) {
@@ -1597,6 +2015,7 @@ void VulkanBackend::DeleteShaderProgram(const DeleteShaderProgramCommand &c) {
   auto *s = rhiContext_.resourcePool->shaderProgramTable.Get(c.handle);
   if (!s)
     return;
+  descriptorCacheResetRequested_=true;
   auto &p = programs_.at(s->rhi_id);
   vkDestroyPipelineLayout(device_, p.layout, nullptr);
   for (auto l : p.layouts)
@@ -1628,11 +2047,12 @@ VkPipeline VulkanBackend::NativePipeline(const PipelineSpec &s,
                                          uint32_t meshId) {
   auto key =
       std::tuple{pipeline_.id,
-                 current_.color ? current_.color->format : VK_FORMAT_UNDEFINED,
+                 current_.ColorFormats(),
                  current_.depth ? current_.depth->format : VK_FORMAT_UNDEFINED,
                  current_.samples, meshId};
   if (auto i = pipelines_.find(key); i != pipelines_.end())
     return i->second;
+  HostSpan hostSpan{hostFrame_.pipelineCreateMilliseconds};
   auto *programSpec =
       rhiContext_.resourcePool->shaderProgramTable.Get(s.shaderProgram);
   if (!programSpec)
@@ -1730,32 +2150,33 @@ VkPipeline VulkanBackend::NativePipeline(const PipelineSpec &s,
   attachment.colorWriteMask = 15;
   attachment.blendEnable = s.blendEnable && s.blendMode != BlendMode::Opaque;
   attachment.colorBlendOp = attachment.alphaBlendOp = VK_BLEND_OP_ADD;
-  attachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-  attachment.dstColorBlendFactor = s.blendMode == BlendMode::Additive
+  attachment.srcColorBlendFactor = s.blendMode == BlendMode::AdditiveRaw ? VK_BLEND_FACTOR_ONE : VK_BLEND_FACTOR_SRC_ALPHA;
+  attachment.dstColorBlendFactor = (s.blendMode == BlendMode::Additive || s.blendMode == BlendMode::AdditiveRaw)
                                        ? VK_BLEND_FACTOR_ONE
                                        : VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-  attachment.srcAlphaBlendFactor = s.blendMode == BlendMode::AlphaComposite
+  attachment.srcAlphaBlendFactor = (s.blendMode == BlendMode::AlphaComposite || s.blendMode == BlendMode::AdditiveRaw)
                                        ? VK_BLEND_FACTOR_ONE
                                        : VK_BLEND_FACTOR_SRC_ALPHA;
-  attachment.dstAlphaBlendFactor = s.blendMode == BlendMode::Additive
+  attachment.dstAlphaBlendFactor = (s.blendMode == BlendMode::Additive || s.blendMode == BlendMode::AdditiveRaw)
                                        ? VK_BLEND_FACTOR_ONE
                                        : VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
   VkPipelineColorBlendStateCreateInfo blend{
       VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
-  blend.attachmentCount = current_.color ? 1 : 0;
-  blend.pAttachments = &attachment;
+  std::array<VkPipelineColorBlendAttachmentState,4> attachments;
+  attachments.fill(attachment);
+  blend.attachmentCount = current_.ColorCount();
+  blend.pAttachments = attachments.data();
   VkDynamicState dynamics[]{VK_DYNAMIC_STATE_VIEWPORT,
                             VK_DYNAMIC_STATE_SCISSOR};
   VkPipelineDynamicStateCreateInfo dynamic{
       VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO};
   dynamic.dynamicStateCount = 2;
   dynamic.pDynamicStates = dynamics;
-  VkFormat color =
-      current_.color ? current_.color->format : VK_FORMAT_UNDEFINED;
+  const auto colors=current_.ColorFormats();
   VkPipelineRenderingCreateInfo rendering{
       VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO};
-  rendering.colorAttachmentCount = current_.color ? 1 : 0;
-  rendering.pColorAttachmentFormats = &color;
+  rendering.colorAttachmentCount = current_.ColorCount();
+  rendering.pColorAttachmentFormats = colors.data();
   rendering.depthAttachmentFormat =
       current_.depth ? current_.depth->format : VK_FORMAT_UNDEFINED;
   VkGraphicsPipelineCreateInfo pipeline{
@@ -1780,9 +2201,20 @@ VkPipeline VulkanBackend::NativePipeline(const PipelineSpec &s,
   return result;
 }
 Acceleration &VulkanBackend::BuildAcceleration(uint32_t imageId,
-                                               const glm::ivec4 &geometry) {
-  if (auto i = acceleration_.find(imageId); i != acceleration_.end())
-    return i->second;
+                                               const glm::ivec4 &geometry,
+                                               bool surfaceCache) {
+  const auto accelerationKey = (uint64_t(imageId) << 1) | uint64_t(surfaceCache);
+  auto previous=acceleration_.find(accelerationKey);
+  if(previous!=acceleration_.end()&&!previous->second.dirty&&
+      previous->second.primitiveCount==std::uint32_t(std::max(geometry.w,0))&&
+      previous->second.geometryOffset==geometry.x)return previous->second;
+  HostSpan hostSpan{hostFrame_.accelerationPrepareMilliseconds};
+  ++hostFrame_.accelerationBuilds;
+  // This is nested in its first consuming lighting/contact span. Its GPU
+  // duration is diagnostic and must not be added to that parent a second time.
+  const bool timeBuild = surfaceCache && collectGpuTimings_;
+  if (timeBuild)
+    BeginGpuTiming({RHICommand::GpuTimingScope::SurfaceCacheAccelerationBuild});
   EndRendering();
   auto &image = images_.at(imageId);
   size_t count = std::max(geometry.w, 0);
@@ -1790,8 +2222,74 @@ Acceleration &VulkanBackend::BuildAcceleration(uint32_t imageId,
       size_t(geometry.x) + count * 5 > image.upload.size() / 16)
     throw std::runtime_error(
         "Vulkan: ray geometry upload missing or out of bounds");
-  Acceleration a{};
-  a.vertices = MakeBuffer(
+  const bool sparse=surfaceCache&&sparseSurfaceCacheVertexUpdates_;
+  // The texture mirror already receives exact changed rows. Reuse this
+  // provenance rather than comparing all static triangle vertices again.
+  // Each AS remembers its own generation, so multiple uploads and multiple
+  // consumers between builds cannot lose an intermediate changed row.
+  const bool partialVertices=sparse&&previous!=acceleration_.end()&&
+      previous->second.primitiveCount==count&&previous->second.geometryOffset==geometry.x&&
+      previous->second.originalTriangles.size()==count&&
+      image.uploadRowGenerations.size()==image.height;
+  std::vector<std::pair<size_t,size_t>> changedTriangles;
+  if(partialVertices) {
+    const auto firstPixel=size_t(geometry.x),lastPixel=firstPixel+count*5;
+    for(size_t row=firstPixel/image.width;row<image.height&&row*image.width<lastPixel;++row) {
+      if(image.uploadRowGenerations[row]<=previous->second.uploadedGeneration)continue;
+      const auto first=(std::max(row*image.width,firstPixel)-firstPixel)/5;
+      const auto end=std::min(count,(std::min((row+1)*image.width,lastPixel)-firstPixel+4)/5);
+      if(!changedTriangles.empty()&&first<=changedTriangles.back().second)
+        changedTriangles.back().second=std::max(changedTriangles.back().second,end);
+      else changedTriangles.emplace_back(first,end);
+    }
+  } else changedTriangles.emplace_back(0,count);
+  bool updateGeometryValid=surfaceCache&&updateSurfaceCacheAccelerationStructures_;
+  if(updateGeometryValid) {
+    // UPDATE cannot change primitive activity. Only finite triangles enter this
+    // mode; NaN/inactive input falls back to BUILD. The magnitude bound also
+    // keeps the unchanged float-edge expansion below overflow (including its
+    // original float subtractions), so it cannot create an inactive vertex.
+    constexpr float coordinateLimit=std::numeric_limits<float>::max()/8.f;
+    // Previously certified unchanged coordinates keep primitive activity.
+    // A policy transition still validates all input before ALLOW_UPDATE.
+    const bool partialValidation=partialVertices&&previous->second.allowUpdate;
+    const auto validate=[&](size_t first,size_t end) {
+    for(size_t triangle=first;triangle<end&&updateGeometryValid;++triangle)
+      for(size_t vertex=0;vertex<3&&updateGeometryValid;++vertex) {
+        std::array<float,3> position{};
+        std::memcpy(position.data(),image.upload.data()+(geometry.x+triangle*5+vertex)*16,12);
+        for(float coordinate:position)
+          if(!std::isfinite(coordinate)||std::abs(coordinate)>coordinateLimit) {
+            updateGeometryValid=false;break;
+          }
+      }
+    };
+    if(partialValidation)for(const auto& range:changedTriangles)validate(range.first,range.second);
+    else validate(0,count);
+  }
+  const bool retain=surfaceCache&&(reuseSurfaceCacheAccelerationStorage_||updateSurfaceCacheAccelerationStructures_);
+  const bool reuse=retain&&previous!=acceleration_.end()&&
+      previous->second.primitiveCount==count&&previous->second.geometryOffset==geometry.x&&
+      previous->second.allowUpdate==updateGeometryValid;
+  const bool update=reuse&&updateGeometryValid;
+  if(update)++hostFrame_.accelerationUpdates;
+  else ++hostFrame_.accelerationFullBuilds;
+  // The preceding frame fence has retired all reads. This is an ordinary
+  // BUILD/UPDATE may reuse the same destination after completion. UPDATE is
+  // permitted only for an initial ALLOW_UPDATE build with identical topology,
+  // flags and formats; policy/topology changes use a fresh original BUILD.
+  if(previous!=acceleration_.end()&&!reuse) {
+    HostSpan retirement{hostFrame_.accelerationRetirementMilliseconds};
+    Destroy(previous->second);acceleration_.erase(previous);
+  }
+  Acceleration fresh{};
+  auto& a=reuse?previous->second:fresh;
+  if(reuse)++hostFrame_.accelerationStorageReuses;
+  if(!reuse) {
+    a.descriptorIdentity=nextAccelerationDescriptorIdentity_++;
+    if(!a.descriptorIdentity)throw std::runtime_error("Vulkan: acceleration descriptor identity exhausted");
+    hostFrame_.accelerationBufferAllocations+=2;
+    a.vertices = MakeBuffer(
       std::max(size_t(16), count * 3 * 12),
       VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
           VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
@@ -1799,14 +2297,63 @@ Acceleration &VulkanBackend::BuildAcceleration(uint32_t imageId,
       std::max(size_t(16), count * 3 * 4),
       VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
           VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
-  for (size_t t = 0; t < count; ++t)
+  }
+  {
+  HostSpan geometrySpan{hostFrame_.accelerationGeometryMilliseconds};
+  if(!sparse)a.originalTriangles.clear();
+  const bool hasOriginals=sparse&&a.originalTriangles.size()==count;
+  if(sparse&&!hasOriginals)a.originalTriangles.resize(count);
+  // A forced new BUILD needs every vertex even when the old AS had originals.
+  if(!reuse){changedTriangles.clear();changedTriangles.emplace_back(0,count);}
+  for(const auto& changed:changedTriangles)for (size_t t = changed.first; t < changed.second; ++t) {
+    std::array<glm::vec3, 3> vertices{};
+    for (size_t v = 0; v < 3; ++v)
+      std::memcpy(&vertices[v].x,
+                  image.upload.data() + (geometry.x + t * 5 + v) * 16, 12);
+    if(sparse){bool same=hasOriginals;
+      for(size_t v=0;v<3;++v)same&=std::memcmp(&a.originalTriangles[t][v].x,&vertices[v].x,12)==0;
+      if(same)continue;
+      a.originalTriangles[t]=vertices;
+    }
+    if (surfaceCache) {
+      // SCIntersect accepts u >= -eps, v >= -eps, u+v <= 1+eps.
+      // Cover that barycentric domain for native candidate search.
+      // Shading still evaluates the original packed triangle; a candidate
+      // near an edge reuses the software BVH predicate and bounds/tie rules.
+      const auto origin = vertices[0];
+      const glm::dvec3 ab(vertices[1] - origin), ac(vertices[2] - origin);
+      constexpr double epsilon = 1e-6;
+      const std::array<glm::dvec3, 3> deltas{
+          -epsilon * ab - epsilon * ac,
+          epsilon * (2.0 * ab - ac),
+          epsilon * (2.0 * ac - ab)};
+      for (size_t v = 0; v < 3; ++v)
+        for (size_t axis = 0; axis < 3; ++axis) {
+          const double delta = deltas[v][axis];
+          if (delta == 0)
+            continue; // Preserve constant axes of planar triangles.
+          const float original = vertices[v][axis];
+          const double target = double(original) + delta;
+          float expanded = float(target);
+          // Small triangles at a larger world position can have an expansion
+          // below one float ULP. Round outward so it cannot disappear.
+          if (expanded == original || (delta > 0 && double(expanded) < target) ||
+              (delta < 0 && double(expanded) > target))
+            expanded = std::nextafter(expanded, delta > 0 ?
+                std::numeric_limits<float>::infinity() :
+                -std::numeric_limits<float>::infinity());
+          vertices[v][axis] = expanded;
+        }
+    }
     for (size_t v = 0; v < 3; ++v) {
       std::memcpy(static_cast<std::byte *>(a.vertices.mapped) +
                       (t * 3 + v) * 12,
-                  image.upload.data() + (geometry.x + t * 5 + v) * 16, 12);
-      static_cast<uint32_t *>(a.indices.mapped)[t * 3 + v] =
+                  &vertices[v].x, 12);
+      if(!reuse)static_cast<uint32_t *>(a.indices.mapped)[t * 3 + v] =
           uint32_t(t * 3 + v);
     }
+  }
+  }
   auto address = [&](Buffer &b) {
     VkBufferDeviceAddressInfo info{
         VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO};
@@ -1830,29 +2377,37 @@ Acceleration &VulkanBackend::BuildAcceleration(uint32_t imageId,
       VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR};
   build.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
   build.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
-  build.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+  if(updateGeometryValid)build.flags|=VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
+  build.mode = update?VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR:VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
   build.geometryCount = 1;
   build.pGeometries = &tri;
   uint32_t primitiveCount = uint32_t(count);
   VkAccelerationStructureBuildSizesInfoKHR sizes{
       VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR};
-  asSizes_(device_, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &build,
+  if(!reuse)asSizes_(device_, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &build,
            &primitiveCount, &sizes);
+  if(!reuse) {
+  ++hostFrame_.accelerationBufferAllocations;
   a.blasStore =
       MakeBuffer(sizes.accelerationStructureSize,
                  VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR |
                      VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
                  false);
+  }
   VkAccelerationStructureCreateInfoKHR create{
       VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR};
   create.buffer = a.blasStore.handle;
   create.size = sizes.accelerationStructureSize;
   create.type = build.type;
+  if(!reuse) {
   Check(createAS_(device_, &create, nullptr, &a.blas), "create BLAS");
+  ++hostFrame_.accelerationStructureCreations;
+  ++hostFrame_.accelerationBufferAllocations;
   a.instances = MakeBuffer(
       sizeof(VkAccelerationStructureInstanceKHR),
       VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
           VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+  }
   VkAccelerationStructureDeviceAddressInfoKHR ai{
       VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR};
   ai.accelerationStructure = a.blas;
@@ -1862,7 +2417,7 @@ Acceleration &VulkanBackend::BuildAcceleration(uint32_t imageId,
   instance.mask = 255;
   instance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
   instance.accelerationStructureReference = asAddress_(device_, &ai);
-  std::memcpy(a.instances.mapped, &instance, sizeof(instance));
+  if(!reuse)std::memcpy(a.instances.mapped, &instance, sizeof(instance));
   VkAccelerationStructureGeometryKHR inst{
       VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR};
   inst.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
@@ -1875,30 +2430,44 @@ Acceleration &VulkanBackend::BuildAcceleration(uint32_t imageId,
   uint32_t one = 1;
   VkAccelerationStructureBuildSizesInfoKHR topSizes{
       VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR};
-  asSizes_(device_, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &top, &one,
+  if(!reuse)asSizes_(device_, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &top, &one,
            &topSizes);
+  if(!reuse) {
+  ++hostFrame_.accelerationBufferAllocations;
   a.tlasStore =
       MakeBuffer(topSizes.accelerationStructureSize,
                  VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR |
                      VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
                  false);
+  }
   create.buffer = a.tlasStore.handle;
   create.size = topSizes.accelerationStructureSize;
   create.type = top.type;
+  if(!reuse) {
   Check(createAS_(device_, &create, nullptr, &a.tlas), "create TLAS");
+  ++hostFrame_.accelerationStructureCreations;
+  }
   VkPhysicalDeviceAccelerationStructurePropertiesKHR props{
       VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR};
   VkPhysicalDeviceProperties2 p{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
   p.pNext = &props;
-  vkGetPhysicalDeviceProperties2(physical_, &p);
-  auto align = props.minAccelerationStructureScratchOffsetAlignment;
+  if(!reuse) {
+    vkGetPhysicalDeviceProperties2(physical_, &p);
+    a.scratchAlignment=props.minAccelerationStructureScratchOffsetAlignment;
+  }
+  const auto align=a.scratchAlignment;
+  if(!reuse) {
+  ++hostFrame_.accelerationBufferAllocations;
   a.scratch = MakeBuffer(
-      std::max(sizes.buildScratchSize, topSizes.buildScratchSize) + align,
+      std::max({sizes.buildScratchSize,topSizes.buildScratchSize,
+          sizes.updateScratchSize,topSizes.updateScratchSize}) + align,
       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
           VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
       false);
+  }
   auto scratch = (address(a.scratch) + align - 1) & ~VkDeviceAddress(align - 1);
   build.dstAccelerationStructure = a.blas;
+  build.srcAccelerationStructure = update?a.blas:VK_NULL_HANDLE;
   build.scratchData.deviceAddress = scratch;
   VkAccelerationStructureBuildRangeInfoKHR range{};
   range.primitiveCount = primitiveCount;
@@ -1913,15 +2482,21 @@ Acceleration &VulkanBackend::BuildAcceleration(uint32_t imageId,
                        VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
                        0, 1, &barrier, 0, nullptr, 0, nullptr);
   top.dstAccelerationStructure = a.tlas;
+  top.srcAccelerationStructure = update?a.tlas:VK_NULL_HANDLE;
   top.scratchData.deviceAddress = scratch;
   range.primitiveCount = one;
   buildAS_(command_, 1, &top, &ranges);
   barrier.dstAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR;
   vkCmdPipelineBarrier(command_,
                        VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
-                       VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 1, &barrier, 0,
+                       VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT|VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 1, &barrier, 0,
                        nullptr, 0, nullptr);
-  return acceleration_.emplace(imageId, std::move(a)).first->second;
+  if (timeBuild)
+    EndGpuTiming({RHICommand::GpuTimingScope::SurfaceCacheAccelerationBuild});
+  a.dirty=false;a.primitiveCount=uint32_t(count);a.allowUpdate=updateGeometryValid;
+  a.uploadedGeneration=image.uploadGeneration;a.geometryOffset=geometry.x;
+  if(reuse)return previous->second;
+  return acceleration_.emplace(accelerationKey, std::move(fresh)).first->second;
 }
 void VulkanBackend::PrepareDraw() {
   auto *spec = rhiContext_.resourcePool->PipelineTable.Get(pipeline_);
@@ -1956,6 +2531,9 @@ void VulkanBackend::PrepareDraw() {
         if (offset + size > u->byteSize || !size)
           throw std::runtime_error("Vulkan: uniform binding out of bounds");
       }
+      if(reuseUniformSnapshotContents_&&u) {
+        buffers[b]=ContentUniformSnapshot(u->rhi_id,uniformVersions_.at(u->rhi_id),offset,size);
+      } else {
       const auto snapshotKey = std::tuple{
           u ? u->rhi_id : 0u, u ? uniformVersions_.at(u->rhi_id) : uint64_t(0),
           offset, size};
@@ -1979,16 +2557,19 @@ void VulkanBackend::PrepareDraw() {
             snapshotKey,
             VkDescriptorBufferInfo{uniformRing_.handle, uniformCursor_, size})
                        .first;
+        ++hostFrame_.uniformSnapshotCopies;
+        uniformSnapshotFrame_.copiedBytes+=size;
         uniformCursor_ += size;
       }
       buffers[b] = snapshot->second;
+      }
       keys[0][2 + b * 2] = buffers[b].offset;
       keys[0][3 + b * 2] = buffers[b].range;
     }
   for (uint32_t b = 0; b < 16; ++b)
     if (program.bindings[1] & (1u << b)) {
       auto *image = LookupImage(textureBindings_[b]);
-      if (!image || image == current_.color || image == current_.depth ||
+      if (!image || current_.HasColor(image) || image == current_.depth ||
           image->samples != 1)
         image = &fallback_;
       Transition(*image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
@@ -2000,37 +2581,62 @@ void VulkanBackend::PrepareDraw() {
   VkWriteDescriptorSetAccelerationStructureKHR as{
       VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
   if (program.rayQuery) {
+    const auto &binding = uniformBindings_[program.geometryUniformBinding];
     auto *u = rhiContext_.resourcePool->uniformBufferTable.Get(
-        uniformBindings_[15].buffer);
+        binding.buffer);
     auto *image = rhiContext_.resourcePool->TextureTable.Get(
         textureBindings_[program.geometrySlot]);
-    if (!u || !image || u->byteSize < 96 ||
-        uniformBindings_[15].offset > u->byteSize - 96)
+    const auto required = uint64_t(program.geometryUniformOffset) + sizeof(glm::ivec4);
+    if (!u || !image || binding.offset > u->byteSize ||
+        required > u->byteSize - binding.offset ||
+        (binding.size && required > binding.size))
       throw std::runtime_error(
           "Vulkan: hardware ray query missing scene bindings");
     glm::ivec4 geometry;
     std::memcpy(
         &geometry,
-        uniforms_.at(u->rhi_id).data() + uniformBindings_[15].offset + 80, 16);
-    auto &native = BuildAcceleration(image->rhi_id, geometry);
+        uniforms_.at(u->rhi_id).data() + binding.offset +
+            program.geometryUniformOffset, sizeof(geometry));
+    auto &native = BuildAcceleration(image->rhi_id, geometry,
+                                      program.surfaceCacheRayQuery);
     as.accelerationStructureCount = 1;
     as.pAccelerationStructures = &native.tlas;
-    keys[2][2] = image->rhi_id;
+    // An image can retain its logical ID while its TLAS is rebuilt. Native
+    // handle values can also be recycled by the driver; use a lifetime ID.
+    keys[2][2] = native.descriptorIdentity;
   }
   const uint32_t setCount = program.rayQuery ? 3 : 2;
   for (uint32_t set = 0; set < setCount; ++set) {
-    if (auto found = descriptorSnapshots_.find(keys[set]);
-        found != descriptorSnapshots_.end()) {
-      sets[set] = found->second;
-      continue;
+    if(reuseUniformSnapshotContents_) {
+      if(auto found=hashedDescriptorSnapshots_.find(keys[set]);found!=hashedDescriptorSnapshots_.end()) {
+        sets[set]=found->second;++uniformSnapshotFrame_.descriptorCacheHits;continue;
+      }
+    } else {
+      if (auto found = descriptorSnapshots_.find(keys[set]);
+          found != descriptorSnapshots_.end()) {
+        sets[set] = found->second;++uniformSnapshotFrame_.descriptorCacheHits;
+        continue;
+      }
     }
     VkDescriptorSetAllocateInfo alloc{
         VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
-    alloc.descriptorPool = descriptors_;
+    alloc.descriptorPool = activeDescriptors_;
     alloc.descriptorSetCount = 1;
     alloc.pSetLayouts = &program.layouts[set];
-    Check(vkAllocateDescriptorSets(device_, &alloc, &sets[set]),
-          "allocate draw descriptor snapshot");
+    auto allocation=vkAllocateDescriptorSets(device_, &alloc, &sets[set]);
+    if(allocation==VK_ERROR_OUT_OF_POOL_MEMORY||allocation==VK_ERROR_FRAGMENTED_POOL) {
+      // A mode switch may need more fresh descriptors than the retained
+      // prefix leaves available. Never reset sets already recorded this frame.
+      // Keep a bounded overflow pool alive until the next retired frame reset.
+      if(overflowDescriptors_.size()>=3)throw std::runtime_error("Vulkan: draw descriptor overflow budget exceeded");
+      const auto overflow=MakeDrawDescriptorPool();
+      try {overflowDescriptors_.push_back(overflow);}catch(...){vkDestroyDescriptorPool(device_,overflow,nullptr);throw;}
+      activeDescriptors_=overflow;
+      alloc.descriptorPool=activeDescriptors_;
+      allocation=vkAllocateDescriptorSets(device_,&alloc,&sets[set]);
+    }
+    Check(allocation,"allocate draw descriptor snapshot");
+    ++hostFrame_.descriptorAllocations;
     std::array<VkWriteDescriptorSet, 16> writes{};
     uint32_t writeCount = 0;
     if (set < 2) {
@@ -2061,7 +2667,9 @@ void VulkanBackend::PrepareDraw() {
     }
     if (writeCount)
       vkUpdateDescriptorSets(device_, writeCount, writes.data(), 0, nullptr);
-    descriptorSnapshots_.emplace(keys[set], sets[set]);
+    uniformSnapshotFrame_.descriptorWrites+=writeCount;
+    if(reuseUniformSnapshotContents_)hashedDescriptorSnapshots_.emplace(keys[set],sets[set]);
+    else descriptorSnapshots_.emplace(keys[set], sets[set]);
   }
   auto native = NativePipeline(*spec, mesh->rhi_id);
   RenderTarget();
@@ -2090,6 +2698,7 @@ void VulkanBackend::Draw(const RHICommand::Draw &c) {
       c.vertexCount > mesh->vertexCount - c.firstVertex)
     return;
   PrepareDraw();
+  ++hostFrame_.drawCalls;
   vkCmdDraw(command_,
             c.vertexCount ? c.vertexCount : mesh->vertexCount - c.firstVertex,
             c.instanceCount, c.firstVertex, c.firstInstance);
@@ -2101,20 +2710,47 @@ void VulkanBackend::DrawIndexed(const RHICommand::DrawIndexed &c) {
       c.indexCount > mesh->indexCount - c.firstIndex)
     return;
   PrepareDraw();
+  ++hostFrame_.drawCalls;
   vkCmdDrawIndexed(
       command_, c.indexCount ? c.indexCount : mesh->indexCount - c.firstIndex,
       c.instanceCount, c.firstIndex, c.baseVertex, c.firstInstance);
 }
 void VulkanBackend::BeginFrame(const RHICommand::BeginFrame &c) {
+  const auto hostBegin=std::chrono::steady_clock::now();
+  if(!submissionRetired_)throw std::runtime_error("Vulkan: graphics frame reuse before submission retirement");
+  reuseSurfaceCacheAccelerationStorage_=c.reuseSurfaceCacheAccelerationStorage;
+  updateSurfaceCacheAccelerationStructures_=c.updateSurfaceCacheAccelerationStructures;
+  sparseSurfaceCacheVertexUpdates_=c.sparseSurfaceCacheVertexUpdates;
+  reuseUniformSnapshotContents_=c.reuseUniformSnapshotContents;
+  uniformSnapshotFrame_={};uniformSnapshotFrame_.enabled=reuseUniformSnapshotContents_;
+  if(!reuseSurfaceCacheAccelerationStorage_&&!updateSurfaceCacheAccelerationStructures_) {
+    for(auto item=acceleration_.begin();item!=acceleration_.end();) {
+      if((item->first&1)&&item->second.dirty){HostSpan retirement{hostPending_.accelerationRetirementMilliseconds};
+        Destroy(item->second);item=acceleration_.erase(item);}
+      else ++item;
+    }
+  }
   ResizeWindow(std::max(c.framebufferWidth, 1u),
                std::max(c.framebufferHeight, 1u));
-  Check(vkResetDescriptorPool(device_, descriptors_, 0), "reset descriptors");
+  // Only descriptor objects persist. Uniform contents and their immutable
+  // offsets are rebuilt normally in the retired ring on every frame.
+  // Texture/program IDs are monotonic, and AS keys carry a separate lifetime
+  // identity. Resource destruction and resize conservatively request a reset.
+  if(!reuseUniformSnapshotContents_||!descriptorCacheRetained_||descriptorCacheResetRequested_||
+      hashedDescriptorSnapshots_.size()>=4096||!overflowDescriptors_.empty())ResetDrawDescriptorCache();
+  descriptorCacheRetained_=reuseUniformSnapshotContents_;
   uniformCursor_ = 0;
   uniformSnapshots_.clear();
   descriptorSnapshots_.clear();
+  recentUniformSnapshots_.clear();uniformContentSnapshots_.clear();
   mesh_ = {};
   pipeline_ = {};
   StartCommands();
+  textureUploadFrame_=textureUploadPending_;
+  textureUploadPending_={};
+  textureUploadFrame_.stagingCapacityBytes=textureUploadArena_.bytes;
+  hostFrame_=hostPending_;hostPending_={};hostFrame_.frameIndex=c.frameIndex;
+  hostFrameActive_=true;
   collectGpuTimings_ = c.collectGpuTimings;
   timingFrameIndex_ = c.frameIndex;
   timingActive_.fill(false);
@@ -2130,6 +2766,8 @@ void VulkanBackend::BeginFrame(const RHICommand::BeginFrame &c) {
                    c.clearFlags,
                    c.clearColor,
                    c.clearDepth});
+  hostFrame_.frameBeginMilliseconds=HostMilliseconds(hostBegin);
+  hostEncodeBegin_=std::chrono::steady_clock::now();
 }
 void VulkanBackend::BeginGpuTiming(const RHICommand::BeginGpuTiming &c) {
   if (!recording_ || !collectGpuTimings_)
@@ -2163,6 +2801,8 @@ void VulkanBackend::EndGpuTiming(const RHICommand::EndGpuTiming &c) {
 void VulkanBackend::EndFrame(const RHICommand::EndFrame &c) {
   if (!recording_)
     return;
+  const auto hostEndBegin=std::chrono::steady_clock::now();
+  hostFrame_.commandEncodeMilliseconds=std::chrono::duration<double,std::milli>(hostEndBegin-hostEncodeBegin_).count();
   for (bool active : timingActive_)
     if (active)
       throw std::runtime_error("Vulkan: unclosed GPU timing scope");
@@ -2173,6 +2813,7 @@ void VulkanBackend::EndFrame(const RHICommand::EndFrame &c) {
     Present();
   else
     Submit();
+  const auto timestampsBegin=std::chrono::steady_clock::now();
   uint64_t t[2]{};
   Check(vkGetQueryPoolResults(
             device_, timestamps_, 0, 2, sizeof(t), t, sizeof(uint64_t),
@@ -2190,6 +2831,10 @@ void VulkanBackend::EndFrame(const RHICommand::EndFrame &c) {
           "read GPU scope timestamps");
     gpuTimings_[index] = {TimestampMilliseconds(t[0], t[1]), timingFrameIndex_, true};
   }
+  hostFrame_.timestampReadMilliseconds=HostMilliseconds(timestampsBegin);
+  uniformSnapshotFrame_.ringUsedBytes=uniformCursor_;
+  hostFrame_.frameEndMilliseconds=HostMilliseconds(hostEndBegin);
+  hostFrameActive_=false;
 }
 void VulkanBackend::SetRenderTarget(const RHICommand::SetRenderTarget &c) {
   EndRendering();
@@ -2198,7 +2843,7 @@ void VulkanBackend::SetRenderTarget(const RHICommand::SetRenderTarget &c) {
   pipeline_ = {};
   for (auto &binding : textureBindings_) {
     auto *image = LookupImage(binding);
-    if (image && (image == current_.color || image == current_.depth))
+    if (image && (current_.HasColor(image) || image == current_.depth))
       binding = {};
   }
   viewport_ = {0,
@@ -2218,20 +2863,30 @@ void VulkanBackend::ResolveRenderTarget(
   EndRendering();
   auto source = LookupTarget(c.source),
        destination = LookupTarget(c.destination);
-  if (!c.source.IsValid() || !c.destination.IsValid() || source.samples <= 1 ||
+  if (!c.source.IsValid() || !c.destination.IsValid() || (!c.color&&!c.depth) || source.samples <= 1 ||
       destination.samples != 1 || source.width != destination.width ||
       source.height != destination.height)
     throw std::runtime_error("Vulkan: invalid multisample resolve");
-  if (c.color && source.color && destination.color) {
-    Transition(*source.color, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-    Transition(*destination.color, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-    VkImageResolve r{};
-    r.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-    r.dstSubresource = r.srcSubresource;
-    r.extent = {source.width, source.height, 1};
-    vkCmdResolveImage(command_, source.color->handle, source.color->layout,
-                      destination.color->handle, destination.color->layout, 1,
-                      &r);
+  if(c.color){
+    if(!source.ColorCount()||source.ColorCount()!=destination.ColorCount())throw std::runtime_error("Vulkan: resolve color attachment count mismatch");
+    const auto sourceColors=source.Colors(),destinationColors=destination.Colors();
+    // Validate the complete request before recording any partial resolve.
+    for(uint32_t i=0;i<source.ColorCount();++i)
+      if(sourceColors[i]->format!=destinationColors[i]->format)
+        throw std::runtime_error("Vulkan: resolve color attachment format mismatch");
+  }
+  if(c.depth&&(!source.depth||!destination.depth||source.depth->format!=destination.depth->format))
+    throw std::runtime_error("Vulkan: resolve depth attachment mismatch");
+  if(c.color){
+    const auto sourceColors=source.Colors(),destinationColors=destination.Colors();
+    for(uint32_t i=0;i<source.ColorCount();++i){
+      auto &from=*sourceColors[i],&to=*destinationColors[i];
+      Transition(from,VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+      Transition(to,VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+      VkImageResolve r{};r.srcSubresource={VK_IMAGE_ASPECT_COLOR_BIT,0,0,1};
+      r.dstSubresource=r.srcSubresource;r.extent={source.width,source.height,1};
+      vkCmdResolveImage(command_,from.handle,from.layout,to.handle,to.layout,1,&r);
+    }
   }
   if (c.depth && source.depth && destination.depth) {
     Transition(*source.depth, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
@@ -2260,7 +2915,7 @@ VulkanBackend::ReadTexture(RenderResourceHandle<RHITextureSpec> h) {
     return {};
   size_t pixels = size_t(image->width) * image->height;
   Buffer buffer = MakeBuffer(pixels * PixelBytes(image->format),
-                             VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+                             VK_BUFFER_USAGE_TRANSFER_DST_BIT, true, true);
   auto layout = image->layout == VK_IMAGE_LAYOUT_UNDEFINED
                     ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                     : image->layout;
@@ -2277,7 +2932,15 @@ VulkanBackend::ReadTexture(RenderResourceHandle<RHITextureSpec> h) {
   Transition(*image, layout);
   Submit();
   std::vector<float> result(pixels * (image->Depth() ? 1 : 4));
-  for (size_t i = 0; i < result.size(); ++i) {
+  // CPU reads from a write-combined/BAR mapping are extremely expensive.
+  // Prefer coherent cached host memory and copy native floats in one block.
+  if (image->format == VK_FORMAT_R32G32B32A32_SFLOAT || image->format == VK_FORMAT_D32_SFLOAT)
+    std::memcpy(result.data(), buffer.mapped, result.size() * sizeof(float));
+  else if (image->format == VK_FORMAT_R8_UNORM) {
+    // Match GL red-texture sampling/readback: (R,0,0,1).
+    for(size_t i=0;i<pixels;++i){result[i*4]=static_cast<uint8_t*>(buffer.mapped)[i]/255.f;result[i*4+3]=1.f;}
+  }
+  else for (size_t i = 0; i < result.size(); ++i) {
     if (image->format == VK_FORMAT_R8G8B8A8_UNORM)
       result[i] = static_cast<uint8_t *>(buffer.mapped)[i] / 255.f;
     else if (image->format == VK_FORMAT_R16G16B16A16_SFLOAT)
@@ -2292,7 +2955,7 @@ std::vector<uint8_t> VulkanBackend::ReadWindow() {
   if (!windowColor_.width || !windowColor_.height)
     return {};
   size_t bytes = size_t(windowColor_.width) * windowColor_.height * 4;
-  Buffer buffer = MakeBuffer(bytes, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+  Buffer buffer = MakeBuffer(bytes, VK_BUFFER_USAGE_TRANSFER_DST_BIT, true, true);
   StartCommands();
   Transition(windowColor_, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
   VkBufferImageCopy c{};

@@ -48,6 +48,14 @@ void CheckSettings() {
     assert(!ValidateTemporalEffectsSettings(settings));
     settings = {}; settings.motionBlurMaxPixels = -1;
     assert(!ValidateTemporalEffectsSettings(settings));
+    for(float threshold:{0.f,257.f,std::numeric_limits<float>::quiet_NaN(),std::numeric_limits<float>::infinity()}){
+        settings={};settings.hairFastMotionPixels=threshold;
+        assert(!ValidateTemporalEffectsSettings(settings));
+    }
+    for(float duration:{0.f,.251f,std::numeric_limits<float>::quiet_NaN(),std::numeric_limits<float>::infinity()}){
+        settings={};settings.hairMotionBlurShutterSeconds=duration;
+        assert(!ValidateTemporalEffectsSettings(settings));
+    }
     settings = {}; settings.historyWeight = 0.85f; settings.motionBlurSamples = 20;
     const auto constants = MakeTemporalConstants(settings);
     assert(constants.temporal.x == 0.85f && constants.motion.z == 20);

@@ -1,0 +1,38 @@
+{
+  "schema": "pragmata.native-dslut.v1",
+  "sourceSha256": "3fff72ec0bff1e621589961df39142e351321b7c5281e33d0023c7fab0a35d5e",
+  "dimensions": [
+    64,
+    64,
+    16
+  ],
+  "atlas": [
+    64,
+    1024
+  ],
+  "atlasMapping": "(thetaIndex,absorptionIndex*64+roughnessIndex)",
+  "storage": "RGBA16F nearest-even quantization; payload float32 exact half expansion",
+  "params": {
+    "ior": 1.5499999523162842,
+    "f0": 0.04652056470513344,
+    "azimuthalRoughness": 0.800000011920929,
+    "cuticleShift": 0.019999999552965164
+  },
+  "asset": "Asset\\Diana\\hair-dslut.lutbin",
+  "assetSha256": "f994d7de85d43ee476c02f835b20fb60fd9f54cd242e3633cf8fb3cf9cde2570",
+  "texelCount": 65536,
+  "limitations": [
+    "Same source estimator, dimensions and fp16 storage; CPU sin/exp, fast-math reassociation/FMA and half rounding are not native-GPU bit-identity.",
+    "No original game runtime frame/resource capture or complete-game screenshot equivalence is asserted."
+  ],
+  "f0Provenance": {
+    "kind": "native-cpu-writer-recovered",
+    "formula": "float32(((1-IOR)/(1+IOR))^2) with per-instruction float32 rounding",
+    "writer": "0x14035304b..0x140353079 in function0x140352cb0",
+    "materialOffset": 32,
+    "upload": "0x144aec5af..0x144aec5c5 copies224B from owner+0xa10",
+    "evidence": "E:\\REA\\pragmata\\hair_dslut\\native_f0_writer.json",
+    "evidenceSha256": "b83a42ee7513072133285135be49325c40c468989e79b2cd6217c62e095ae0f4",
+    "profileValueBitEqual": true
+  }
+}

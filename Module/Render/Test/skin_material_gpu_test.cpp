@@ -33,11 +33,12 @@ layout(location=1) in vec2 uv;
 out vec3 vWorldPosition;
 out vec3 vWorldNormal;
 out vec2 vTexCoord;
+out vec2 vTexCoord1;
 out vec4 vWorldTangent;
 void main() {
     gl_Position=vec4(position,0,1);
     vWorldPosition=vec3(0); vWorldNormal=vec3(0,0,1);
-    vTexCoord=uv; vWorldTangent=vec4(1,0,0,1);
+    vTexCoord=uv; vTexCoord1=vTexCoord; vWorldTangent=vec4(1,0,0,1);
 }
 )GLSL";
 }
